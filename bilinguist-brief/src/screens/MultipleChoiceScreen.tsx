@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -78,12 +79,12 @@ export function MultipleChoiceScreen() {
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Multiple Choice" current={questions.length} total={questions.length} />
         <View style={styles.center}>
-          <Text style={styles.doneEmoji}>🎯</Text>
+          <Ionicons name="checkmark-done-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{questions.length} correct
           </Text>
           <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-            🔥 {streak} day streak
+            {streak} day streak
           </Text>
           <TouchableOpacity
             style={[styles.doneButton, { backgroundColor: colors.accentGold }]}
@@ -194,7 +195,6 @@ const styles = StyleSheet.create({
   optionText: { flex: 1, lineHeight: 22 },
   nextButton: { borderRadius: 8, padding: 14, alignItems: 'center', marginTop: Spacing.sm },
   nextButtonText: { color: '#FFF', fontSize: 16 },
-  doneEmoji: { fontSize: 48 },
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
   doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },

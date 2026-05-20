@@ -58,7 +58,7 @@ export function TopBar() {
             style={[styles.langButton, { borderColor: colors.borderMid }]}
             onPress={() => setDropdownOpen(true)}
           >
-            <Text style={[styles.langFlag]}>{currentLang?.flag ?? '🌐'}</Text>
+            <Text style={[styles.langFlag]}>{currentLang?.flag ?? ''}</Text>
             <Ionicons name="chevron-down" size={12} color={colors.inkLight} style={{ marginLeft: 2 }} />
           </TouchableOpacity>
         ) : (

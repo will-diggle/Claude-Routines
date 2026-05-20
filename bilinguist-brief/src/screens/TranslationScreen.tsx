@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -67,11 +68,11 @@ export function TranslationScreen() {
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} />
         <View style={styles.center}>
-          <Text style={styles.doneEmoji}>🔁</Text>
+          <Ionicons name="repeat-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{eligible.length} correct
           </Text>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>🔥 {streak} day streak</Text>
+          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
           <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
@@ -149,7 +150,7 @@ export function TranslationScreen() {
         ) : (
           <View style={[styles.result, { backgroundColor: isCorrect ? '#43A04715' : '#E5393515', borderColor: isCorrect ? '#43A047' : '#E53935' }]}>
             <Text style={[styles.resultMark, { color: isCorrect ? '#43A047' : '#E53935', fontFamily: fontFamily.bold }]}>
-              {isCorrect ? '✓ Correct!' : `✗ Answer: ${answer}`}
+              {isCorrect ? 'Correct!' : `Answer: ${answer}`}
             </Text>
             {!isCorrect && input.trim() ? (
               <Text style={[styles.yourAnswer, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
@@ -199,7 +200,6 @@ const styles = StyleSheet.create({
   yourAnswer: { fontSize: 13 },
   actionButton: { borderRadius: 8, padding: 14, alignItems: 'center' },
   actionButtonText: { color: '#FFF', fontSize: 16 },
-  doneEmoji: { fontSize: 48 },
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
   doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },

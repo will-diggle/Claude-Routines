@@ -46,7 +46,7 @@ export function PaywallScreen({ onClose }: Props) {
   function handlePromoSubmit() {
     const result = applyPromoCode(promoInput);
     if (result === 'success') {
-      Alert.alert('✓ Access unlocked', 'You now have full access to Bilinguist Brief.');
+      Alert.alert('Access unlocked', 'You now have full access to Bilinguist Brief.');
       onClose?.();
     } else if (result === 'already_active') {
       Alert.alert('Already active', 'You already have full access.');

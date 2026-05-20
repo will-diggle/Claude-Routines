@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -70,11 +71,11 @@ export function FillBlankScreen() {
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Fill in the Blank" current={eligible.length} total={eligible.length} />
         <View style={styles.center}>
-          <Text style={styles.doneEmoji}>✏️</Text>
+          <Ionicons name="pencil-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{eligible.length} correct
           </Text>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>🔥 {streak} day streak</Text>
+          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
           <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
@@ -147,7 +148,7 @@ export function FillBlankScreen() {
         ) : (
           <View style={[styles.result, { backgroundColor: isCorrect ? '#43A04715' : '#E5393515', borderColor: isCorrect ? '#43A047' : '#E53935' }]}>
             <Text style={[styles.resultText, { color: isCorrect ? '#43A047' : '#E53935', fontFamily: fontFamily.bold }]}>
-              {isCorrect ? '✓ Correct!' : `✗ The answer was: ${card.word}`}
+              {isCorrect ? 'Correct!' : `The answer was: ${card.word}`}
             </Text>
           </View>
         )}
@@ -211,7 +212,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: { color: '#FFF', fontSize: 16 },
-  doneEmoji: { fontSize: 48 },
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
   doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },

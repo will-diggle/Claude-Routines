@@ -146,6 +146,7 @@ export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const store = useSettingsStore();
   const { setDev } = useSubscriptionStore();
+  const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
@@ -192,6 +193,31 @@ export function SettingsScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {/* ── Tab switcher ── */}
+      <View style={[tabStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}>
+        {(['reading', 'display'] as const).map((tab, i) => {
+          const selected = activeTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[
+                tabStyles.tab,
+                selected && { backgroundColor: colors.accentGold },
+                i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
+              ]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[tabStyles.label, { fontFamily: fontFamily.regular, color: selected ? '#FFF' : colors.inkMid }]}>
+                {tab === 'reading' ? 'Reading' : 'Display'}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* ── Reading tab ── */}
+      {activeTab === 'reading' && (
+        <>
       {/* ── Language Preferences ── */}
       <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
@@ -314,7 +340,12 @@ export function SettingsScreen() {
         />
       </View>
 
-      {/* ── Display Preferences ── */}
+        </>
+      )}
+
+      {/* ── Display tab ── */}
+      {activeTab === 'display' && (
+        <>
       <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
 
       <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
@@ -370,11 +401,14 @@ export function SettingsScreen() {
         fontFamily={fontFamily}
       />
 
+        </>
+      )}
+
       {/* ── Developer ── */}
       <View style={styles.devSection}>
         <TouchableOpacity onPress={handleDevTap} style={styles.devTap}>
           <Text style={[styles.devText, { color: colors.inkFaint }]}>
-            {store.developerMode ? '⚙️ Developer mode: ON — tap to disable' : '·  ·  ·'}
+            {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -519,6 +553,24 @@ const styles = StyleSheet.create({
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },
+});
+
+const tabStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  label: { fontSize: 14 },
 });
 
 const sectionStyles = StyleSheet.create({

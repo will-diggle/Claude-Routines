@@ -11,11 +11,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type PracticeNav = NativeStackNavigationProp<PracticeStackParamList, 'PracticeHome'>;
 
-const PILE_META: Array<{ key: Pile; label: string; emoji: string; description: string }> = [
-  { key: 'new', label: 'New Words', emoji: '🆕', description: 'Just saved, never practised' },
-  { key: 'learning', label: 'Learning', emoji: '🔄', description: 'Practised but not yet consistent' },
-  { key: 'mastered', label: 'Mastered', emoji: '✅', description: 'Consistently correct' },
-  { key: 'revisit', label: 'Revisit', emoji: '🔁', description: 'Due for a refresher' },
+const PILE_META: Array<{ key: Pile; label: string; icon: any; description: string }> = [
+  { key: 'new', label: 'New Words', icon: 'add-circle-outline', description: 'Just saved, never practised' },
+  { key: 'learning', label: 'Learning', icon: 'refresh-outline', description: 'Practised but not yet consistent' },
+  { key: 'mastered', label: 'Mastered', icon: 'checkmark-circle-outline', description: 'Consistently correct' },
+  { key: 'revisit', label: 'Revisit', icon: 'time-outline', description: 'Due for a refresher' },
 ];
 
 const GAMES: Array<{
@@ -69,7 +69,7 @@ export function PracticeScreen() {
               },
             ]}
           >
-            <Text style={styles.pileEmoji}>{pile.emoji}</Text>
+            <Ionicons name={pile.icon} size={22} color={colors.accentGold} style={{ marginBottom: Spacing.xs }} />
             <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {pileCounts[pile.key]}
             </Text>
@@ -136,7 +136,7 @@ export function PracticeScreen() {
               </View>
               <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
                 <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {PILE_META.find((p) => p.key === w.pile)?.emoji} {w.pile}
+                  {w.pile}
                 </Text>
               </View>
             </View>
@@ -180,7 +180,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     alignItems: 'center',
   },
-  pileEmoji: { fontSize: 24, marginBottom: Spacing.xs },
   pileCount: { fontSize: 28, lineHeight: 34 },
   pileLabel: { fontSize: 13, marginTop: 2 },
   pileDesc: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 15 },

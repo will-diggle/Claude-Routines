@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -61,19 +61,19 @@ export function FlashcardsScreen() {
         <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} />
 
         <View style={styles.center}>
-          <Text style={[styles.doneEmoji]}>🎉</Text>
+          <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             Session complete
           </Text>
 
           <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <StatRow emoji="✅" label="Got it" value={results.correct} colors={colors} fontFamily={fontFamily} />
-            <StatRow emoji="🔄" label="Nearly" value={results.nearly} colors={colors} fontFamily={fontFamily} />
-            <StatRow emoji="❌" label="No idea" value={results.missed} colors={colors} fontFamily={fontFamily} />
+            <StatRow iconName="checkmark-circle-outline" iconColor="#43A047" label="Got it" value={results.correct} colors={colors} fontFamily={fontFamily} />
+            <StatRow iconName="refresh-outline" iconColor={colors.inkFaint} label="Nearly" value={results.nearly} colors={colors} fontFamily={fontFamily} />
+            <StatRow iconName="close-circle-outline" iconColor="#E53935" label="No idea" value={results.missed} colors={colors} fontFamily={fontFamily} />
           </View>
 
           <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-            🔥 {streak} day streak
+            {streak} day streak
           </Text>
 
           <TouchableOpacity
@@ -158,28 +158,28 @@ export function FlashcardsScreen() {
       {/* Mark buttons */}
       {revealed && (
         <View style={[styles.markRow, { paddingBottom: insets.bottom + Spacing.lg, borderTopColor: colors.borderLight, backgroundColor: colors.bg }]}>
-          <MarkButton label="No idea" emoji="❌" onPress={() => handleMark('no')} colors={colors} fontFamily={fontFamily} tint="#E53935" />
-          <MarkButton label="Nearly" emoji="🔄" onPress={() => handleMark('nearly')} colors={colors} fontFamily={fontFamily} tint={colors.inkFaint} />
-          <MarkButton label="Got it!" emoji="✅" onPress={() => handleMark('got')} colors={colors} fontFamily={fontFamily} tint="#43A047" />
+          <MarkButton label="No idea" iconName="close-circle-outline" onPress={() => handleMark('no')} colors={colors} fontFamily={fontFamily} tint="#E53935" />
+          <MarkButton label="Nearly" iconName="refresh-outline" onPress={() => handleMark('nearly')} colors={colors} fontFamily={fontFamily} tint={colors.inkFaint} />
+          <MarkButton label="Got it!" iconName="checkmark-circle-outline" onPress={() => handleMark('got')} colors={colors} fontFamily={fontFamily} tint="#43A047" />
         </View>
       )}
     </View>
   );
 }
 
-function MarkButton({ label, emoji, onPress, colors, fontFamily, tint }: any) {
+function MarkButton({ label, iconName, onPress, colors, fontFamily, tint }: any) {
   return (
     <TouchableOpacity style={[styles.markButton, { borderColor: tint + '55' }]} onPress={onPress}>
-      <Text style={styles.markEmoji}>{emoji}</Text>
+      <Ionicons name={iconName} size={22} color={tint} />
       <Text style={[styles.markLabel, { color: tint, fontFamily: fontFamily.regular }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function StatRow({ emoji, label, value, colors, fontFamily }: any) {
+function StatRow({ iconName, iconColor, label, value, colors, fontFamily }: any) {
   return (
     <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-      <Text style={styles.statEmoji}>{emoji}</Text>
+      <Ionicons name={iconName} size={20} color={iconColor} style={{ width: 28 }} />
       <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
       <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
     </View>
@@ -237,9 +237,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 4,
   },
-  markEmoji: { fontSize: 20 },
   markLabel: { fontSize: 12 },
-  doneEmoji: { fontSize: 48 },
   doneTitle: { textAlign: 'center' },
   statsBox: {
     width: '100%',
@@ -255,7 +253,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing.md,
   },
-  statEmoji: { fontSize: 20, width: 28 },
   statLabel: { flex: 1, fontSize: 15 },
   statValue: { fontSize: 20 },
   streakText: { fontSize: 20 },
