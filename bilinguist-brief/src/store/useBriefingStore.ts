@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateBriefing, type GeneratedBriefing } from '../services/anthropic';
+import { generateBriefing, generateFreeBriefing, type GeneratedBriefing } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
 
@@ -36,7 +36,8 @@ interface BriefingStore {
     level: LanguageLevel,
     briefingLength: BriefingLength,
     topics: Record<string, boolean>,
-    forceRefresh?: boolean
+    forceRefresh?: boolean,
+    isFreeUser?: boolean
   ) => Promise<void>;
 
   loadWeather: (language: LanguageCode) => Promise<void>;
@@ -58,14 +59,16 @@ export const useBriefingStore = create<BriefingStore>()(
         set({ weather, isLoadingWeather: false });
       },
 
-      loadBriefing: async (language, level, briefingLength, topics, forceRefresh = false) => {
+      loadBriefing: async (language, level, briefingLength, topics, forceRefresh = false, isFreeUser = false) => {
         const today = todayString();
-        const key = cacheKey(today, language, level);
+        const tierSuffix = isFreeUser ? '_free' : '_paid';
+        const key = cacheKey(today, language, level) + tierSuffix;
 
         // Use cached briefing if available and not forcing refresh
         if (!forceRefresh) {
           const cached = get().briefing;
-          if (cached && cached.date === today && cached.language === language && cached.level === level) {
+          const tierMatches = isFreeUser ? !!cached?.isFree : !cached?.isFree;
+          if (cached && cached.date === today && cached.language === language && cached.level === level && tierMatches) {
             return;
           }
 
@@ -85,11 +88,14 @@ export const useBriefingStore = create<BriefingStore>()(
         set({ isGenerating: true, error: null });
 
         try {
-          const enabledTopics = Object.entries(topics)
-            .filter(([, enabled]) => enabled)
-            .map(([k]) => TOPIC_LABELS[k] ?? k);
-
-          const result = await generateBriefing(language, level, briefingLength, enabledTopics);
+          const result = isFreeUser
+            ? await generateFreeBriefing(language, level)
+            : await generateBriefing(
+                language,
+                level,
+                briefingLength,
+                Object.entries(topics).filter(([, on]) => on).map(([k]) => TOPIC_LABELS[k] ?? k)
+              );
 
           // Cache to AsyncStorage
           await AsyncStorage.setItem(key, JSON.stringify(result));

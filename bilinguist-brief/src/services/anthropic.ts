@@ -6,8 +6,16 @@ export interface BriefingArticle {
   body: string;
 }
 
+export interface BriefingTeaser {
+  section: string;
+  headline: string;
+  teaser: string;
+}
+
 export interface GeneratedBriefing {
   articles: BriefingArticle[];
+  teasers?: BriefingTeaser[];
+  isFree?: boolean;
   date: string;
   language: LanguageCode;
   level: LanguageLevel;
@@ -127,6 +135,61 @@ function extractJSON(raw: string): BriefingArticle[] {
   if (!Array.isArray(json.articles)) throw new Error('Invalid briefing JSON structure');
 
   return json.articles as BriefingArticle[];
+}
+
+export async function generateFreeBriefing(
+  language: LanguageCode,
+  level: LanguageLevel
+): Promise<GeneratedBriefing> {
+  const date = new Date().toISOString().split('T')[0];
+
+  const system = `You are the editor of Bilinguist Brief, a language learning newspaper app.
+
+Write today's free preview edition. The reader is learning ${LANGUAGE_NAMES[language]} at ${level} level (${LEVEL_DESCRIPTIONS[level]}).
+
+Rules:
+1. Write ENTIRELY in ${LANGUAGE_NAMES[language]}.
+2. Use vocabulary appropriate for ${level} level.
+3. Search for REAL, CURRENT news from Reuters, AP News, BBC, The Guardian, Financial Times.
+4. NEVER reproduce text verbatim. Always rewrite in your own words.
+
+Return ONLY valid JSON — no markdown, no preamble:
+{
+  "featured": { "section": "World News", "headline": "...", "body": "..." },
+  "teasers": [
+    { "section": "Politics", "headline": "...", "teaser": "One sentence only." },
+    { "section": "Business", "headline": "...", "teaser": "One sentence only." },
+    { "section": "Science & Technology", "headline": "...", "teaser": "One sentence only." },
+    { "section": "Arts & Culture", "headline": "...", "teaser": "One sentence only." },
+    { "section": "Good News", "headline": "...", "teaser": "One sentence only." }
+  ]
+}`;
+
+  const user = `Today's date: ${date}
+
+Generate:
+- 1 featured World News article with a headline and 3-sentence body (~60 words)
+- 5 teaser headlines from different categories (headline + exactly 1 sentence teaser each)
+
+Search for real current news stories.`;
+
+  const raw = await callClaude(system, user);
+  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON in free briefing response');
+
+  const json = JSON.parse(cleaned.slice(start, end + 1));
+
+  return {
+    articles: [json.featured as BriefingArticle],
+    teasers: json.teasers as BriefingTeaser[],
+    isFree: true,
+    date,
+    language,
+    level,
+    generatedAt: Date.now(),
+  };
 }
 
 export async function generateBriefing(

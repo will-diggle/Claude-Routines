@@ -12,14 +12,17 @@ interface Props {
   isLast: boolean;
   language: LanguageCode;
   level: LanguageLevel;
+  locked?: boolean;
+  onLockedWordPress?: () => void;
 }
 
-export function BriefingArticle({ article, isLast, language, level }: Props) {
+export function BriefingArticle({ article, isLast, language, level, locked, onLockedWordPress }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
 
   function handleWordPress(word: string, sentence: string) {
+    if (locked) { onLockedWordPress?.(); return; }
     setActiveWord(word);
     setActiveSentence(sentence);
   }

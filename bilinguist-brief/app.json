@@ -33,7 +33,15 @@
     },
     "plugins": [
       "expo-font",
-      "expo-location"
+      "expo-location",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#F5F0E8",
+          "sounds": []
+        }
+      ]
     ]
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore, LanguageLevel } from '../store/useSettingsStore';
+import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
+import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
 import {
   FontFamilies,
   FontSizes,
@@ -92,11 +94,13 @@ function SegmentedControl({
 function TimeInput({
   value,
   onChange,
+  onCommit,
   colors,
   fontFamily,
 }: {
   value: string;
   onChange: (v: string) => void;
+  onCommit?: () => void;
   colors: any;
   fontFamily: any;
 }) {
@@ -111,6 +115,7 @@ function TimeInput({
         const clean = text.replace(/[^0-9:]/g, '');
         onChange(clean);
       }}
+      onEndEditing={onCommit}
       placeholder="HH:MM"
       placeholderTextColor={colors.inkFaint}
       keyboardType="numbers-and-punctuation"
@@ -140,6 +145,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const store = useSettingsStore();
+  const { setDev } = useSubscriptionStore();
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
@@ -149,6 +155,7 @@ export function SettingsScreen() {
   function handleDevTap() {
     if (store.developerMode) {
       store.setDeveloperMode(false);
+      setDev(false);
       return;
     }
     setDevCodeInput('');
@@ -158,6 +165,7 @@ export function SettingsScreen() {
   function handleDevCodeSubmit() {
     if (devCodeInput.trim().toUpperCase() === DEV_CODE) {
       store.setDeveloperMode(true);
+      setDev(true);
       setDevModalVisible(false);
     } else {
       Alert.alert('Incorrect code', 'Please try again.');
@@ -284,6 +292,7 @@ export function SettingsScreen() {
         <TimeInput
           value={store.briefingNotificationTime}
           onChange={store.setBriefingNotificationTime}
+          onCommit={() => scheduleBriefingNotification(store.briefingNotificationTime)}
           colors={colors}
           fontFamily={fontFamily}
         />
@@ -299,6 +308,7 @@ export function SettingsScreen() {
         <TimeInput
           value={store.practiceNotificationTime}
           onChange={store.setPracticeNotificationTime}
+          onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
           colors={colors}
           fontFamily={fontFamily}
         />

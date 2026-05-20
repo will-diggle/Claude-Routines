@@ -7,12 +7,12 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore } from '../store/useWordBankStore';
+import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { translateWord } from '../services/deepl';
 import { explainWord } from '../services/wordLookup';
 import { Spacing } from '../theme';
@@ -31,6 +31,8 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const { saveWord, isWordSaved } = useWordBankStore();
+  const { isFullAccess } = useSubscriptionStore();
+  const fullAccess = isFullAccess();
 
   const [translation, setTranslation] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -134,17 +136,26 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
             "{sentence}"
           </Text>
 
-          {/* Tell me more */}
+          {/* Tell me more — paid only */}
           {!explanation && !isExplaining && (
-            <TouchableOpacity
-              style={[styles.tellMore, { borderColor: colors.borderMid }]}
-              onPress={handleTellMeMore}
-            >
-              <Ionicons name="sparkles-outline" size={16} color={colors.accentGold} />
-              <Text style={[styles.tellMoreText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
-                Tell me more
-              </Text>
-            </TouchableOpacity>
+            fullAccess ? (
+              <TouchableOpacity
+                style={[styles.tellMore, { borderColor: colors.borderMid }]}
+                onPress={handleTellMeMore}
+              >
+                <Ionicons name="sparkles-outline" size={16} color={colors.accentGold} />
+                <Text style={[styles.tellMoreText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
+                  Tell me more
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.tellMore, { borderColor: colors.borderLight, opacity: 0.6 }]}>
+                <Ionicons name="lock-closed-outline" size={14} color={colors.inkFaint} />
+                <Text style={[styles.tellMoreText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Tell me more · upgrade to unlock
+                </Text>
+              </View>
+            )
           )}
 
           {isExplaining && (
