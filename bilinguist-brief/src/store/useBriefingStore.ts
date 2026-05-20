@@ -3,7 +3,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateBriefing, generateFreeBriefing, type GeneratedBriefing } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
+import { getMockBriefing } from '../data/mockBriefings';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
+import { useSettingsStore } from './useSettingsStore';
 
 const TOPIC_LABELS: Record<string, string> = {
   worldNews: 'World News',
@@ -83,6 +85,13 @@ export const useBriefingStore = create<BriefingStore>()(
           } catch {
             // Cache miss — continue to generate
           }
+        }
+
+        // Developer mock mode — instant, no API call
+        if (useSettingsStore.getState().developerMode) {
+          const mock = getMockBriefing(language, level, briefingLength, isFreeUser);
+          set({ briefing: mock, isGenerating: false, error: null });
+          return;
         }
 
         set({ isGenerating: true, error: null });
