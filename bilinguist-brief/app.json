@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Bilinguist Brief",
+    "slug": "bilinguist-brief",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F0E8"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bilinguistbrief.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Bilinguist Brief uses your location to show the local weather in your morning briefing."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F5F0E8"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.bilinguistbrief.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
