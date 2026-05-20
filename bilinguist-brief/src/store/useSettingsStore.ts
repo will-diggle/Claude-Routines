@@ -26,6 +26,7 @@ export interface Topics {
   countryNews: boolean;
   scienceTech: boolean;
   business: boolean;
+  [key: string]: boolean;
 }
 
 export interface Settings {
