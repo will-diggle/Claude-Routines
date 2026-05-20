@@ -138,6 +138,8 @@ export function BriefingScreen() {
               key={`${article.section}-${index}`}
               article={article}
               isLast={index === briefing.articles.length - 1}
+              language={language}
+              level={level}
             />
           ))}
 

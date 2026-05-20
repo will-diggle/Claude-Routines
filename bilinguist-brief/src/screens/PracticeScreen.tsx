@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
+import { useWordBankStore, type Pile } from '../store/useWordBankStore';
 import { Spacing } from '../theme';
 
-const WORD_PILES = [
-  { key: 'new', label: 'New Words', emoji: '🆕', count: 0, description: 'Just saved, never practised' },
-  { key: 'learning', label: 'Learning', emoji: '🔄', count: 0, description: 'Practised but not yet consistent' },
-  { key: 'mastered', label: 'Mastered', emoji: '✅', count: 0, description: 'Consistently correct' },
-  { key: 'revisit', label: 'Revisit', emoji: '🔁', count: 0, description: 'Due for a refresher' },
+const PILE_META: Array<{ key: Pile; label: string; emoji: string; description: string }> = [
+  { key: 'new', label: 'New Words', emoji: '🆕', description: 'Just saved, never practised' },
+  { key: 'learning', label: 'Learning', emoji: '🔄', description: 'Practised but not yet consistent' },
+  { key: 'mastered', label: 'Mastered', emoji: '✅', description: 'Consistently correct' },
+  { key: 'revisit', label: 'Revisit', emoji: '🔁', description: 'Due for a refresher' },
 ];
 
 const GAMES = [
@@ -20,25 +21,23 @@ const GAMES = [
 
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
+  const { counts, words } = useWordBankStore();
+  const pileCounts = counts();
+  const totalWords = words.length;
+  const hasWords = totalWords > 0;
 
   return (
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
     >
-      {/* Streak */}
-      <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-        <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>0</Text>
-        <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
-      </View>
-
       {/* Word bank section */}
       <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
         WORD BANK
       </Text>
 
       <View style={[styles.pilesGrid, { borderColor: colors.borderLight }]}>
-        {WORD_PILES.map((pile, index) => (
+        {PILE_META.map((pile, index) => (
           <TouchableOpacity
             key={pile.key}
             style={[
@@ -52,8 +51,12 @@ export function PracticeScreen() {
             ]}
           >
             <Text style={styles.pileEmoji}>{pile.emoji}</Text>
-            <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{pile.count}</Text>
-            <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{pile.label}</Text>
+            <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              {pileCounts[pile.key]}
+            </Text>
+            <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+              {pile.label}
+            </Text>
             <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
           </TouchableOpacity>
         ))}
@@ -64,55 +67,72 @@ export function PracticeScreen() {
         PRACTICE GAMES
       </Text>
 
-      <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-        Save words from your briefing to unlock practice games.
-      </Text>
+      {!hasWords && (
+        <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+          Tap words in your briefing to save them here, then use games to practise.
+        </Text>
+      )}
 
       {GAMES.map((game) => (
         <TouchableOpacity
           key={game.key}
           style={[styles.gameRow, { borderBottomColor: colors.borderLight }]}
-          disabled
+          disabled={!hasWords}
+          activeOpacity={hasWords ? 0.7 : 1}
         >
-          <View style={[styles.gameIcon, { backgroundColor: colors.borderLight }]}>
-            <Ionicons name={game.icon} size={20} color={colors.inkLight} />
+          <View style={[styles.gameIcon, { backgroundColor: hasWords ? colors.accentGold + '22' : colors.borderLight }]}>
+            <Ionicons name={game.icon} size={20} color={hasWords ? colors.accentGold : colors.inkLight} />
           </View>
           <View style={styles.gameText}>
-            <Text style={[styles.gameName, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+            <Text style={[styles.gameName, { color: hasWords ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
               {game.label}
             </Text>
             <Text style={[styles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
           </View>
-          <Ionicons name="lock-closed-outline" size={16} color={colors.inkFaint} />
+          {hasWords
+            ? <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+            : <Ionicons name="lock-closed-outline" size={16} color={colors.inkFaint} />
+          }
         </TouchableOpacity>
       ))}
+
+      {/* Recent words preview */}
+      {hasWords && (
+        <>
+          <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
+            RECENTLY SAVED
+          </Text>
+          {words.slice(0, 5).map((w) => (
+            <View key={w.id} style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
+                  {w.word}
+                </Text>
+                {w.translation ? (
+                  <Text style={[styles.wordTranslation, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                    {w.translation}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
+                <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  {PILE_META.find((p) => p.key === w.pile)?.emoji} {w.pile}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
-    paddingBottom: 40,
-  },
-  streakBanner: {
-    alignItems: 'center',
-    paddingVertical: Spacing.lg,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: Spacing.xl,
-  },
-  streakNumber: {
-    fontSize: 48,
-    lineHeight: 54,
-  },
-  streakLabel: {
-    fontSize: 14,
-    letterSpacing: 0.5,
+    paddingBottom: 48,
   },
   sectionLabel: {
     fontSize: 11,
@@ -131,29 +151,11 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     alignItems: 'center',
   },
-  pileEmoji: {
-    fontSize: 24,
-    marginBottom: Spacing.xs,
-  },
-  pileCount: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  pileLabel: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  pileDesc: {
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  emptyNote: {
-    fontSize: 14,
-    marginBottom: Spacing.md,
-    lineHeight: 20,
-  },
+  pileEmoji: { fontSize: 24, marginBottom: Spacing.xs },
+  pileCount: { fontSize: 28, lineHeight: 34 },
+  pileLabel: { fontSize: 13, marginTop: 2 },
+  pileDesc: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 15 },
+  emptyNote: { fontSize: 14, marginBottom: Spacing.md, lineHeight: 22 },
   gameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,14 +170,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gameText: {
-    flex: 1,
+  gameText: { flex: 1 },
+  gameName: { lineHeight: 22 },
+  gameDesc: { fontSize: 12, marginTop: 1 },
+  wordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
   },
-  gameName: {
-    lineHeight: 22,
+  wordText: {},
+  wordTranslation: { fontSize: 13, marginTop: 2 },
+  pileBadge: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  gameDesc: {
-    fontSize: 12,
-    marginTop: 1,
-  },
+  pileBadgeText: { fontSize: 11 },
 });

@@ -1,16 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
+import { TappableText } from './TappableText';
+import { WordPopup } from './WordPopup';
 import type { BriefingArticle as Article } from '../services/anthropic';
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 interface Props {
   article: Article;
   isLast: boolean;
+  language: LanguageCode;
+  level: LanguageLevel;
 }
 
-export function BriefingArticle({ article, isLast }: Props) {
+export function BriefingArticle({ article, isLast, language, level }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [activeSentence, setActiveSentence] = useState('');
+
+  function handleWordPress(word: string, sentence: string) {
+    setActiveWord(word);
+    setActiveSentence(sentence);
+  }
+
+  function handleClose() {
+    setActiveWord(null);
+  }
 
   return (
     <View style={styles.container}>
@@ -27,18 +43,23 @@ export function BriefingArticle({ article, isLast }: Props) {
         {article.headline}
       </Text>
 
-      {/* Body — Stage 3 will replace this Text with TappableText */}
-      <Text
-        style={[
-          styles.body,
-          { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body },
-        ]}
-      >
-        {article.body}
-      </Text>
+      <TappableText
+        text={article.body}
+        style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
+        activeWord={activeWord}
+        onWordPress={handleWordPress}
+      />
 
-      {!isLast && (
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+      {!isLast && <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />}
+
+      {activeWord && (
+        <WordPopup
+          word={activeWord}
+          sentence={activeSentence}
+          language={language}
+          level={level}
+          onClose={handleClose}
+        />
       )}
     </View>
   );
