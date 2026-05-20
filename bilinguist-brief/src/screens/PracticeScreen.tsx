@@ -1,9 +1,15 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
+import { useStreakStore } from '../store/useStreakStore';
 import { Spacing } from '../theme';
+import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type PracticeNav = NativeStackNavigationProp<PracticeStackParamList, 'PracticeHome'>;
 
 const PILE_META: Array<{ key: Pile; label: string; emoji: string; description: string }> = [
   { key: 'new', label: 'New Words', emoji: '🆕', description: 'Just saved, never practised' },
@@ -12,16 +18,23 @@ const PILE_META: Array<{ key: Pile; label: string; emoji: string; description: s
   { key: 'revisit', label: 'Revisit', emoji: '🔁', description: 'Due for a refresher' },
 ];
 
-const GAMES = [
-  { key: 'flashcards', label: 'Flashcards', icon: 'layers-outline' as const, description: 'Flip cards with spaced repetition' },
-  { key: 'multiple-choice', label: 'Multiple Choice', icon: 'list-outline' as const, description: 'Which word means…? Four options' },
-  { key: 'fill-blank', label: 'Fill in the Blank', icon: 'pencil-outline' as const, description: 'Complete the original news sentence' },
-  { key: 'translation', label: 'Translation Challenge', icon: 'swap-horizontal-outline' as const, description: 'Translate between languages' },
+const GAMES: Array<{
+  key: keyof PracticeStackParamList;
+  label: string;
+  icon: any;
+  description: string;
+}> = [
+  { key: 'Flashcards', label: 'Flashcards', icon: 'layers-outline', description: 'Flip cards with spaced repetition' },
+  { key: 'MultipleChoice', label: 'Multiple Choice', icon: 'list-outline', description: 'Which word means…? Four options' },
+  { key: 'FillBlank', label: 'Fill in the Blank', icon: 'pencil-outline', description: 'Complete the original news sentence' },
+  { key: 'Translation', label: 'Translation Challenge', icon: 'swap-horizontal-outline', description: 'Translate between languages' },
 ];
 
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
+  const navigation = useNavigation<PracticeNav>();
   const { counts, words } = useWordBankStore();
+  const { streak } = useStreakStore();
   const pileCounts = counts();
   const totalWords = words.length;
   const hasWords = totalWords > 0;
@@ -31,6 +44,12 @@ export function PracticeScreen() {
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
     >
+      {/* Streak */}
+      <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+        <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak}</Text>
+        <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
+      </View>
+
       {/* Word bank section */}
       <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
         WORD BANK
@@ -79,6 +98,7 @@ export function PracticeScreen() {
           style={[styles.gameRow, { borderBottomColor: colors.borderLight }]}
           disabled={!hasWords}
           activeOpacity={hasWords ? 0.7 : 1}
+          onPress={() => hasWords && navigation.navigate(game.key as any)}
         >
           <View style={[styles.gameIcon, { backgroundColor: hasWords ? colors.accentGold + '22' : colors.borderLight }]}>
             <Ionicons name={game.icon} size={20} color={hasWords ? colors.accentGold : colors.inkLight} />
@@ -134,6 +154,15 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: 48,
   },
+  streakBanner: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.xl,
+  },
+  streakNumber: { fontSize: 48, lineHeight: 54 },
+  streakLabel: { fontSize: 14, letterSpacing: 0.5 },
   sectionLabel: {
     fontSize: 11,
     letterSpacing: 1.5,

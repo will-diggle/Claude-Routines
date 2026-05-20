@@ -3,10 +3,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../components/TopBar';
 import { BriefingScreen } from '../screens/BriefingScreen';
-import { PracticeScreen } from '../screens/PracticeScreen';
+import { PracticeNavigator } from './PracticeNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useTheme } from '../hooks/useTheme';
-import { Colors } from '../theme';
 
 export type RootTabParamList = {
   Briefing: undefined;
@@ -35,7 +34,7 @@ export function AppNavigator() {
           fontSize: 11,
           marginBottom: 2,
         },
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
           if (route.name === 'Briefing') {
             iconName = focused ? 'newspaper' : 'newspaper-outline';
@@ -49,7 +48,7 @@ export function AppNavigator() {
       })}
     >
       <Tab.Screen name="Briefing" component={BriefingScreen} />
-      <Tab.Screen name="Practice" component={PracticeScreen} />
+      <Tab.Screen name="Practice" component={PracticeNavigator} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
