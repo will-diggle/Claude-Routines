@@ -232,9 +232,8 @@ export function SettingsScreen() {
         return (
           <View key={lang.code}>
             <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-              <Text style={styles.flag}>{lang.flag}</Text>
               <Text style={[styles.rowLabel, { color: isDisabled ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {lang.name}
+                {lang.nativeName}
               </Text>
               <Switch
                 value={lang.active}
@@ -504,7 +503,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing.sm,
   },
-  flag: { fontSize: 22, width: 32, textAlign: 'center' },
   rowLabel: { flex: 1 },
   rowSub: { fontSize: 12, marginTop: 2 },
   levelRow: {

@@ -37,20 +37,20 @@ export function AppNavigator() {
         },
         tabBarIcon: ({ focused, color }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
-          if (route.name === 'Briefing') {
-            iconName = focused ? 'newspaper' : 'newspaper-outline';
-          } else if (route.name === 'Practice') {
-            iconName = focused ? 'school' : 'school-outline';
-          } else {
+          if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
+          } else if (route.name === 'Briefing') {
+            iconName = focused ? 'newspaper' : 'newspaper-outline';
+          } else {
+            iconName = focused ? 'school' : 'school-outline';
           }
           return <Ionicons name={iconName} size={22} color={color} />;
         },
       })}
     >
+      <Tab.Screen name="Settings" component={SettingsScreen} />
       <Tab.Screen name="Briefing" component={BriefingScreen} options={{ tabBarLabel: 'The Brief' }} />
       <Tab.Screen name="Practice" component={PracticeNavigator} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }

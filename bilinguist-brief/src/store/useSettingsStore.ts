@@ -12,6 +12,7 @@ export type LanguagesPerBriefing = '1' | '2' | 'all';
 export interface LanguagePreference {
   code: LanguageCode;
   name: string;
+  nativeName: string;
   flag: string;
   level: LanguageLevel;
   active: boolean;
@@ -60,11 +61,11 @@ interface SettingsStore extends Settings {
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French', flag: '🇫🇷', level: 'B1', active: false },
-  { code: 'de', name: 'German', flag: '🇩🇪', level: 'A2', active: false },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸', level: 'A1', active: false },
-  { code: 'it', name: 'Italian', flag: '🇮🇹', level: 'A1', active: false },
-  { code: 'en', name: 'English', flag: '🇬🇧', level: 'Native', active: true },
+  { code: 'fr', name: 'French',  nativeName: 'Français', flag: '🇫🇷', level: 'B1',     active: false },
+  { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2',     active: false },
+  { code: 'es', name: 'Spanish', nativeName: 'Español',  flag: '🇪🇸', level: 'A1',     active: false },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', level: 'A1',     active: false },
+  { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'Native', active: true  },
 ];
 
 const DEFAULT_SETTINGS: Settings = {

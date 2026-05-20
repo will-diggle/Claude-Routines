@@ -84,7 +84,7 @@ export function BriefingScreen() {
       <View style={[styles.editionRow, { borderBottomColor: colors.inkDark, borderTopColor: colors.inkDark }]}>
         <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
         <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {activeLang?.name.toUpperCase() ?? 'ENGLISH'} EDITION · {level}
+          {(activeLang?.nativeName ?? 'English').toUpperCase()} EDITION · {level}
         </Text>
         <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
       </View>

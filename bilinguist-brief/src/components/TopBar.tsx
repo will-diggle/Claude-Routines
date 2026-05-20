@@ -58,12 +58,16 @@ export function TopBar() {
             style={[styles.langButton, { borderColor: colors.borderMid }]}
             onPress={() => setDropdownOpen(true)}
           >
-            <Text style={[styles.langFlag]}>{currentLang?.flag ?? ''}</Text>
+            <Text style={[styles.langCode, { color: colors.inkMid, fontFamily: FontFamilies.georgia.regular }]}>
+              {currentLang?.code.toUpperCase() ?? 'EN'}
+            </Text>
             <Ionicons name="chevron-down" size={12} color={colors.inkLight} style={{ marginLeft: 2 }} />
           </TouchableOpacity>
         ) : (
-          <View style={styles.iconButton}>
-            <Text style={styles.langFlag}>{currentLang?.flag ?? '🌐'}</Text>
+          <View style={[styles.langButton, { borderColor: colors.borderLight }]}>
+            <Text style={[styles.langCode, { color: colors.inkMid, fontFamily: FontFamilies.georgia.regular }]}>
+              {currentLang?.code.toUpperCase() ?? 'EN'}
+            </Text>
           </View>
         )}
       </View>
@@ -98,9 +102,8 @@ export function TopBar() {
                     setDropdownOpen(false);
                   }}
                 >
-                  <Text style={styles.dropdownFlag}>{item.flag}</Text>
                   <Text style={[styles.dropdownLang, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                    {item.name}
+                    {item.nativeName}
                   </Text>
                   {item.code === displayLanguage && (
                     <Ionicons name="checkmark" size={16} color={colors.accentGold} />
@@ -153,8 +156,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  langFlag: {
-    fontSize: 18,
+  langCode: {
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   modalOverlay: {
     flex: 1,
@@ -189,9 +193,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 10,
-  },
-  dropdownFlag: {
-    fontSize: 20,
   },
   dropdownLang: {
     fontSize: 15,
