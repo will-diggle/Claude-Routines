@@ -85,6 +85,7 @@ const styles = StyleSheet.create({
   body: {
     lineHeight: 28,
     marginBottom: Spacing.lg,
+    textAlign: 'justify',
   },
   divider: {
     height: StyleSheet.hairlineWidth,

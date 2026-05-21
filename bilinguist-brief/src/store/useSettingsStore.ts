@@ -86,7 +86,7 @@ const DEFAULT_SETTINGS: Settings = {
   practiceNotificationTime: '18:00',
   languagesPerBriefing: '1',
   fontSize: 'medium',
-  background: 'cream',
+  background: 'white',
   fontFamily: 'playfair',
   developerMode: false,
 };

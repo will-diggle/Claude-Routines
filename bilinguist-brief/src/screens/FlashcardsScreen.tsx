@@ -8,8 +8,17 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
+import type { LanguageCode } from '../store/useSettingsStore';
 
 const MAX_CARDS = 20;
+
+const LANG_NAMES: Record<LanguageCode, string> = {
+  fr: 'FRANÇAIS',
+  de: 'DEUTSCH',
+  es: 'ESPAÑOL',
+  it: 'ITALIANO',
+  en: 'ENGLISH',
+};
 
 function getSessionWords(words: SavedWord[]): SavedWord[] {
   const revisit = words.filter((w) => w.pile === 'revisit');
@@ -114,19 +123,29 @@ export function FlashcardsScreen() {
       <GameHeader title="Flashcards" current={index + 1} total={sessionWords.length} />
 
       <ScrollView contentContainerStyle={[styles.cardArea, { paddingBottom: insets.bottom + 100 }]}>
-        {/* Card */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.borderLight, shadowColor: colors.isNight ? '#000' : '#8B7355' }]}>
-          <Text style={[styles.langBadge, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            {card.language.toUpperCase()}
-          </Text>
+        {/* Newspaper headline card */}
+        <View style={[styles.card, { borderTopColor: colors.inkDark, borderColor: colors.borderLight, backgroundColor: colors.card }]}>
 
-          <Text style={[styles.cardWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 1.2 }]}>
+          {/* Section row: language label + pile badge */}
+          <View style={[styles.cardHeader, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.cardSection, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+              {LANG_NAMES[card.language as LanguageCode] ?? card.language.toUpperCase()}
+            </Text>
+            <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
+              <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {card.pile}
+              </Text>
+            </View>
+          </View>
+
+          {/* Headline word */}
+          <Text style={[styles.cardWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 1.3 }]}>
             {card.word}
           </Text>
 
           {!revealed ? (
             <TouchableOpacity
-              style={[styles.revealButton, { borderColor: colors.borderMid }]}
+              style={[styles.revealButton, { borderColor: colors.borderMid, borderTopColor: colors.borderLight }]}
               onPress={() => setRevealed(true)}
             >
               <Text style={[styles.revealText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
@@ -136,18 +155,23 @@ export function FlashcardsScreen() {
           ) : (
             <View style={[styles.answer, { borderTopColor: colors.borderLight }]}>
               {card.translation ? (
-                <Text style={[styles.translation, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                <Text style={[styles.translation, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
                   {card.translation}
+                </Text>
+              ) : null}
+              {card.explanation ? (
+                <Text style={[styles.explanation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  {card.explanation}
                 </Text>
               ) : null}
               {card.exampleSentence ? (
                 <Text style={[styles.example, { color: colors.inkLight, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
-                  {card.exampleSentence}
+                  "{card.exampleSentence}"
                 </Text>
               ) : null}
               {card.originalSentence ? (
-                <Text style={[styles.original, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                  From: "{card.originalSentence.slice(0, 120)}{card.originalSentence.length > 120 ? '…' : ''}"
+                <Text style={[styles.original, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  From: {card.originalSentence.slice(0, 120)}{card.originalSentence.length > 120 ? '…' : ''}
                 </Text>
               ) : null}
             </View>
@@ -191,37 +215,56 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
   cardArea: { padding: Spacing.lg, alignItems: 'stretch' },
+
+  // Newspaper headline card
   card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.md,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderTopWidth: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 0,
   },
-  langBadge: { fontSize: 11, letterSpacing: 1.5 },
-  cardWord: { textAlign: 'center', lineHeight: 48 },
-  revealButton: {
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  cardSection: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+  },
+  pileBadge: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    marginTop: Spacing.md,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  pileBadgeText: { fontSize: 10, letterSpacing: 0.5 },
+  cardWord: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    lineHeight: 52,
+  },
+  revealButton: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
   },
   revealText: { fontSize: 15 },
   answer: {
     borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
-    width: '100%',
+    paddingBottom: Spacing.lg,
     gap: Spacing.sm,
-    marginTop: Spacing.sm,
   },
-  translation: { textAlign: 'center', fontWeight: '500' },
-  example: { textAlign: 'center', lineHeight: 22 },
-  original: { textAlign: 'center', fontSize: 12, lineHeight: 18 },
+  translation: { lineHeight: 26 },
+  explanation: { lineHeight: 22, opacity: 0.85 },
+  example: { lineHeight: 22 },
+  original: { fontSize: 12, lineHeight: 18, marginTop: Spacing.xs },
   markRow: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
+import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { Spacing } from '../theme';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -30,14 +31,43 @@ const GAMES: Array<{
   { key: 'Translation', label: 'Translation Challenge', icon: 'swap-horizontal-outline', description: 'Translate between languages' },
 ];
 
+const LANG_NATIVE: Record<LanguageCode, string> = {
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  it: 'Italiano',
+  en: 'English',
+};
+
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const navigation = useNavigation<PracticeNav>();
-  const { counts, words } = useWordBankStore();
+  const { words, seedSampleWords } = useWordBankStore();
+  const { activeLanguages } = useSettingsStore();
   const { streak } = useStreakStore();
-  const pileCounts = counts();
-  const totalWords = words.length;
+
+  const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>('all');
+
+  useEffect(() => {
+    seedSampleWords();
+  }, []);
+
+  const activeLangs = activeLanguages();
+  const showLangTabs = activeLangs.length > 1 || words.some((w) => activeLangs.every((l) => l.code !== w.language));
+
+  const filteredWords = selectedLang === 'all' ? words : words.filter((w) => w.language === selectedLang);
+  const totalWords = filteredWords.length;
   const hasWords = totalWords > 0;
+
+  const filteredCounts: Record<Pile, number> = {
+    new: filteredWords.filter((w) => w.pile === 'new').length,
+    learning: filteredWords.filter((w) => w.pile === 'learning').length,
+    mastered: filteredWords.filter((w) => w.pile === 'mastered').length,
+    revisit: filteredWords.filter((w) => w.pile === 'revisit').length,
+  };
+
+  // Derive unique languages present in word bank
+  const presentLangs = Array.from(new Set(words.map((w) => w.language))) as LanguageCode[];
 
   return (
     <ScrollView
@@ -49,6 +79,50 @@ export function PracticeScreen() {
         <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
+
+      {/* Language tabs */}
+      {presentLangs.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabsScroll}
+          contentContainerStyle={styles.tabsContent}
+        >
+          <TouchableOpacity
+            onPress={() => setSelectedLang('all')}
+            style={[
+              styles.langTab,
+              { borderColor: colors.borderMid },
+              selectedLang === 'all' && { backgroundColor: colors.inkDark, borderColor: colors.inkDark },
+            ]}
+          >
+            <Text style={[
+              styles.langTabText,
+              { color: selectedLang === 'all' ? (colors.isNight ? colors.inkDark : '#FFF') : colors.inkMid, fontFamily: fontFamily.regular },
+            ]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          {presentLangs.map((code) => (
+            <TouchableOpacity
+              key={code}
+              onPress={() => setSelectedLang(code)}
+              style={[
+                styles.langTab,
+                { borderColor: colors.borderMid },
+                selectedLang === code && { backgroundColor: colors.inkDark, borderColor: colors.inkDark },
+              ]}
+            >
+              <Text style={[
+                styles.langTabText,
+                { color: selectedLang === code ? (colors.isNight ? colors.inkDark : '#FFF') : colors.inkMid, fontFamily: fontFamily.regular },
+              ]}>
+                {LANG_NATIVE[code] ?? code.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Word bank section */}
       <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
@@ -71,7 +145,7 @@ export function PracticeScreen() {
           >
             <Ionicons name={pile.icon} size={22} color={colors.accentGold} style={{ marginBottom: Spacing.xs }} />
             <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              {pileCounts[pile.key]}
+              {filteredCounts[pile.key]}
             </Text>
             <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
               {pile.label}
@@ -122,7 +196,7 @@ export function PracticeScreen() {
           <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
             RECENTLY SAVED
           </Text>
-          {words.slice(0, 5).map((w) => (
+          {filteredWords.slice(0, 5).map((w) => (
             <View key={w.id} style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
@@ -134,10 +208,15 @@ export function PracticeScreen() {
                   </Text>
                 ) : null}
               </View>
-              <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
-                <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {w.pile}
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <Text style={[styles.wordLang, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  {LANG_NATIVE[w.language] ?? w.language.toUpperCase()}
                 </Text>
+                <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
+                  <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {w.pile}
+                  </Text>
+                </View>
               </View>
             </View>
           ))}
@@ -159,10 +238,27 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   streakNumber: { fontSize: 48, lineHeight: 54 },
   streakLabel: { fontSize: 14, letterSpacing: 0.5 },
+  tabsScroll: {
+    marginBottom: Spacing.lg,
+  },
+  tabsContent: {
+    gap: Spacing.sm,
+    paddingRight: Spacing.md,
+  },
+  langTab: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  langTabText: {
+    fontSize: 13,
+    letterSpacing: 0.3,
+  },
   sectionLabel: {
     fontSize: 11,
     letterSpacing: 1.5,
@@ -210,6 +306,7 @@ const styles = StyleSheet.create({
   },
   wordText: {},
   wordTranslation: { fontSize: 13, marginTop: 2 },
+  wordLang: { fontSize: 11, letterSpacing: 0.5 },
   pileBadge: {
     borderWidth: 1,
     borderRadius: 12,

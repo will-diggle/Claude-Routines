@@ -21,7 +21,7 @@ export function AppNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        header: () => <TopBar />,
+        header: ({ route }) => <TopBar routeName={route.name} />,
         freezeOnBlur: false,
         tabBarStyle: {
           backgroundColor: colors.bg,
