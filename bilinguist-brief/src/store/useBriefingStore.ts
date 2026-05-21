@@ -112,10 +112,19 @@ export const useBriefingStore = create<BriefingStore>()(
 
           set({ briefing: result, isGenerating: false, error: null });
         } catch (err: any) {
-          const message =
-            err?.message === 'NO_API_KEY'
-              ? 'Add your Anthropic API key to .env to generate briefings.'
-              : `Could not generate briefing: ${err?.message ?? 'Unknown error'}`;
+          const raw: string = err?.message ?? 'Unknown error';
+          let message: string;
+          if (raw === 'NO_API_KEY') {
+            message = 'Add your Anthropic API key to .env to generate briefings.';
+          } else if (raw.includes('rate_limit_error') || raw.includes('429')) {
+            message = 'Rate limit reached — please wait a moment and try again.';
+          } else if (raw.includes('invalid JSON') || raw.includes('invalid x-api-key') || raw.includes('401')) {
+            message = 'Could not generate briefing — please try again.';
+          } else if (raw.includes('Daily limit')) {
+            message = raw;
+          } else {
+            message = 'Could not generate briefing — please try again.';
+          }
           set({ isGenerating: false, error: message });
         }
       },

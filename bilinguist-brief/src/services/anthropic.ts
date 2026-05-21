@@ -320,21 +320,14 @@ export async function generateFreeBriefing(
     await storeTodayFactbase(factbase);
   }
 
+  // Free edition only needs 6 stories — one to feature, five to tease
+  const trimmedFactbase = factbase.slice(0, 6);
+
   const system = `You are the editorial writer for Bilinguist Brief. You will receive a fact-base of today's news and produce a free preview edition for a language learner.
 
-STRICT OUTPUT RULE: Respond with ONLY a raw JSON object. No markdown, no code fences, no preamble.
+STRICT OUTPUT RULE: Respond with ONLY a raw JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 
-FORMAT:
-{
-  "featured": { "genre": "GLOBAL NEWS", "headline": "...", "body": "..." },
-  "teasers": [
-    { "genre": "POLITICS", "headline": "...", "teaser": "One sentence only." },
-    { "genre": "BUSINESS & ECONOMY", "headline": "...", "teaser": "One sentence only." },
-    { "genre": "SCIENCE & TECHNOLOGY", "headline": "...", "teaser": "One sentence only." },
-    { "genre": "ARTS & CULTURE", "headline": "...", "teaser": "One sentence only." },
-    { "genre": "GOOD NEWS", "headline": "...", "teaser": "One sentence only." }
-  ]
-}
+FORMAT: {"featured":{"genre":"GLOBAL NEWS","headline":"...","body":"..."},"teasers":[{"genre":"POLITICS","headline":"...","teaser":"One sentence only."},{"genre":"BUSINESS & ECONOMY","headline":"...","teaser":"One sentence only."},{"genre":"SCIENCE & TECHNOLOGY","headline":"...","teaser":"One sentence only."},{"genre":"ARTS & CULTURE","headline":"...","teaser":"One sentence only."},{"genre":"GOOD NEWS","headline":"...","teaser":"One sentence only."}]}
 
 JSON SAFETY: use typographic quotation marks inside text - never straight ASCII double-quotes.
 Write in ${langName} at ${normalisedLevel} level.
@@ -343,7 +336,7 @@ Featured article body: ~${wordCount} words. Each teaser: exactly one sentence.`;
   const user = `Today is ${date}.
 
 FACT-BASE:
-${JSON.stringify(factbase, null, 2)}`;
+${JSON.stringify(trimmedFactbase, null, 2)}`;
 
   const raw = await callClaude(system, user, false);
   const parsed = parseLLMJSON(raw);
