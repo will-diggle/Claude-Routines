@@ -37,3 +37,7 @@ export async function storeTodayFactbase(factbase: FactbaseStory[]): Promise<voi
   const today = new Date().toISOString().split('T')[0];
   await AsyncStorage.setItem(todayKey(), JSON.stringify({ date: today, factbase }));
 }
+
+export async function clearTodayFactbase(): Promise<void> {
+  try { await AsyncStorage.removeItem(todayKey()); } catch { /* ignore */ }
+}
