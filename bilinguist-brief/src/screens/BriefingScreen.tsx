@@ -19,26 +19,6 @@ import { PaywallScreen } from './PaywallScreen';
 import { BriefingLoading } from '../components/BriefingLoading';
 import { Spacing } from '../theme';
 
-const LOCALE_MAP: Record<string, string> = {
-  en: 'en-GB',
-  fr: 'fr-FR',
-  de: 'de-DE',
-  es: 'es-ES',
-  it: 'it-IT',
-};
-
-function formatNewspaperDate(language: string): string {
-  const locale = LOCALE_MAP[language] ?? 'en-GB';
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-    .format(new Date())
-    .toUpperCase();
-}
-
 export function BriefingScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const settings = useSettingsStore();
@@ -88,10 +68,6 @@ export function BriefingScreen() {
         </Text>
         <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
       </View>
-
-      <Text style={[styles.dateText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        {formatNewspaperDate(language)}
-      </Text>
 
       <View style={[styles.mastRule, { backgroundColor: colors.inkDark }]} />
 
@@ -229,12 +205,6 @@ const styles = StyleSheet.create({
   },
   editionRule: { flex: 1, height: 1 },
   editionText: { fontSize: 11, letterSpacing: 1.5, paddingHorizontal: Spacing.sm },
-  dateText: {
-    textAlign: 'center',
-    fontSize: 12,
-    letterSpacing: 0.5,
-    paddingVertical: Spacing.sm,
-  },
   mastRule: { height: 1, marginHorizontal: Spacing.md, marginBottom: Spacing.xs },
   centerBlock: {
     alignItems: 'center',
