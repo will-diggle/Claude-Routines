@@ -27,7 +27,7 @@ import {
   type FontSizeKey,
 } from '../theme';
 
-const LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
+const LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
   { key: 'cream', label: 'Cream', color: Colors.cream },
@@ -35,6 +35,19 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'night', label: 'Night', color: Colors.night },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
+const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
+  { key: 'worldNews', label: 'World News' },
+  { key: 'goodNews', label: 'Good News' },
+  { key: 'sport', label: 'Sport' },
+  { key: 'politics', label: 'Politics' },
+  { key: 'artsCulture', label: 'Arts & Culture' },
+  { key: 'countryNews', label: 'Country News' },
+  { key: 'scienceTech', label: 'Science & Technology' },
+  { key: 'business', label: 'Business' },
+];
+const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
+);
 const DEV_CODE = 'BILDEV';
 
 // --- Sub-components ---
@@ -71,7 +84,7 @@ function SegmentedControl({
             key={opt.value}
             style={[
               segStyles.option,
-              selected && { backgroundColor: colors.accentGold },
+              selected && { backgroundColor: colors.inkDark },
               i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
             ]}
             onPress={() => onChange(opt.value)}
@@ -174,16 +187,10 @@ export function SettingsScreen() {
     }
   }
 
-  const topicItems: { key: keyof typeof store.topics; label: string }[] = [
-    { key: 'worldNews', label: 'World News' },
-    { key: 'goodNews', label: 'Good News' },
-    { key: 'sport', label: 'Sport' },
-    { key: 'politics', label: 'Politics' },
-    { key: 'artsCulture', label: 'Arts & Culture' },
-    { key: 'countryNews', label: 'Country News' },
-    { key: 'scienceTech', label: 'Science & Technology' },
-    { key: 'business', label: 'Business' },
-  ];
+  const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key)).map((key) => ({
+    key: key as keyof typeof store.topics,
+    label: TOPIC_LABEL_MAP[key] ?? key,
+  }));
 
   const levelModal = store.languages.find((l) => l.code === levelModalLang);
 
@@ -194,20 +201,16 @@ export function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
     >
       {/* ── Tab switcher ── */}
-      <View style={[tabStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}>
-        {(['reading', 'display'] as const).map((tab, i) => {
+      <View style={[tabStyles.container, { borderBottomColor: colors.borderMid }]}>
+        {(['reading', 'display'] as const).map((tab) => {
           const selected = activeTab === tab;
           return (
             <TouchableOpacity
               key={tab}
-              style={[
-                tabStyles.tab,
-                selected && { backgroundColor: colors.accentGold },
-                i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
-              ]}
+              style={[tabStyles.tab, selected && { borderBottomColor: colors.inkDark }]}
               onPress={() => setActiveTab(tab)}
             >
-              <Text style={[tabStyles.label, { fontFamily: fontFamily.regular, color: selected ? '#FFF' : colors.inkMid }]}>
+              <Text style={[tabStyles.label, { fontFamily: selected ? fontFamily.bold : fontFamily.regular, color: selected ? colors.inkDark : colors.inkFaint }]}>
                 {tab === 'reading' ? 'Reading' : 'Display'}
               </Text>
             </TouchableOpacity>
@@ -225,7 +228,7 @@ export function SettingsScreen() {
         Select up to {3} active languages.
       </Text>
 
-      {store.languages.map((lang) => {
+      {store.languages.map((lang, index) => {
         const canActivate = !lang.active && activeCount < 3;
         const isDisabled = !lang.active && !canActivate;
 
@@ -235,6 +238,22 @@ export function SettingsScreen() {
               <Text style={[styles.rowLabel, { color: isDisabled ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                 {lang.nativeName}
               </Text>
+              <View style={styles.reorderBtns}>
+                <TouchableOpacity
+                  onPress={() => store.reorderLanguages(index, index - 1)}
+                  disabled={index === 0}
+                  style={{ opacity: index === 0 ? 0.25 : 1 }}
+                >
+                  <Ionicons name="chevron-up" size={14} color={colors.inkMid} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => store.reorderLanguages(index, index + 1)}
+                  disabled={index === store.languages.length - 1}
+                  style={{ opacity: index === store.languages.length - 1 ? 0.25 : 1 }}
+                >
+                  <Ionicons name="chevron-down" size={14} color={colors.inkMid} />
+                </TouchableOpacity>
+              </View>
               <Switch
                 value={lang.active}
                 onValueChange={() => store.toggleLanguage(lang.code)}
@@ -269,6 +288,22 @@ export function SettingsScreen() {
           <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
             {item.label}
           </Text>
+          <View style={styles.reorderBtns}>
+            <TouchableOpacity
+              onPress={() => store.reorderTopics(index, index - 1)}
+              disabled={index === 0}
+              style={{ opacity: index === 0 ? 0.25 : 1 }}
+            >
+              <Ionicons name="chevron-up" size={14} color={colors.inkMid} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => store.reorderTopics(index, index + 1)}
+              disabled={index === topicItems.length - 1}
+              style={{ opacity: index === topicItems.length - 1 ? 0.25 : 1 }}
+            >
+              <Ionicons name="chevron-down" size={14} color={colors.inkMid} />
+            </TouchableOpacity>
+          </View>
           <Switch
             value={store.topics[item.key]}
             onValueChange={() => store.toggleTopic(item.key)}
@@ -434,10 +469,11 @@ export function SettingsScreen() {
                 }}
               >
                 <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {level === 'Native' ? 'Native / Journalism' : level}
+                  {level === 'C1' ? 'C1 / Native' : level}
                 </Text>
-                {levelModal?.level === level && (
-                  <Ionicons name="checkmark" size={20} color={colors.accentGold} />
+                {(levelModal?.level === level ||
+                  (level === 'C1' && (levelModal?.level === 'C2' || levelModal?.level === 'Native'))) && (
+                  <Ionicons name="checkmark" size={20} color={colors.inkDark} />
                 )}
               </TouchableOpacity>
             ))}
@@ -548,6 +584,12 @@ const styles = StyleSheet.create({
   },
   fontSample: { fontSize: 17 },
   fontPreview: { fontSize: 13, marginTop: 2 },
+  reorderBtns: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 2,
+    marginRight: Spacing.sm,
+  },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },
@@ -558,15 +600,16 @@ const tabStyles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: Spacing.md,
     marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingBottom: 9,
     alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -StyleSheet.hairlineWidth,
   },
   label: { fontSize: 14 },
 });

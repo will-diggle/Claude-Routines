@@ -34,6 +34,7 @@ export interface Settings {
   languages: LanguagePreference[];
   displayLanguage: LanguageCode;
   topics: Topics;
+  topicOrder: string[];
   briefingLength: BriefingLength;
   briefingNotificationTime: string;
   practiceNotificationTime: string;
@@ -48,7 +49,9 @@ interface SettingsStore extends Settings {
   setDisplayLanguage: (code: LanguageCode) => void;
   toggleLanguage: (code: LanguageCode) => void;
   setLanguageLevel: (code: LanguageCode, level: LanguageLevel) => void;
+  reorderLanguages: (from: number, to: number) => void;
   toggleTopic: (topic: keyof Topics) => void;
+  reorderTopics: (from: number, to: number) => void;
   setBriefingLength: (length: BriefingLength) => void;
   setBriefingNotificationTime: (time: string) => void;
   setPracticeNotificationTime: (time: string) => void;
@@ -61,11 +64,16 @@ interface SettingsStore extends Settings {
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French',  nativeName: 'Français', flag: '🇫🇷', level: 'B1',     active: false },
-  { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2',     active: false },
-  { code: 'es', name: 'Spanish', nativeName: 'Español',  flag: '🇪🇸', level: 'A1',     active: false },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', level: 'A1',     active: false },
-  { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'Native', active: true  },
+  { code: 'fr', name: 'French',  nativeName: 'Français', flag: '🇫🇷', level: 'B1', active: false },
+  { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', active: false },
+  { code: 'es', name: 'Spanish', nativeName: 'Español',  flag: '🇪🇸', level: 'A1', active: false },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', active: false },
+  { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'C1', active: true  },
+];
+
+const DEFAULT_TOPIC_ORDER = [
+  'worldNews', 'goodNews', 'sport', 'politics',
+  'artsCulture', 'countryNews', 'scienceTech', 'business',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -81,6 +89,7 @@ const DEFAULT_SETTINGS: Settings = {
     scienceTech: false,
     business: false,
   },
+  topicOrder: DEFAULT_TOPIC_ORDER,
   briefingLength: 'standard',
   briefingNotificationTime: '07:00',
   practiceNotificationTime: '18:00',
@@ -131,8 +140,24 @@ export const useSettingsStore = create<SettingsStore>()(
           ),
         }),
 
+      reorderLanguages: (from, to) => {
+        const languages = [...get().languages];
+        if (to < 0 || to >= languages.length) return;
+        const [item] = languages.splice(from, 1);
+        languages.splice(to, 0, item);
+        set({ languages });
+      },
+
       toggleTopic: (topic) =>
         set({ topics: { ...get().topics, [topic]: !get().topics[topic] } }),
+
+      reorderTopics: (from, to) => {
+        const order = [...(get().topicOrder ?? DEFAULT_TOPIC_ORDER)];
+        if (to < 0 || to >= order.length) return;
+        const [item] = order.splice(from, 1);
+        order.splice(to, 0, item);
+        set({ topicOrder: order });
+      },
 
       setBriefingLength: (briefingLength) => set({ briefingLength }),
       setBriefingNotificationTime: (briefingNotificationTime) => set({ briefingNotificationTime }),
