@@ -142,7 +142,7 @@ export function BriefingScreen() {
           {/* Full articles (always visible) */}
           {briefing.articles.map((article, index) => (
             <BriefingArticle
-              key={`${article.section}-${index}`}
+              key={`${article.genre}-${index}`}
               article={article}
               isLast={index === briefing.articles.length - 1 && !briefing.teasers?.length}
               language={language}
@@ -180,7 +180,7 @@ export function BriefingScreen() {
                   onPress={() => setPaywallVisible(true)}
                 >
                   <Text style={[styles.teaserSection, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-                    {teaser.section.toUpperCase()}
+                    {teaser.genre.toUpperCase()}
                   </Text>
                   <Text style={[styles.teaserHeadline, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.subheading }]}>
                     {teaser.headline}

@@ -7,15 +7,16 @@ import { getMockBriefing } from '../data/mockBriefings';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
+// Must match genre names used in the gathering prompt
 const TOPIC_LABELS: Record<string, string> = {
-  worldNews: 'World News',
-  goodNews: 'Good News',
-  sport: 'Sport',
-  politics: 'Politics',
-  artsCulture: 'Arts & Culture',
-  countryNews: 'Country News',
-  scienceTech: 'Science & Technology',
-  business: 'Business',
+  worldNews: 'GLOBAL NEWS',
+  goodNews: 'GOOD NEWS',
+  sport: 'SPORT',
+  politics: 'POLITICS',
+  artsCulture: 'ARTS & CULTURE',
+  countryNews: 'COUNTRY NEWS',
+  scienceTech: 'SCIENCE & TECHNOLOGY',
+  business: 'BUSINESS & ECONOMY',
 };
 
 function cacheKey(date: string, language: LanguageCode, level: LanguageLevel): string {

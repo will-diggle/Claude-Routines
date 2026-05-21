@@ -1,14 +1,18 @@
 import type { LanguageCode, LanguageLevel, BriefingLength } from '../store/useSettingsStore';
 import { checkAndIncrementBriefingUsage } from './apiUsage';
+import { getTodayFactbase, storeTodayFactbase } from './factbase';
+import type { FactbaseStory } from './factbase';
+
+export type { FactbaseStory };
 
 export interface BriefingArticle {
-  section: string;
+  genre: string;
   headline: string;
   body: string;
 }
 
 export interface BriefingTeaser {
-  section: string;
+  genre: string;
   headline: string;
   teaser: string;
 }
@@ -23,22 +27,16 @@ export interface GeneratedBriefing {
   generatedAt: number;
 }
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   en: 'English',
   fr: 'French (Français)',
   de: 'German (Deutsch)',
   es: 'Spanish (Español)',
   it: 'Italian (Italiano)',
-};
-
-const LEVEL_DESCRIPTIONS: Record<LanguageLevel, string> = {
-  A1: 'absolute beginner — use only the 500 most common words, present tense only, very short simple sentences',
-  A2: 'elementary — everyday vocabulary, short sentences, basic past and future tenses',
-  B1: 'intermediate — general vocabulary, moderate sentence complexity, mix of tenses',
-  B2: 'upper-intermediate — varied vocabulary, complex sentences, occasional idioms',
-  C1: 'advanced — rich vocabulary, long complex sentences, nuanced expression',
-  C2: 'near-native — full journalistic register, complex structures, idiomatic throughout',
-  Native: 'native journalistic register — write as if for The Times, Le Monde, or Der Spiegel',
 };
 
 const ARTICLE_COUNTS: Record<BriefingLength, number> = {
@@ -53,58 +51,70 @@ const WORDS_PER_ARTICLE: Record<BriefingLength, number> = {
   full: 180,
 };
 
-function buildSystemPrompt(language: LanguageCode, level: LanguageLevel): string {
-  return `You are the editor of Bilinguist Brief, a language learning newspaper app.
+// Genres parked for launch — gathered but excluded from writing calls
+const PARKED_GENRES = new Set(['SPORT', 'COUNTRY NEWS']);
 
-Your task is to write today's news briefing. The reader is learning ${LANGUAGE_NAMES[language]} at ${level} level (${LEVEL_DESCRIPTIONS[level]}).
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-Rules:
-1. Write ENTIRELY in ${LANGUAGE_NAMES[language]}. Every single word in every headline and article body must be in ${LANGUAGE_NAMES[language]}.
-2. Use vocabulary and grammar appropriate for ${level} level as described above.
-3. Search for REAL, CURRENT news stories from today or this week. Prioritise: Reuters, AP News, BBC, The Guardian, Financial Times.
-4. NEVER reproduce article text verbatim. Always rewrite stories entirely in your own words.
-5. Each article section label must be one of the requested topic names, in English.
-6. Keep articles engaging, factual, and educational.
-
-Return ONLY a valid JSON object with no markdown fencing, no preamble, no explanation. Exactly this structure:
-{"articles":[{"section":"World News","headline":"...","body":"..."}]}`;
+// C2 is not a valid journalistic tier (decisions doc §2); map to C1/Native
+function normaliseLevel(level: LanguageLevel): string {
+  if (level === 'C2' || level === 'Native') return 'C1/Native';
+  return level;
 }
 
-function buildUserPrompt(
-  topics: string[],
-  articleCount: number,
-  wordsPerArticle: number,
-  date: string
-): string {
-  return `Today's date: ${date}
-
-Generate ${articleCount} news articles covering these topics (distribute evenly): ${topics.join(', ')}.
-
-Each article body should be approximately ${wordsPerArticle} words.
-
-Search for real current news and write each article at the correct language level.`;
+// Level always beats word count for low levels (decisions doc §8)
+function wordCountForLevel(level: LanguageLevel, briefingLength: BriefingLength): number {
+  if (level === 'A1' || level === 'A2') return WORDS_PER_ARTICLE.short;
+  return WORDS_PER_ARTICLE[briefingLength];
 }
 
-async function callClaude(system: string, user: string): Promise<string> {
+// Hardened JSON parser — tolerates fences, preamble, trailing text (decisions doc §5)
+function parseLLMJSON(raw: string): any | null {
+  if (!raw) return null;
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Raw API call — search toggled per stage
+// ---------------------------------------------------------------------------
+
+async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
   const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('NO_API_KEY');
 
-  const body = {
+  const body: any = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 6000,
+    max_tokens: useSearch ? 8000 : 6000,
     system,
-    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
     messages: [{ role: 'user', content: user }],
   };
 
+  if (useSearch) {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  }
+
+  const headers: Record<string, string> = {
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'content-type': 'application/json',
+  };
+
+  if (useSearch) {
+    headers['anthropic-beta'] = 'web-search-2025-03-05';
+  }
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'web-search-2025-03-05',
-      'content-type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -114,8 +124,6 @@ async function callClaude(system: string, user: string): Promise<string> {
   }
 
   const data = await res.json();
-
-  // Extract all text blocks (search results + final response are all returned in one call)
   const textBlocks: string[] = (data.content ?? [])
     .filter((b: any) => b.type === 'text')
     .map((b: any) => b.text as string);
@@ -123,76 +131,108 @@ async function callClaude(system: string, user: string): Promise<string> {
   return textBlocks.join('');
 }
 
-function extractJSON(raw: string): BriefingArticle[] {
-  // Strip any accidental markdown fencing
-  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+// ---------------------------------------------------------------------------
+// Stage 1 — Gathering call (web search ON, once per day)
+// ---------------------------------------------------------------------------
 
-  // Find the JSON object
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON found in response');
+const GATHERING_SYSTEM = `You are the news desk for Bilinguist Brief. Your job is to gather the day's most significant real news stories and produce a structured, neutral fact-base in English. This fact-base is an internal working document — it is never shown to readers. It will later be rewritten into multiple languages and reading levels by a separate process.
 
-  const json = JSON.parse(cleaned.slice(start, end + 1));
-  if (!Array.isArray(json.articles)) throw new Error('Invalid briefing JSON structure');
+RECENCY — this is critical:
+- Today's date is {DATE}. Search for news from {DATE} and the preceding 24 hours.
+- Your training data is months out of date. Rely on search results for what is current, not on memory. Never present an older event as today's news.
+- If a story is still developing, report the latest verified state and note that it is ongoing.
+- Use your web search tool actively. Never invent stories, quotes, figures, or events. If you cannot verify something, mark it as unverified rather than stating it.
 
-  return json.articles as BriefingArticle[];
+GATHER stories across these genres:
+- GLOBAL NEWS (the day's most significant world/breaking stories): 3-4 stories
+- POLITICS: 2 stories
+- BUSINESS & ECONOMY: 2 stories
+- SCIENCE & TECHNOLOGY: 2 stories
+- ARTS & CULTURE: 2 stories
+- GOOD NEWS (genuinely positive, uplifting stories): 2 stories
+
+Select the most significant story in each genre, judged by real-world importance - not by how dramatic or clickable it is. Do not duplicate a story across genres; assign each to its single best-fit genre.
+
+NEUTRALITY RULES - apply to every story:
+- Separate VERIFIED facts (independently confirmed) from REPORTED/CONTESTED claims (asserted by one party, disputed, or unconfirmed). Label each clearly using the fields below.
+- Attribute every contested claim to a named source ("the health ministry reports", "the company states"). Never state a contested claim as fact.
+- Use neutral descriptors. Prefer "killed", "fighters", "the military", "officials". Avoid loaded terms unless quoting a named party, in which case attribute them explicitly.
+- Give parallel treatment to opposing parties: if you name casualties, an actor, or a motive for one side, do the same for the other where the facts allow.
+- Be specific and confident about what is known. Neutrality means precise attribution, not vague hedging.
+
+OUTPUT FORMAT - respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
+
+Multi-point fields are ARRAYS OF SHORT STRINGS - one clean point per string. Keep each string to a single short clause. Do not write paragraphs inside a string. Do not use unescaped quotation marks or newlines inside any string.
+
+{"factbase":[{
+  "genre":"GLOBAL NEWS",
+  "slug":"short-kebab-id",
+  "what_happened":["point one","point two"],
+  "attribution":["who reports what","who states what"],
+  "verified":["independently confirmed fact","another"],
+  "contested":["disputed or single-source claim","another"],
+  "neutral_descriptors":["killed","officials","the military"],
+  "why_it_matters":"one short sentence on significance"
+}]}
+
+Every field except "genre", "slug", and "why_it_matters" is an array of strings. "why_it_matters" is a single short string. Keep each story's notes tight - enough to write a 180-word article from, no more. If a field has no content, use an empty array [].`;
+
+async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
+  const system = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
+  const user = `Today is ${date}. Please gather the day's news across all genres using web search.`;
+
+  const raw = await callClaude(system, user, true);
+  const parsed = parseLLMJSON(raw);
+
+  if (!parsed || !Array.isArray(parsed.factbase)) {
+    throw new Error('Gathering call returned invalid JSON — no factbase array found');
+  }
+
+  return parsed.factbase as FactbaseStory[];
 }
 
-export async function generateFreeBriefing(
-  language: LanguageCode,
-  level: LanguageLevel
-): Promise<GeneratedBriefing> {
-  await checkAndIncrementBriefingUsage();
-  const date = new Date().toISOString().split('T')[0];
+// ---------------------------------------------------------------------------
+// Stage 2 — Writing call (web search OFF, per language x level x length)
+// ---------------------------------------------------------------------------
 
-  const system = `You are the editor of Bilinguist Brief, a language learning newspaper app.
+// IMPORTANT: typographic quote examples below are intentional.
+// French guillemets and German low/high quotes prevent JSON breakage.
+// Do not convert to straight ASCII quotes.
+const WRITING_SYSTEM = `You are the editorial writer for Bilinguist Brief, a language-learning news app. You receive a pre-gathered fact-base of today's news (in English) and rewrite selected stories as original news articles in a target language, at a specific reading level, for language learners.
 
-Write today's free preview edition. The reader is learning ${LANGUAGE_NAMES[language]} at ${level} level (${LEVEL_DESCRIPTIONS[level]}).
+STRICT OUTPUT RULE: Respond with ONLY a raw JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 
-Rules:
-1. Write ENTIRELY in ${LANGUAGE_NAMES[language]}.
-2. Use vocabulary appropriate for ${level} level.
-3. Search for REAL, CURRENT news from Reuters, AP News, BBC, The Guardian, Financial Times.
-4. NEVER reproduce text verbatim. Always rewrite in your own words.
+FORMAT: {"articles":[{"genre":"...","headline":"...","body":"..."}]}
 
-Return ONLY valid JSON — no markdown, no preamble:
-{
-  "featured": { "section": "World News", "headline": "...", "body": "..." },
-  "teasers": [
-    { "section": "Politics", "headline": "...", "teaser": "One sentence only." },
-    { "section": "Business", "headline": "...", "teaser": "One sentence only." },
-    { "section": "Science & Technology", "headline": "...", "teaser": "One sentence only." },
-    { "section": "Arts & Culture", "headline": "...", "teaser": "One sentence only." },
-    { "section": "Good News", "headline": "...", "teaser": "One sentence only." }
-  ]
-}`;
+JSON SAFETY - follow exactly:
+- Each "body" is a SINGLE continuous string. Do not put literal line breaks inside it; write the article as flowing prose in one string.
+- For quotation marks inside headline or body text, use the target language's typographic quotation marks, never straight ASCII quotes: French « … », German „…“, Spanish «…» or “…”, Italian «…», English “…”. This prevents JSON formatting errors.
+- Never use the straight double-quote character inside any field's text.
 
-  const user = `Today's date: ${date}
+WRITING RULES:
+- Write every article in {LANGUAGE}.
+- Write original prose. Do not translate the fact-base word-for-word - compose a fresh, well-formed news article from the facts.
+- Use only the facts in the fact-base. Do not add events, figures, or claims that are not there. Preserve all attributions exactly.
+- Match the journalistic register of a prestige outlet in that language (French: Le Monde, German: Der Spiegel, Spanish: El Pais, Italian: Corriere della Sera, English: The Guardian) - adjusted to the reading level below.
+- Headlines are punchy and informative, never clickbait.
 
-Generate:
-- 1 featured World News article with a headline and 3-sentence body (~60 words)
-- 5 teaser headlines from different categories (headline + exactly 1 sentence teaser each)
+CARRY THE NEUTRALITY THROUGH: the fact-base separates verified from contested. State verified facts plainly; attribute contested ones to their named source. Keep grammatical treatment of opposing parties parallel.
 
-Search for real current news stories.`;
+LENGTH - target approximately {WORD_COUNT} words per article. Write to this length natively - never pad and never truncate mid-thought.
 
-  const raw = await callClaude(system, user);
-  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON in free briefing response');
+THE READING LEVEL IS THE MASTER CONSTRAINT. If {WORD_COUNT} and the reading level conflict, the reading level ALWAYS wins. At low levels, write fewer words rather than break the level.
 
-  const json = JSON.parse(cleaned.slice(start, end + 1));
+READING LEVEL - {LEVEL}. Write with absolute precision to this level:
 
-  return {
-    articles: [json.featured as BriefingArticle],
-    teasers: json.teasers as BriefingTeaser[],
-    isFree: true,
-    date,
-    language,
-    level,
-    generatedAt: Date.now(),
-  };
-}
+- A1: 3-4 short sentences. Present tense. The ~500 most common words only. Subject-verb-object. No subordinate clauses. State only the plainest verified facts.
+- A2: 4-5 sentences. Present and simple past. ~1000 common words. Simple connectors (and, but, because, so). Minimal attribution, kept simple.
+- B1: 5-6 sentences. Mixed tenses. Moderate vocabulary. One or two topic words explained by context. Simple attribution ("officials say"). No idioms.
+- B2: 6-7 sentences. Full range of tenses. Varied structure. Some idiom. Proper attribution of contested claims. Vocabulary of a well-read adult.
+- C1/Native: 7-8 sentences. Complex syntax, rich and idiomatic vocabulary, full journalistic register. Subordinate clauses, nominalisation, passive where natural. Write exactly as a staff journalist at that outlet would.`;
+
+// ---------------------------------------------------------------------------
+// Public exports
+// ---------------------------------------------------------------------------
 
 export async function generateBriefing(
   language: LanguageCode,
@@ -203,18 +243,114 @@ export async function generateBriefing(
   await checkAndIncrementBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
   const articleCount = ARTICLE_COUNTS[briefingLength];
-  const wordsPerArticle = WORDS_PER_ARTICLE[briefingLength];
+  const wordCount = wordCountForLevel(level, briefingLength);
+  const normalisedLevel = normaliseLevel(level);
+  const langName = LANGUAGE_NAMES[language];
 
-  const topics = enabledTopics.length > 0 ? enabledTopics : ['World News'];
+  // Stage 1 — get today's factbase or gather fresh
+  let factbase = await getTodayFactbase();
+  if (!factbase) {
+    factbase = await gatherFactbase(date);
+    await storeTodayFactbase(factbase);
+  }
 
-  const system = buildSystemPrompt(language, level);
-  const user = buildUserPrompt(topics, articleCount, wordsPerArticle, date);
+  // Filter to enabled, non-parked genres
+  const activeGenres = enabledTopics
+    .map(t => t.toUpperCase())
+    .filter(g => !PARKED_GENRES.has(g));
 
-  const raw = await callClaude(system, user);
-  const articles = extractJSON(raw);
+  const selectedStories = activeGenres.length > 0
+    ? factbase.filter(s =>
+        activeGenres.some(g =>
+          s.genre.toUpperCase().includes(g) || g.includes(s.genre.toUpperCase())
+        )
+      )
+    : factbase;
+
+  const storiesForPrompt = selectedStories.length > 0 ? selectedStories : factbase;
+
+  // Stage 2 — writing call (search OFF)
+  const system = WRITING_SYSTEM
+    .replace(/\{LANGUAGE\}/g, langName)
+    .replace(/\{LEVEL\}/g, normalisedLevel)
+    .replace(/\{WORD_COUNT\}/g, String(wordCount));
+
+  const user = `Today is ${date}.
+Write ${articleCount} articles distributed across the available genres.
+Enabled genres: ${activeGenres.join(', ') || 'all genres'}.
+
+FACT-BASE - rewrite as original journalism in ${langName}. Do not translate directly:
+${JSON.stringify(storiesForPrompt, null, 2)}`;
+
+  const raw = await callClaude(system, user, false);
+  const parsed = parseLLMJSON(raw);
+
+  if (!parsed || !Array.isArray(parsed.articles)) {
+    throw new Error('Writing call returned invalid JSON — no articles array found');
+  }
 
   return {
-    articles,
+    articles: parsed.articles as BriefingArticle[],
+    date,
+    language,
+    level,
+    generatedAt: Date.now(),
+  };
+}
+
+export async function generateFreeBriefing(
+  language: LanguageCode,
+  level: LanguageLevel
+): Promise<GeneratedBriefing> {
+  await checkAndIncrementBriefingUsage();
+  const date = new Date().toISOString().split('T')[0];
+  const wordCount = wordCountForLevel(level, 'short');
+  const normalisedLevel = normaliseLevel(level);
+  const langName = LANGUAGE_NAMES[language];
+
+  // Stage 1 — get today's factbase or gather fresh
+  let factbase = await getTodayFactbase();
+  if (!factbase) {
+    factbase = await gatherFactbase(date);
+    await storeTodayFactbase(factbase);
+  }
+
+  const system = `You are the editorial writer for Bilinguist Brief. You will receive a fact-base of today's news and produce a free preview edition for a language learner.
+
+STRICT OUTPUT RULE: Respond with ONLY a raw JSON object. No markdown, no code fences, no preamble.
+
+FORMAT:
+{
+  "featured": { "genre": "GLOBAL NEWS", "headline": "...", "body": "..." },
+  "teasers": [
+    { "genre": "POLITICS", "headline": "...", "teaser": "One sentence only." },
+    { "genre": "BUSINESS & ECONOMY", "headline": "...", "teaser": "One sentence only." },
+    { "genre": "SCIENCE & TECHNOLOGY", "headline": "...", "teaser": "One sentence only." },
+    { "genre": "ARTS & CULTURE", "headline": "...", "teaser": "One sentence only." },
+    { "genre": "GOOD NEWS", "headline": "...", "teaser": "One sentence only." }
+  ]
+}
+
+JSON SAFETY: use typographic quotation marks inside text - never straight ASCII double-quotes.
+Write in ${langName} at ${normalisedLevel} level.
+Featured article body: ~${wordCount} words. Each teaser: exactly one sentence.`;
+
+  const user = `Today is ${date}.
+
+FACT-BASE:
+${JSON.stringify(factbase, null, 2)}`;
+
+  const raw = await callClaude(system, user, false);
+  const parsed = parseLLMJSON(raw);
+
+  if (!parsed || !parsed.featured) {
+    throw new Error('Free briefing writing call returned invalid JSON');
+  }
+
+  return {
+    articles: [parsed.featured as BriefingArticle],
+    teasers: parsed.teasers as BriefingTeaser[],
+    isFree: true,
     date,
     language,
     level,

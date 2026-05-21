@@ -34,7 +34,7 @@ export function BriefingArticle({ article, isLast, language, level, locked, onLo
   return (
     <View style={styles.container}>
       <Text style={[styles.section, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-        {article.section.toUpperCase()}
+        {article.genre.toUpperCase()}
       </Text>
 
       <Text
