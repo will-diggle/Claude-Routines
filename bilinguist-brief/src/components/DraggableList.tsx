@@ -1,102 +1,86 @@
-import React, { useCallback, useState } from 'react';
-import { View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedReaction,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
-import type { SharedValue } from 'react-native-reanimated';
+import React, { useRef, useState } from 'react';
+import { View, PanResponder, Animated } from 'react-native';
 
 // ─── Per-row component ────────────────────────────────────────────────────────
 
 interface RowProps {
-  index: number;
-  numItems: number;
-  itemHeight: number;
-  activeIndex: SharedValue<number>;
-  dragOffset: SharedValue<number>;
-  onStart: (index: number) => void;
-  onFinish: (from: number, to: number) => void;
+  shift: Animated.Value;
+  floatY: Animated.Value;
+  isDragging: boolean;
+  isAnyDragging: boolean;
+  onActivate: () => void;
+  onMove: (dy: number) => void;
+  onRelease: (dy: number) => void;
   children: React.ReactNode;
 }
 
 function DraggableRow({
-  index,
-  numItems,
-  itemHeight,
-  activeIndex,
-  dragOffset,
-  onStart,
-  onFinish,
+  shift,
+  floatY,
+  isDragging,
+  onActivate,
+  onMove,
+  onRelease,
   children,
 }: RowProps) {
-  // Each row has its own animated shift value — smoothly animated by useAnimatedReaction
-  const shift = useSharedValue(0);
+  const activated = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useAnimatedReaction(
-    () => {
-      const dragging = activeIndex.value;
-      if (dragging === -1 || dragging === index) return 0;
-      const target = Math.max(
-        0,
-        Math.min(numItems - 1, Math.round(dragging + dragOffset.value / itemHeight)),
-      );
-      if (dragging < target && index > dragging && index <= target) return -itemHeight;
-      if (dragging > target && index >= target && index < dragging) return itemHeight;
-      return 0;
-    },
-    (value) => {
-      shift.value = withSpring(value, { damping: 22, stiffness: 280 });
-    },
-  );
+  // Keep callbacks current without recreating the PanResponder
+  const onActivateRef = useRef(onActivate);
+  onActivateRef.current = onActivate;
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
+  const onReleaseRef = useRef(onRelease);
+  onReleaseRef.current = onRelease;
 
-  const gesture = Gesture.Pan()
-    .activateAfterLongPress(450)
-    .onStart(() => {
-      activeIndex.value = index;
-      dragOffset.value = 0;
-      runOnJS(onStart)(index);
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: () => activated.current,
+      onMoveShouldSetPanResponderCapture: () => activated.current,
+      // Allow parent ScrollView to reclaim if not yet dragging
+      onPanResponderTerminationRequest: () => !activated.current,
+      onPanResponderGrant: () => {
+        activated.current = false;
+        timer.current = setTimeout(() => {
+          activated.current = true;
+          onActivateRef.current();
+        }, 450);
+      },
+      onPanResponderMove: (_, gs) => {
+        if (!activated.current) return;
+        onMoveRef.current(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (timer.current) clearTimeout(timer.current);
+        const was = activated.current;
+        activated.current = false;
+        if (was) onReleaseRef.current(gs.dy);
+      },
+      onPanResponderTerminate: () => {
+        if (timer.current) clearTimeout(timer.current);
+        if (activated.current) {
+          activated.current = false;
+          onReleaseRef.current(0);
+        }
+      },
     })
-    .onUpdate((e) => {
-      dragOffset.value = e.translationY;
-    })
-    .onEnd(() => {
-      const to = Math.max(
-        0,
-        Math.min(numItems - 1, Math.round(index + dragOffset.value / itemHeight)),
-      );
-      activeIndex.value = -1;
-      dragOffset.value = withSpring(0, { damping: 22, stiffness: 280 });
-      shift.value = withSpring(0, { damping: 22, stiffness: 280 });
-      runOnJS(onFinish)(index, to);
-    });
-
-  const animStyle = useAnimatedStyle(() => {
-    if (activeIndex.value === index) {
-      return {
-        transform: [{ translateY: dragOffset.value }, { scale: 1.02 }],
-        zIndex: 99,
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 5 },
-        elevation: 8,
-      };
-    }
-    return {
-      transform: [{ translateY: shift.value }, { scale: 1 }],
-      zIndex: 0,
-      shadowOpacity: 0,
-      elevation: 0,
-    };
-  });
+  ).current;
 
   return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View style={animStyle}>{children}</Animated.View>
-    </GestureDetector>
+    <Animated.View
+      style={{
+        transform: [{ translateY: isDragging ? floatY : shift }],
+        zIndex: isDragging ? 999 : 1,
+        elevation: isDragging ? 8 : 0,
+        opacity: isDragging ? 0.96 : 1,
+      }}
+      {...pan.panHandlers}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -108,7 +92,7 @@ export interface DraggableListProps<T> {
   /** isAnyDragging lets the caller hide variable-height sub-rows during drag */
   renderItem: (item: T, index: number, isAnyDragging: boolean) => React.ReactNode;
   onReorder: (from: number, to: number) => void;
-  /** Must match the CSS height of one rendered row exactly */
+  /** Must match the rendered height of one row exactly */
   itemHeight: number;
 }
 
@@ -119,36 +103,71 @@ export function DraggableList<T>({
   onReorder,
   itemHeight,
 }: DraggableListProps<T>) {
-  const activeIndex = useSharedValue(-1);
-  const dragOffset = useSharedValue(0);
-  const [isAnyDragging, setIsAnyDragging] = useState(false);
+  const [draggingIndex, setDraggingIndex] = useState(-1);
+  const draggingRef = useRef(-1);
+  const floatY = useRef(new Animated.Value(0)).current;
 
-  const handleStart = useCallback((idx: number) => {
-    setIsAnyDragging(true);
-  }, []);
+  // Stable array of shift values — one per item position
+  const shiftsRef = useRef<Animated.Value[]>([]);
+  while (shiftsRef.current.length < items.length) {
+    shiftsRef.current.push(new Animated.Value(0));
+  }
+  const shifts = shiftsRef.current;
 
-  const handleFinish = useCallback(
-    (from: number, to: number) => {
-      setIsAnyDragging(false);
-      if (from !== to) onReorder(from, to);
-    },
-    [onReorder],
-  );
+  function computeTarget(from: number, dy: number) {
+    return Math.max(0, Math.min(items.length - 1, from + Math.round(dy / itemHeight)));
+  }
+
+  function animateShifts(from: number, to: number) {
+    for (let i = 0; i < items.length; i++) {
+      if (i === from) continue;
+      let val = 0;
+      if (from < to && i > from && i <= to) val = -itemHeight;
+      if (from > to && i >= to && i < from) val = itemHeight;
+      Animated.spring(shifts[i], {
+        toValue: val,
+        damping: 20,
+        stiffness: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }
+
+  function resetShifts() {
+    shifts.forEach((s) =>
+      Animated.spring(s, { toValue: 0, damping: 20, stiffness: 300, useNativeDriver: true }).start()
+    );
+  }
 
   return (
     <View>
       {items.map((item, index) => (
         <DraggableRow
           key={keyExtractor(item)}
-          index={index}
-          numItems={items.length}
-          itemHeight={itemHeight}
-          activeIndex={activeIndex}
-          dragOffset={dragOffset}
-          onStart={handleStart}
-          onFinish={handleFinish}
+          shift={shifts[index]}
+          floatY={floatY}
+          isDragging={draggingIndex === index}
+          isAnyDragging={draggingIndex !== -1}
+          onActivate={() => {
+            draggingRef.current = index;
+            floatY.setValue(0);
+            setDraggingIndex(index);
+          }}
+          onMove={(dy) => {
+            floatY.setValue(dy);
+            animateShifts(draggingRef.current, computeTarget(draggingRef.current, dy));
+          }}
+          onRelease={(dy) => {
+            const from = draggingRef.current;
+            const to = computeTarget(from, dy);
+            resetShifts();
+            setDraggingIndex(-1);
+            draggingRef.current = -1;
+            floatY.setValue(0);
+            if (from !== to) onReorder(from, to);
+          }}
         >
-          {renderItem(item, index, isAnyDragging)}
+          {renderItem(item, index, draggingIndex !== -1)}
         </DraggableRow>
       ))}
     </View>
