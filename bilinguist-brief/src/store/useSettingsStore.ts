@@ -168,6 +168,18 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: 'bilinguist-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // Remove parked topics (sport, countryNews) that were in older builds
+        const VALID = new Set(['worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'goodNews']);
+        const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => VALID.has(k));
+        VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
+        state.topicOrder = cleanOrder;
+        // Ensure topics object has exactly the valid keys
+        const cleanTopics: any = {};
+        VALID.forEach((k) => { cleanTopics[k] = state.topics?.[k] !== false; });
+        state.topics = cleanTopics;
+      },
     }
   )
 );

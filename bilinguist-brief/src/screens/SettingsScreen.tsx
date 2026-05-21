@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel } from '../store/useSettingsStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
@@ -177,8 +178,6 @@ export function SettingsScreen() {
     }
   }, [store.developerMode]);
 
-  const activeCount = store.languages.filter((l) => l.active).length;
-
   function handleDevTap() {
     if (store.developerMode) {
       store.setDeveloperMode(false);
@@ -241,40 +240,27 @@ export function SettingsScreen() {
         Toggle any language on. The briefing generates instantly once cached.
       </Text>
 
-      {store.languages.map((lang, index) => {
-        const isDisabled = false;
-
-        return (
-          <View key={lang.code}>
+      <DraggableList
+        items={store.languages}
+        keyExtractor={(lang) => lang.code}
+        itemHeight={56}
+        onReorder={store.reorderLanguages}
+        renderItem={(lang, index, isAnyDragging) => (
+          <View>
             <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-              <Text style={[styles.rowLabel, { color: isDisabled ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                 {lang.nativeName}
               </Text>
-              <View style={styles.reorderBtns}>
-                <TouchableOpacity
-                  onPress={() => store.reorderLanguages(index, index - 1)}
-                  disabled={index === 0}
-                  style={{ opacity: index === 0 ? 0.25 : 1 }}
-                >
-                  <Ionicons name="chevron-up" size={14} color={colors.inkMid} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => store.reorderLanguages(index, index + 1)}
-                  disabled={index === store.languages.length - 1}
-                  style={{ opacity: index === store.languages.length - 1 ? 0.25 : 1 }}
-                >
-                  <Ionicons name="chevron-down" size={14} color={colors.inkMid} />
-                </TouchableOpacity>
-              </View>
               <Switch
                 value={lang.active}
                 onValueChange={() => store.toggleLanguage(lang.code)}
-                disabled={isDisabled}
                 trackColor={{ false: colors.borderMid, true: colors.inkDark }}
                 thumbColor="#FFF"
               />
             </View>
-            {lang.active && (
+            {/* Hide level row during drag to keep all items the same height */}
+            {lang.active && !isAnyDragging && (
               <TouchableOpacity
                 style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
                 onPress={() => setLevelModalLang(lang.code)}
@@ -289,41 +275,32 @@ export function SettingsScreen() {
               </TouchableOpacity>
             )}
           </View>
-        );
-      })}
+        )}
+      />
 
       {/* ── Topics ── */}
       <SectionHeader title="Topics" colors={colors} fontFamily={fontFamily} />
 
-      {topicItems.map((item, index) => (
-        <View key={item.key} style={[styles.row, { borderBottomColor: colors.borderLight, borderBottomWidth: index < topicItems.length - 1 ? StyleSheet.hairlineWidth : 0 }]}>
-          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-            {item.label}
-          </Text>
-          <View style={styles.reorderBtns}>
-            <TouchableOpacity
-              onPress={() => store.reorderTopics(index, index - 1)}
-              disabled={index === 0}
-              style={{ opacity: index === 0 ? 0.25 : 1 }}
-            >
-              <Ionicons name="chevron-up" size={14} color={colors.inkMid} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => store.reorderTopics(index, index + 1)}
-              disabled={index === topicItems.length - 1}
-              style={{ opacity: index === topicItems.length - 1 ? 0.25 : 1 }}
-            >
-              <Ionicons name="chevron-down" size={14} color={colors.inkMid} />
-            </TouchableOpacity>
+      <DraggableList
+        items={topicItems}
+        keyExtractor={(item) => item.key}
+        itemHeight={56}
+        onReorder={store.reorderTopics}
+        renderItem={(item) => (
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              {item.label}
+            </Text>
+            <Switch
+              value={store.topics[item.key]}
+              onValueChange={() => store.toggleTopic(item.key)}
+              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+              thumbColor="#FFF"
+            />
           </View>
-          <Switch
-            value={store.topics[item.key]}
-            onValueChange={() => store.toggleTopic(item.key)}
-            trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-            thumbColor="#FFF"
-          />
-        </View>
-      ))}
+        )}
+      />
 
       {/* ── Briefing Preferences ── */}
       <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
@@ -618,12 +595,6 @@ const styles = StyleSheet.create({
   },
   fontSample: { fontSize: 17 },
   fontPreview: { fontSize: 13, marginTop: 2 },
-  reorderBtns: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 2,
-    marginRight: Spacing.sm,
-  },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },

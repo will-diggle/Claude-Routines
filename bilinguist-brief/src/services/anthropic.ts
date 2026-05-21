@@ -218,6 +218,7 @@ JSON SAFETY - follow exactly:
 - Each "body" is a SINGLE continuous string. Do not put literal line breaks inside it; write the article as flowing prose in one string.
 - For quotation marks inside headline or body text, use the target language's typographic quotation marks, never straight ASCII quotes: French « … », German „…“, Spanish «…» or “…”, Italian «…», English “…”. This prevents JSON formatting errors.
 - Never use the straight double-quote character inside any field's text.
+- The "genre" field MUST stay in English exactly as it appears in the fact-base (e.g., "GLOBAL NEWS", "POLITICS"). Only "headline" and "body" are written in the target language.
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
