@@ -35,7 +35,7 @@ export function TopBar({ routeName }: Props) {
         {/* Coat of arms logomark */}
         <Image
           source={LOGOMARK}
-          style={[styles.logomarkLarge, imageStyle]}
+          style={[styles.logomarkLarge, { backgroundColor: colors.bg }, imageStyle]}
           resizeMode="contain"
         />
 
@@ -45,7 +45,7 @@ export function TopBar({ routeName }: Props) {
 
         <Image
           source={LOGOTYPE}
-          style={[styles.logotypeLarge, imageStyle]}
+          style={[styles.logotypeLarge, { backgroundColor: colors.bg }, imageStyle]}
           resizeMode="contain"
         />
 
@@ -67,7 +67,7 @@ export function TopBar({ routeName }: Props) {
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <Image
         source={LOGOTYPE}
-        style={[styles.logotypeCompact, imageStyle]}
+        style={[styles.logotypeCompact, { backgroundColor: colors.bg }, imageStyle]}
         resizeMode="contain"
       />
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
