@@ -8,6 +8,10 @@ const LOGOTYPE = require('../../assets/logotype.png');
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// Logomark: 600×297 source → 2.02:1 ratio
+const LOGOMARK_W = 68;
+const LOGOMARK_H = Math.round(LOGOMARK_W * (297 / 600)); // ≈ 34
+
 interface Props {
   routeName?: string;
 }
@@ -24,40 +28,45 @@ export function TopBar({ routeName }: Props) {
   const { colors, fontFamily, isNight } = useTheme();
   const isBriefing = routeName === 'Briefing';
   const dateStr = new Date().toLocaleDateString('en-GB', DATE_OPTIONS).toUpperCase();
-
-  // On night mode the black images become invisible — reduce opacity slightly
-  // but do NOT use tintColor (it flattens all opaque pixels to one flat colour)
   const imageStyle = isNight ? { opacity: 0.85 } : undefined;
 
   if (isBriefing) {
     return (
       <View style={[styles.masthead, { paddingTop: insets.top + 8, backgroundColor: colors.bg }]}>
-        {/* Coat of arms logomark */}
-        <Image
-          source={LOGOMARK}
-          style={[styles.logomarkLarge, { backgroundColor: colors.bg }, imageStyle]}
-          resizeMode="contain"
-        />
+        {/* Outer dark rule */}
+        <View style={[styles.ruleOuter, { backgroundColor: colors.inkDark }]} />
+        {/* Inner grey rule */}
+        <View style={[styles.ruleInner, { backgroundColor: colors.borderMid }]} />
 
-        {/* Double rule + logotype */}
-        <View style={[styles.ruleThick, { backgroundColor: colors.inkDark }]} />
-        <View style={[styles.ruleThin, { backgroundColor: colors.inkDark }]} />
+        {/* Logomark left + logotype centered */}
+        <View style={styles.logotypeRow}>
+          <Image
+            source={LOGOMARK}
+            style={[styles.logomark, imageStyle]}
+            resizeMode="contain"
+          />
+          <View style={styles.logotypeWrap}>
+            <Image
+              source={LOGOTYPE}
+              style={[styles.logotype, imageStyle]}
+              resizeMode="contain"
+            />
+          </View>
+          {/* Right spacer matches logomark width so logotype stays centred */}
+          <View style={styles.logomarkSpacer} />
+        </View>
 
-        <Image
-          source={LOGOTYPE}
-          style={[styles.logotypeLarge, { backgroundColor: colors.bg }, imageStyle]}
-          resizeMode="contain"
-        />
-
-        <View style={[styles.ruleThin, { backgroundColor: colors.inkDark }]} />
-        <View style={[styles.ruleThick, { backgroundColor: colors.inkDark }]} />
+        {/* Inner grey rule */}
+        <View style={[styles.ruleInner, { backgroundColor: colors.borderMid }]} />
+        {/* Outer dark rule */}
+        <View style={[styles.ruleOuter, { backgroundColor: colors.inkDark }]} />
 
         {/* Date */}
         <Text style={[styles.mastheadDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
           {dateStr}
         </Text>
 
-        <View style={[styles.hairline, { backgroundColor: colors.borderMid }]} />
+        <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
       </View>
     );
   }
@@ -67,7 +76,7 @@ export function TopBar({ routeName }: Props) {
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <Image
         source={LOGOTYPE}
-        style={[styles.logotypeCompact, { backgroundColor: colors.bg }, imageStyle]}
+        style={[styles.logotypeCompact, imageStyle]}
         resizeMode="contain"
       />
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
@@ -83,25 +92,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 0,
   },
-  logomarkLarge: {
-    width: 100,
-    height: 100,
-    marginBottom: 6,
+
+  ruleOuter: {
+    height: 2,
+    width: SCREEN_WIDTH,
   },
-  ruleThick: {
-    height: 3,
-    width: SCREEN_WIDTH - 32,
-  },
-  ruleThin: {
+  ruleInner: {
     height: 1,
-    width: SCREEN_WIDTH - 32,
-    marginVertical: 2,
+    width: SCREEN_WIDTH,
+    marginVertical: 1,
   },
-  logotypeLarge: {
-    width: SCREEN_WIDTH - 48,
-    height: 52,
-    marginVertical: 4,
+
+  logotypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: SCREEN_WIDTH,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
   },
+  logomark: {
+    width: LOGOMARK_W,
+    height: LOGOMARK_H,
+  },
+  logomarkSpacer: {
+    width: LOGOMARK_W,
+  },
+  logotypeWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  logotype: {
+    width: '100%',
+    height: 48,
+  },
+
   mastheadDate: {
     fontSize: 10,
     letterSpacing: 1.5,
@@ -110,7 +134,7 @@ const styles = StyleSheet.create({
   },
   hairline: {
     height: StyleSheet.hairlineWidth,
-    width: SCREEN_WIDTH - 32,
+    width: SCREEN_WIDTH,
   },
 
   // ── Compact header ─────────────────────────────────────────────────────────
