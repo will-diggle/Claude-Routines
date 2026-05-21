@@ -14,10 +14,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel } from '../store/useSettingsStore';
+import { useBriefingStore } from '../store/useBriefingStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
+import { getTodayFactbase } from '../services/factbase';
 import {
   FontFamilies,
   FontSizes,
@@ -165,12 +167,14 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const store = useSettingsStore();
+  const { loadBriefing } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
   const [usageLabel, setUsageLabel] = useState('');
+  const [isForceRegenerating, setIsForceRegenerating] = useState(false);
 
   useEffect(() => {
     if (store.developerMode) {
@@ -200,7 +204,7 @@ export function SettingsScreen() {
   }
 
   const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key)).map((key) => ({
-    key: key as keyof typeof store.topics,
+    key,
     label: TOPIC_LABEL_MAP[key] ?? key,
   }));
 
@@ -453,6 +457,40 @@ export function SettingsScreen() {
               style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
             >
               <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={isForceRegenerating}
+              onPress={async () => {
+                const active = store.languages.filter((l) => l.active);
+                if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
+                setIsForceRegenerating(true);
+                try {
+                  await Promise.all(
+                    active.map((lang) => loadBriefing(lang.code, lang.level ?? 'B1', store.briefingLength, true))
+                  );
+                  Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''}.`);
+                } catch {
+                  Alert.alert('Error', 'One or more languages failed. Check the Brief screen for details.');
+                } finally {
+                  setIsForceRegenerating(false);
+                }
+              }}
+              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
+            >
+              <Text style={[styles.devText, { color: colors.accentRed }]}>
+                {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                const fb = await getTodayFactbase();
+                if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
+                const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
+                Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
+              }}
+              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+            >
+              <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
             </TouchableOpacity>
           </View>
         )}

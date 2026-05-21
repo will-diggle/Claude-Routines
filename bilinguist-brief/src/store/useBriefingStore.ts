@@ -83,7 +83,7 @@ export const useBriefingStore = create<BriefingStore>()(
 
         // Developer mock mode
         if (useSettingsStore.getState().developerMode) {
-          const mock = getMockBriefing(language, level, briefingLength, false);
+          const mock = getMockBriefing(language, level, briefingLength);
           set((s) => ({
             briefings: { ...s.briefings, [language]: mock },
             errorsFor: { ...s.errorsFor, [language]: undefined },

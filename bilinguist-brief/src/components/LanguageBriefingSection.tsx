@@ -36,7 +36,6 @@ interface Props {
   error: string | undefined;
   isFirst: boolean;
   topics: Topics;
-  onGenerate: () => void;
   onRetry: () => void;
 }
 
@@ -60,7 +59,6 @@ export function LanguageBriefingSection({
   error,
   isFirst,
   topics,
-  onGenerate,
   onRetry,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
@@ -88,7 +86,7 @@ export function LanguageBriefingSection({
       </View>
       <View style={[styles.mastRule, { backgroundColor: colors.inkDark }]} />
 
-      {isGenerating && !hasContent && <BriefingLoading />}
+      {(isGenerating || (!error && !briefing)) && <BriefingLoading />}
 
       {!isGenerating && error && (
         <View style={styles.centerBlock}>
@@ -104,25 +102,9 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {!isGenerating && !error && !briefing && (
-        <View style={styles.centerBlock}>
-          <TouchableOpacity
-            style={[styles.generateButton, { backgroundColor: colors.inkDark }]}
-            onPress={onGenerate}
-          >
-            <Text style={[styles.generateButtonText, { fontFamily: fontFamily.regular }]}>
-              Generate {nativeName} Briefing
-            </Text>
-          </TouchableOpacity>
-          <Text style={[styles.generateNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            Takes 20–40 seconds · Cached for the day
-          </Text>
-        </View>
-      )}
-
       {!isGenerating && !error && briefing && !hasContent && (
         <View style={styles.centerBlock}>
-          <Text style={[styles.generateNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+          <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             All topics are hidden — turn some on in Settings to read the briefing.
           </Text>
         </View>
@@ -187,14 +169,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   buttonText: { fontSize: 15 },
-  generateButton: {
-    borderRadius: 8,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: 14,
-    marginTop: Spacing.sm,
-  },
-  generateButtonText: { color: '#FFF', fontSize: 16 },
-  generateNote: { fontSize: 13 },
+  emptyNote: { fontSize: 13, textAlign: 'center' },
   sectionFooter: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,

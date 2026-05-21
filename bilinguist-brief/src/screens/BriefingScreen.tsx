@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback } from 'react';
-import { ScrollView, RefreshControl, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useTheme } from '../hooks/useTheme';
@@ -26,27 +26,10 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
-  const isAnyGenerating = activeLanguages.some((l) => generatingFor.includes(l.code));
-
-  const handleRefresh = useCallback(() => {
-    const langs = settings.languages.filter((l) => l.active);
-    langs.forEach((lang) => {
-      loadBriefing(lang.code, lang.level ?? 'B1', settings.briefingLength, true);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLangKey, settings.briefingLength]);
-
   return (
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={isAnyGenerating}
-          onRefresh={handleRefresh}
-          tintColor={colors.inkFaint}
-        />
-      }
     >
       <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
 
@@ -63,7 +46,6 @@ export function BriefingScreen() {
             error={errorsFor[lang.code]}
             isFirst={index === 0}
             topics={settings.topics}
-            onGenerate={() => loadBriefing(lang.code, level, settings.briefingLength, true)}
             onRetry={() => {
               clearError(lang.code);
               loadBriefing(lang.code, level, settings.briefingLength, true);
