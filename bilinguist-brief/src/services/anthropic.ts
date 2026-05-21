@@ -1,4 +1,5 @@
 import type { LanguageCode, LanguageLevel, BriefingLength } from '../store/useSettingsStore';
+import { checkAndIncrementBriefingUsage } from './apiUsage';
 
 export interface BriefingArticle {
   section: string;
@@ -141,6 +142,7 @@ export async function generateFreeBriefing(
   language: LanguageCode,
   level: LanguageLevel
 ): Promise<GeneratedBriefing> {
+  await checkAndIncrementBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
 
   const system = `You are the editor of Bilinguist Brief, a language learning newspaper app.
@@ -198,6 +200,7 @@ export async function generateBriefing(
   briefingLength: BriefingLength,
   enabledTopics: string[]
 ): Promise<GeneratedBriefing> {
+  await checkAndIncrementBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
   const articleCount = ARTICLE_COUNTS[briefingLength];
   const wordsPerArticle = WORDS_PER_ARTICLE[briefingLength];
