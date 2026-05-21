@@ -8,7 +8,6 @@ import { clearTodayFactbase } from '../services/factbase';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
-// Must match genre names used in the gathering prompt
 const TOPIC_LABELS: Record<string, string> = {
   worldNews: 'GLOBAL NEWS',
   goodNews: 'GOOD NEWS',
@@ -29,11 +28,11 @@ function todayString(): string {
 }
 
 interface BriefingStore {
-  briefing: GeneratedBriefing | null;
+  briefings: Partial<Record<LanguageCode, GeneratedBriefing>>;
+  generatingFor: LanguageCode[];
+  errorsFor: Partial<Record<LanguageCode, string>>;
   weather: WeatherData | null;
-  isGenerating: boolean;
   isLoadingWeather: boolean;
-  error: string | null;
 
   loadBriefing: (
     language: LanguageCode,
@@ -45,17 +44,17 @@ interface BriefingStore {
   ) => Promise<void>;
 
   loadWeather: (language: LanguageCode) => Promise<void>;
-  clearError: () => void;
+  clearError: (language: LanguageCode) => void;
 }
 
 export const useBriefingStore = create<BriefingStore>()(
   persist(
     (set, get) => ({
-      briefing: null,
+      briefings: {},
+      generatingFor: [],
+      errorsFor: {},
       weather: null,
-      isGenerating: false,
       isLoadingWeather: false,
-      error: null,
 
       loadWeather: async (language) => {
         set({ isLoadingWeather: true });
@@ -68,20 +67,21 @@ export const useBriefingStore = create<BriefingStore>()(
         const tierSuffix = isFreeUser ? '_free' : '_paid';
         const key = cacheKey(today, language, level) + tierSuffix;
 
-        // Use cached briefing if available and not forcing refresh
         if (!forceRefresh) {
-          const cached = get().briefing;
+          const cached = get().briefings[language];
           const tierMatches = isFreeUser ? !!cached?.isFree : !cached?.isFree;
           if (cached && cached.date === today && cached.language === language && cached.level === level && tierMatches) {
             return;
           }
 
-          // Check AsyncStorage for cached version
           try {
             const stored = await AsyncStorage.getItem(key);
             if (stored) {
               const parsed: GeneratedBriefing = JSON.parse(stored);
-              set({ briefing: parsed, error: null });
+              set((s) => ({
+                briefings: { ...s.briefings, [language]: parsed },
+                errorsFor: { ...s.errorsFor, [language]: undefined },
+              }));
               return;
             }
           } catch {
@@ -89,20 +89,28 @@ export const useBriefingStore = create<BriefingStore>()(
           }
         }
 
-        // On force refresh, wipe cached factbase so a fresh gathering call runs
+        // Force refresh: wipe factbase so a fresh gathering call runs
         if (forceRefresh) {
           await clearTodayFactbase();
-          set({ briefing: null });
+          set((s) => ({ briefings: { ...s.briefings, [language]: undefined } }));
         }
 
-        // Developer mock mode — instant, no API call
+        // Developer mock mode
         if (useSettingsStore.getState().developerMode) {
           const mock = getMockBriefing(language, level, briefingLength, isFreeUser);
-          set({ briefing: mock, isGenerating: false, error: null });
+          set((s) => ({
+            briefings: { ...s.briefings, [language]: mock },
+            errorsFor: { ...s.errorsFor, [language]: undefined },
+          }));
           return;
         }
 
-        set({ isGenerating: true, error: null });
+        set((s) => ({
+          generatingFor: s.generatingFor.includes(language)
+            ? s.generatingFor
+            : [...s.generatingFor, language],
+          errorsFor: { ...s.errorsFor, [language]: undefined },
+        }));
 
         try {
           const result = isFreeUser
@@ -114,10 +122,13 @@ export const useBriefingStore = create<BriefingStore>()(
                 Object.entries(topics).filter(([, on]) => on).map(([k]) => TOPIC_LABELS[k] ?? k)
               );
 
-          // Cache to AsyncStorage
           await AsyncStorage.setItem(key, JSON.stringify(result));
 
-          set({ briefing: result, isGenerating: false, error: null });
+          set((s) => ({
+            briefings: { ...s.briefings, [language]: result },
+            generatingFor: s.generatingFor.filter((l) => l !== language),
+            errorsFor: { ...s.errorsFor, [language]: undefined },
+          }));
         } catch (err: any) {
           const raw: string = err?.message ?? 'Unknown error';
           let message: string;
@@ -125,23 +136,25 @@ export const useBriefingStore = create<BriefingStore>()(
             message = 'Add your Anthropic API key to .env to generate briefings.';
           } else if (raw.includes('rate_limit_error') || raw.includes('429')) {
             message = 'Rate limit reached — please wait a moment and try again.';
-          } else if (raw.includes('invalid JSON') || raw.includes('invalid x-api-key') || raw.includes('401')) {
-            message = 'Could not generate briefing — please try again.';
           } else if (raw.includes('Daily limit')) {
             message = raw;
           } else {
             message = 'Could not generate briefing — please try again.';
           }
-          set({ isGenerating: false, error: message });
+          set((s) => ({
+            generatingFor: s.generatingFor.filter((l) => l !== language),
+            errorsFor: { ...s.errorsFor, [language]: message },
+          }));
         }
       },
 
-      clearError: () => set({ error: null }),
+      clearError: (language) =>
+        set((s) => ({ errorsFor: { ...s.errorsFor, [language]: undefined } })),
     }),
     {
-      name: 'bilinguist-briefing',
+      name: 'bilinguist-briefing-v2',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ briefing: state.briefing, weather: state.weather }),
+      partialize: (state) => ({ briefings: state.briefings, weather: state.weather }),
     }
   )
 );

@@ -179,6 +179,28 @@ Multi-point fields are ARRAYS OF SHORT STRINGS - one clean point per string. Kee
 
 Every field except "genre", "slug", and "why_it_matters" is an array of strings. "why_it_matters" is a single short string. Keep each story's notes tight - enough to write a 180-word article from, no more. If a field has no content, use an empty array [].`;
 
+// Prevents concurrent language writes from each triggering a separate gathering call
+let gatheringPromise: Promise<FactbaseStory[]> | null = null;
+
+async function getOrGatherFactbase(date: string): Promise<FactbaseStory[]> {
+  const cached = await getTodayFactbase();
+  if (cached) return cached;
+
+  if (!gatheringPromise) {
+    gatheringPromise = (async () => {
+      try {
+        const fb = await gatherFactbase(date);
+        await storeTodayFactbase(fb);
+        return fb;
+      } finally {
+        gatheringPromise = null;
+      }
+    })();
+  }
+
+  return gatheringPromise;
+}
+
 async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
   const system = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
   const user = `Today is ${date}. Please gather the day's news across all genres using web search.`;
@@ -250,12 +272,8 @@ export async function generateBriefing(
   const normalisedLevel = normaliseLevel(level);
   const langName = LANGUAGE_NAMES[language];
 
-  // Stage 1 — get today's factbase or gather fresh
-  let factbase = await getTodayFactbase();
-  if (!factbase) {
-    factbase = await gatherFactbase(date);
-    await storeTodayFactbase(factbase);
-  }
+  // Stage 1 — get today's factbase or gather fresh (mutex prevents concurrent gathering)
+  const factbase = await getOrGatherFactbase(date);
 
   // Filter to enabled, non-parked genres
   const activeGenres = enabledTopics
@@ -313,12 +331,8 @@ export async function generateFreeBriefing(
   const normalisedLevel = normaliseLevel(level);
   const langName = LANGUAGE_NAMES[language];
 
-  // Stage 1 — get today's factbase or gather fresh
-  let factbase = await getTodayFactbase();
-  if (!factbase) {
-    factbase = await gatherFactbase(date);
-    await storeTodayFactbase(factbase);
-  }
+  // Stage 1 — get today's factbase or gather fresh (mutex prevents concurrent gathering)
+  const factbase = await getOrGatherFactbase(date);
 
   // Free edition only needs 6 stories — one to feature, five to tease
   const trimmedFactbase = factbase.slice(0, 6);
