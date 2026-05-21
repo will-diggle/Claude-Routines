@@ -6,8 +6,10 @@ import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 export type LanguageCode = 'fr' | 'de' | 'en' | 'es' | 'it';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
-export type BriefingLength = 'short' | 'standard' | 'full';
-export type LanguagesPerBriefing = '1' | '2' | 'all';
+
+// User-facing depth choice. Only applies to B1+ levels.
+// A1/A2 always generate at 'short' regardless of this setting.
+export type ReadLength = 'medium' | 'longer';
 
 export interface LanguagePreference {
   code: LanguageCode;
@@ -33,10 +35,9 @@ export interface Settings {
   displayLanguage: LanguageCode;
   topics: Topics;
   topicOrder: string[];
-  briefingLength: BriefingLength;
+  readLength: ReadLength;
   briefingNotificationTime: string;
   practiceNotificationTime: string;
-  languagesPerBriefing: LanguagesPerBriefing;
   fontSize: FontSizeKey;
   background: BackgroundKey;
   fontFamily: FontFamilyKey;
@@ -50,10 +51,9 @@ interface SettingsStore extends Settings {
   reorderLanguages: (from: number, to: number) => void;
   toggleTopic: (topic: keyof Topics) => void;
   reorderTopics: (from: number, to: number) => void;
-  setBriefingLength: (length: BriefingLength) => void;
+  setReadLength: (length: ReadLength) => void;
   setBriefingNotificationTime: (time: string) => void;
   setPracticeNotificationTime: (time: string) => void;
-  setLanguagesPerBriefing: (count: LanguagesPerBriefing) => void;
   setFontSize: (size: FontSizeKey) => void;
   setBackground: (bg: BackgroundKey) => void;
   setFontFamily: (font: FontFamilyKey) => void;
@@ -85,10 +85,9 @@ const DEFAULT_SETTINGS: Settings = {
     business: true,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
-  briefingLength: 'standard',
+  readLength: 'medium',
   briefingNotificationTime: '07:00',
   practiceNotificationTime: '18:00',
-  languagesPerBriefing: '1',
   fontSize: 'medium',
   background: 'white',
   fontFamily: 'playfair',
@@ -154,10 +153,9 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ topicOrder: order });
       },
 
-      setBriefingLength: (briefingLength) => set({ briefingLength }),
+      setReadLength: (readLength) => set({ readLength }),
       setBriefingNotificationTime: (briefingNotificationTime) => set({ briefingNotificationTime }),
       setPracticeNotificationTime: (practiceNotificationTime) => set({ practiceNotificationTime }),
-      setLanguagesPerBriefing: (languagesPerBriefing) => set({ languagesPerBriefing }),
       setFontSize: (fontSize) => set({ fontSize }),
       setBackground: (background) => set({ background }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
@@ -179,6 +177,10 @@ export const useSettingsStore = create<SettingsStore>()(
         const cleanTopics: any = {};
         VALID.forEach((k) => { cleanTopics[k] = state.topics?.[k] !== false; });
         state.topics = cleanTopics;
+        // Migrate old briefingLength → readLength
+        if (!(state as any).readLength) {
+          state.readLength = 'medium';
+        }
       },
     }
   )

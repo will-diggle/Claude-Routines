@@ -13,8 +13,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
-import { useSettingsStore, LanguageLevel } from '../store/useSettingsStore';
+import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
+import type { ArticleLength } from '../services/anthropic';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
@@ -309,31 +310,20 @@ export function SettingsScreen() {
       {/* ── Briefing Preferences ── */}
       <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
 
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Briefing Length</Text>
+      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Article Depth</Text>
       <SegmentedControl
         options={[
-          { label: 'Short (5m)', value: 'short' },
-          { label: 'Standard (10m)', value: 'standard' },
-          { label: 'Full (15m)', value: 'full' },
+          { label: 'Medium', value: 'medium' },
+          { label: 'Longer', value: 'longer' },
         ]}
-        value={store.briefingLength}
-        onChange={(v) => store.setBriefingLength(v as any)}
+        value={store.readLength}
+        onChange={(v) => store.setReadLength(v as ReadLength)}
         colors={colors}
         fontFamily={fontFamily}
       />
-
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Languages per Briefing</Text>
-      <SegmentedControl
-        options={[
-          { label: '1', value: '1' },
-          { label: '2', value: '2' },
-          { label: 'All', value: 'all' },
-        ]}
-        value={store.languagesPerBriefing}
-        onChange={(v) => store.setLanguagesPerBriefing(v as any)}
-        colors={colors}
-        fontFamily={fontFamily}
-      />
+      <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: 4 }]}>
+        A1/A2 articles are always short regardless of this setting.
+      </Text>
 
       <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
         <View style={{ flex: 1 }}>
@@ -465,12 +455,21 @@ export function SettingsScreen() {
                 if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
                 setIsForceRegenerating(true);
                 try {
-                  await Promise.all(
-                    active.map((lang) => loadBriefing(lang.code, lang.level ?? 'B1', store.briefingLength, true))
-                  );
-                  Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''}.`);
+                  // A1/A2 → 'short' only; B1/B2/C1 → both 'medium' and 'longer' pre-generated
+                  const calls: Array<() => Promise<void>> = [];
+                  for (const lang of active) {
+                    const level = lang.level ?? 'B1';
+                    if (level === 'A1' || level === 'A2') {
+                      calls.push(() => loadBriefing(lang.code, level, 'short' as ArticleLength, true));
+                    } else {
+                      calls.push(() => loadBriefing(lang.code, level, 'medium' as ArticleLength, true));
+                      calls.push(() => loadBriefing(lang.code, level, 'longer' as ArticleLength, true));
+                    }
+                  }
+                  await Promise.all(calls.map((fn) => fn()));
+                  Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
                 } catch {
-                  Alert.alert('Error', 'One or more languages failed. Check the Brief screen for details.');
+                  Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
                 } finally {
                   setIsForceRegenerating(false);
                 }

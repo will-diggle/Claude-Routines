@@ -1,5 +1,5 @@
-import type { GeneratedBriefing, BriefingArticle } from '../services/anthropic';
-import type { LanguageCode, LanguageLevel, BriefingLength } from '../store/useSettingsStore';
+import type { GeneratedBriefing, BriefingArticle, ArticleLength } from '../services/anthropic';
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 type LevelBucket = 'A1' | 'B1' | 'C1';
 
@@ -7,12 +7,6 @@ function getLevelBucket(level: LanguageLevel): LevelBucket {
   if (level === 'A1' || level === 'A2') return 'A1';
   if (level === 'B1' || level === 'B2') return 'B1';
   return 'C1';
-}
-
-function getArticleCount(length: BriefingLength): number {
-  if (length === 'short') return 2;
-  if (length === 'standard') return 4;
-  return 5;
 }
 
 // ---------------------------------------------------------------------------
@@ -465,16 +459,16 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 export function getMockBriefing(
   language: LanguageCode,
   level: LanguageLevel,
-  length: BriefingLength,
+  length: ArticleLength,
 ): GeneratedBriefing {
   const bucket = getLevelBucket(level);
   const allArticles = ARTICLES[language]?.[bucket] ?? ARTICLES.en.B1;
-  const count = getArticleCount(length);
 
   return {
     language,
     level,
-    articles: allArticles.slice(0, count),
+    length,
+    articles: allArticles,
     date: new Date().toISOString().split('T')[0],
     generatedAt: Date.now(),
   };

@@ -1,16 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateBriefing, type GeneratedBriefing } from '../services/anthropic';
+import { generateBriefing, type GeneratedBriefing, type ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
 import { clearTodayFactbase } from '../services/factbase';
-import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
+import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
 
-function cacheKey(date: string, language: LanguageCode, level: LanguageLevel): string {
-  return `briefing_${date}_${language}_${level}`;
+function cacheKey(date: string, language: LanguageCode, level: LanguageLevel, length: ArticleLength): string {
+  return `briefing_${date}_${language}_${level}_${length}`;
 }
 
 function todayString(): string {
@@ -27,7 +27,7 @@ interface BriefingStore {
   loadBriefing: (
     language: LanguageCode,
     level: LanguageLevel,
-    briefingLength: BriefingLength,
+    length: ArticleLength,
     forceRefresh?: boolean
   ) => Promise<void>;
 
@@ -50,13 +50,19 @@ export const useBriefingStore = create<BriefingStore>()(
         set({ weather, isLoadingWeather: false });
       },
 
-      loadBriefing: async (language, level, briefingLength, forceRefresh = false) => {
+      loadBriefing: async (language, level, length, forceRefresh = false) => {
         const today = todayString();
-        const key = cacheKey(today, language, level);
+        const key = cacheKey(today, language, level, length);
 
         if (!forceRefresh) {
           const cached = get().briefings[language];
-          if (cached && cached.date === today && cached.language === language && cached.level === level) {
+          if (
+            cached &&
+            cached.date === today &&
+            cached.language === language &&
+            cached.level === level &&
+            cached.length === length
+          ) {
             return;
           }
 
@@ -83,7 +89,7 @@ export const useBriefingStore = create<BriefingStore>()(
 
         // Developer mock mode
         if (useSettingsStore.getState().developerMode) {
-          const mock = getMockBriefing(language, level, briefingLength);
+          const mock = getMockBriefing(language, level, length);
           set((s) => ({
             briefings: { ...s.briefings, [language]: mock },
             errorsFor: { ...s.errorsFor, [language]: undefined },
@@ -99,7 +105,7 @@ export const useBriefingStore = create<BriefingStore>()(
         }));
 
         try {
-          const result = await generateBriefing(language, level, briefingLength);
+          const result = await generateBriefing(language, level, length);
 
           await AsyncStorage.setItem(key, JSON.stringify(result));
 

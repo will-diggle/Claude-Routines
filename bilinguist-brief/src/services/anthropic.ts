@@ -1,9 +1,15 @@
-import type { LanguageCode, LanguageLevel, BriefingLength } from '../store/useSettingsStore';
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import { checkBriefingUsage, incrementBriefingUsage } from './apiUsage';
 import { getTodayFactbase, storeTodayFactbase } from './factbase';
 import type { FactbaseStory } from './factbase';
 
 export type { FactbaseStory };
+
+// ArticleLength is the generation-time dimension.
+// 'short'  → A1/A2 only (fixed, never user-chosen)
+// 'medium' → B1/B2/C1 default depth
+// 'longer' → B1/B2/C1 extended depth
+export type ArticleLength = 'short' | 'medium' | 'longer';
 
 export interface BriefingArticle {
   genre: string;
@@ -16,6 +22,7 @@ export interface GeneratedBriefing {
   date: string;
   language: LanguageCode;
   level: LanguageLevel;
+  length: ArticleLength;
   generatedAt: number;
 }
 
@@ -31,10 +38,10 @@ const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   it: 'Italian (Italiano)',
 };
 
-const WORDS_PER_ARTICLE: Record<BriefingLength, number> = {
-  short: 80,
-  standard: 130,
-  full: 180,
+const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {
+  short: 80,    // A1/A2 — reading level is the hard constraint, not this number
+  medium: 140,  // B1/B2/C1 default
+  longer: 220,  // B1/B2/C1 extended read
 };
 
 
@@ -46,12 +53,6 @@ const WORDS_PER_ARTICLE: Record<BriefingLength, number> = {
 function normaliseLevel(level: LanguageLevel): string {
   if (level === 'C2' || level === 'Native') return 'C1/Native';
   return level;
-}
-
-// Level always beats word count for low levels (decisions doc §8)
-function wordCountForLevel(level: LanguageLevel, briefingLength: BriefingLength): number {
-  if (level === 'A1' || level === 'A2') return WORDS_PER_ARTICLE.short;
-  return WORDS_PER_ARTICLE[briefingLength];
 }
 
 // Hardened JSON parser — tolerates fences, preamble, trailing text (decisions doc §5)
@@ -161,7 +162,7 @@ Multi-point fields are ARRAYS OF SHORT STRINGS - one clean point per string. Kee
   "why_it_matters":"one short sentence on significance"
 }]}
 
-Every field except "genre", "slug", and "why_it_matters" is an array of strings. "why_it_matters" is a single short string. Keep each story's notes tight - enough to write a 180-word article from, no more. If a field has no content, use an empty array [].`;
+Every field except "genre", "slug", and "why_it_matters" is an array of strings. "why_it_matters" is a single short string. Keep each story's notes tight - enough to write a 220-word article from, no more. If a field has no content, use an empty array [].`;
 
 // Prevents concurrent language writes from each triggering a separate gathering call
 let gatheringPromise: Promise<FactbaseStory[]> | null = null;
@@ -202,7 +203,7 @@ async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Stage 2 — Writing call (web search OFF, per language x level x length)
+// Stage 2 — Writing call (web search OFF, per language × level × length)
 // ---------------------------------------------------------------------------
 
 // IMPORTANT: typographic quote examples below are intentional.
@@ -216,7 +217,7 @@ FORMAT: {"articles":[{"genre":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY - follow exactly:
 - Each "body" is a SINGLE continuous string. Do not put literal line breaks inside it; write the article as flowing prose in one string.
-- For quotation marks inside headline or body text, use the target language's typographic quotation marks, never straight ASCII quotes: French « … », German „…“, Spanish «…» or “…”, Italian «…», English “…”. This prevents JSON formatting errors.
+- For quotation marks inside headline or body text, use the target language's typographic quotation marks, never straight ASCII quotes: French « … », German „…", Spanish «…» or "…", Italian «…», English "…". This prevents JSON formatting errors.
 - Never use the straight double-quote character inside any field's text.
 - The "genre" field MUST stay in English exactly as it appears in the fact-base (e.g., "GLOBAL NEWS", "POLITICS"). Only "headline" and "body" are written in the target language.
 
@@ -227,10 +228,11 @@ WRITING RULES:
 - Match the journalistic register of a prestige outlet in that language (French: Le Monde, German: Der Spiegel, Spanish: El Pais, Italian: Corriere della Sera, English: Guardian style (register and spelling model, not a source)) - adjusted to the reading level below.
 - For English editions, write in British English — spelling, vocabulary and conventions. (Other languages are unaffected.)
 - Headlines are punchy and informative, never clickbait.
+- Cover EVERY story in the fact-base. Do not skip any story. Each fact-base entry becomes exactly one article.
 
 CARRY THE NEUTRALITY THROUGH: the fact-base separates verified from contested. State verified facts plainly; attribute contested ones to their named source. Keep grammatical treatment of opposing parties parallel.
 
-LENGTH - target approximately {WORD_COUNT} words per article. Write to this length natively - never pad and never truncate mid-thought.
+LENGTH - target approximately {WORD_COUNT} words per article. Write to this length natively — never pad and never truncate mid-thought. Do NOT trim or cut existing prose; write each article complete from scratch at the target length.
 
 THE READING LEVEL IS THE MASTER CONSTRAINT. If {WORD_COUNT} and the reading level conflict, the reading level ALWAYS wins. At low levels, write fewer words rather than break the level.
 
@@ -249,11 +251,11 @@ READING LEVEL - {LEVEL}. Write with absolute precision to this level:
 export async function generateBriefing(
   language: LanguageCode,
   level: LanguageLevel,
-  briefingLength: BriefingLength,
+  length: ArticleLength,
 ): Promise<GeneratedBriefing> {
   await checkBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
-  const wordCount = wordCountForLevel(level, briefingLength);
+  const wordCount = WORDS_PER_ARTICLE[length];
   const normalisedLevel = normaliseLevel(level);
   const langName = LANGUAGE_NAMES[language];
 
@@ -284,9 +286,9 @@ ${JSON.stringify(factbase, null, 2)}`;
     date,
     language,
     level,
+    length,
     generatedAt: Date.now(),
   };
   await incrementBriefingUsage();
   return result;
 }
-
