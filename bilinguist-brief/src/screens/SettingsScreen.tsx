@@ -166,7 +166,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const store = useSettingsStore();
-  const { setDev } = useSubscriptionStore();
+  const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
@@ -462,12 +462,23 @@ export function SettingsScreen() {
         </TouchableOpacity>
         {store.developerMode && (
           <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <Text style={[styles.devText, { color: colors.inkFaint }]}>{usageLabel}</Text>
+            <Text style={[styles.devText, { color: colors.inkFaint }]}>
+              {usageLabel} · Access: {status}
+            </Text>
             <TouchableOpacity
               onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
               style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
             >
               <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                const result = applyPromoCode('FOUNDER');
+                Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
+              }}
+              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+            >
+              <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
             </TouchableOpacity>
           </View>
         )}
