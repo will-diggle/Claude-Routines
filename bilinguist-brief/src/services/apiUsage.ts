@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'bilinguist_api_usage';
-const DAILY_BRIEFING_LIMIT = 5;
+const DAILY_BRIEFING_LIMIT = 20;
 
 interface UsageRecord {
   date: string;
@@ -26,7 +26,8 @@ async function saveRecord(record: UsageRecord): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 }
 
-export async function checkAndIncrementBriefingUsage(): Promise<void> {
+// Check only — does not consume quota. Call at start of generation.
+export async function checkBriefingUsage(): Promise<void> {
   const record = await getRecord();
   if (record.briefingCalls >= DAILY_BRIEFING_LIMIT) {
     throw new Error(
@@ -34,8 +35,18 @@ export async function checkAndIncrementBriefingUsage(): Promise<void> {
       'The limit resets at midnight.'
     );
   }
-  record.briefingCalls += 1;
+}
+
+// Increment — call only after a successful generation.
+export async function incrementBriefingUsage(): Promise<void> {
+  const record = await getRecord();
+  record.briefingCalls = Math.min(record.briefingCalls + 1, DAILY_BRIEFING_LIMIT);
   await saveRecord(record);
+}
+
+export async function resetDailyUsage(): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+  await saveRecord({ date: today, briefingCalls: 0 });
 }
 
 export async function getDailyUsage(): Promise<{ used: number; limit: number }> {

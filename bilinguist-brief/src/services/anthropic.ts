@@ -1,5 +1,5 @@
 import type { LanguageCode, LanguageLevel, BriefingLength } from '../store/useSettingsStore';
-import { checkAndIncrementBriefingUsage } from './apiUsage';
+import { checkBriefingUsage, incrementBriefingUsage } from './apiUsage';
 import { getTodayFactbase, storeTodayFactbase } from './factbase';
 import type { FactbaseStory } from './factbase';
 
@@ -243,7 +243,7 @@ export async function generateBriefing(
   briefingLength: BriefingLength,
   enabledTopics: string[]
 ): Promise<GeneratedBriefing> {
-  await checkAndIncrementBriefingUsage();
+  await checkBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
   const articleCount = ARTICLE_COUNTS[briefingLength];
   const wordCount = wordCountForLevel(level, briefingLength);
@@ -292,20 +292,22 @@ ${JSON.stringify(storiesForPrompt, null, 2)}`;
     throw new Error('Writing call returned invalid JSON — no articles array found');
   }
 
-  return {
+  const result: GeneratedBriefing = {
     articles: parsed.articles as BriefingArticle[],
     date,
     language,
     level,
     generatedAt: Date.now(),
   };
+  await incrementBriefingUsage();
+  return result;
 }
 
 export async function generateFreeBriefing(
   language: LanguageCode,
   level: LanguageLevel
 ): Promise<GeneratedBriefing> {
-  await checkAndIncrementBriefingUsage();
+  await checkBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
   const wordCount = wordCountForLevel(level, 'short');
   const normalisedLevel = normaliseLevel(level);
@@ -350,7 +352,7 @@ ${JSON.stringify(factbase, null, 2)}`;
     throw new Error('Free briefing writing call returned invalid JSON');
   }
 
-  return {
+  const result: GeneratedBriefing = {
     articles: [parsed.featured as BriefingArticle],
     teasers: parsed.teasers as BriefingTeaser[],
     isFree: true,
@@ -359,4 +361,6 @@ ${JSON.stringify(factbase, null, 2)}`;
     level,
     generatedAt: Date.now(),
   };
+  await incrementBriefingUsage();
+  return result;
 }

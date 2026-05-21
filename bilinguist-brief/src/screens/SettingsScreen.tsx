@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useSettingsStore, LanguageLevel } from '../store/useSettingsStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
+import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
 import {
   FontFamilies,
   FontSizes,
@@ -170,6 +171,13 @@ export function SettingsScreen() {
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
+  const [usageLabel, setUsageLabel] = useState('');
+
+  useEffect(() => {
+    if (store.developerMode) {
+      getDailyUsage().then(({ used, limit }) => setUsageLabel(`${used}/${limit} briefings today`));
+    }
+  }, [store.developerMode]);
 
   const activeCount = store.languages.filter((l) => l.active).length;
 
@@ -452,6 +460,17 @@ export function SettingsScreen() {
             {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
           </Text>
         </TouchableOpacity>
+        {store.developerMode && (
+          <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <Text style={[styles.devText, { color: colors.inkFaint }]}>{usageLabel}</Text>
+            <TouchableOpacity
+              onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
+              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+            >
+              <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Level picker modal */}
