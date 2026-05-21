@@ -25,8 +25,9 @@ export function TopBar({ routeName }: Props) {
   const isBriefing = routeName === 'Briefing';
   const dateStr = new Date().toLocaleDateString('en-GB', DATE_OPTIONS).toUpperCase();
 
-  // Black images need inverting to show on dark background
-  const tintColor = isNight ? (colors.inkDark as string) : '#1A1A1A';
+  // On night mode the black images become invisible — reduce opacity slightly
+  // but do NOT use tintColor (it flattens all opaque pixels to one flat colour)
+  const imageStyle = isNight ? { opacity: 0.85 } : undefined;
 
   if (isBriefing) {
     return (
@@ -34,7 +35,7 @@ export function TopBar({ routeName }: Props) {
         {/* Coat of arms logomark */}
         <Image
           source={LOGOMARK}
-          style={[styles.logomarkLarge, { tintColor }]}
+          style={[styles.logomarkLarge, imageStyle]}
           resizeMode="contain"
         />
 
@@ -44,7 +45,7 @@ export function TopBar({ routeName }: Props) {
 
         <Image
           source={LOGOTYPE}
-          style={[styles.logotypeLarge, { tintColor }]}
+          style={[styles.logotypeLarge, imageStyle]}
           resizeMode="contain"
         />
 
@@ -66,7 +67,7 @@ export function TopBar({ routeName }: Props) {
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <Image
         source={LOGOTYPE}
-        style={[styles.logotypeCompact, { tintColor }]}
+        style={[styles.logotypeCompact, imageStyle]}
         resizeMode="contain"
       />
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
