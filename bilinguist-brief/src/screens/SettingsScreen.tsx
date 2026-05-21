@@ -28,6 +28,13 @@ import {
 } from '../theme';
 
 const LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
+const C1_LABEL: Record<string, string> = {
+  en: 'C1 / Native',
+  fr: 'C1 / Natif',
+  de: 'C1 / Muttersprachlich',
+  es: 'C1 / Nativo',
+  it: 'C1 / Madrelingua',
+};
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
   { key: 'cream', label: 'Cream', color: Colors.cream },
@@ -469,7 +476,7 @@ export function SettingsScreen() {
                 }}
               >
                 <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {level === 'C1' ? 'C1 / Native' : level}
+                  {level === 'C1' ? (C1_LABEL[levelModal?.code ?? 'en'] ?? 'C1 / Native') : level}
                 </Text>
                 {(levelModal?.level === level ||
                   (level === 'C1' && (levelModal?.level === 'C2' || levelModal?.level === 'Native'))) && (
