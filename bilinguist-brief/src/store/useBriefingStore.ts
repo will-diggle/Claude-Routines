@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateBriefing, generateFreeBriefing, type GeneratedBriefing } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
+import { clearTodayFactbase } from '../services/factbase';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
@@ -86,6 +87,12 @@ export const useBriefingStore = create<BriefingStore>()(
           } catch {
             // Cache miss — continue to generate
           }
+        }
+
+        // On force refresh, wipe cached factbase so a fresh gathering call runs
+        if (forceRefresh) {
+          await clearTodayFactbase();
+          set({ briefing: null });
         }
 
         // Developer mock mode — instant, no API call
