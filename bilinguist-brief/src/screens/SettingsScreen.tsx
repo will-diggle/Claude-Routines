@@ -44,14 +44,12 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
 const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
-  { key: 'worldNews', label: 'World News' },
-  { key: 'goodNews', label: 'Good News' },
-  { key: 'sport', label: 'Sport' },
-  { key: 'politics', label: 'Politics' },
-  { key: 'artsCulture', label: 'Arts & Culture' },
-  { key: 'countryNews', label: 'Country News' },
+  { key: 'worldNews',   label: 'World News' },
+  { key: 'politics',    label: 'Politics' },
+  { key: 'business',    label: 'Business & Economy' },
   { key: 'scienceTech', label: 'Science & Technology' },
-  { key: 'business', label: 'Business' },
+  { key: 'artsCulture', label: 'Arts & Culture' },
+  { key: 'goodNews',    label: 'Good News' },
 ];
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
@@ -240,12 +238,11 @@ export function SettingsScreen() {
       <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
       <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        Select up to {3} active languages.
+        Toggle any language on. The briefing generates instantly once cached.
       </Text>
 
       {store.languages.map((lang, index) => {
-        const canActivate = !lang.active && activeCount < 3;
-        const isDisabled = !lang.active && !canActivate;
+        const isDisabled = false;
 
         return (
           <View key={lang.code}>
@@ -286,7 +283,7 @@ export function SettingsScreen() {
                   Level
                 </Text>
                 <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {lang.level}
+                  {lang.level === 'C1' ? (C1_LABEL[lang.code] ?? 'C1 / Native') : lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
               </TouchableOpacity>

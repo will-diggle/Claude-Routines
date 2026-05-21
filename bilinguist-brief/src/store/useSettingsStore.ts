@@ -21,10 +21,8 @@ export interface LanguagePreference {
 export interface Topics {
   worldNews: boolean;
   goodNews: boolean;
-  sport: boolean;
   politics: boolean;
   artsCulture: boolean;
-  countryNews: boolean;
   scienceTech: boolean;
   business: boolean;
   [key: string]: boolean;
@@ -72,8 +70,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'worldNews', 'goodNews', 'sport', 'politics',
-  'artsCulture', 'countryNews', 'scienceTech', 'business',
+  'worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'goodNews',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -82,12 +79,10 @@ const DEFAULT_SETTINGS: Settings = {
   topics: {
     worldNews: true,
     goodNews: true,
-    sport: false,
     politics: true,
-    artsCulture: false,
-    countryNews: true,
-    scienceTech: false,
-    business: false,
+    artsCulture: true,
+    scienceTech: true,
+    business: true,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
   briefingLength: 'standard',
@@ -100,7 +95,7 @@ const DEFAULT_SETTINGS: Settings = {
   developerMode: false,
 };
 
-const MAX_ACTIVE_LANGUAGES = 3;
+const MAX_ACTIVE_LANGUAGES = 5;
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(

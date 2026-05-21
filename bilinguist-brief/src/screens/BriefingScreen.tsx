@@ -1,22 +1,17 @@
-import React, { useEffect, useCallback, useState } from 'react';
-import { ScrollView, RefreshControl, Modal, StyleSheet } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
-import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { WeatherStrip } from '../components/WeatherStrip';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
-import { PaywallScreen } from './PaywallScreen';
 
 export function BriefingScreen() {
   const { colors } = useTheme();
   const settings = useSettingsStore();
   const { briefings, generatingFor, errorsFor, weather, isLoadingWeather, loadBriefing, loadWeather, clearError } =
     useBriefingStore();
-  const { isFullAccess } = useSubscriptionStore();
-  const [paywallVisible, setPaywallVisible] = useState(false);
 
-  const fullAccess = isFullAccess();
   const activeLanguages = settings.languages.filter((l) => l.active);
 
   // Stable dep string — re-triggers when active languages or their levels change
@@ -25,10 +20,9 @@ export function BriefingScreen() {
   useEffect(() => {
     const langs = settings.languages.filter((l) => l.active);
     langs.forEach((lang) => {
-      loadBriefing(lang.code, lang.level ?? 'B1', settings.briefingLength, settings.topics, false, !fullAccess);
+      loadBriefing(lang.code, lang.level ?? 'B1', settings.briefingLength, false);
     });
     if (langs.length > 0) loadWeather(langs[0].code);
-  // activeLangKey is the serialised version of what matters here
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
@@ -37,10 +31,10 @@ export function BriefingScreen() {
   const handleRefresh = useCallback(() => {
     const langs = settings.languages.filter((l) => l.active);
     langs.forEach((lang) => {
-      loadBriefing(lang.code, lang.level ?? 'B1', settings.briefingLength, settings.topics, true, !fullAccess);
+      loadBriefing(lang.code, lang.level ?? 'B1', settings.briefingLength, true);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLangKey, settings.briefingLength, settings.topics, fullAccess]);
+  }, [activeLangKey, settings.briefingLength]);
 
   return (
     <ScrollView
@@ -68,23 +62,15 @@ export function BriefingScreen() {
             isGenerating={generatingFor.includes(lang.code)}
             error={errorsFor[lang.code]}
             isFirst={index === 0}
-            fullAccess={fullAccess}
-            onGenerate={() =>
-              loadBriefing(lang.code, level, settings.briefingLength, settings.topics, true, !fullAccess)
-            }
+            topics={settings.topics}
+            onGenerate={() => loadBriefing(lang.code, level, settings.briefingLength, true)}
             onRetry={() => {
               clearError(lang.code);
-              loadBriefing(lang.code, level, settings.briefingLength, settings.topics, true, !fullAccess);
+              loadBriefing(lang.code, level, settings.briefingLength, true);
             }}
-            onLockedWordPress={() => setPaywallVisible(true)}
-            onUpgradePress={() => setPaywallVisible(true)}
           />
         );
       })}
-
-      <Modal visible={paywallVisible} animationType="slide" presentationStyle="pageSheet">
-        <PaywallScreen onClose={() => setPaywallVisible(false)} />
-      </Modal>
     </ScrollView>
   );
 }

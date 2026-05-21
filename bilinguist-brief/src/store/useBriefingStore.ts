@@ -1,23 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateBriefing, generateFreeBriefing, type GeneratedBriefing } from '../services/anthropic';
+import { generateBriefing, type GeneratedBriefing } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
 import { clearTodayFactbase } from '../services/factbase';
 import type { LanguageCode, LanguageLevel, BriefingLength } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
-const TOPIC_LABELS: Record<string, string> = {
-  worldNews: 'GLOBAL NEWS',
-  goodNews: 'GOOD NEWS',
-  sport: 'SPORT',
-  politics: 'POLITICS',
-  artsCulture: 'ARTS & CULTURE',
-  countryNews: 'COUNTRY NEWS',
-  scienceTech: 'SCIENCE & TECHNOLOGY',
-  business: 'BUSINESS & ECONOMY',
-};
 
 function cacheKey(date: string, language: LanguageCode, level: LanguageLevel): string {
   return `briefing_${date}_${language}_${level}`;
@@ -38,9 +28,7 @@ interface BriefingStore {
     language: LanguageCode,
     level: LanguageLevel,
     briefingLength: BriefingLength,
-    topics: Record<string, boolean>,
-    forceRefresh?: boolean,
-    isFreeUser?: boolean
+    forceRefresh?: boolean
   ) => Promise<void>;
 
   loadWeather: (language: LanguageCode) => Promise<void>;
@@ -62,15 +50,13 @@ export const useBriefingStore = create<BriefingStore>()(
         set({ weather, isLoadingWeather: false });
       },
 
-      loadBriefing: async (language, level, briefingLength, topics, forceRefresh = false, isFreeUser = false) => {
+      loadBriefing: async (language, level, briefingLength, forceRefresh = false) => {
         const today = todayString();
-        const tierSuffix = isFreeUser ? '_free' : '_paid';
-        const key = cacheKey(today, language, level) + tierSuffix;
+        const key = cacheKey(today, language, level);
 
         if (!forceRefresh) {
           const cached = get().briefings[language];
-          const tierMatches = isFreeUser ? !!cached?.isFree : !cached?.isFree;
-          if (cached && cached.date === today && cached.language === language && cached.level === level && tierMatches) {
+          if (cached && cached.date === today && cached.language === language && cached.level === level) {
             return;
           }
 
@@ -97,7 +83,7 @@ export const useBriefingStore = create<BriefingStore>()(
 
         // Developer mock mode
         if (useSettingsStore.getState().developerMode) {
-          const mock = getMockBriefing(language, level, briefingLength, isFreeUser);
+          const mock = getMockBriefing(language, level, briefingLength, false);
           set((s) => ({
             briefings: { ...s.briefings, [language]: mock },
             errorsFor: { ...s.errorsFor, [language]: undefined },
@@ -113,14 +99,7 @@ export const useBriefingStore = create<BriefingStore>()(
         }));
 
         try {
-          const result = isFreeUser
-            ? await generateFreeBriefing(language, level)
-            : await generateBriefing(
-                language,
-                level,
-                briefingLength,
-                Object.entries(topics).filter(([, on]) => on).map(([k]) => TOPIC_LABELS[k] ?? k)
-              );
+          const result = await generateBriefing(language, level, briefingLength);
 
           await AsyncStorage.setItem(key, JSON.stringify(result));
 

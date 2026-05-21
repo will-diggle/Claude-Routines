@@ -6,7 +6,26 @@ import { BriefingArticle } from './BriefingArticle';
 import { BriefingLoading } from './BriefingLoading';
 import { Spacing } from '../theme';
 import type { GeneratedBriefing } from '../services/anthropic';
-import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
+import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
+
+// Maps the genre strings the API returns to settings topic keys
+const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
+  'GLOBAL NEWS': 'worldNews',
+  'POLITICS': 'politics',
+  'BUSINESS & ECONOMY': 'business',
+  'SCIENCE & TECHNOLOGY': 'scienceTech',
+  'ARTS & CULTURE': 'artsCulture',
+  'GOOD NEWS': 'goodNews',
+};
+
+// C1 displays as "C1 / Native" in the language being learned
+const C1_LABEL: Record<LanguageCode, string> = {
+  en: 'C1 / Native',
+  fr: 'C1 / Natif',
+  de: 'C1 / Muttersprachlich',
+  es: 'C1 / Nativo',
+  it: 'C1 / Madrelingua',
+};
 
 interface Props {
   langCode: LanguageCode;
@@ -16,15 +35,20 @@ interface Props {
   isGenerating: boolean;
   error: string | undefined;
   isFirst: boolean;
-  fullAccess: boolean;
+  topics: Topics;
   onGenerate: () => void;
   onRetry: () => void;
-  onLockedWordPress: () => void;
-  onUpgradePress: () => void;
 }
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function levelLabel(level: LanguageLevel, langCode: LanguageCode): string {
+  if (level === 'C1' || level === 'C2' || level === 'Native') {
+    return C1_LABEL[langCode] ?? 'C1 / Native';
+  }
+  return level;
 }
 
 export function LanguageBriefingSection({
@@ -35,13 +59,20 @@ export function LanguageBriefingSection({
   isGenerating,
   error,
   isFirst,
-  fullAccess,
+  topics,
   onGenerate,
   onRetry,
-  onLockedWordPress,
-  onUpgradePress,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
+
+  // Filter articles by enabled topics (client-side — no extra API call needed)
+  const visibleArticles = briefing?.articles.filter((a) => {
+    const topicKey = GENRE_TO_TOPIC[a.genre.toUpperCase()];
+    if (!topicKey) return true;
+    return topics[topicKey] !== false;
+  }) ?? [];
+
+  const hasContent = visibleArticles.length > 0;
 
   return (
     <View>
@@ -51,13 +82,13 @@ export function LanguageBriefingSection({
       <View style={[styles.editionRow, { borderTopColor: colors.inkDark, borderBottomColor: colors.inkDark }]}>
         <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
         <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {nativeName.toUpperCase()} · {level}
+          {nativeName.toUpperCase()} · {levelLabel(level, langCode)}
         </Text>
         <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
       </View>
       <View style={[styles.mastRule, { backgroundColor: colors.inkDark }]} />
 
-      {isGenerating && !briefing && <BriefingLoading />}
+      {isGenerating && !hasContent && <BriefingLoading />}
 
       {!isGenerating && error && (
         <View style={styles.centerBlock}>
@@ -89,68 +120,32 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {briefing && (
+      {!isGenerating && !error && briefing && !hasContent && (
+        <View style={styles.centerBlock}>
+          <Text style={[styles.generateNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            All topics are hidden — turn some on in Settings to read the briefing.
+          </Text>
+        </View>
+      )}
+
+      {hasContent && (
         <>
-          {briefing.articles.map((article, index) => (
+          {visibleArticles.map((article, index) => (
             <BriefingArticle
               key={`${article.genre}-${index}`}
               article={article}
-              isLast={index === briefing.articles.length - 1 && !briefing.teasers?.length}
+              isLast={index === visibleArticles.length - 1}
               language={langCode}
               level={level}
-              locked={!fullAccess}
-              onLockedWordPress={onLockedWordPress}
+              locked={false}
+              onLockedWordPress={() => {}}
             />
           ))}
 
-          {briefing.teasers && briefing.teasers.length > 0 && (
-            <>
-              <TouchableOpacity
-                style={[styles.upgradeBanner, { backgroundColor: colors.accentGold + '18', borderColor: colors.accentGold }]}
-                onPress={onUpgradePress}
-              >
-                <Ionicons name="lock-open-outline" size={18} color={colors.accentGold} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.upgradeBannerTitle, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-                    Unlock the full briefing
-                  </Text>
-                  <Text style={[styles.upgradeBannerSub, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                    Full articles, word tap, 5 languages · £3.50/month
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.accentGold} />
-              </TouchableOpacity>
-
-              {briefing.teasers.map((teaser, i) => (
-                <TouchableOpacity
-                  key={`teaser-${i}`}
-                  style={[styles.teaserRow, { borderBottomColor: colors.borderLight }]}
-                  onPress={onUpgradePress}
-                >
-                  <Text style={[styles.teaserSection, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-                    {teaser.genre.toUpperCase()}
-                  </Text>
-                  <Text style={[styles.teaserHeadline, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.subheading }]}>
-                    {teaser.headline}
-                  </Text>
-                  <Text style={[styles.teaserBody, { color: colors.inkLight, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
-                    {teaser.teaser}
-                  </Text>
-                  <View style={styles.teaserLockRow}>
-                    <Ionicons name="lock-closed" size={12} color={colors.inkFaint} />
-                    <Text style={[styles.teaserLockText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                      Read in full with Bilinguist Brief+
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
-
           <View style={[styles.sectionFooter, { borderTopColor: colors.borderLight }]}>
             <Text style={[styles.footerText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              {briefing.generatedAt
-                ? `Generated today at ${formatTime(briefing.generatedAt)} · Claude with live web search`
+              {briefing?.generatedAt
+                ? `Claude API · ${formatTime(briefing.generatedAt)} · Live web search`
                 : 'Generated by Claude with live web search'}
             </Text>
           </View>
@@ -200,29 +195,6 @@ const styles = StyleSheet.create({
   },
   generateButtonText: { color: '#FFF', fontSize: 16 },
   generateNote: { fontSize: 13 },
-  upgradeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: Spacing.md,
-    marginVertical: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: Spacing.sm,
-  },
-  upgradeBannerTitle: { fontSize: 14 },
-  upgradeBannerSub: { fontSize: 12, marginTop: 2 },
-  teaserRow: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-  },
-  teaserSection: { fontSize: 11, letterSpacing: 1.5 },
-  teaserHeadline: { lineHeight: 28 },
-  teaserBody: { lineHeight: 22 },
-  teaserLockRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  teaserLockText: { fontSize: 11 },
   sectionFooter: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,

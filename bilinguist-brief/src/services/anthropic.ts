@@ -11,16 +11,8 @@ export interface BriefingArticle {
   body: string;
 }
 
-export interface BriefingTeaser {
-  genre: string;
-  headline: string;
-  teaser: string;
-}
-
 export interface GeneratedBriefing {
   articles: BriefingArticle[];
-  teasers?: BriefingTeaser[];
-  isFree?: boolean;
   date: string;
   language: LanguageCode;
   level: LanguageLevel;
@@ -39,20 +31,12 @@ const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   it: 'Italian (Italiano)',
 };
 
-const ARTICLE_COUNTS: Record<BriefingLength, number> = {
-  short: 4,
-  standard: 7,
-  full: 11,
-};
-
 const WORDS_PER_ARTICLE: Record<BriefingLength, number> = {
   short: 80,
   standard: 130,
   full: 180,
 };
 
-// Genres parked for launch — gathered but excluded from writing calls
-const PARKED_GENRES = new Set(['SPORT', 'COUNTRY NEWS']);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -93,7 +77,7 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
 
   const body: any = {
     model: 'claude-sonnet-4-6',
-    max_tokens: useSearch ? 8000 : 6000,
+    max_tokens: 8000,
     system,
     messages: [{ role: 'user', content: user }],
   };
@@ -212,7 +196,9 @@ async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
     throw new Error('Gathering call returned invalid JSON — no factbase array found');
   }
 
-  return parsed.factbase as FactbaseStory[];
+  const stories = parsed.factbase as FactbaseStory[];
+  console.log('[Bilinguist] Factbase gathered:', JSON.stringify(stories, null, 2));
+  return stories;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,11 +249,9 @@ export async function generateBriefing(
   language: LanguageCode,
   level: LanguageLevel,
   briefingLength: BriefingLength,
-  enabledTopics: string[]
 ): Promise<GeneratedBriefing> {
   await checkBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
-  const articleCount = ARTICLE_COUNTS[briefingLength];
   const wordCount = wordCountForLevel(level, briefingLength);
   const normalisedLevel = normaliseLevel(level);
   const langName = LANGUAGE_NAMES[language];
@@ -275,33 +259,17 @@ export async function generateBriefing(
   // Stage 1 — get today's factbase or gather fresh (mutex prevents concurrent gathering)
   const factbase = await getOrGatherFactbase(date);
 
-  // Filter to enabled, non-parked genres
-  const activeGenres = enabledTopics
-    .map(t => t.toUpperCase())
-    .filter(g => !PARKED_GENRES.has(g));
-
-  const selectedStories = activeGenres.length > 0
-    ? factbase.filter(s =>
-        activeGenres.some(g =>
-          s.genre.toUpperCase().includes(g) || g.includes(s.genre.toUpperCase())
-        )
-      )
-    : factbase;
-
-  const storiesForPrompt = selectedStories.length > 0 ? selectedStories : factbase;
-
-  // Stage 2 — writing call (search OFF)
+  // Stage 2 — writing call (search OFF): write one article per factbase story
   const system = WRITING_SYSTEM
     .replace(/\{LANGUAGE\}/g, langName)
     .replace(/\{LEVEL\}/g, normalisedLevel)
     .replace(/\{WORD_COUNT\}/g, String(wordCount));
 
   const user = `Today is ${date}.
-Write ${articleCount} articles distributed across the available genres.
-Enabled genres: ${activeGenres.join(', ') || 'all genres'}.
+Write one original news article for every story in the fact-base below. Cover every story provided — do not skip any. Each story becomes exactly one article.
 
 FACT-BASE - rewrite as original journalism in ${langName}. Do not translate directly:
-${JSON.stringify(storiesForPrompt, null, 2)}`;
+${JSON.stringify(factbase, null, 2)}`;
 
   const raw = await callClaude(system, user, false);
   const parsed = parseLLMJSON(raw);
@@ -321,53 +289,3 @@ ${JSON.stringify(storiesForPrompt, null, 2)}`;
   return result;
 }
 
-export async function generateFreeBriefing(
-  language: LanguageCode,
-  level: LanguageLevel
-): Promise<GeneratedBriefing> {
-  await checkBriefingUsage();
-  const date = new Date().toISOString().split('T')[0];
-  const wordCount = wordCountForLevel(level, 'short');
-  const normalisedLevel = normaliseLevel(level);
-  const langName = LANGUAGE_NAMES[language];
-
-  // Stage 1 — get today's factbase or gather fresh (mutex prevents concurrent gathering)
-  const factbase = await getOrGatherFactbase(date);
-
-  // Free edition only needs 6 stories — one to feature, five to tease
-  const trimmedFactbase = factbase.slice(0, 6);
-
-  const system = `You are the editorial writer for Bilinguist Brief. You will receive a fact-base of today's news and produce a free preview edition for a language learner.
-
-STRICT OUTPUT RULE: Respond with ONLY a raw JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
-
-FORMAT: {"featured":{"genre":"GLOBAL NEWS","headline":"...","body":"..."},"teasers":[{"genre":"POLITICS","headline":"...","teaser":"One sentence only."},{"genre":"BUSINESS & ECONOMY","headline":"...","teaser":"One sentence only."},{"genre":"SCIENCE & TECHNOLOGY","headline":"...","teaser":"One sentence only."},{"genre":"ARTS & CULTURE","headline":"...","teaser":"One sentence only."},{"genre":"GOOD NEWS","headline":"...","teaser":"One sentence only."}]}
-
-JSON SAFETY: use typographic quotation marks inside text - never straight ASCII double-quotes.
-Write in ${langName} at ${normalisedLevel} level.
-Featured article body: ~${wordCount} words. Each teaser: exactly one sentence.`;
-
-  const user = `Today is ${date}.
-
-FACT-BASE:
-${JSON.stringify(trimmedFactbase, null, 2)}`;
-
-  const raw = await callClaude(system, user, false);
-  const parsed = parseLLMJSON(raw);
-
-  if (!parsed || !parsed.featured) {
-    throw new Error('Free briefing writing call returned invalid JSON');
-  }
-
-  const result: GeneratedBriefing = {
-    articles: [parsed.featured as BriefingArticle],
-    teasers: parsed.teasers as BriefingTeaser[],
-    isFree: true,
-    date,
-    language,
-    level,
-    generatedAt: Date.now(),
-  };
-  await incrementBriefingUsage();
-  return result;
-}
