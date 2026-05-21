@@ -160,6 +160,8 @@ NEUTRALITY RULES - apply to every story:
 - Give parallel treatment to opposing parties: if you name casualties, an actor, or a motive for one side, do the same for the other where the facts allow.
 - Be specific and confident about what is known. Neutrality means precise attribution, not vague hedging.
 
+Write the fact-base in British English throughout — spelling, vocabulary and conventions.
+
 OUTPUT FORMAT - respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 
 Multi-point fields are ARRAYS OF SHORT STRINGS - one clean point per string. Keep each string to a single short clause. Do not write paragraphs inside a string. Do not use unescaped quotation marks or newlines inside any string.
@@ -213,7 +215,8 @@ WRITING RULES:
 - Write every article in {LANGUAGE}.
 - Write original prose. Do not translate the fact-base word-for-word - compose a fresh, well-formed news article from the facts.
 - Use only the facts in the fact-base. Do not add events, figures, or claims that are not there. Preserve all attributions exactly.
-- Match the journalistic register of a prestige outlet in that language (French: Le Monde, German: Der Spiegel, Spanish: El Pais, Italian: Corriere della Sera, English: The Guardian) - adjusted to the reading level below.
+- Match the journalistic register of a prestige outlet in that language (French: Le Monde, German: Der Spiegel, Spanish: El Pais, Italian: Corriere della Sera, English: Guardian style (register and spelling model, not a source)) - adjusted to the reading level below.
+- For English editions, write in British English — spelling, vocabulary and conventions. (Other languages are unaffected.)
 - Headlines are punchy and informative, never clickbait.
 
 CARRY THE NEUTRALITY THROUGH: the fact-base separates verified from contested. State verified facts plainly; attribute contested ones to their named source. Keep grammatical treatment of opposing parties parallel.
