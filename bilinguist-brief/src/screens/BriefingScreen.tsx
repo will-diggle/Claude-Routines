@@ -28,6 +28,7 @@ export function BriefingScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
 
   const fullAccess = isFullAccess();
+  const activeLanguages = settings.languages.filter((l) => l.active);
   const activeLang = settings.languages.find((l) => l.code === settings.displayLanguage);
   const language = settings.displayLanguage;
   const level = activeLang?.level ?? 'B1';
@@ -59,6 +60,26 @@ export function BriefingScreen() {
       }
     >
       <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
+
+      {/* Language switcher — only shown when multiple languages are active */}
+      {activeLanguages.length > 1 && (
+        <View style={[styles.langStrip, { borderBottomColor: colors.borderLight }]}>
+          {activeLanguages.map((lang) => {
+            const selected = lang.code === language;
+            return (
+              <TouchableOpacity
+                key={lang.code}
+                style={[styles.langTab, selected && { borderBottomColor: colors.inkDark }]}
+                onPress={() => settings.setDisplayLanguage(lang.code)}
+              >
+                <Text style={[styles.langTabText, { fontFamily: selected ? fontFamily.bold : fontFamily.regular, color: selected ? colors.inkDark : colors.inkFaint }]}>
+                  {lang.nativeName}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Newspaper edition header */}
       <View style={[styles.editionRow, { borderBottomColor: colors.inkDark, borderTopColor: colors.inkDark }]}>
@@ -194,6 +215,24 @@ export function BriefingScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 48 },
+  langStrip: {
+    flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing.xs,
+  },
+  langTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingBottom: 7,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -StyleSheet.hairlineWidth,
+  },
+  langTabText: {
+    fontSize: 13,
+    letterSpacing: 0.3,
+  },
   editionRow: {
     flexDirection: 'row',
     alignItems: 'center',
