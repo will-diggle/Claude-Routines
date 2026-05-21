@@ -28,7 +28,7 @@ export function AppNavigator() {
           borderTopColor: colors.borderLight,
           borderTopWidth: 1,
         },
-        tabBarActiveTintColor: colors.accentGold,
+        tabBarActiveTintColor: colors.inkDark,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarLabelStyle: {
           fontFamily: fontFamily.regular,

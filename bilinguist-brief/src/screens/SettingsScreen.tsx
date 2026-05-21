@@ -265,7 +265,7 @@ export function SettingsScreen() {
                 value={lang.active}
                 onValueChange={() => store.toggleLanguage(lang.code)}
                 disabled={isDisabled}
-                trackColor={{ false: colors.borderMid, true: Colors.accentGold }}
+                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
                 thumbColor="#FFF"
               />
             </View>
@@ -277,7 +277,7 @@ export function SettingsScreen() {
                 <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
                   Level
                 </Text>
-                <Text style={[styles.levelValue, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+                <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                   {lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
@@ -314,7 +314,7 @@ export function SettingsScreen() {
           <Switch
             value={store.topics[item.key]}
             onValueChange={() => store.toggleTopic(item.key)}
-            trackColor={{ false: colors.borderMid, true: Colors.accentGold }}
+            trackColor={{ false: colors.borderMid, true: colors.inkDark }}
             thumbColor="#FFF"
           />
         </View>
@@ -398,7 +398,7 @@ export function SettingsScreen() {
             key={bg.key}
             style={[
               styles.bgSwatch,
-              { backgroundColor: bg.color, borderColor: store.background === bg.key ? colors.accentGold : colors.borderMid },
+              { backgroundColor: bg.color, borderColor: store.background === bg.key ? colors.inkDark : colors.borderMid },
               store.background === bg.key && styles.bgSwatchSelected,
             ]}
             onPress={() => store.setBackground(bg.key)}
@@ -428,7 +428,7 @@ export function SettingsScreen() {
                 The quick brown fox
               </Text>
             </View>
-            {selected && <Ionicons name="checkmark-circle" size={22} color={colors.accentGold} />}
+            {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
           </TouchableOpacity>
         );
       })}
