@@ -90,13 +90,26 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   };
   if (useSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST', headers, body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+  // Retry up to 3 times on rate limit errors (429), waiting 60s between attempts
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers, body: JSON.stringify(body),
+    });
 
-  const data = await res.json();
-  return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+    if (res.status === 429) {
+      if (attempt === 3) throw new Error(`Claude API rate limit hit after 3 attempts`);
+      console.log(`[rate limit] Attempt ${attempt} hit 429 — waiting 60s before retry…`);
+      await new Promise((r) => setTimeout(r, 60_000));
+      continue;
+    }
+
+    if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+
+    const data = await res.json();
+    return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+  }
+
+  throw new Error('callClaude: exhausted retries');
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
