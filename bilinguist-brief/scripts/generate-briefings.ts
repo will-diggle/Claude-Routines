@@ -113,12 +113,39 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
+//
+// Two-call approach: web search can consume as many tokens as it needs for
+// research without competing with the JSON output requirement.
+//
+// Call A (research): web search ON, free-form output
+// Call B (structure): web search OFF, converts research notes to factbase JSON
+
+const RESEARCH_SYSTEM = `You are a news researcher. Your job is to find today's most significant news stories across these genres using web search:
+- GLOBAL NEWS (3-4 stories)
+- POLITICS (2 stories)
+- BUSINESS & ECONOMY (2 stories)
+- SCIENCE & TECHNOLOGY (2 stories)
+- ARTS & CULTURE (2 stories)
+- GOOD NEWS (2 stories)
+
+Today's date is {DATE}. Search for news from today and the preceding 24 hours only. Do not rely on training data for current events.
+
+For each story note: what happened (in chronological order), key figures, exact numbers, places, organisations, what is independently verified vs what is contested/single-source, and why it matters. Be thorough — this research will be used to write multilingual news articles.`;
 
 async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
-  console.log(`[gather] Starting factbase for ${date}…`);
-  const system = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
-  const user = `Today is ${date}. Please gather the day's news across all genres using web search.`;
-  const raw = await callClaude(system, user, true);
+  console.log(`[gather] Step 1/2 — researching today's news…`);
+  const researchSystem = RESEARCH_SYSTEM.replace(/\{DATE\}/g, date);
+  const researchUser = `Today is ${date}. Please search for today's top news stories across all genres.`;
+  const research = await callClaude(researchSystem, researchUser, true);
+  console.log(`[gather] Step 2/2 — structuring factbase JSON…`);
+
+  const structureSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
+  const structureUser = `Today is ${date}. Based on the following research notes, produce the factbase JSON exactly as specified in your instructions. Do not search for additional information — use only what is provided below.
+
+RESEARCH NOTES:
+${research}`;
+
+  const raw = await callClaude(structureSystem, structureUser, false);
   const parsed = parseLLMJSON(raw);
   if (!parsed || !Array.isArray(parsed.factbase)) {
     throw new Error(`Gathering returned invalid JSON:\n${raw.slice(0, 500)}`);
