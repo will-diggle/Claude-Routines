@@ -41,6 +41,8 @@ jobs:
 
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
 
+          mkdir -p /tmp/bilinguist-data/briefings
+
           cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
 
