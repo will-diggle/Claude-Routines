@@ -98,15 +98,27 @@ interface DailyBundle {
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
-// en + fr + de × A2/B1/C1
-// A2 → short only; B1/C1 → medium + longer
+// Per-language level lists:
+//   en → A2, B1, C1
+//   fr → A1, A2, B1, B2, C1
+//   de → A1, A2, B1, C1
+// A1/A2 → short only; B1/B2/C1 → medium + longer
 
-const LANGUAGES: LanguageCode[] = ['en', 'fr', 'de'];
-const LEVELS: LanguageLevel[] = ['A2', 'B1', 'C1'];
+const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
+  en: ['A2', 'B1', 'C1'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  de: ['A1', 'A2', 'B1', 'C1'],
+  es: [],
+  it: [],
+};
+
+const LANGUAGES = Object.keys(LANGUAGE_LEVELS).filter(
+  (lang) => LANGUAGE_LEVELS[lang as LanguageCode].length > 0,
+) as LanguageCode[];
 
 const COMBINATIONS: Array<{ language: LanguageCode; level: LanguageLevel; length: ArticleLength }> = [];
 for (const language of LANGUAGES) {
-  for (const level of LEVELS) {
+  for (const level of LANGUAGE_LEVELS[language]) {
     if (level === 'A1' || level === 'A2') {
       COMBINATIONS.push({ language, level, length: 'short' });
     } else {
@@ -115,7 +127,7 @@ for (const language of LANGUAGES) {
     }
   }
 }
-// 3 languages × (1 short + 4 medium/longer) = 15 writing requests
+// en:5 + fr:8 + de:6 = 19 writing requests
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -362,7 +374,10 @@ async function main() {
   const date = new Date().toISOString().split('T')[0];
   console.log(`[bilinguist] Generating daily bundle — ${date}`);
   console.log(`[bilinguist] ${COMBINATIONS.length} writing requests (Batch API)`);
-  console.log(`[bilinguist] Languages: ${LANGUAGES.join(', ')} | Levels: ${LEVELS.join(', ')}`);
+  console.log(`[bilinguist] Languages: ${LANGUAGES.join(', ')}`);
+  for (const lang of LANGUAGES) {
+    console.log(`[bilinguist]   ${lang}: ${LANGUAGE_LEVELS[lang].join(', ')}`);
+  }
 
   const factbase = await gatherFactbase(date);
 

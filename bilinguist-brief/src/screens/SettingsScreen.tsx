@@ -32,7 +32,11 @@ import {
   type FontSizeKey,
 } from '../theme';
 
-const LEVELS: LanguageLevel[] = ['A2', 'B1', 'C1'];
+const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
+  en: ['A2', 'B1', 'C1'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  de: ['A1', 'A2', 'B1', 'C1'],
+};
 const C1_LABEL: Record<string, string> = {
   en: 'C1 / Native',
   fr: 'C1 / Natif',
@@ -507,7 +511,7 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {LEVELS.map((level) => (
+            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'C1']).map((level) => (
               <TouchableOpacity
                 key={level}
                 style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
