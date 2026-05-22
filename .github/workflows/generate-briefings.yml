@@ -25,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: bilinguist-brief
-        run: npm ci
+        run: npm install
 
       - name: Generate briefings bundle
         working-directory: bilinguist-brief
