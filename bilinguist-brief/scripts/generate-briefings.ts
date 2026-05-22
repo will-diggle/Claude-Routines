@@ -169,28 +169,19 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
 }
 
-// Tool-use writing call: forces structured output so the API serialises article fields —
-// quotes/newlines in article text are handled automatically, no JSON parsing needed.
-const ARTICLES_TOOL = {
-  name: 'report_articles',
-  description: 'Submit all written articles as structured data.',
+// Tool-use writing call: one tool call per article, so the model never needs to
+// serialise an array — each call has only 3 simple string fields.
+const ARTICLE_TOOL = {
+  name: 'submit_article',
+  description: 'Submit one written news article. Call this tool once for each story in the fact-base.',
   input_schema: {
     type: 'object',
     properties: {
-      articles: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            genre:    { type: 'string' },
-            headline: { type: 'string' },
-            body:     { type: 'string' },
-          },
-          required: ['genre', 'headline', 'body'],
-        },
-      },
+      genre:    { type: 'string' },
+      headline: { type: 'string' },
+      body:     { type: 'string' },
     },
-    required: ['articles'],
+    required: ['genre', 'headline', 'body'],
   },
 } as const;
 
@@ -200,8 +191,8 @@ async function callClaudeForArticles(system: string, user: string): Promise<Brie
     max_tokens: 64000,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: user }],
-    tools: [ARTICLES_TOOL],
-    tool_choice: { type: 'tool', name: 'report_articles' },
+    tools: [ARTICLE_TOOL],
+    tool_choice: { type: 'any' },
   };
 
   const data = await callAnthropicAPI(body, {
@@ -209,27 +200,16 @@ async function callClaudeForArticles(system: string, user: string): Promise<Brie
     'anthropic-beta': 'prompt-caching-2024-07-31',
   });
 
-  const toolBlock = (data.content ?? []).find(
-    (b: any) => b.type === 'tool_use' && b.name === 'report_articles',
-  );
-  if (toolBlock) {
-    let articles = toolBlock.input?.articles;
-    // Model sometimes passes articles as a JSON string instead of an array.
-    // If JSON.parse fails (unescaped quotes in body text), try jsonrepair.
-    if (typeof articles === 'string') {
-      try { articles = JSON.parse(articles); } catch {
-        try { articles = JSON.parse(jsonrepair(articles)); } catch {}
-      }
-    }
-    if (Array.isArray(articles)) return articles as BriefingArticle[];
-  }
+  const articles = (data.content ?? [])
+    .filter((b: any) => b.type === 'tool_use' && b.name === 'submit_article')
+    .map((b: any) => b.input as BriefingArticle)
+    .filter((a: any) => a.genre && a.headline && a.body);
 
-  // Diagnostics — logged on every null return so we can see exactly why
+  if (articles.length > 0) return articles;
+
+  // Diagnostics
   console.error('[write] No articles in response. stop_reason:', data.stop_reason);
   console.error('[write] Content blocks:', (data.content ?? []).map((b: any) => b.type).join(', ') || '(empty)');
-  if (toolBlock) {
-    console.error('[write] tool_use found but articles field is:', JSON.stringify(toolBlock.input).slice(0, 300));
-  }
   return null;
 }
 
@@ -295,7 +275,7 @@ async function writeBriefing(
     .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
 
   const user = `Today is ${date}.
-Write one original news article for every story in the fact-base below. Cover every story — do not skip any. Submit your articles using the report_articles tool — pass each article as a separate object in the articles array, not as a JSON string.
+Write one original news article for every story in the fact-base below. Call the submit_article tool once for each story — you must call it for every single story. Do not stop until all ${factbase.length} stories have been submitted.
 
 FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
 ${JSON.stringify(factbase, null, 2)}`;
