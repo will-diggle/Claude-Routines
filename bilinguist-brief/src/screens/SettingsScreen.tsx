@@ -32,7 +32,7 @@ import {
   type FontSizeKey,
 } from '../theme';
 
-const LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
+const LEVELS: LanguageLevel[] = ['A2', 'B1', 'C1'];
 const C1_LABEL: Record<string, string> = {
   en: 'C1 / Native',
   fr: 'C1 / Natif',
