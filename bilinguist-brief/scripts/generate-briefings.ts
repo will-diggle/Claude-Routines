@@ -72,12 +72,9 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
-  // Gathering call (useSearch=true) needs more tokens — web search reasoning + factbase JSON
-  const max_tokens = useSearch ? 16000 : 8000;
-
   const body: any = {
     model: 'claude-sonnet-4-6',
-    max_tokens,
+    max_tokens: 64000,
     system,
     messages: [{ role: 'user', content: user }],
   };
