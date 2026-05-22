@@ -213,6 +213,13 @@ async function callClaudeForArticles(system: string, user: string): Promise<Brie
   if (toolBlock && Array.isArray(toolBlock.input?.articles)) {
     return toolBlock.input.articles as BriefingArticle[];
   }
+
+  // Diagnostics — logged on every null return so we can see exactly why
+  console.error('[write] No articles in response. stop_reason:', data.stop_reason);
+  console.error('[write] Content blocks:', (data.content ?? []).map((b: any) => b.type).join(', ') || '(empty)');
+  if (toolBlock) {
+    console.error('[write] tool_use found but articles field is:', JSON.stringify(toolBlock.input).slice(0, 300));
+  }
   return null;
 }
 
@@ -303,7 +310,7 @@ async function main() {
   const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, briefings: {} };
 
   // Run writing calls in batches of 5 to stay within rate limits
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 3;
   for (let i = 0; i < COMBINATIONS.length; i += BATCH_SIZE) {
     const batch = COMBINATIONS.slice(i, i + BATCH_SIZE);
     const label = batch.map((c) => `${c.language}/${c.level}/${c.length}`).join(', ');
