@@ -116,15 +116,39 @@ for (const language of LANGUAGES) {
 }
 // 5 languages × (2 short + 6 medium/longer) = 40 writing calls
 
-// ── API call ─────────────────────────────────────────────────────────────────
+// ── API helpers ───────────────────────────────────────────────────────────────
 
-async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
+async function callAnthropicAPI(
+  body: Record<string, unknown>,
+  headers: Record<string, string>,
+): Promise<any> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
-  // Wrap system prompt in cache_control block — writing calls share identical system prompts,
-  // so after the first call the prompt is cached at ~10% of normal input cost.
-  const body: any = {
+  const allHeaders = { 'x-api-key': apiKey, 'content-type': 'application/json', ...headers };
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: allHeaders, body: JSON.stringify(body),
+    });
+
+    if (res.status === 429) {
+      if (attempt === 3) throw new Error('Claude API rate limit hit after 3 attempts');
+      console.log(`[rate limit] Attempt ${attempt} hit 429 — waiting 60s before retry…`);
+      await new Promise((r) => setTimeout(r, 60_000));
+      continue;
+    }
+
+    if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+    return await res.json();
+  }
+
+  throw new Error('callAnthropicAPI: exhausted retries');
+}
+
+// Text generation (research + gather steps)
+async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
+  const body: Record<string, unknown> = {
     model: 'claude-sonnet-4-6',
     max_tokens: 64000,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
@@ -133,33 +157,63 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   if (useSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
 
   const headers: Record<string, string> = {
-    'x-api-key': apiKey,
     'anthropic-version': '2023-06-01',
-    'content-type': 'application/json',
-    'anthropic-beta': 'prompt-caching-2024-07-31',
+    'anthropic-beta': useSearch
+      ? 'web-search-2025-03-05,prompt-caching-2024-07-31'
+      : 'prompt-caching-2024-07-31',
   };
-  if (useSearch) headers['anthropic-beta'] = 'web-search-2025-03-05,prompt-caching-2024-07-31';
 
-  // Retry up to 3 times on rate limit errors (429), waiting 60s between attempts
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers, body: JSON.stringify(body),
-    });
+  const data = await callAnthropicAPI(body, headers);
+  return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+}
 
-    if (res.status === 429) {
-      if (attempt === 3) throw new Error(`Claude API rate limit hit after 3 attempts`);
-      console.log(`[rate limit] Attempt ${attempt} hit 429 — waiting 60s before retry…`);
-      await new Promise((r) => setTimeout(r, 60_000));
-      continue;
-    }
+// Tool-use writing call: forces structured output so the API serialises article fields —
+// quotes/newlines in article text are handled automatically, no JSON parsing needed.
+const ARTICLES_TOOL = {
+  name: 'report_articles',
+  description: 'Submit all written articles as structured data.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      articles: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            genre:    { type: 'string' },
+            headline: { type: 'string' },
+            body:     { type: 'string' },
+          },
+          required: ['genre', 'headline', 'body'],
+        },
+      },
+    },
+    required: ['articles'],
+  },
+} as const;
 
-    if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+async function callClaudeForArticles(system: string, user: string): Promise<BriefingArticle[] | null> {
+  const body: Record<string, unknown> = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 64000,
+    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: user }],
+    tools: [ARTICLES_TOOL],
+    tool_choice: { type: 'tool', name: 'report_articles' },
+  };
 
-    const data = await res.json();
-    return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+  const data = await callAnthropicAPI(body, {
+    'anthropic-version': '2023-06-01',
+    'anthropic-beta': 'prompt-caching-2024-07-31',
+  });
+
+  const toolBlock = (data.content ?? []).find(
+    (b: any) => b.type === 'tool_use' && b.name === 'report_articles',
+  );
+  if (toolBlock && Array.isArray(toolBlock.input?.articles)) {
+    return toolBlock.input.articles as BriefingArticle[];
   }
-
-  throw new Error('callClaude: exhausted retries');
+  return null;
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
@@ -225,21 +279,16 @@ Write one original news article for every story in the fact-base below. Cover ev
 FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
 ${JSON.stringify(factbase, null, 2)}`;
 
-  // Retry up to 3 times — occasional malformed JSON is recoverable by regenerating
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const raw = await callClaude(system, user, false);
-    const parsed = parseServerJSON(raw);
-    if (parsed && Array.isArray(parsed.articles)) {
-      return { articles: parsed.articles, date, language, level, length, generatedAt: Date.now() };
+    const articles = await callClaudeForArticles(system, user);
+    if (articles && articles.length > 0) {
+      return { articles, date, language, level, length, generatedAt: Date.now() };
     }
     if (attempt < 3) {
-      console.warn(`[write] ${language}/${level}/${length} bad JSON (attempt ${attempt}), retrying…`);
-    } else {
-      console.error(`[write] Full raw response for ${language}/${level}/${length}:\n`, raw);
-      throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length} after 3 attempts`);
+      console.warn(`[write] ${language}/${level}/${length} — no articles returned (attempt ${attempt}), retrying…`);
     }
   }
-  throw new Error('writeBriefing: unreachable');
+  throw new Error(`Writing failed for ${language}/${level}/${length} after 3 attempts`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
