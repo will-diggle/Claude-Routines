@@ -87,8 +87,8 @@ export const useBriefingStore = create<BriefingStore>()(
           set((s) => ({ briefings: { ...s.briefings, [language]: undefined } }));
         }
 
-        // Developer mock mode
-        if (useSettingsStore.getState().developerMode) {
+        // Developer mock mode — bypassed when forceRefresh is set (so dev tools hit the real API)
+        if (!forceRefresh && useSettingsStore.getState().developerMode) {
           const mock = getMockBriefing(language, level, length);
           set((s) => ({
             briefings: { ...s.briefings, [language]: mock },
