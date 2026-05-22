@@ -29,20 +29,41 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ── JSON parser ───────────────────────────────────────────────────────────────
 // Handles: code fences, preamble text, trailing commas, unescaped chars
 
+// Walk the raw string tracking brace depth and string state to find the
+// exact end of the first top-level JSON object, ignoring any trailing text.
+function findJsonEnd(raw: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === '"') inString = false;
+    } else {
+      if (ch === '"') { inString = true; }
+      else if (ch === '{') { depth++; }
+      else if (ch === '}') { if (--depth === 0) return i; }
+    }
+  }
+  return -1;
+}
+
 function parseServerJSON(raw: string): any | null {
   if (!raw) return null;
 
-  // Extract JSON string — prefer content inside ```json ... ``` fences
-  let jsonStr: string;
+  // Prefer content inside ```json ... ``` fences
+  let jsonStr: string | null = null;
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/s);
   if (fenceMatch) {
     jsonStr = fenceMatch[1].trim();
   } else {
     const start = raw.indexOf('{');
-    const end = raw.lastIndexOf('}');
-    if (start === -1 || end === -1 || end < start) return null;
-    jsonStr = raw.slice(start, end + 1);
+    if (start !== -1) {
+      const end = findJsonEnd(raw, start);
+      if (end !== -1) jsonStr = raw.slice(start, end + 1);
+    }
   }
+  if (!jsonStr) return null;
 
   // Try strict parse first
   try { return JSON.parse(jsonStr); } catch {}
@@ -204,13 +225,21 @@ Write one original news article for every story in the fact-base below. Cover ev
 FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
 ${JSON.stringify(factbase, null, 2)}`;
 
-  const raw = await callClaude(system, user, false);
-  const parsed = parseServerJSON(raw);
-  if (!parsed || !Array.isArray(parsed.articles)) {
-    console.error(`[write] Full raw response for ${language}/${level}/${length}:\n`, raw);
-    throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length} (${raw.length} chars)`);
+  // Retry up to 3 times — occasional malformed JSON is recoverable by regenerating
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const raw = await callClaude(system, user, false);
+    const parsed = parseServerJSON(raw);
+    if (parsed && Array.isArray(parsed.articles)) {
+      return { articles: parsed.articles, date, language, level, length, generatedAt: Date.now() };
+    }
+    if (attempt < 3) {
+      console.warn(`[write] ${language}/${level}/${length} bad JSON (attempt ${attempt}), retrying…`);
+    } else {
+      console.error(`[write] Full raw response for ${language}/${level}/${length}:\n`, raw);
+      throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length} after 3 attempts`);
+    }
   }
-  return { articles: parsed.articles, date, language, level, length, generatedAt: Date.now() };
+  throw new Error('writeBriefing: unreachable');
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
