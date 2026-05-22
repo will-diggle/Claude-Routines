@@ -99,11 +99,11 @@ interface DailyBundle {
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
-// TEST: reduced to 2 languages + 1 level = 4 writing calls (~$0.35/run)
+// TEST: 2 languages × 3 spread levels = 10 writing calls (~$0.60/run)
 // PRODUCTION: restore LANGUAGES to ['en','fr','de','es','it'] and LEVELS to ['A1','A2','B1','B2','C1']
 
 const LANGUAGES: LanguageCode[] = ['en', 'fr'];
-const LEVELS: LanguageLevel[] = ['B1'];
+const LEVELS: LanguageLevel[] = ['A2', 'B1', 'C1'];
 
 const COMBINATIONS: Array<{ language: LanguageCode; level: LanguageLevel; length: ArticleLength }> = [];
 for (const language of LANGUAGES) {
