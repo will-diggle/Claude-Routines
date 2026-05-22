@@ -54,8 +54,6 @@ export function BriefingScreen() {
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
     >
-      <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
-
       {bundleReceivedAt != null && (
         <View style={[styles.mastDate, { borderBottomColor: colors.borderLight }]}>
           <Text style={[styles.mastDateText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
@@ -63,6 +61,8 @@ export function BriefingScreen() {
           </Text>
         </View>
       )}
+
+      <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
 
       {activeLanguages.map((lang, index) => {
         const level = lang.level ?? 'B1';
