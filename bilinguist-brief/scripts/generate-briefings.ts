@@ -1,0 +1,192 @@
+#!/usr/bin/env node
+/**
+ * Server-side daily briefing generator.
+ * Run by GitHub Actions at 04:30 UTC daily.
+ *
+ * Outputs:
+ *   scripts/output/YYYY-MM-DD.json   — archived dated copy
+ *   scripts/output/latest.json       — overwritten daily (app fetches this)
+ *
+ * Usage:
+ *   ANTHROPIC_API_KEY=sk-... npx tsx scripts/generate-briefings.ts
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import {
+  GATHERING_SYSTEM,
+  WRITING_SYSTEM,
+  LANGUAGE_NAMES,
+  WORDS_PER_ARTICLE,
+  normaliseLevel,
+  parseLLMJSON,
+  type ArticleLength,
+} from '../src/services/prompts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it';
+type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+
+interface BriefingArticle { genre: string; headline: string; body: string; }
+interface FactbaseStory {
+  genre: string; slug: string; what_happened: string[]; attribution: string[];
+  verified: string[]; contested: string[]; neutral_descriptors: string[];
+  numbers?: string[]; proper_nouns?: string[]; key_terms?: string[];
+  why_it_matters: string;
+}
+interface GeneratedBriefing {
+  articles: BriefingArticle[]; date: string;
+  language: LanguageCode; level: LanguageLevel; length: ArticleLength;
+  generatedAt: number;
+}
+interface DailyBundle {
+  date: string; generatedAt: number; factbase: FactbaseStory[];
+  briefings: { [lang: string]: { [level: string]: { [length: string]: GeneratedBriefing } } };
+}
+
+// ── Combinations ──────────────────────────────────────────────────────────────
+
+const LANGUAGES: LanguageCode[] = ['en', 'fr', 'de', 'es', 'it'];
+const LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
+
+const COMBINATIONS: Array<{ language: LanguageCode; level: LanguageLevel; length: ArticleLength }> = [];
+for (const language of LANGUAGES) {
+  for (const level of LEVELS) {
+    if (level === 'A1' || level === 'A2') {
+      COMBINATIONS.push({ language, level, length: 'short' });
+    } else {
+      COMBINATIONS.push({ language, level, length: 'medium' });
+      COMBINATIONS.push({ language, level, length: 'longer' });
+    }
+  }
+}
+// 5 languages × (2 short + 6 medium/longer) = 40 writing calls
+
+// ── API call ─────────────────────────────────────────────────────────────────
+
+async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+
+  const body: any = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 8000,
+    system,
+    messages: [{ role: 'user', content: user }],
+  };
+  if (useSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+
+  const headers: Record<string, string> = {
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+    'content-type': 'application/json',
+  };
+  if (useSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', headers, body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+
+  const data = await res.json();
+  return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+}
+
+// ── Stage 1: Gather ───────────────────────────────────────────────────────────
+
+async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
+  console.log(`[gather] Starting factbase for ${date}…`);
+  const system = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
+  const user = `Today is ${date}. Please gather the day's news across all genres using web search.`;
+  const raw = await callClaude(system, user, true);
+  const parsed = parseLLMJSON(raw);
+  if (!parsed || !Array.isArray(parsed.factbase)) {
+    throw new Error(`Gathering returned invalid JSON:\n${raw.slice(0, 500)}`);
+  }
+  console.log(`[gather] ${parsed.factbase.length} stories gathered`);
+  return parsed.factbase as FactbaseStory[];
+}
+
+// ── Stage 2: Write ────────────────────────────────────────────────────────────
+
+async function writeBriefing(
+  factbase: FactbaseStory[],
+  language: LanguageCode,
+  level: LanguageLevel,
+  length: ArticleLength,
+  date: string,
+): Promise<GeneratedBriefing> {
+  const system = WRITING_SYSTEM
+    .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
+    .replace(/\{LEVEL\}/g, normaliseLevel(level))
+    .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
+
+  const user = `Today is ${date}.
+Write one original news article for every story in the fact-base below. Cover every story — do not skip any.
+
+FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
+${JSON.stringify(factbase, null, 2)}`;
+
+  const raw = await callClaude(system, user, false);
+  const parsed = parseLLMJSON(raw);
+  if (!parsed || !Array.isArray(parsed.articles)) {
+    throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length}`);
+  }
+  return { articles: parsed.articles, date, language, level, length, generatedAt: Date.now() };
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const date = new Date().toISOString().split('T')[0];
+  console.log(`[bilinguist] Generating daily bundle — ${date}`);
+  console.log(`[bilinguist] ${COMBINATIONS.length} writing calls planned`);
+
+  const factbase = await gatherFactbase(date);
+
+  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, briefings: {} };
+
+  // Run writing calls in batches of 5 to stay within rate limits
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < COMBINATIONS.length; i += BATCH_SIZE) {
+    const batch = COMBINATIONS.slice(i, i + BATCH_SIZE);
+    const label = batch.map((c) => `${c.language}/${c.level}/${c.length}`).join(', ');
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(COMBINATIONS.length / BATCH_SIZE);
+    console.log(`[write] Batch ${batchNum}/${totalBatches}: ${label}`);
+
+    const results = await Promise.all(
+      batch.map((c) => writeBriefing(factbase, c.language, c.level, c.length, date)),
+    );
+
+    for (const briefing of results) {
+      const { language, level, length } = briefing;
+      bundle.briefings[language] ??= {};
+      bundle.briefings[language][level] ??= {};
+      bundle.briefings[language][level][length] = briefing;
+    }
+
+    if (i + BATCH_SIZE < COMBINATIONS.length) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  const outputDir = path.join(__dirname, 'output');
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const json = JSON.stringify(bundle, null, 2);
+  fs.writeFileSync(path.join(outputDir, `${date}.json`), json, 'utf8');
+  fs.writeFileSync(path.join(outputDir, 'latest.json'), json, 'utf8');
+
+  const approxKB = Math.round(Buffer.byteLength(json, 'utf8') / 1024);
+  console.log(`[bilinguist] Done — output/${date}.json (${approxKB} KB)`);
+}
+
+main().catch((err) => {
+  console.error('[bilinguist] Fatal:', err);
+  process.exit(1);
+});

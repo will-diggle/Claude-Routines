@@ -1,0 +1,52 @@
+name: Generate Daily Briefings
+
+on:
+  schedule:
+    # 04:30 UTC — 04:30 GMT in winter, 05:30 BST in summer
+    - cron: '30 4 * * *'
+  # Manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: bilinguist-brief/package-lock.json
+
+      - name: Install dependencies
+        working-directory: bilinguist-brief
+        run: npm ci
+
+      - name: Generate briefings bundle
+        working-directory: bilinguist-brief
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx scripts/generate-briefings.ts
+
+      - name: Push bundle to data repo
+        env:
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          DATE=$(node -e "process.stdout.write(new Date().toISOString().split('T')[0])")
+
+          git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
+
+          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
+          cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
+
+          cd /tmp/bilinguist-data
+          git config user.email "actions@github.com"
+          git config user.name "Bilinguist Brief Bot"
+          git add latest.json briefings/${DATE}.json
+          git commit -m "Daily briefings: ${DATE}"
+          git push

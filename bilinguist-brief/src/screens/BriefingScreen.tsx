@@ -16,7 +16,7 @@ function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): A
 export function BriefingScreen() {
   const { colors } = useTheme();
   const settings = useSettingsStore();
-  const { briefings, generatingFor, errorsFor, weather, isLoadingWeather, loadBriefing, loadWeather, clearError } =
+  const { briefings, generatingFor, errorsFor, weather, isLoadingWeather, syncFromServer, loadBriefing, loadWeather, clearError } =
     useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -28,6 +28,8 @@ export function BriefingScreen() {
 
   useEffect(() => {
     const langs = settings.languages.filter((l) => l.active);
+    // Try server bundle first; loadBriefing below falls back to on-device generation if sync fails or is slow
+    syncFromServer();
     langs.forEach((lang) => {
       const level = lang.level ?? 'B1';
       loadBriefing(lang.code, level, resolveLength(level, settings.readLength), false);

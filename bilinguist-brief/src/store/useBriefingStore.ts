@@ -5,6 +5,7 @@ import { generateBriefing, type GeneratedBriefing, type ArticleLength } from '..
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
 import { clearTodayFactbase } from '../services/factbase';
+import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
@@ -24,6 +25,7 @@ interface BriefingStore {
   weather: WeatherData | null;
   isLoadingWeather: boolean;
 
+  syncFromServer: () => Promise<void>;
   loadBriefing: (
     language: LanguageCode,
     level: LanguageLevel,
@@ -43,6 +45,28 @@ export const useBriefingStore = create<BriefingStore>()(
       errorsFor: {},
       weather: null,
       isLoadingWeather: false,
+
+      syncFromServer: async () => {
+        const bundle = await fetchTodayBundle();
+        if (!bundle) return; // Stale or network failure — loadBriefing fallback handles it
+
+        await applyBundleToCache(bundle);
+        await clearPreviousDaysBriefings(bundle.date);
+
+        // Refresh in-memory briefings for all active languages with their current variant
+        const settings = useSettingsStore.getState();
+        const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
+        for (const lang of settings.languages.filter((l) => l.active)) {
+          const level = lang.level ?? 'B1';
+          const length: ArticleLength =
+            level === 'A1' || level === 'A2' ? 'short' : settings.readLength;
+          const briefing = bundle.briefings[lang.code]?.[level]?.[length];
+          if (briefing) updates[lang.code as LanguageCode] = briefing;
+        }
+        if (Object.keys(updates).length > 0) {
+          set((s) => ({ briefings: { ...s.briefings, ...updates } }));
+        }
+      },
 
       loadWeather: async (language) => {
         set({ isLoadingWeather: true });

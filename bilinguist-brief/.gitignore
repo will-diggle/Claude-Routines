@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# server script output (committed to bilinguist-data repo, not here)
+scripts/output/
