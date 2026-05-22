@@ -242,11 +242,11 @@ export function SettingsScreen() {
       <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
       <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        Toggle any language on. The briefing generates instantly once cached.
+        Toggle any language on. More languages coming soon.
       </Text>
 
       <DraggableList
-        items={store.languages}
+        items={store.languages.filter((l) => l.code === 'en' || l.code === 'fr')}
         keyExtractor={(lang) => lang.code}
         itemHeight={56}
         onReorder={store.reorderLanguages}
