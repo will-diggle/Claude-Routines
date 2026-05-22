@@ -212,8 +212,14 @@ async function callClaudeForArticles(system: string, user: string): Promise<Brie
   const toolBlock = (data.content ?? []).find(
     (b: any) => b.type === 'tool_use' && b.name === 'report_articles',
   );
-  if (toolBlock && Array.isArray(toolBlock.input?.articles)) {
-    return toolBlock.input.articles as BriefingArticle[];
+  if (toolBlock) {
+    let articles = toolBlock.input?.articles;
+    // Model sometimes passes articles as a JSON string instead of an array
+    // (the WRITING_SYSTEM prompt says "output raw JSON", which confuses it)
+    if (typeof articles === 'string') {
+      try { articles = JSON.parse(articles); } catch {}
+    }
+    if (Array.isArray(articles)) return articles as BriefingArticle[];
   }
 
   // Diagnostics — logged on every null return so we can see exactly why
@@ -283,7 +289,7 @@ async function writeBriefing(
     .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
 
   const user = `Today is ${date}.
-Write one original news article for every story in the fact-base below. Cover every story — do not skip any.
+Write one original news article for every story in the fact-base below. Cover every story — do not skip any. Submit your articles using the report_articles tool — pass each article as a separate object in the articles array, not as a JSON string.
 
 FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
 ${JSON.stringify(factbase, null, 2)}`;
