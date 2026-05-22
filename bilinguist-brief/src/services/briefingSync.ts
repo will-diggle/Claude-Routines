@@ -27,17 +27,24 @@ const BUNDLE_URL = WORKER_BASE ? `${WORKER_BASE}/latest` : '';
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 export async function fetchTodayBundle(): Promise<DailyBundle | null> {
-  if (!BUNDLE_URL) return null; // Worker URL not configured yet — fall back to on-device generation
+  console.log('[sync] WORKER_BASE:', WORKER_BASE || '(not set)');
+  console.log('[sync] BUNDLE_URL:', BUNDLE_URL || '(not set)');
+  if (!BUNDLE_URL) {
+    console.log('[sync] No worker URL configured — skipping server fetch');
+    return null;
+  }
   const today = new Date().toISOString().split('T')[0];
+  console.log('[sync] Fetching bundle for', today);
   try {
-    // Cache-bust so Cloudflare CDN doesn't serve yesterday's file on the first request of the day
     const res = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
+    console.log('[sync] Response status:', res.status);
     if (!res.ok) return null;
     const bundle: DailyBundle = await res.json();
-    // Reject stale bundles (generation hasn't run yet, e.g. before 04:30 UTC)
+    console.log('[sync] Bundle date:', bundle.date, '— today:', today, '— match:', bundle.date === today);
     if (bundle.date !== today) return null;
     return bundle;
-  } catch {
+  } catch (e) {
+    console.log('[sync] Fetch error:', String(e));
     return null;
   }
 }
