@@ -1,5 +1,7 @@
-import * as Location from 'expo-location';
 import type { LanguageCode } from '../store/useSettingsStore';
+
+// Hardcoded to London until per-user location is added
+const LONDON = { latitude: 51.5074, longitude: -0.1278 };
 
 export interface WeatherData {
   temp: number;
@@ -37,28 +39,10 @@ function timeOfDay(): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-async function reverseGeocode(lat: number, lon: number): Promise<string> {
-  try {
-    // BigDataCloud free reverse geocoding — no API key, generous rate limits
-    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
-    const res = await fetch(url);
-    if (!res.ok) return '';
-    const data = await res.json();
-    return (data.city || data.locality || data.principalSubdivision || '') as string;
-  } catch {
-    return '';
-  }
-}
 
 export async function fetchWeather(language: LanguageCode): Promise<WeatherData | null> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return null;
-
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Low,
-    });
-    const { latitude, longitude } = location.coords;
+    const { latitude, longitude } = LONDON;
 
     // Open-Meteo — free, no API key required
     const url =
@@ -74,7 +58,7 @@ export async function fetchWeather(language: LanguageCode): Promise<WeatherData 
     const temp = Math.round(data.current?.temperature_2m ?? 0);
     const code: number = data.current?.weather_code ?? 0;
     const description = WMO_DESCRIPTIONS[code] ?? 'clear sky';
-    const city = await reverseGeocode(latitude, longitude);
+    const city = 'London';
     const greeting = GREETINGS[language]?.[timeOfDay()] ?? 'Good morning';
 
     return { temp, description, city, greeting };

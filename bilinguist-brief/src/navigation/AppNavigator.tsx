@@ -49,7 +49,7 @@ export function AppNavigator() {
       })}
     >
       <Tab.Screen name="Settings" component={SettingsScreen} />
-      <Tab.Screen name="Briefing" component={BriefingScreen} options={{ tabBarLabel: 'The Brief' }} />
+      <Tab.Screen name="Briefing" component={BriefingScreen} options={{ tabBarLabel: 'The Brief', headerShown: false }} />
       <Tab.Screen name="Practice" component={PracticeNavigator} />
     </Tab.Navigator>
   );
