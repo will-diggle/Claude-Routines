@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View, Text } from 'react-native';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useTheme } from '../hooks/useTheme';
@@ -7,6 +7,17 @@ import { WeatherStrip } from '../components/WeatherStrip';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import type { ArticleLength } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
+
+function formatReceivedAt(ts: number): string {
+  const d = new Date(ts);
+  return (
+    d.toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    }) +
+    ' · ' +
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  );
+}
 
 // A1/A2 always use 'short'; B1+ use the user's chosen read length.
 function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): ArticleLength {
@@ -16,7 +27,7 @@ function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): A
 export function BriefingScreen() {
   const { colors } = useTheme();
   const settings = useSettingsStore();
-  const { briefings, generatingFor, errorsFor, weather, isLoadingWeather, syncFromServer, loadBriefing, loadWeather, clearError } =
+  const { briefings, generatingFor, errorsFor, weather, isLoadingWeather, syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt } =
     useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -44,6 +55,14 @@ export function BriefingScreen() {
       contentContainerStyle={styles.content}
     >
       <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
+
+      {bundleReceivedAt != null && (
+        <View style={[styles.mastDate, { borderBottomColor: colors.borderLight }]}>
+          <Text style={[styles.mastDateText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+            {formatReceivedAt(bundleReceivedAt)}
+          </Text>
+        </View>
+      )}
 
       {activeLanguages.map((lang, index) => {
         const level = lang.level ?? 'B1';
@@ -73,4 +92,14 @@ export function BriefingScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 48 },
+  mastDate: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  mastDateText: {
+    fontSize: 12,
+    letterSpacing: 0.3,
+  },
 });

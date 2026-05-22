@@ -24,6 +24,7 @@ interface BriefingStore {
   errorsFor: Partial<Record<LanguageCode, string>>;
   weather: WeatherData | null;
   isLoadingWeather: boolean;
+  bundleReceivedAt: number | null; // epoch ms when app last fetched a server bundle
 
   syncFromServer: () => Promise<void>;
   loadBriefing: (
@@ -45,6 +46,7 @@ export const useBriefingStore = create<BriefingStore>()(
       errorsFor: {},
       weather: null,
       isLoadingWeather: false,
+      bundleReceivedAt: null,
 
       syncFromServer: async () => {
         const bundle = await fetchTodayBundle();
@@ -52,6 +54,9 @@ export const useBriefingStore = create<BriefingStore>()(
 
         await applyBundleToCache(bundle);
         await clearPreviousDaysBriefings(bundle.date);
+
+        // Stamp the moment the app received this bundle
+        const receivedAt = Date.now();
 
         // Refresh in-memory briefings for all active languages with their current variant
         const settings = useSettingsStore.getState();
@@ -63,9 +68,10 @@ export const useBriefingStore = create<BriefingStore>()(
           const briefing = bundle.briefings[lang.code]?.[level]?.[length];
           if (briefing) updates[lang.code as LanguageCode] = briefing;
         }
-        if (Object.keys(updates).length > 0) {
-          set((s) => ({ briefings: { ...s.briefings, ...updates } }));
-        }
+        set((s) => ({
+          briefings: { ...s.briefings, ...updates },
+          bundleReceivedAt: receivedAt,
+        }));
       },
 
       loadWeather: async (language) => {
@@ -163,7 +169,7 @@ export const useBriefingStore = create<BriefingStore>()(
     {
       name: 'bilinguist-briefing-v2',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ briefings: state.briefings, weather: state.weather }),
+      partialize: (state) => ({ briefings: state.briefings, weather: state.weather, bundleReceivedAt: state.bundleReceivedAt }),
     }
   )
 );
