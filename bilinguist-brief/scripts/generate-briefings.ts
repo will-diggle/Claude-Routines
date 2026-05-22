@@ -214,10 +214,12 @@ async function callClaudeForArticles(system: string, user: string): Promise<Brie
   );
   if (toolBlock) {
     let articles = toolBlock.input?.articles;
-    // Model sometimes passes articles as a JSON string instead of an array
-    // (the WRITING_SYSTEM prompt says "output raw JSON", which confuses it)
+    // Model sometimes passes articles as a JSON string instead of an array.
+    // If JSON.parse fails (unescaped quotes in body text), try jsonrepair.
     if (typeof articles === 'string') {
-      try { articles = JSON.parse(articles); } catch {}
+      try { articles = JSON.parse(articles); } catch {
+        try { articles = JSON.parse(jsonrepair(articles)); } catch {}
+      }
     }
     if (Array.isArray(articles)) return articles as BriefingArticle[];
   }
@@ -283,7 +285,11 @@ async function writeBriefing(
   length: ArticleLength,
   date: string,
 ): Promise<GeneratedBriefing> {
+  // Strip the JSON output instructions from WRITING_SYSTEM — with tool use the model
+  // should fill in the tool parameters directly, not produce a raw JSON string.
   const system = WRITING_SYSTEM
+    .replace(/STRICT OUTPUT RULE:[^\n]*\n/g, '')
+    .replace(/FORMAT:[^\n]*\n/g, '')
     .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
     .replace(/\{LEVEL\}/g, normaliseLevel(level))
     .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
