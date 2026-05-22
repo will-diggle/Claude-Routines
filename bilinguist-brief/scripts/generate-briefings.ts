@@ -14,17 +14,46 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { jsonrepair } from 'jsonrepair';
 import {
   GATHERING_SYSTEM,
   WRITING_SYSTEM,
   LANGUAGE_NAMES,
   WORDS_PER_ARTICLE,
   normaliseLevel,
-  parseLLMJSON,
   type ArticleLength,
 } from '../src/services/prompts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ── JSON parser ───────────────────────────────────────────────────────────────
+// Handles: code fences, preamble text, trailing commas, unescaped chars
+
+function parseServerJSON(raw: string): any | null {
+  if (!raw) return null;
+
+  // Extract JSON string — prefer content inside ```json ... ``` fences
+  let jsonStr: string;
+  const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/s);
+  if (fenceMatch) {
+    jsonStr = fenceMatch[1].trim();
+  } else {
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1 || end < start) return null;
+    jsonStr = raw.slice(start, end + 1);
+  }
+
+  // Try strict parse first
+  try { return JSON.parse(jsonStr); } catch {}
+
+  // Repair common LLM mistakes (trailing commas, unescaped chars, etc.)
+  try { return JSON.parse(jsonrepair(jsonStr)); } catch (e) {
+    console.error('[parse] jsonrepair failed:', String(e).slice(0, 300));
+    console.error('[parse] Extraction (first 2000 chars):\n', jsonStr.slice(0, 2000));
+    return null;
+  }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,9 +175,10 @@ RESEARCH NOTES:
 ${research}`;
 
   const raw = await callClaude(structureSystem, structureUser, false);
-  const parsed = parseLLMJSON(raw);
+  const parsed = parseServerJSON(raw);
   if (!parsed || !Array.isArray(parsed.factbase)) {
-    throw new Error(`Gathering returned invalid JSON:\n${raw.slice(0, 500)}`);
+    console.error('[gather] Full raw response:\n', raw);
+    throw new Error(`Gathering returned invalid JSON (${raw.length} chars)`);
   }
   console.log(`[gather] ${parsed.factbase.length} stories gathered`);
   return parsed.factbase as FactbaseStory[];
@@ -175,9 +205,10 @@ FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do no
 ${JSON.stringify(factbase, null, 2)}`;
 
   const raw = await callClaude(system, user, false);
-  const parsed = parseLLMJSON(raw);
+  const parsed = parseServerJSON(raw);
   if (!parsed || !Array.isArray(parsed.articles)) {
-    throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length}`);
+    console.error(`[write] Full raw response for ${language}/${level}/${length}:\n`, raw);
+    throw new Error(`Writing returned invalid JSON for ${language}/${level}/${length} (${raw.length} chars)`);
   }
   return { articles: parsed.articles, date, language, level, length, generatedAt: Date.now() };
 }
