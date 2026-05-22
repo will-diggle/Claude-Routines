@@ -72,10 +72,12 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
+  // Wrap system prompt in cache_control block — writing calls share identical system prompts,
+  // so after the first call the prompt is cached at ~10% of normal input cost.
   const body: any = {
     model: 'claude-sonnet-4-6',
     max_tokens: 64000,
-    system,
+    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: user }],
   };
   if (useSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
@@ -84,8 +86,9 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
     'x-api-key': apiKey,
     'anthropic-version': '2023-06-01',
     'content-type': 'application/json',
+    'anthropic-beta': 'prompt-caching-2024-07-31',
   };
-  if (useSearch) headers['anthropic-beta'] = 'web-search-2025-03-05';
+  if (useSearch) headers['anthropic-beta'] = 'web-search-2025-03-05,prompt-caching-2024-07-31';
 
   // Retry up to 3 times on rate limit errors (429), waiting 60s between attempts
   for (let attempt = 1; attempt <= 3; attempt++) {
