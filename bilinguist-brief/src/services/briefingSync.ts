@@ -19,20 +19,22 @@ export interface DailyBundle {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// TODO (pre-launch): move to authenticated Cloudflare Workers endpoint.
-// Currently public GitHub raw URL — sufficient for development.
-const BUNDLE_URL = 'https://raw.githubusercontent.com/will-diggle/bilinguist-data/main/latest.json';
+// Set EXPO_PUBLIC_WORKER_URL in your .env after deploying bilinguist-worker/
+// e.g. EXPO_PUBLIC_WORKER_URL=https://bilinguist-brief.YOUR-ACCOUNT.workers.dev
+const WORKER_BASE = process.env.EXPO_PUBLIC_WORKER_URL ?? '';
+const BUNDLE_URL = WORKER_BASE ? `${WORKER_BASE}/latest` : '';
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 export async function fetchTodayBundle(): Promise<DailyBundle | null> {
+  if (!BUNDLE_URL) return null; // Worker URL not configured yet — fall back to on-device generation
   const today = new Date().toISOString().split('T')[0];
   try {
-    // Cache-bust so the CDN doesn't serve yesterday's file
+    // Cache-bust so Cloudflare CDN doesn't serve yesterday's file on the first request of the day
     const res = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
     if (!res.ok) return null;
     const bundle: DailyBundle = await res.json();
-    // Reject stale bundles (server hasn't generated today's yet)
+    // Reject stale bundles (generation hasn't run yet, e.g. before 04:30 UTC)
     if (bundle.date !== today) return null;
     return bundle;
   } catch {

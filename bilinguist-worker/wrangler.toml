@@ -1,0 +1,7 @@
+name = "bilinguist-brief"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# GITHUB_TOKEN is a secret — never put it here.
+# Set it with: wrangler secret put GITHUB_TOKEN
+# Or via Cloudflare dashboard → Workers → bilinguist-brief → Settings → Variables → Add secret
