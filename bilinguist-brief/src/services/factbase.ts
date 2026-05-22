@@ -8,6 +8,9 @@ export interface FactbaseStory {
   verified: string[];
   contested: string[];
   neutral_descriptors: string[];
+  numbers?: string[];
+  proper_nouns?: string[];
+  key_terms?: string[];
   why_it_matters: string;
 }
 
