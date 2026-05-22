@@ -7,6 +7,15 @@
  *   scripts/output/YYYY-MM-DD.json   — archived dated copy
  *   scripts/output/latest.json       — overwritten daily (app fetches this)
  *
+ * Stage 1 — Gather (sequential, 2 regular API calls):
+ *   Call A: web search ON  — free-form research notes
+ *   Call B: web search OFF — structures notes into factbase JSON
+ *
+ * Stage 2 — Write (Anthropic Message Batches API):
+ *   All language/level/length combinations submitted as a single batch.
+ *   Each request uses submit_article tool (one call per story).
+ *   Polls for completion, then assembles the bundle.
+ *
  * Usage:
  *   ANTHROPIC_API_KEY=sk-... npx tsx scripts/generate-briefings.ts
  */
@@ -27,10 +36,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── JSON parser ───────────────────────────────────────────────────────────────
-// Handles: code fences, preamble text, trailing commas, unescaped chars
 
-// Walk the raw string tracking brace depth and string state to find the
-// exact end of the first top-level JSON object, ignoring any trailing text.
 function findJsonEnd(raw: string, start: number): number {
   let depth = 0;
   let inString = false;
@@ -50,8 +56,6 @@ function findJsonEnd(raw: string, start: number): number {
 
 function parseServerJSON(raw: string): any | null {
   if (!raw) return null;
-
-  // Prefer content inside ```json ... ``` fences
   let jsonStr: string | null = null;
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/s);
   if (fenceMatch) {
@@ -64,14 +68,9 @@ function parseServerJSON(raw: string): any | null {
     }
   }
   if (!jsonStr) return null;
-
-  // Try strict parse first
   try { return JSON.parse(jsonStr); } catch {}
-
-  // Repair common LLM mistakes (trailing commas, unescaped chars, etc.)
   try { return JSON.parse(jsonrepair(jsonStr)); } catch (e) {
     console.error('[parse] jsonrepair failed:', String(e).slice(0, 300));
-    console.error('[parse] Extraction (first 2000 chars):\n', jsonStr.slice(0, 2000));
     return null;
   }
 }
@@ -99,10 +98,10 @@ interface DailyBundle {
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
-// TEST: 2 languages × 3 spread levels = 10 writing calls (~$0.60/run)
-// PRODUCTION: restore LANGUAGES to ['en','fr','de','es','it'] and LEVELS to ['A1','A2','B1','B2','C1']
+// en + fr + de × A2/B1/C1
+// A2 → short only; B1/C1 → medium + longer
 
-const LANGUAGES: LanguageCode[] = ['en', 'fr'];
+const LANGUAGES: LanguageCode[] = ['en', 'fr', 'de'];
 const LEVELS: LanguageLevel[] = ['A2', 'B1', 'C1'];
 
 const COMBINATIONS: Array<{ language: LanguageCode; level: LanguageLevel; length: ArticleLength }> = [];
@@ -116,39 +115,36 @@ for (const language of LANGUAGES) {
     }
   }
 }
-// 5 languages × (2 short + 6 medium/longer) = 40 writing calls
+// 3 languages × (1 short + 4 medium/longer) = 15 writing requests
 
 // ── API helpers ───────────────────────────────────────────────────────────────
+
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
+  return { 'x-api-key': apiKey, 'content-type': 'application/json', ...extra };
+}
 
 async function callAnthropicAPI(
   body: Record<string, unknown>,
   headers: Record<string, string>,
 ): Promise<any> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-
-  const allHeaders = { 'x-api-key': apiKey, 'content-type': 'application/json', ...headers };
-
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: allHeaders, body: JSON.stringify(body),
+      method: 'POST', headers: apiHeaders(headers), body: JSON.stringify(body),
     });
-
     if (res.status === 429) {
-      if (attempt === 3) throw new Error('Claude API rate limit hit after 3 attempts');
-      console.log(`[rate limit] Attempt ${attempt} hit 429 — waiting 60s before retry…`);
+      if (attempt === 3) throw new Error('Rate limit after 3 attempts');
+      console.log(`[rate limit] 429 on attempt ${attempt} — waiting 60s…`);
       await new Promise((r) => setTimeout(r, 60_000));
       continue;
     }
-
     if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
     return await res.json();
   }
-
   throw new Error('callAnthropicAPI: exhausted retries');
 }
 
-// Text generation (research + gather steps)
 async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
   const body: Record<string, unknown> = {
     model: 'claude-sonnet-4-6',
@@ -158,19 +154,17 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   };
   if (useSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
 
-  const headers: Record<string, string> = {
+  const data = await callAnthropicAPI(body, {
     'anthropic-version': '2023-06-01',
     'anthropic-beta': useSearch
       ? 'web-search-2025-03-05,prompt-caching-2024-07-31'
       : 'prompt-caching-2024-07-31',
-  };
-
-  const data = await callAnthropicAPI(body, headers);
+  });
   return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
 }
 
-// Tool-use writing call: one tool call per article, so the model never needs to
-// serialise an array — each call has only 3 simple string fields.
+// ── Batch API helpers ─────────────────────────────────────────────────────────
+
 const ARTICLE_TOOL = {
   name: 'submit_article',
   description: 'Submit one written news article. Call this tool once for each story in the fact-base.',
@@ -185,41 +179,114 @@ const ARTICLE_TOOL = {
   },
 } as const;
 
-async function callClaudeForArticles(system: string, user: string): Promise<BriefingArticle[] | null> {
-  const body: Record<string, unknown> = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 64000,
-    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: user }],
-    tools: [ARTICLE_TOOL],
-    tool_choice: { type: 'any' },
+function buildWritingRequest(
+  customId: string,
+  factbase: FactbaseStory[],
+  language: LanguageCode,
+  level: LanguageLevel,
+  length: ArticleLength,
+  date: string,
+) {
+  const system = WRITING_SYSTEM
+    .replace(/STRICT OUTPUT RULE:[^\n]*\n/g, '')
+    .replace(/FORMAT:[^\n]*\n/g, '')
+    .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
+    .replace(/\{LEVEL\}/g, normaliseLevel(level))
+    .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
+
+  const user = `Today is ${date}.
+Write one original news article for every story in the fact-base below. Call the submit_article tool once for each story — you must call it for every single story. Do not stop until all ${factbase.length} stories have been submitted.
+
+FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
+${JSON.stringify(factbase, null, 2)}`;
+
+  return {
+    custom_id: customId,
+    params: {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 64000,
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: user }],
+      tools: [ARTICLE_TOOL],
+      tool_choice: { type: 'any' },
+    },
   };
+}
 
-  const data = await callAnthropicAPI(body, {
-    'anthropic-version': '2023-06-01',
-    'anthropic-beta': 'prompt-caching-2024-07-31',
+async function submitBatch(requests: any[]): Promise<string> {
+  console.log(`[batch] Submitting ${requests.length} requests…`);
+  const res = await fetch('https://api.anthropic.com/v1/messages/batches', {
+    method: 'POST',
+    headers: apiHeaders({
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'message-batches-2024-09-24,prompt-caching-2024-07-31',
+    }),
+    body: JSON.stringify({ requests }),
   });
+  if (!res.ok) throw new Error(`Batch submit ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  console.log(`[batch] Submitted — batch ID: ${data.id}`);
+  return data.id;
+}
 
-  const articles = (data.content ?? [])
+async function waitForBatch(batchId: string): Promise<any[]> {
+  const POLL_INTERVAL_MS = 20_000; // 20 seconds
+  const MAX_POLLS = 75;            // 25 minutes max
+
+  for (let i = 1; i <= MAX_POLLS; i++) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+    const res = await fetch(`https://api.anthropic.com/v1/messages/batches/${batchId}`, {
+      headers: apiHeaders({
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'message-batches-2024-09-24',
+      }),
+    });
+    if (!res.ok) throw new Error(`Batch poll ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+
+    const { processing, succeeded, errored, canceled, expired } = data.request_counts ?? {};
+    console.log(`[batch] Poll ${i}: ${data.processing_status} — processing:${processing} succeeded:${succeeded} errored:${errored}`);
+
+    if (data.processing_status === 'ended') {
+      if (errored > 0 || canceled > 0 || expired > 0) {
+        console.warn(`[batch] Completed with issues — errored:${errored} canceled:${canceled} expired:${expired}`);
+      }
+
+      // Fetch JSONL results
+      const resultsRes = await fetch(
+        `https://api.anthropic.com/v1/messages/batches/${batchId}/results`,
+        {
+          headers: apiHeaders({
+            'anthropic-version': '2023-06-01',
+            'anthropic-beta': 'message-batches-2024-09-24',
+          }),
+        },
+      );
+      if (!resultsRes.ok) throw new Error(`Batch results ${resultsRes.status}: ${await resultsRes.text()}`);
+
+      const text = await resultsRes.text();
+      return text.trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    }
+  }
+
+  throw new Error(`Batch ${batchId} did not complete within ${(MAX_POLLS * POLL_INTERVAL_MS) / 60000} minutes`);
+}
+
+function extractArticles(result: any): BriefingArticle[] | null {
+  if (result?.type !== 'succeeded') {
+    console.error('[batch] Request did not succeed:', JSON.stringify(result).slice(0, 200));
+    return null;
+  }
+  const content = result.message?.content ?? [];
+  const articles = content
     .filter((b: any) => b.type === 'tool_use' && b.name === 'submit_article')
     .map((b: any) => b.input as BriefingArticle)
     .filter((a: any) => a.genre && a.headline && a.body);
-
-  if (articles.length > 0) return articles;
-
-  // Diagnostics
-  console.error('[write] No articles in response. stop_reason:', data.stop_reason);
-  console.error('[write] Content blocks:', (data.content ?? []).map((b: any) => b.type).join(', ') || '(empty)');
-  return null;
+  return articles.length > 0 ? articles : null;
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
-//
-// Two-call approach: web search can consume as many tokens as it needs for
-// research without competing with the JSON output requirement.
-//
-// Call A (research): web search ON, free-form output
-// Call B (structure): web search OFF, converts research notes to factbase JSON
 
 const RESEARCH_SYSTEM = `You are a news researcher. Your job is to find today's most significant news stories across these genres using web search:
 - GLOBAL NEWS (3-4 stories)
@@ -236,10 +303,9 @@ For each story note: what happened (in chronological order), key figures, exact 
 async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
   console.log(`[gather] Step 1/2 — researching today's news…`);
   const researchSystem = RESEARCH_SYSTEM.replace(/\{DATE\}/g, date);
-  const researchUser = `Today is ${date}. Please search for today's top news stories across all genres.`;
-  const research = await callClaude(researchSystem, researchUser, true);
-  console.log(`[gather] Step 2/2 — structuring factbase JSON…`);
+  const research = await callClaude(researchSystem, `Today is ${date}. Please search for today's top news stories across all genres.`, true);
 
+  console.log(`[gather] Step 2/2 — structuring factbase JSON…`);
   const structureSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
   const structureUser = `Today is ${date}. Based on the following research notes, produce the factbase JSON exactly as specified in your instructions. Do not search for additional information — use only what is provided below.
 
@@ -256,40 +322,38 @@ ${research}`;
   return parsed.factbase as FactbaseStory[];
 }
 
-// ── Stage 2: Write ────────────────────────────────────────────────────────────
+// ── Stage 2: Write (Batch API) ────────────────────────────────────────────────
 
-async function writeBriefing(
+async function writeBriefingsBatch(
   factbase: FactbaseStory[],
-  language: LanguageCode,
-  level: LanguageLevel,
-  length: ArticleLength,
   date: string,
-): Promise<GeneratedBriefing> {
-  // Strip the JSON output instructions from WRITING_SYSTEM — with tool use the model
-  // should fill in the tool parameters directly, not produce a raw JSON string.
-  const system = WRITING_SYSTEM
-    .replace(/STRICT OUTPUT RULE:[^\n]*\n/g, '')
-    .replace(/FORMAT:[^\n]*\n/g, '')
-    .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
-    .replace(/\{LEVEL\}/g, normaliseLevel(level))
-    .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
+): Promise<GeneratedBriefing[]> {
+  // Build one batch request per combination
+  const requests = COMBINATIONS.map(({ language, level, length }) =>
+    buildWritingRequest(`${language}-${level}-${length}`, factbase, language, level, length, date),
+  );
 
-  const user = `Today is ${date}.
-Write one original news article for every story in the fact-base below. Call the submit_article tool once for each story — you must call it for every single story. Do not stop until all ${factbase.length} stories have been submitted.
+  const batchId = await submitBatch(requests);
+  const results = await waitForBatch(batchId);
 
-FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
-${JSON.stringify(factbase, null, 2)}`;
+  const briefings: GeneratedBriefing[] = [];
+  const generatedAt = Date.now();
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const articles = await callClaudeForArticles(system, user);
-    if (articles && articles.length > 0) {
-      return { articles, date, language, level, length, generatedAt: Date.now() };
+  for (const item of results) {
+    const customId: string = item.custom_id;
+    const [language, level, length] = customId.split('-') as [LanguageCode, LanguageLevel, ArticleLength];
+
+    const articles = extractArticles(item.result);
+    if (!articles) {
+      console.error(`[batch] No articles extracted for ${customId}`);
+      continue;
     }
-    if (attempt < 3) {
-      console.warn(`[write] ${language}/${level}/${length} — no articles returned (attempt ${attempt}), retrying…`);
-    }
+
+    console.log(`[batch] ${customId} — ${articles.length} articles`);
+    briefings.push({ articles, date, language, level, length, generatedAt });
   }
-  throw new Error(`Writing failed for ${language}/${level}/${length} after 3 attempts`);
+
+  return briefings;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -297,36 +361,22 @@ ${JSON.stringify(factbase, null, 2)}`;
 async function main() {
   const date = new Date().toISOString().split('T')[0];
   console.log(`[bilinguist] Generating daily bundle — ${date}`);
-  console.log(`[bilinguist] ${COMBINATIONS.length} writing calls planned`);
+  console.log(`[bilinguist] ${COMBINATIONS.length} writing requests (Batch API)`);
+  console.log(`[bilinguist] Languages: ${LANGUAGES.join(', ')} | Levels: ${LEVELS.join(', ')}`);
 
   const factbase = await gatherFactbase(date);
 
   const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, briefings: {} };
 
-  // Run writing calls in batches of 5 to stay within rate limits
-  const BATCH_SIZE = 3;
-  for (let i = 0; i < COMBINATIONS.length; i += BATCH_SIZE) {
-    const batch = COMBINATIONS.slice(i, i + BATCH_SIZE);
-    const label = batch.map((c) => `${c.language}/${c.level}/${c.length}`).join(', ');
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(COMBINATIONS.length / BATCH_SIZE);
-    console.log(`[write] Batch ${batchNum}/${totalBatches}: ${label}`);
-
-    const results = await Promise.all(
-      batch.map((c) => writeBriefing(factbase, c.language, c.level, c.length, date)),
-    );
-
-    for (const briefing of results) {
-      const { language, level, length } = briefing;
-      bundle.briefings[language] ??= {};
-      bundle.briefings[language][level] ??= {};
-      bundle.briefings[language][level][length] = briefing;
-    }
-
-    if (i + BATCH_SIZE < COMBINATIONS.length) {
-      await new Promise((r) => setTimeout(r, 2000));
-    }
+  const briefings = await writeBriefingsBatch(factbase, date);
+  for (const briefing of briefings) {
+    const { language, level, length } = briefing;
+    bundle.briefings[language] ??= {};
+    bundle.briefings[language][level] ??= {};
+    bundle.briefings[language][level][length] = briefing;
   }
+
+  console.log(`[bilinguist] ${briefings.length}/${COMBINATIONS.length} briefings generated`);
 
   const outputDir = path.join(__dirname, 'output');
   fs.mkdirSync(outputDir, { recursive: true });

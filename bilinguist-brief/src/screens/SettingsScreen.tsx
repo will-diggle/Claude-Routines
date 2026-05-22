@@ -246,7 +246,7 @@ export function SettingsScreen() {
       </Text>
 
       <DraggableList
-        items={store.languages.filter((l) => l.code === 'en' || l.code === 'fr')}
+        items={store.languages.filter((l) => l.code === 'en' || l.code === 'fr' || l.code === 'de')}
         keyExtractor={(lang) => lang.code}
         itemHeight={56}
         onReorder={store.reorderLanguages}

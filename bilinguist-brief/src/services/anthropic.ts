@@ -1,5 +1,4 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
-import { checkBriefingUsage, incrementBriefingUsage } from './apiUsage';
 import { getTodayFactbase, storeTodayFactbase } from './factbase';
 import type { FactbaseStory } from './factbase';
 import {
@@ -128,7 +127,6 @@ export async function generateBriefing(
   level: LanguageLevel,
   length: ArticleLength,
 ): Promise<GeneratedBriefing> {
-  await checkBriefingUsage();
   const date = new Date().toISOString().split('T')[0];
   const wordCount = WORDS_PER_ARTICLE[length];
   const normalisedLevel = normaliseLevel(level);
@@ -164,6 +162,5 @@ ${JSON.stringify(factbase, null, 2)}`;
     length,
     generatedAt: Date.now(),
   };
-  await incrementBriefingUsage();
   return result;
 }
