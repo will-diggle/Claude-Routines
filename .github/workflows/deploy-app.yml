@@ -46,18 +46,28 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           CI: "1"
         run: |
-          set -o pipefail
-          # --json gives reliable structured output; stderr (progress/errors) shown live
-          npx eas-cli update --branch preview --message "Auto-deploy from push" --json --non-interactive \
-            > /tmp/eas-output.json 2>&1 || { cat /tmp/eas-output.json; exit 1; }
-          cat /tmp/eas-output.json
-          # Parse group UUID from JSON array — .[0].group is the update group id
-          GROUP=$(jq -r '.[0].group // empty' /tmp/eas-output.json 2>/dev/null || echo "")
-          # Fallback: regex grep if jq path differs across eas-cli versions
+          # Redirect stdout (JSON) and stderr (progress/warnings) to separate files
+          # so jq can parse clean JSON without npm warn lines mixed in
+          npx eas-cli update --branch preview --message "Auto-deploy from push" \
+            --json --non-interactive \
+            > /tmp/eas-stdout.json \
+            2> /tmp/eas-stderr.txt \
+            || { echo "=== EAS FAILED ==="; cat /tmp/eas-stderr.txt; cat /tmp/eas-stdout.json; exit 1; }
+
+          echo "=== EAS output (stdout) ==="; cat /tmp/eas-stdout.json
+          echo "=== EAS warnings (stderr) ==="; cat /tmp/eas-stderr.txt || true
+
+          # Try jq on the clean JSON stdout
+          GROUP=$(jq -r '.[0].group // .group // empty' /tmp/eas-stdout.json 2>/dev/null || echo "")
+
+          # Fallback: regex grep across both files (handles any JSON shape)
           if [ -z "$GROUP" ]; then
-            GROUP=$(grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/eas-output.json \
+            GROUP=$(grep -ohiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
+              /tmp/eas-stdout.json /tmp/eas-stderr.txt \
               | grep -iv '4f33f632-5650-43d6-881b-4b006eee705f' | head -1 || echo "")
           fi
+
+          echo "Extracted group UUID: '$GROUP'"
           echo "group=$GROUP" >> "$GITHUB_OUTPUT"
 
       - name: Post preview link as commit comment
@@ -68,8 +78,9 @@ jobs:
           GROUP="${{ steps.eas.outputs.group }}"
           PROJECT="4f33f632-5650-43d6-881b-4b006eee705f"
           URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
+          echo "Posting comment with URL: $URL"
           curl -s -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-            -d "{\"body\": \"📱 **App updated — open in Expo Go:**\\n\\n${URL}\\n\\n_Tap this link on your phone → opens in Expo Go_\"}"
+            -d "{\"body\": \"📱 **App updated — open in Expo Go:**\n\n${URL}\n\n_Tap this link on your phone → opens in Expo Go_\"}"
