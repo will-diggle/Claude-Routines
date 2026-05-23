@@ -10,7 +10,7 @@ import { useTheme } from '../hooks/useTheme';
 export type RootTabParamList = {
   Briefing: undefined;
   Practice: undefined;
-  Settings: undefined;
+  Preferences: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -38,7 +38,7 @@ export function AppNavigator() {
         },
         tabBarIcon: ({ focused, color }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
-          if (route.name === 'Settings') {
+          if (route.name === 'Preferences') {
             iconName = focused ? 'settings' : 'settings-outline';
           } else if (route.name === 'Briefing') {
             iconName = focused ? 'newspaper' : 'newspaper-outline';
@@ -51,7 +51,7 @@ export function AppNavigator() {
     >
       <Tab.Screen name="Briefing" component={BriefingScreen} options={{ tabBarLabel: 'The Brief', headerShown: false }} />
       <Tab.Screen name="Practice" component={PracticeNavigator} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Preferences" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }

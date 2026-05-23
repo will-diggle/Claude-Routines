@@ -175,6 +175,7 @@ export function SettingsScreen() {
   const { loadBriefing } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
+  const [isDragging, setIsDragging] = useState(false);
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
@@ -220,6 +221,7 @@ export function SettingsScreen() {
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      scrollEnabled={!isDragging}
     >
       {/* ── Tab switcher ── */}
       <View style={[tabStyles.container, { borderBottomColor: colors.borderMid }]}>
@@ -254,6 +256,7 @@ export function SettingsScreen() {
         keyExtractor={(lang) => lang.code}
         itemHeight={56}
         onReorder={store.reorderLanguages}
+        onDragStateChange={setIsDragging}
         renderItem={(lang, index, isAnyDragging) => (
           <View>
             <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
@@ -295,6 +298,7 @@ export function SettingsScreen() {
         keyExtractor={(item) => item.key}
         itemHeight={56}
         onReorder={store.reorderTopics}
+        onDragStateChange={setIsDragging}
         renderItem={(item) => (
           <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
             <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
