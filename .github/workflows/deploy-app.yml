@@ -46,41 +46,64 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           CI: "1"
         run: |
-          # Redirect stdout (JSON) and stderr (progress/warnings) to separate files
-          # so jq can parse clean JSON without npm warn lines mixed in
+          # Run eas update, capturing stdout and stderr separately
           npx eas-cli update --branch preview --message "Auto-deploy from push" \
             --json --non-interactive \
             > /tmp/eas-stdout.json \
             2> /tmp/eas-stderr.txt \
             || { echo "=== EAS FAILED ==="; cat /tmp/eas-stderr.txt; cat /tmp/eas-stdout.json; exit 1; }
 
-          echo "=== EAS output (stdout) ==="; cat /tmp/eas-stdout.json
-          echo "=== EAS warnings (stderr) ==="; cat /tmp/eas-stderr.txt || true
+          echo "=== EAS stdout ==="; cat /tmp/eas-stdout.json
+          echo "=== EAS stderr ==="; cat /tmp/eas-stderr.txt || true
 
-          # Try jq on the clean JSON stdout
+          # Try jq on stdout first (clean JSON)
           GROUP=$(jq -r '.[0].group // .group // empty' /tmp/eas-stdout.json 2>/dev/null || echo "")
 
-          # Fallback: regex grep across both files (handles any JSON shape)
+          # Fallback: scan both files for any UUID that isn't the project ID
           if [ -z "$GROUP" ]; then
-            GROUP=$(grep -ohiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-              /tmp/eas-stdout.json /tmp/eas-stderr.txt \
-              | grep -iv '4f33f632-5650-43d6-881b-4b006eee705f' | head -1 || echo "")
+            GROUP=$(cat /tmp/eas-stdout.json /tmp/eas-stderr.txt \
+              | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
+              | grep -iv '4f33f632-5650-43d6-881b-4b006eee705f' \
+              | head -1 || echo "")
+          fi
+
+          # Last resort: query EAS API directly for the latest update on this branch
+          if [ -z "$GROUP" ]; then
+            echo "Falling back to EAS API query..."
+            API_RESP=$(curl -s \
+              -H "Authorization: Bearer $EXPO_TOKEN" \
+              -H "Content-Type: application/graphql" \
+              "https://api.expo.dev/graphql" \
+              --data-raw '{"query":"{ app { byId(appId: \"4f33f632-5650-43d6-881b-4b006eee705f\") { updateBranchByName(name: \"preview\") { updates(offset: 0, limit: 1) { group } } } } }"}' \
+              || echo "")
+            echo "EAS API response: $API_RESP"
+            GROUP=$(echo "$API_RESP" | jq -r '.data.app.byId.updateBranchByName.updates[0].group // empty' 2>/dev/null || echo "")
           fi
 
           echo "Extracted group UUID: '$GROUP'"
           echo "group=$GROUP" >> "$GITHUB_OUTPUT"
 
       - name: Post preview link as commit comment
-        if: steps.eas.outputs.group != ''
+        # Always runs after a successful deploy — posts direct link or dashboard fallback
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          GROUP="${{ steps.eas.outputs.group }}"
           PROJECT="4f33f632-5650-43d6-881b-4b006eee705f"
-          URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
-          echo "Posting comment with URL: $URL"
-          curl -s -X POST \
+          GROUP="${{ steps.eas.outputs.group }}"
+
+          if [ -n "$GROUP" ]; then
+            URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
+            BODY="📱 **App updated — open in Expo Go:**\n\n${URL}\n\n_Tap this link on your phone → opens in Expo Go_"
+          else
+            URL="https://expo.dev/accounts/will-diggle/projects/bilinguist-brief/updates"
+            BODY="📱 **App updated** — open the [Expo updates dashboard](${URL}), tap the latest update, and open the preview link in Expo Go."
+          fi
+
+          echo "Posting: $BODY"
+          curl -sf -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-            -d "{\"body\": \"📱 **App updated — open in Expo Go:**\n\n${URL}\n\n_Tap this link on your phone → opens in Expo Go_\"}"
+            -d "{\"body\": \"${BODY}\"}" \
+            && echo "Comment posted OK" \
+            || echo "WARNING: comment post failed"
