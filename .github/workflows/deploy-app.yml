@@ -8,6 +8,7 @@ on:
     paths:
       - 'bilinguist-brief/src/**'
       - 'bilinguist-brief/assets/**'
+      - 'bilinguist-brief/App.tsx'
       - 'bilinguist-brief/app.json'
       - 'bilinguist-brief/eas.json'
 

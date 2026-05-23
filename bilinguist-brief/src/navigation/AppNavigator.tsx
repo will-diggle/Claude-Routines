@@ -20,6 +20,7 @@ export function AppNavigator() {
 
   return (
     <Tab.Navigator
+      initialRouteName="Briefing"
       screenOptions={({ route }) => ({
         header: ({ route }) => <TopBar routeName={route.name} />,
         freezeOnBlur: false,
