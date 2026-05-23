@@ -1,0 +1,13 @@
+{
+  "cli": {
+    "version": ">= 19.0.0"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal"
+    }
+  },
+  "update": {
+    "channel": "preview"
+  }
+}
