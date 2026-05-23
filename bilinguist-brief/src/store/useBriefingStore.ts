@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateBriefing, type GeneratedBriefing, type ArticleLength } from '../services/anthropic';
+import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
-import { clearTodayFactbase } from '../services/factbase';
 import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
+// Briefings are generated server-side at 04:30 UTC and delivered via the
+// Cloudflare Worker. The app never calls Anthropic directly — no API key
+// is stored in or shipped with the app.
 
 function cacheKey(date: string, language: LanguageCode, level: LanguageLevel, length: ArticleLength): string {
   return `briefing_${date}_${language}_${level}_${length}`;
@@ -17,6 +19,9 @@ function cacheKey(date: string, language: LanguageCode, level: LanguageLevel, le
 function todayString(): string {
   return new Date().toISOString().split('T')[0];
 }
+
+const NOT_READY_MESSAGE =
+  "Today's briefing is generated at 04:30 UTC. If it's before then, check back shortly after — it usually arrives within 30 minutes.";
 
 interface BriefingStore {
   briefings: Partial<Record<LanguageCode, GeneratedBriefing>>;
@@ -50,15 +55,13 @@ export const useBriefingStore = create<BriefingStore>()(
 
       syncFromServer: async () => {
         const bundle = await fetchTodayBundle();
-        if (!bundle) return; // Stale or network failure — loadBriefing fallback handles it
+        if (!bundle) return;
 
         await applyBundleToCache(bundle);
         await clearPreviousDaysBriefings(bundle.date);
 
-        // Stamp the moment the app received this bundle
         const receivedAt = Date.now();
 
-        // Refresh in-memory briefings for all active languages with their current variant
         const settings = useSettingsStore.getState();
         const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
         for (const lang of settings.languages.filter((l) => l.active)) {
@@ -84,6 +87,7 @@ export const useBriefingStore = create<BriefingStore>()(
         const today = todayString();
         const key = cacheKey(today, language, level, length);
 
+        // ── 1. In-memory cache hit ───────────────────────────────────────────
         if (!forceRefresh) {
           const cached = get().briefings[language];
           if (
@@ -96,6 +100,7 @@ export const useBriefingStore = create<BriefingStore>()(
             return;
           }
 
+          // ── 2. AsyncStorage cache hit ──────────────────────────────────────
           try {
             const stored = await AsyncStorage.getItem(key);
             if (stored) {
@@ -107,18 +112,12 @@ export const useBriefingStore = create<BriefingStore>()(
               return;
             }
           } catch {
-            // Cache miss — continue to generate
+            // Cache miss — fall through
           }
         }
 
-        // Force refresh: wipe factbase so a fresh gathering call runs
-        if (forceRefresh) {
-          await clearTodayFactbase();
-          set((s) => ({ briefings: { ...s.briefings, [language]: undefined } }));
-        }
-
-        // Developer mock mode — bypassed when forceRefresh is set (so dev tools hit the real API)
-        if (!forceRefresh && useSettingsStore.getState().developerMode) {
+        // ── 3. Developer mock mode ───────────────────────────────────────────
+        if (useSettingsStore.getState().developerMode) {
           const mock = getMockBriefing(language, level, length);
           set((s) => ({
             briefings: { ...s.briefings, [language]: mock },
@@ -127,40 +126,11 @@ export const useBriefingStore = create<BriefingStore>()(
           return;
         }
 
+        // ── 4. No cache and not dev mode — nothing to show yet ───────────────
+        // Briefings are server-generated; no API key is in the app.
         set((s) => ({
-          generatingFor: s.generatingFor.includes(language)
-            ? s.generatingFor
-            : [...s.generatingFor, language],
-          errorsFor: { ...s.errorsFor, [language]: undefined },
+          errorsFor: { ...s.errorsFor, [language]: NOT_READY_MESSAGE },
         }));
-
-        try {
-          const result = await generateBriefing(language, level, length);
-
-          await AsyncStorage.setItem(key, JSON.stringify(result));
-
-          set((s) => ({
-            briefings: { ...s.briefings, [language]: result },
-            generatingFor: s.generatingFor.filter((l) => l !== language),
-            errorsFor: { ...s.errorsFor, [language]: undefined },
-          }));
-        } catch (err: any) {
-          const raw: string = err?.message ?? 'Unknown error';
-          let message: string;
-          if (raw === 'NO_API_KEY') {
-            message = 'Add your Anthropic API key to .env to generate briefings.';
-          } else if (raw.includes('rate_limit_error') || raw.includes('429')) {
-            message = 'Rate limit reached — please wait a moment and try again.';
-          } else if (raw.includes('Daily limit')) {
-            message = raw;
-          } else {
-            message = 'Could not generate briefing — please try again.';
-          }
-          set((s) => ({
-            generatingFor: s.generatingFor.filter((l) => l !== language),
-            errorsFor: { ...s.errorsFor, [language]: message },
-          }));
-        }
       },
 
       clearError: (language) =>
@@ -169,7 +139,11 @@ export const useBriefingStore = create<BriefingStore>()(
     {
       name: 'bilinguist-briefing-v2',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ briefings: state.briefings, weather: state.weather, bundleReceivedAt: state.bundleReceivedAt }),
+      partialize: (state) => ({
+        briefings: state.briefings,
+        weather: state.weather,
+        bundleReceivedAt: state.bundleReceivedAt,
+      }),
     }
   )
 );
