@@ -19,32 +19,21 @@ export interface DailyBundle {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-// Set EXPO_PUBLIC_WORKER_URL in your .env after deploying bilinguist-worker/
-// e.g. EXPO_PUBLIC_WORKER_URL=https://bilinguist-brief.YOUR-ACCOUNT.workers.dev
 const WORKER_BASE = process.env.EXPO_PUBLIC_WORKER_URL ?? '';
 const BUNDLE_URL = WORKER_BASE ? `${WORKER_BASE}/latest` : '';
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 export async function fetchTodayBundle(): Promise<DailyBundle | null> {
-  console.log('[sync] WORKER_BASE:', WORKER_BASE || '(not set)');
-  console.log('[sync] BUNDLE_URL:', BUNDLE_URL || '(not set)');
-  if (!BUNDLE_URL) {
-    console.log('[sync] No worker URL configured — skipping server fetch');
-    return null;
-  }
+  if (!BUNDLE_URL) return null;
   const today = new Date().toISOString().split('T')[0];
-  console.log('[sync] Fetching bundle for', today);
   try {
     const res = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
-    console.log('[sync] Response status:', res.status);
     if (!res.ok) return null;
     const bundle: DailyBundle = await res.json();
-    console.log('[sync] Bundle date:', bundle.date, '— today:', today, '— match:', bundle.date === today);
     if (bundle.date !== today) return null;
     return bundle;
-  } catch (e) {
-    console.log('[sync] Fetch error:', String(e));
+  } catch {
     return null;
   }
 }
@@ -65,7 +54,6 @@ export async function applyBundleToCache(bundle: DailyBundle): Promise<void> {
 
   if (pairs.length > 0) await AsyncStorage.multiSet(pairs);
 
-  // Also cache the factbase so dev tools can inspect it
   await AsyncStorage.setItem(
     `bilinguist_factbase_${bundle.date}`,
     JSON.stringify({ date: bundle.date, factbase: bundle.factbase }),
@@ -87,6 +75,6 @@ export async function clearPreviousDaysBriefings(today: string): Promise<void> {
     );
     if (oldFactbases.length > 0) await AsyncStorage.multiRemove(oldFactbases);
   } catch {
-    // Non-fatal — stale keys linger but don't break anything
+    // Non-fatal
   }
 }
