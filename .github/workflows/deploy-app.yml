@@ -1,6 +1,7 @@
 name: Deploy App Update
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - claude/build-app-from-brief-wNEna
@@ -8,6 +9,7 @@ on:
       - 'bilinguist-brief/src/**'
       - 'bilinguist-brief/assets/**'
       - 'bilinguist-brief/app.json'
+      - 'bilinguist-brief/eas.json'
 
 jobs:
   deploy:
