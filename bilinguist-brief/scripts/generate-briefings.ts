@@ -243,7 +243,7 @@ async function submitBatch(requests: any[]): Promise<string> {
 
 async function waitForBatch(batchId: string): Promise<any[]> {
   const POLL_INTERVAL_MS = 20_000; // 20 seconds
-  const MAX_POLLS = 75;            // 25 minutes max
+  const MAX_POLLS = 270;           // 90 minutes max (GitHub Actions limit is 6 h)
 
   for (let i = 1; i <= MAX_POLLS; i++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -282,7 +282,7 @@ async function waitForBatch(batchId: string): Promise<any[]> {
     }
   }
 
-  throw new Error(`Batch ${batchId} did not complete within ${(MAX_POLLS * POLL_INTERVAL_MS) / 60000} minutes`);
+  throw new Error(`Batch ${batchId} did not complete within ${(MAX_POLLS * POLL_INTERVAL_MS) / 60000} minutes — consider increasing MAX_POLLS`);
 }
 
 function extractArticles(result: any): BriefingArticle[] | null {
