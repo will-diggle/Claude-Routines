@@ -1,70 +1,123 @@
 /**
- * DraggableList — Stage 2 rewrite
+ * DraggableList — React Native Animated rewrite
  *
- * Uses react-native-gesture-handler v2's Gesture.Pan().activateAfterLongPress()
- * so that normal scrolling is never blocked. The pan gesture only activates
- * after a 400 ms press, at which point the parent ScrollView releases the touch.
+ * Replaces react-native-reanimated with React Native's built-in Animated API
+ * and PanResponder. Same external interface as the original.
  *
  * Visual feedback (Apple Reminders style):
- *   • Long-press → item scales up slightly and gains a shadow ("lifted")
+ *   • Long-press (400ms) → item scales up slightly ("lifted")
  *   • Drag → other items spring out of the way
  *   • Release → items spring back, order updates
  *
  * Supports up to 10 items (covers languages: 3, topics: 6).
  */
 
-import React, { useState } from 'react';
-import { View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
+import React, { useRef, useState } from 'react';
+import { Animated, PanResponder, View } from 'react-native';
 
 // ── Spring configs ────────────────────────────────────────────────────────────
 
-const SHIFT_SPRING = { damping: 22, stiffness: 280, mass: 0.8 } as const;
-const LIFT_SPRING  = { damping: 18, stiffness: 350, mass: 0.6 } as const;
+const SHIFT_CONFIG = { damping: 22, stiffness: 280, mass: 0.8, useNativeDriver: true } as const;
+const LIFT_CONFIG  = { damping: 18, stiffness: 350, mass: 0.6, useNativeDriver: true } as const;
 
-// ── Animated row ──────────────────────────────────────────────────────────────
+const MAX_ITEMS = 10;
+const LONG_PRESS_MS = 400;
+const CANCEL_THRESHOLD = 8; // px movement before long press cancels
 
-interface AnimatedRowProps {
+// ── Drag context (shared between DraggableList and each DraggableRow) ─────────
+
+interface DragCtx {
+  translateYs: Animated.Value[];
+  scales: Animated.Value[];
+  itemCount: () => number;
+  itemHeight: () => number;
+  onDragStart:  (idx: number) => void;
+  onDragMove:   (idx: number, dy: number) => void;
+  onDragEnd:    (idx: number, dy: number) => void;
+  onDragCancel: (idx: number) => void;
+}
+
+// ── Individual draggable row ──────────────────────────────────────────────────
+
+interface DraggableRowProps {
   index: number;
-  draggingIndex: Animated.SharedValue<number>;
-  floatY: Animated.SharedValue<number>;
-  shift: Animated.SharedValue<number>;
-  scale: Animated.SharedValue<number>;
+  ctx: DragCtx;
+  isDraggingThis: boolean;
+  isDraggingAny: boolean;
   children: React.ReactNode;
 }
 
-function AnimatedRow({
-  index,
-  draggingIndex,
-  floatY,
-  shift,
-  scale,
-  children,
-}: AnimatedRowProps) {
-  const animStyle = useAnimatedStyle(() => {
-    const isDragging = draggingIndex.value === index;
-    return {
-      transform: [
-        { translateY: isDragging ? floatY.value : shift.value },
-        { scale: scale.value },
-      ],
-      zIndex: isDragging ? 999 : 1,
-      // iOS shadow
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: isDragging ? 0.14 : 0,
-      shadowRadius: 8,
-      // Android elevation
-      elevation: isDragging ? 8 : 0,
-    };
-  });
+function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: DraggableRowProps) {
+  // Keep a ref so the stable PanResponder always reads the latest index
+  const indexRef = useRef(index);
+  indexRef.current = index;
 
-  return <Animated.View style={animStyle}>{children}</Animated.View>;
+  const panResponder = useRef((() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let active = false;
+
+    return PanResponder.create({
+      // Don't grab on touch start — let ScrollView handle taps/scrolls first
+      onStartShouldSetPanResponder:        () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      // Grab during move only once long-press has fired
+      onMoveShouldSetPanResponder:         () => active,
+      onMoveShouldSetPanResponderCapture:  () => active,
+
+      onPanResponderGrant: () => {
+        timer = setTimeout(() => {
+          active = true;
+          ctx.onDragStart(indexRef.current);
+        }, LONG_PRESS_MS);
+      },
+
+      onPanResponderMove: (_, gs) => {
+        if (!active) {
+          // Cancel long-press if the finger moves significantly before 400ms
+          if (timer && (Math.abs(gs.dy) > CANCEL_THRESHOLD || Math.abs(gs.dx) > CANCEL_THRESHOLD)) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          return;
+        }
+        ctx.onDragMove(indexRef.current, gs.dy);
+      },
+
+      onPanResponderRelease: (_, gs) => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (!active) return;
+        active = false;
+        ctx.onDragEnd(indexRef.current, gs.dy);
+      },
+
+      onPanResponderTerminate: () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (!active) return;
+        active = false;
+        ctx.onDragCancel(indexRef.current);
+      },
+    });
+  })()).current;
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          { translateY: ctx.translateYs[index] },
+          { scale:      ctx.scales[index] },
+        ],
+        zIndex:        isDraggingThis ? 999 : 1,
+        shadowColor:   '#000',
+        shadowOffset:  { width: 0, height: 4 },
+        shadowOpacity: isDraggingThis ? 0.14 : 0,
+        shadowRadius:  8,
+        elevation:     isDraggingThis ? 8 : 0,
+      }}
+      {...panResponder.panHandlers}
+    >
+      {children}
+    </Animated.View>
+  );
 }
 
 // ── DraggableList ─────────────────────────────────────────────────────────────
@@ -93,117 +146,89 @@ export function DraggableList<T>({
   onDragStateChange,
 }: DraggableListProps<T>) {
   const [isDraggingState, setIsDraggingState] = useState(false);
+  const [draggingIdx,     setDraggingIdx]     = useState(-1);
 
-  // Shared values readable from useAnimatedStyle (UI thread)
-  const draggingIndex = useSharedValue(-1);
-  const floatY       = useSharedValue(0);
+  // Stable refs so PanResponder callbacks always see latest prop values
+  const itemsRef            = useRef(items);       itemsRef.current = items;
+  const itemHeightRef       = useRef(itemHeight);  itemHeightRef.current = itemHeight;
+  const onReorderRef        = useRef(onReorder);   onReorderRef.current = onReorder;
+  const onDragStateRef      = useRef(onDragStateChange); onDragStateRef.current = onDragStateChange;
 
-  // Pre-created pool of shift + scale values (max 10 items).
-  // We cannot call useSharedValue inside a loop (hooks rule), so we create a
-  // fixed set and slice to the actual item count at runtime.
-  /* eslint-disable react-hooks/rules-of-hooks */
-  const shift0 = useSharedValue(0); const scale0 = useSharedValue(1);
-  const shift1 = useSharedValue(0); const scale1 = useSharedValue(1);
-  const shift2 = useSharedValue(0); const scale2 = useSharedValue(1);
-  const shift3 = useSharedValue(0); const scale3 = useSharedValue(1);
-  const shift4 = useSharedValue(0); const scale4 = useSharedValue(1);
-  const shift5 = useSharedValue(0); const scale5 = useSharedValue(1);
-  const shift6 = useSharedValue(0); const scale6 = useSharedValue(1);
-  const shift7 = useSharedValue(0); const scale7 = useSharedValue(1);
-  const shift8 = useSharedValue(0); const scale8 = useSharedValue(1);
-  const shift9 = useSharedValue(0); const scale9 = useSharedValue(1);
-  /* eslint-enable react-hooks/rules-of-hooks */
+  // Pre-create animated values for up to MAX_ITEMS rows
+  const translateYs = useRef(
+    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(0))
+  ).current;
+  const scales = useRef(
+    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(1))
+  ).current;
 
-  const shifts = [shift0, shift1, shift2, shift3, shift4, shift5, shift6, shift7, shift8, shift9];
-  const scales = [scale0, scale1, scale2, scale3, scale4, scale5, scale6, scale7, scale8, scale9];
+  // Stable drag-context object (created once, callbacks use refs)
+  const ctx = useRef<DragCtx>({
+    translateYs,
+    scales,
+    itemCount:  () => itemsRef.current.length,
+    itemHeight: () => itemHeightRef.current,
 
-  // ── Drag callbacks (run on JS thread via .runOnJS(true)) ────────────────────
+    onDragStart(idx) {
+      Animated.spring(scales[idx], { toValue: 1.045, ...LIFT_CONFIG }).start();
+      setIsDraggingState(true);
+      setDraggingIdx(idx);
+      onDragStateRef.current?.(true);
+    },
 
-  function startDrag(idx: number) {
-    draggingIndex.value = idx;
-    floatY.value = 0;
-    scales[idx].value = withSpring(1.045, LIFT_SPRING);
-    setIsDraggingState(true);
-    onDragStateChange?.(true);
-  }
+    onDragMove(idx, dy) {
+      const n = itemsRef.current.length;
+      const h = itemHeightRef.current;
+      translateYs[idx].setValue(dy);
+      const target = Math.max(0, Math.min(n - 1, Math.round(idx + dy / h)));
+      for (let i = 0; i < n; i++) {
+        if (i === idx) continue;
+        let val = 0;
+        if (idx < target && i > idx && i <= target) val = -h;
+        if (idx > target && i >= target && i < idx) val = h;
+        Animated.spring(translateYs[i], { toValue: val, ...SHIFT_CONFIG }).start();
+      }
+    },
 
-  function moveDrag(idx: number, dy: number) {
-    const n = items.length;
-    floatY.value = dy;
-    const target = Math.max(0, Math.min(n - 1, Math.round(idx + dy / itemHeight)));
-    for (let i = 0; i < n; i++) {
-      if (i === idx) continue;
-      let val = 0;
-      if (idx < target && i > idx && i <= target) val = -itemHeight;
-      if (idx > target && i >= target && i < idx) val = itemHeight;
-      shifts[i].value = withSpring(val, SHIFT_SPRING);
-    }
-  }
+    onDragEnd(idx, dy) {
+      const n = itemsRef.current.length;
+      const h = itemHeightRef.current;
+      const to = Math.max(0, Math.min(n - 1, Math.round(idx + dy / h)));
+      for (let i = 0; i < n; i++) {
+        Animated.spring(translateYs[i], { toValue: 0, ...SHIFT_CONFIG }).start();
+        Animated.spring(scales[i],      { toValue: 1, ...LIFT_CONFIG  }).start();
+      }
+      setIsDraggingState(false);
+      setDraggingIdx(-1);
+      onDragStateRef.current?.(false);
+      if (idx !== to) onReorderRef.current(idx, to);
+    },
 
-  function finishDrag(idx: number, dy: number) {
-    const n = items.length;
-    const to = Math.max(0, Math.min(n - 1, Math.round(idx + dy / itemHeight)));
-    draggingIndex.value = -1;
-    floatY.value = 0;
-    for (let i = 0; i < n; i++) {
-      shifts[i].value = withSpring(0, SHIFT_SPRING);
-      scales[i].value = withSpring(1, LIFT_SPRING);
-    }
-    setIsDraggingState(false);
-    onDragStateChange?.(false);
-    if (idx !== to) onReorder(idx, to);
-  }
-
-  function cancelDrag(idx: number) {
-    const n = items.length;
-    draggingIndex.value = -1;
-    floatY.value = 0;
-    for (let i = 0; i < n; i++) {
-      shifts[i].value = withSpring(0, SHIFT_SPRING);
-      scales[i].value = withSpring(1, LIFT_SPRING);
-    }
-    setIsDraggingState(false);
-    onDragStateChange?.(false);
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+    onDragCancel(idx) {
+      const n = itemsRef.current.length;
+      for (let i = 0; i < n; i++) {
+        Animated.spring(translateYs[i], { toValue: 0, ...SHIFT_CONFIG }).start();
+        Animated.spring(scales[i],      { toValue: 1, ...LIFT_CONFIG  }).start();
+      }
+      setIsDraggingState(false);
+      setDraggingIdx(-1);
+      onDragStateRef.current?.(false);
+    },
+  }).current;
 
   return (
     <View>
-      {items.map((item, index) => {
-        const gesture = Gesture.Pan()
-          // Only activates after a 400 ms press — before that, all touch
-          // events are forwarded to the parent ScrollView as normal.
-          .activateAfterLongPress(400)
-          // Run callbacks on JS thread so we can call setState and onReorder
-          // directly without runOnJS() wrappers. The withSpring() calls on
-          // shared values still animate on the UI thread.
-          .runOnJS(true)
-          .onStart(() => startDrag(index))
-          .onUpdate((e) => moveDrag(index, e.translationY))
-          .onEnd((e) => finishDrag(index, e.translationY))
-          .onFinalize(() => {
-            // Handles gesture cancellation (e.g. interrupted by system).
-            // If onEnd already ran it will have set draggingIndex to -1.
-            if (draggingIndex.value === index) {
-              cancelDrag(index);
-            }
-          });
-
-        return (
-          <GestureDetector key={keyExtractor(item)} gesture={gesture}>
-            <AnimatedRow
-              index={index}
-              draggingIndex={draggingIndex}
-              floatY={floatY}
-              shift={shifts[index]}
-              scale={scales[index]}
-            >
-              {renderItem(item, index, isDraggingState)}
-            </AnimatedRow>
-          </GestureDetector>
-        );
-      })}
+      {items.map((item, index) => (
+        <DraggableRow
+          key={keyExtractor(item)}
+          index={index}
+          ctx={ctx}
+          isDraggingAny={isDraggingState}
+          isDraggingThis={draggingIdx === index}
+        >
+          {renderItem(item, index, isDraggingState)}
+        </DraggableRow>
+      ))}
     </View>
   );
 }
