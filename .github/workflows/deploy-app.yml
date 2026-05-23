@@ -43,13 +43,13 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          # Run update and capture all output (stdout + stderr) so we can see any errors
-          OUTPUT=$(npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive 2>&1)
-          echo "$OUTPUT"
-          # Extract the group UUID — exclude the known projectId so we only match the update group
-          PROJECT_ID="4f33f632-5650-43d6-881b-4b006eee705f"
-          GROUP=$(echo "$OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-            | grep -v "$PROJECT_ID" | head -1)
+          set -o pipefail
+          # tee writes to log in real-time AND saves to file — so errors are always visible
+          npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive \
+            2>&1 | tee /tmp/eas-output.txt
+          # Extract the group UUID (exclude the projectId UUID)
+          GROUP=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/eas-output.txt \
+            | grep -v '4f33f632-5650-43d6-881b-4b006eee705f' | head -1)
           echo "group=$GROUP" >> "$GITHUB_OUTPUT"
 
       - name: Post preview link as commit comment
