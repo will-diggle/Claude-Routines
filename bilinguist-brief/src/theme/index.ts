@@ -23,6 +23,13 @@ export const Colors = {
   borderMid: '#C8C4BC',
   borderNight: '#2E2E2E',
 
+  // Navy
+  navyBg: '#162032',
+  navySurface: '#1E2D42',
+  navyCard: '#243552',
+  navyBorder: '#203050',
+  navyBorderMid: '#2A3D5A',
+
   // Accent
   accentGold: '#7D6B4F',
   accentRed: '#8B1A1A',
@@ -33,7 +40,7 @@ export type BackgroundKey = 'white' | 'cream' | 'softGrey' | 'night';
 export const BackgroundColors: Record<BackgroundKey, string> = {
   white: Colors.white,
   cream: Colors.cream,
-  softGrey: Colors.softGrey,
+  softGrey: '#162032',
   night: Colors.night,
 };
 

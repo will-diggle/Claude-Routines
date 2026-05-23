@@ -8,6 +8,10 @@ export interface WeatherData {
   description: string;
   city: string;
   greeting: string;
+  feelsLike: number;
+  humidity: number;
+  windKph: number;
+  uvIndex: number;
 }
 
 const GREETINGS: Record<LanguageCode, Record<'morning' | 'afternoon' | 'evening', string>> = {
@@ -48,8 +52,9 @@ export async function fetchWeather(language: LanguageCode): Promise<WeatherData 
     const url =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${latitude}&longitude=${longitude}` +
-      `&current=temperature_2m,weather_code` +
-      `&temperature_unit=celsius`;
+      `&current=temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m,uv_index` +
+      `&temperature_unit=celsius` +
+      `&wind_speed_unit=kmh`;
 
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -60,8 +65,12 @@ export async function fetchWeather(language: LanguageCode): Promise<WeatherData 
     const description = WMO_DESCRIPTIONS[code] ?? 'clear sky';
     const city = 'London';
     const greeting = GREETINGS[language]?.[timeOfDay()] ?? 'Good morning';
+    const feelsLike = Math.round(data.current?.apparent_temperature ?? temp);
+    const humidity = Math.round(data.current?.relative_humidity_2m ?? 0);
+    const windKph = Math.round(data.current?.wind_speed_10m ?? 0);
+    const uvIndex = Math.round(data.current?.uv_index ?? 0);
 
-    return { temp, description, city, greeting };
+    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex };
   } catch {
     return null;
   }

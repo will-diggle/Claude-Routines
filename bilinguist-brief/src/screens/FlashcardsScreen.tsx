@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
@@ -41,8 +42,13 @@ export function FlashcardsScreen() {
   const navigation = useNavigation();
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
+  const { activeLanguages } = useSettingsStore();
+  const activeCodes = new Set(activeLanguages().map((l) => l.code));
 
-  const sessionWords = useMemo(() => getSessionWords(words), []);
+  const sessionWords = useMemo(
+    () => getSessionWords(words.filter((w) => activeCodes.has(w.language))),
+    [words, activeCodes] // eslint-disable-line
+  );
 
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -247,6 +253,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.lg,
     lineHeight: 52,
+    minHeight: 180,
+    textAlignVertical: 'center',
   },
   revealButton: {
     borderTopWidth: StyleSheet.hairlineWidth,

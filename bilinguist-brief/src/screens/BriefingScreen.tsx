@@ -49,7 +49,7 @@ function mastheadTagline(count: number): string {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export function BriefingScreen() {
-  const { colors, fontFamily, isNight } = useTheme();
+  const { colors, fontFamily, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const {
@@ -77,7 +77,7 @@ export function BriefingScreen() {
 
   const firstBriefing = Object.values(briefings)[0];
   const publishedAt = firstBriefing?.generatedAt ?? bundleReceivedAt;
-  const imageStyle = isNight ? { opacity: 0.85 } : undefined;
+  const imageStyle = isDark ? { tintColor: '#F0EDE6' } : undefined;
 
   // Masthead strings
   const locationStr = activeLanguages

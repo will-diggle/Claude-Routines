@@ -47,7 +47,7 @@ const C1_LABEL: Record<string, string> = {
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
   { key: 'cream', label: 'Cream', color: Colors.cream },
-  { key: 'softGrey', label: 'Soft Grey', color: Colors.softGrey },
+  { key: 'softGrey', label: 'Navy', color: '#162032' },
   { key: 'night', label: 'Night', color: Colors.night },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
@@ -387,7 +387,7 @@ export function SettingsScreen() {
             ]}
             onPress={() => store.setBackground(bg.key)}
           >
-            <Text style={[styles.bgSwatchLabel, { color: bg.key === 'night' ? Colors.nightInkDark : Colors.inkMid }]}>
+            <Text style={[styles.bgSwatchLabel, { color: (bg.key === 'night' || bg.key === 'softGrey') ? Colors.nightInkDark : Colors.inkMid }]}>
               {bg.label}
             </Text>
           </TouchableOpacity>

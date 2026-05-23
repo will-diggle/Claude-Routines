@@ -5,7 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
 import { BriefingLoading } from './BriefingLoading';
 import { Spacing } from '../theme';
-import type { GeneratedBriefing } from '../services/anthropic';
+import type { GeneratedBriefing, BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
 
 // Maps the genre strings the API returns to settings topic keys
@@ -17,6 +17,36 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
   'ARTS & CULTURE': 'artsCulture',
   'GOOD NEWS': 'goodNews',
 };
+
+// Genre labels translated into each supported language.
+// The API always returns genre in English — we translate on the display side.
+const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
+  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',       fr: 'ACTUALITÉS MONDIALES', de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI'     },
+  'POLITICS':             { en: 'POLITICS',           fr: 'POLITIQUE',            de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA'             },
+  'BUSINESS & ECONOMY':   { en: 'BUSINESS & ECONOMY', fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA'             },
+  'SCIENCE & TECHNOLOGY': { en: 'SCIENCES & TECH',    fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA'    },
+  'ARTS & CULTURE':       { en: 'ARTS & CULTURE',     fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA'       },
+  'GOOD NEWS':            { en: 'GOOD NEWS',          fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE'        },
+};
+
+function translateGenre(genre: string, lang: LanguageCode): string {
+  const key = genre.toUpperCase();
+  return GENRE_LABELS[key]?.[lang] ?? genre.toUpperCase();
+}
+
+// Genre accent colour map
+const GENRE_COLORS: Record<string, string> = {
+  'GLOBAL NEWS':          '#4A6FA5',
+  'POLITICS':             '#8B1A1A',
+  'BUSINESS & ECONOMY':   '#1E6B3A',
+  'SCIENCE & TECHNOLOGY': '#005F73',
+  'ARTS & CULTURE':       '#6A1B9A',
+  'GOOD NEWS':            '#2E7D32',
+};
+
+function genreColor(genre: string): string {
+  return GENRE_COLORS[genre.toUpperCase()] ?? '#3D3D3D';
+}
 
 // C1 displays as "C1 / Native" in the language being learned
 const C1_LABEL: Record<LanguageCode, string> = {
@@ -53,6 +83,26 @@ function levelLabel(level: LanguageLevel, langCode: LanguageCode): string {
   return level;
 }
 
+// Group consecutive articles by genre
+interface GenreGroup {
+  genre: string;
+  articles: Article[];
+}
+
+function groupByGenre(articles: Article[]): GenreGroup[] {
+  const groups: GenreGroup[] = [];
+  for (const article of articles) {
+    const key = article.genre.toUpperCase();
+    const last = groups[groups.length - 1];
+    if (last && last.genre === key) {
+      last.articles.push(article);
+    } else {
+      groups.push({ genre: key, articles: [article] });
+    }
+  }
+  return groups;
+}
+
 export function LanguageBriefingSection({
   langCode,
   nativeName,
@@ -74,6 +124,7 @@ export function LanguageBriefingSection({
   }) ?? [];
 
   const hasContent = visibleArticles.length > 0;
+  const genreGroups = groupByGenre(visibleArticles);
 
   return (
     <View>
@@ -115,17 +166,34 @@ export function LanguageBriefingSection({
 
       {hasContent && (
         <>
-          {visibleArticles.map((article, index) => (
-            <BriefingArticle
-              key={`${article.genre}-${index}`}
-              article={article}
-              isLast={index === visibleArticles.length - 1}
-              language={langCode}
-              level={level}
-              locked={false}
-              onLockedWordPress={() => {}}
-            />
-          ))}
+          {genreGroups.map((group, groupIndex) => {
+            const accent = genreColor(group.genre);
+            const label = translateGenre(group.genre, langCode);
+            return (
+              <View key={`${group.genre}-${groupIndex}`}>
+                {/* Section header */}
+                <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
+                  <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
+                  <Text style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.regular }]}>
+                    {label}
+                  </Text>
+                </View>
+
+                {/* Articles in this genre group */}
+                {group.articles.map((article, articleIndex) => (
+                  <BriefingArticle
+                    key={`${article.genre}-${groupIndex}-${articleIndex}`}
+                    article={article}
+                    isLast={articleIndex === group.articles.length - 1}
+                    language={langCode}
+                    level={level}
+                    locked={false}
+                    onLockedWordPress={() => {}}
+                  />
+                ))}
+              </View>
+            );
+          })}
 
           <View style={[styles.sectionFooter, { borderTopColor: colors.borderLight }]}>
             <Text style={[styles.footerText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
@@ -173,6 +241,28 @@ const styles = StyleSheet.create({
   },
   buttonText: { fontSize: 15 },
   emptyNote: { fontSize: 13, textAlign: 'center' },
+
+  // Section header
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+    marginHorizontal: Spacing.md,
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  sectionColorBar: {
+    width: 4,
+    height: 14,
+    borderRadius: 2,
+    marginRight: Spacing.sm,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+
   sectionFooter: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
