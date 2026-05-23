@@ -21,12 +21,12 @@ function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): A
   return level === 'A1' || level === 'A2' ? 'short' : readLength;
 }
 
-function mastheadDateStr(bundleReceivedAt: number | null): string {
-  const d = bundleReceivedAt ? new Date(bundleReceivedAt) : new Date();
+function mastheadDateStr(ts: number | null): string {
+  const d = ts ? new Date(ts) : new Date();
   const datePart = d.toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   }).toUpperCase();
-  if (!bundleReceivedAt) return datePart;
+  if (!ts) return datePart;
   const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return `${datePart} · ${timePart}`;
 }
@@ -58,6 +58,11 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
+  // Use the published (generatedAt) time from the first loaded briefing for the masthead.
+  // Falls back to bundleReceivedAt, then null (shows today's date only).
+  const firstBriefing = Object.values(briefings)[0];
+  const publishedAt = firstBriefing?.generatedAt ?? bundleReceivedAt;
+
   const imageStyle = isNight ? { opacity: 0.85 } : undefined;
 
   return (
@@ -81,7 +86,7 @@ export function BriefingScreen() {
       <View style={[styles.ruleOuter, { backgroundColor: colors.inkDark }]} />
 
       <Text style={[styles.mastheadDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-        {mastheadDateStr(bundleReceivedAt)}
+        {mastheadDateStr(publishedAt)}
       </Text>
 
       <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
