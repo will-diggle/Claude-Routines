@@ -1,0 +1,41 @@
+name: Deploy App Update
+
+on:
+  push:
+    branches:
+      - claude/build-app-from-brief-wNEna
+    paths:
+      - 'bilinguist-brief/src/**'
+      - 'bilinguist-brief/assets/**'
+      - 'bilinguist-brief/app.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: bilinguist-brief/package-lock.json
+
+      - name: Install dependencies
+        working-directory: bilinguist-brief
+        run: npm install
+
+      - name: Create .env
+        working-directory: bilinguist-brief
+        run: |
+          echo "EXPO_PUBLIC_WORKER_URL=${{ secrets.EXPO_PUBLIC_WORKER_URL }}" > .env
+
+      - name: Publish EAS update
+        working-directory: bilinguist-brief
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive
