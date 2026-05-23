@@ -42,61 +42,9 @@ jobs:
           echo "EXPO_PUBLIC_WORKER_URL=${{ secrets.EXPO_PUBLIC_WORKER_URL }}" > .env
 
       - name: Publish EAS update
-        id: eas
         working-directory: bilinguist-brief
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           CI: "1"
         run: |
-          # Run eas update, capturing stdout and stderr separately
-          npx eas-cli update --branch preview --message "Auto-deploy from push" \
-            --json --non-interactive \
-            > /tmp/eas-stdout.json \
-            2> /tmp/eas-stderr.txt \
-            || { echo "=== EAS FAILED ==="; cat /tmp/eas-stderr.txt; cat /tmp/eas-stdout.json; exit 1; }
-
-          echo "=== EAS stdout ==="; cat /tmp/eas-stdout.json
-          echo "=== EAS stderr ==="; cat /tmp/eas-stderr.txt || true
-
-          # Try jq on stdout first (clean JSON)
-          GROUP=$(jq -r '.[0].group // .group // empty' /tmp/eas-stdout.json 2>/dev/null || echo "")
-
-          # Fallback: scan both files for any UUID that isn't the project ID
-          if [ -z "$GROUP" ]; then
-            GROUP=$(cat /tmp/eas-stdout.json /tmp/eas-stderr.txt \
-              | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-              | grep -iv '4f33f632-5650-43d6-881b-4b006eee705f' \
-              | head -1 || echo "")
-          fi
-
-          # Last resort: query EAS API directly for the latest update on this branch
-          if [ -z "$GROUP" ]; then
-            echo "Falling back to EAS API query..."
-            API_RESP=$(curl -s \
-              -H "Authorization: Bearer $EXPO_TOKEN" \
-              -H "Content-Type: application/graphql" \
-              "https://api.expo.dev/graphql" \
-              --data-raw '{"query":"{ app { byId(appId: \"4f33f632-5650-43d6-881b-4b006eee705f\") { updateBranchByName(name: \"preview\") { updates(offset: 0, limit: 1) { group } } } } }"}' \
-              || echo "")
-            echo "EAS API response: $API_RESP"
-            GROUP=$(echo "$API_RESP" | jq -r '.data.app.byId.updateBranchByName.updates[0].group // empty' 2>/dev/null || echo "")
-          fi
-
-          echo "Extracted group UUID: '$GROUP'"
-          echo "group=$GROUP" >> "$GITHUB_OUTPUT"
-
-      - name: Write preview link to Actions summary
-        # Writes the link into the workflow run page — always visible, no token permissions needed
-        run: |
-          PROJECT="4f33f632-5650-43d6-881b-4b006eee705f"
-          GROUP="${{ steps.eas.outputs.group }}"
-          if [ -n "$GROUP" ]; then
-            URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
-          else
-            URL="https://expo.dev/projects/${PROJECT}/updates"
-          fi
-          echo "## 📱 App Preview" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Open in Expo Go:** $URL" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Tap the link above on your phone to open in Expo Go." >> $GITHUB_STEP_SUMMARY
+          npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive
