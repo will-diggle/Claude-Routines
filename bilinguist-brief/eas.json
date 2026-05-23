@@ -6,8 +6,5 @@
     "preview": {
       "distribution": "internal"
     }
-  },
-  "update": {
-    "channel": "preview"
   }
 }
