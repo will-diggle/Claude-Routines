@@ -16,6 +16,14 @@ jobs:
       - name: Checkout app repo
         uses: actions/checkout@v4
 
+      - name: Notify — started
+        run: |
+          curl -s -X POST \
+            -H "Title: Bilinguist Brief — Generating 🗞️" \
+            -H "Tags: newspaper" \
+            -d "Daily briefing generation started for $(date -u +%Y-%m-%d). Usually ready in 20–30 minutes." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -52,3 +60,22 @@ jobs:
           git add latest.json briefings/${DATE}.json
           git commit -m "Daily briefings: ${DATE}"
           git push
+
+      - name: Notify — success
+        if: success()
+        run: |
+          curl -s -X POST \
+            -H "Title: Bilinguist Brief — Ready ✅" \
+            -H "Tags: white_check_mark" \
+            -d "Today's briefings are live. Open the app to read." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Notify — failure
+        if: failure()
+        run: |
+          curl -s -X POST \
+            -H "Title: Bilinguist Brief — Failed ❌" \
+            -H "Priority: high" \
+            -H "Tags: rotating_light" \
+            -d "Briefing generation failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
