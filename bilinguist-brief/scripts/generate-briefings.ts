@@ -84,8 +84,43 @@ interface BriefingArticle { genre: string; headline: string; body: string; }
 interface FactbaseStory {
   genre: string; slug: string; what_happened: string[]; attribution: string[];
   verified: string[]; contested: string[]; neutral_descriptors: string[];
-  numbers?: string[]; proper_nouns?: string[]; key_terms?: string[];
+  numbers: string[]; proper_nouns: string[]; key_terms: string[];
   why_it_matters: string;
+}
+
+// ── Action 1: Story validator ─────────────────────────────────────────────────
+// All fields that the gathering prompt should return as arrays.
+// If any are missing or non-array (LLM occasionally drops them), coerce to []
+// and log a warning — repeated warnings are a signal to tighten the prompt.
+
+const FACTBASE_ARRAY_FIELDS = [
+  'what_happened', 'attribution', 'verified', 'contested',
+  'neutral_descriptors', 'numbers', 'proper_nouns', 'key_terms',
+] as const;
+
+function validateStory(raw: any, index: number): FactbaseStory {
+  const story = { ...raw };
+  for (const field of FACTBASE_ARRAY_FIELDS) {
+    if (!Array.isArray(story[field])) {
+      console.warn(
+        `[validate] story[${index}] "${story.slug ?? '?'}" — ` +
+        `field "${field}" is ${JSON.stringify(story[field])} → coerced to []`,
+      );
+      story[field] = [];
+    }
+  }
+  if (typeof story.genre !== 'string' || !story.genre) {
+    console.warn(`[validate] story[${index}] missing genre — setting empty string`);
+    story.genre = '';
+  }
+  if (typeof story.slug !== 'string' || !story.slug) {
+    console.warn(`[validate] story[${index}] missing slug — auto-generating`);
+    story.slug = `story-${index}`;
+  }
+  if (typeof story.why_it_matters !== 'string') {
+    story.why_it_matters = '';
+  }
+  return story as FactbaseStory;
 }
 interface GeneratedBriefing {
   articles: BriefingArticle[]; date: string;
@@ -199,25 +234,37 @@ function buildWritingRequest(
   length: ArticleLength,
   date: string,
 ) {
-  const system = WRITING_SYSTEM
-    .replace(/STRICT OUTPUT RULE:[^\n]*\n/g, '')
-    .replace(/FORMAT:[^\n]*\n/g, '')
+  // ── Action 2: factbase in system prompt block 1 ───────────────────────────
+  // The factbase is IDENTICAL across all writing requests. Placing it first
+  // with its own cache_control means it is written to cache once (first call,
+  // ~25% cache-write premium) and read from cache for every subsequent call
+  // (~90% discount). Block 2 (writing instructions) varies per language/level
+  // so it is cached separately per combination.
+  const factbaseBlock =
+    `TODAY'S FACT-BASE (${date}) — ${factbase.length} stories:\n` +
+    JSON.stringify(factbase, null, 2) +
+    `\n\nThese are the only facts to use. Do not add events, figures, or claims not present above.`;
+
+  const instructionsBlock = WRITING_SYSTEM
     .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
     .replace(/\{LEVEL\}/g, normaliseLevel(level))
     .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
 
-  const user = `Today is ${date}.
-Write one original news article for every story in the fact-base below. Call the submit_article tool once for each story — you must call it for every single story. Do not stop until all ${factbase.length} stories have been submitted.
-
-FACT-BASE - rewrite as original journalism in ${LANGUAGE_NAMES[language]}. Do not translate directly:
-${JSON.stringify(factbase, null, 2)}`;
+  const user =
+    `Today is ${date}. Write one original news article for every story in the fact-base. ` +
+    `Call submit_article once per story — all ${factbase.length} stories, do not stop early.`;
 
   return {
     custom_id: customId,
     params: {
       model: 'claude-sonnet-4-6',
       max_tokens: 64000,
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      system: [
+        // Block 1: factbase — same for all requests → cached once, read ~N-1 times
+        { type: 'text', text: factbaseBlock, cache_control: { type: 'ephemeral' } },
+        // Block 2: writing instructions — varies per language/level → cached per combo
+        { type: 'text', text: instructionsBlock, cache_control: { type: 'ephemeral' } },
+      ],
       messages: [{ role: 'user', content: user }],
       tools: [ARTICLE_TOOL],
       tool_choice: { type: 'any' },
@@ -330,8 +377,11 @@ ${research}`;
     console.error('[gather] Full raw response:\n', raw);
     throw new Error(`Gathering returned invalid JSON (${raw.length} chars)`);
   }
-  console.log(`[gather] ${parsed.factbase.length} stories gathered`);
-  return parsed.factbase as FactbaseStory[];
+  const stories: FactbaseStory[] = parsed.factbase.map(
+    (raw: any, i: number) => validateStory(raw, i),
+  );
+  console.log(`[gather] ${stories.length} stories gathered and validated`);
+  return stories;
 }
 
 // ── Stage 2: Write (Batch API) ────────────────────────────────────────────────
