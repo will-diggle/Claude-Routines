@@ -38,7 +38,34 @@ jobs:
           echo "EXPO_PUBLIC_WORKER_URL=${{ secrets.EXPO_PUBLIC_WORKER_URL }}" > .env
 
       - name: Publish EAS update
+        id: eas
         working-directory: bilinguist-brief
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive
+        run: |
+          # Capture output so we can extract the update group ID
+          JSON=$(npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive --json 2>/dev/null)
+          echo "$JSON"
+          # eas update --json returns an array; grab the first entry's group UUID
+          GROUP=$(echo "$JSON" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+items = data if isinstance(data, list) else [data]
+print(items[0].get('group', ''))
+" 2>/dev/null || echo "")
+          echo "group=$GROUP" >> "$GITHUB_OUTPUT"
+
+      - name: Post preview link as commit comment
+        if: steps.eas.outputs.group != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          GROUP="${{ steps.eas.outputs.group }}"
+          PROJECT="4f33f632-5650-43d6-881b-4b006eee705f"
+          URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
+          BODY="📱 **App updated — open the latest build in Expo Go:**\n\n${URL}\n\n_Tap this link on your phone, or scan the QR code on the page above._"
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -d "{\"body\": \"$(echo -e "$BODY")\"}"
