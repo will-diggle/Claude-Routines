@@ -30,6 +30,7 @@ interface BriefingStore {
   weather: WeatherData | null;
   isLoadingWeather: boolean;
   isSyncing: boolean;
+  syncMessage: string | null;
   bundleReceivedAt: number | null;
 
   syncFromServer: () => Promise<void>;
@@ -53,14 +54,16 @@ export const useBriefingStore = create<BriefingStore>()(
       weather: null,
       isLoadingWeather: false,
       isSyncing: false,
+      syncMessage: null,
       bundleReceivedAt: null,
 
       syncFromServer: async () => {
-        set({ isSyncing: true });
+        set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
         try {
           const bundle = await fetchTodayBundle();
           if (!bundle) return;
 
+          set({ syncMessage: 'Applying…' });
           await applyBundleToCache(bundle);
           await clearPreviousDaysBriefings(bundle.date);
 
@@ -88,7 +91,7 @@ export const useBriefingStore = create<BriefingStore>()(
             bundleReceivedAt: receivedAt,
           }));
         } finally {
-          set({ isSyncing: false });
+          set({ isSyncing: false, syncMessage: null });
         }
       },
 

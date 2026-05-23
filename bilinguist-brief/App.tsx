@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,16 +16,28 @@ import {
 } from '@expo-google-fonts/pt-serif';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
-import { BackgroundColors } from './src/theme';
+import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 
 function AppContent() {
   const { background } = useSettingsStore();
   const isNight = background === 'night';
+  const [showSplash, setShowSplash] = useState(false);
+  const [splashChecked, setSplashChecked] = useState(false);
+
+  useEffect(() => {
+    shouldShowSplash().then((show) => {
+      setShowSplash(show);
+      setSplashChecked(true);
+    });
+  }, []);
+
+  if (!splashChecked) return null;
 
   return (
     <>
       <StatusBar style={isNight ? 'light' : 'dark'} />
       <AppNavigator />
+      {showSplash && <SplashOverlay onDone={() => setShowSplash(false)} />}
     </>
   );
 }

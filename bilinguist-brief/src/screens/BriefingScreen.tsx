@@ -38,6 +38,7 @@ export function BriefingScreen() {
   const {
     briefings, generatingFor, errorsFor, weather, isLoadingWeather,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
+    syncMessage,
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -84,6 +85,15 @@ export function BriefingScreen() {
       </Text>
 
       <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
+
+      {/* ── Sync progress ── */}
+      {syncMessage != null && (
+        <View style={[styles.syncBanner, { borderBottomColor: colors.borderLight }]}>
+          <Text style={[styles.syncText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {syncMessage}
+          </Text>
+        </View>
+      )}
 
       {/* ── Weather ── */}
       <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
@@ -139,4 +149,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   hairline: { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
+  syncBanner: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  syncText: { fontSize: 12, letterSpacing: 0.3 },
 });
