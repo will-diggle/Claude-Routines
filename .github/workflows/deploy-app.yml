@@ -85,47 +85,18 @@ jobs:
           echo "Extracted group UUID: '$GROUP'"
           echo "group=$GROUP" >> "$GITHUB_OUTPUT"
 
-      - name: Post preview link as commit comment
-        # Always runs after a successful deploy
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Write preview link to Actions summary
+        # Writes the link into the workflow run page — always visible, no token permissions needed
         run: |
           PROJECT="4f33f632-5650-43d6-881b-4b006eee705f"
           GROUP="${{ steps.eas.outputs.group }}"
-
-          # Use Python to build JSON safely (handles unicode, escaping, etc.)
-          python3 - <<'PYEOF'
-import os, json, urllib.request
-
-project = "4f33f632-5650-43d6-881b-4b006eee705f"
-group   = os.environ.get("GROUP", "").strip()
-repo    = os.environ.get("GITHUB_REPOSITORY", "")
-sha     = os.environ.get("GITHUB_SHA", "")
-token   = os.environ.get("GH_TOKEN", "")
-
-if group:
-    url  = f"https://expo.dev/preview/update?projectId={project}&group={group}"
-    body = f"📱 **App updated — open in Expo Go:**\n\n{url}\n\n_Tap this link on your phone → opens in Expo Go_"
-else:
-    url  = f"https://expo.dev/projects/{project}/updates"
-    body = f"📱 **App updated** — [view on Expo dashboard]({url}) and open the latest update in Expo Go."
-
-payload = json.dumps({"body": body}).encode()
-req = urllib.request.Request(
-    f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
-    data=payload,
-    headers={
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "Accept": "application/vnd.github+json",
-    },
-    method="POST",
-)
-with urllib.request.urlopen(req) as resp:
-    print("Comment posted, status:", resp.status)
-PYEOF
-        env:
-          GROUP: ${{ steps.eas.outputs.group }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          GH_TOKEN: ${{ github.token }}
+          if [ -n "$GROUP" ]; then
+            URL="https://expo.dev/preview/update?projectId=${PROJECT}&group=${GROUP}"
+          else
+            URL="https://expo.dev/projects/${PROJECT}/updates"
+          fi
+          echo "## 📱 App Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Open in Expo Go:** $URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tap the link above on your phone to open in Expo Go." >> $GITHUB_STEP_SUMMARY
