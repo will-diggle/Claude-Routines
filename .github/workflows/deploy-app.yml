@@ -44,14 +44,20 @@ jobs:
         working-directory: bilinguist-brief
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          CI: "1"
         run: |
           set -o pipefail
-          # tee writes to log in real-time AND saves to file — so errors are always visible
-          npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive \
-            2>&1 | tee /tmp/eas-output.txt
-          # Extract the group UUID (exclude the projectId UUID)
-          GROUP=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/eas-output.txt \
-            | grep -v '4f33f632-5650-43d6-881b-4b006eee705f' | head -1)
+          # --json gives reliable structured output; stderr (progress/errors) shown live
+          npx eas-cli update --branch preview --message "Auto-deploy from push" --json --non-interactive \
+            > /tmp/eas-output.json 2>&1 || { cat /tmp/eas-output.json; exit 1; }
+          cat /tmp/eas-output.json
+          # Parse group UUID from JSON array — .[0].group is the update group id
+          GROUP=$(jq -r '.[0].group // empty' /tmp/eas-output.json 2>/dev/null || echo "")
+          # Fallback: regex grep if jq path differs across eas-cli versions
+          if [ -z "$GROUP" ]; then
+            GROUP=$(grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' /tmp/eas-output.json \
+              | grep -iv '4f33f632-5650-43d6-881b-4b006eee705f' | head -1 || echo "")
+          fi
           echo "group=$GROUP" >> "$GITHUB_OUTPUT"
 
       - name: Post preview link as commit comment
