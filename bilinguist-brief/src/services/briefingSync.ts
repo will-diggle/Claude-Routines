@@ -19,7 +19,7 @@ export interface DailyBundle {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const WORKER_BASE = (process.env.EXPO_PUBLIC_WORKER_URL ?? '').replace(/\/$/, '');
+const WORKER_BASE = (process.env.EXPO_PUBLIC_WORKER_URL ?? '').replace(/\/+$/, '');
 const BUNDLE_URL = WORKER_BASE ? `${WORKER_BASE}/latest` : '';
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
