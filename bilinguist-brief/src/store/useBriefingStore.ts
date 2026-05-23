@@ -29,7 +29,8 @@ interface BriefingStore {
   errorsFor: Partial<Record<LanguageCode, string>>;
   weather: WeatherData | null;
   isLoadingWeather: boolean;
-  bundleReceivedAt: number | null; // epoch ms when app last fetched a server bundle
+  isSyncing: boolean;
+  bundleReceivedAt: number | null;
 
   syncFromServer: () => Promise<void>;
   loadBriefing: (
@@ -51,30 +52,44 @@ export const useBriefingStore = create<BriefingStore>()(
       errorsFor: {},
       weather: null,
       isLoadingWeather: false,
+      isSyncing: false,
       bundleReceivedAt: null,
 
       syncFromServer: async () => {
-        const bundle = await fetchTodayBundle();
-        if (!bundle) return;
+        set({ isSyncing: true });
+        try {
+          const bundle = await fetchTodayBundle();
+          if (!bundle) return;
 
-        await applyBundleToCache(bundle);
-        await clearPreviousDaysBriefings(bundle.date);
+          await applyBundleToCache(bundle);
+          await clearPreviousDaysBriefings(bundle.date);
 
-        const receivedAt = Date.now();
+          const receivedAt = Date.now();
+          const settings = useSettingsStore.getState();
+          const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
+          const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
 
-        const settings = useSettingsStore.getState();
-        const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
-        for (const lang of settings.languages.filter((l) => l.active)) {
-          const level = lang.level ?? 'B1';
-          const length: ArticleLength =
-            level === 'A1' || level === 'A2' ? 'short' : settings.readLength;
-          const briefing = bundle.briefings[lang.code]?.[level]?.[length];
-          if (briefing) updates[lang.code as LanguageCode] = briefing;
+          for (const lang of settings.languages.filter((l) => l.active)) {
+            const level = lang.level ?? 'B1';
+            const length: ArticleLength =
+              level === 'A1' || level === 'A2' ? 'short' : settings.readLength;
+            const briefing = bundle.briefings[lang.code]?.[level]?.[length];
+            if (briefing) {
+              updates[lang.code as LanguageCode] = briefing;
+              clearedErrors[lang.code as LanguageCode] = undefined;
+            }
+          }
+
+          set((s) => ({
+            briefings: { ...s.briefings, ...updates },
+            // Clear spinner and error for any language that now has content
+            generatingFor: s.generatingFor.filter((l) => !(l in updates)),
+            errorsFor: { ...s.errorsFor, ...clearedErrors },
+            bundleReceivedAt: receivedAt,
+          }));
+        } finally {
+          set({ isSyncing: false });
         }
-        set((s) => ({
-          briefings: { ...s.briefings, ...updates },
-          bundleReceivedAt: receivedAt,
-        }));
       },
 
       loadWeather: async (language) => {
@@ -126,9 +141,41 @@ export const useBriefingStore = create<BriefingStore>()(
           return;
         }
 
-        // ── 4. No cache and not dev mode — nothing to show yet ───────────────
-        // Briefings are server-generated; no API key is in the app.
+        // ── 4. No cache — show spinner while server sync is in progress ───────
+        // syncFromServer runs concurrently; when it finishes it will update
+        // briefings and clear generatingFor. If sync finishes with nothing,
+        // the finally block sets isSyncing:false and we show NOT_READY_MESSAGE.
+        if (get().isSyncing) {
+          set((s) => ({
+            generatingFor: s.generatingFor.includes(language)
+              ? s.generatingFor
+              : [...s.generatingFor, language],
+            errorsFor: { ...s.errorsFor, [language]: undefined },
+          }));
+
+          // Wait for sync to finish then check again
+          await new Promise<void>((resolve) => {
+            const unsub = useBriefingStore.subscribe((state) => {
+              if (!state.isSyncing) {
+                unsub();
+                resolve();
+              }
+            });
+          });
+
+          // If sync populated this language, we're done
+          const afterSync = get().briefings[language];
+          if (afterSync && afterSync.date === today) {
+            set((s) => ({
+              generatingFor: s.generatingFor.filter((l) => l !== language),
+            }));
+            return;
+          }
+        }
+
+        // ── 5. Sync done, still nothing — show friendly not-ready message ────
         set((s) => ({
+          generatingFor: s.generatingFor.filter((l) => l !== language),
           errorsFor: { ...s.errorsFor, [language]: NOT_READY_MESSAGE },
         }));
       },
