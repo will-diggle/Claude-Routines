@@ -58,8 +58,6 @@ GATHER stories across these genres:
 - GLOBAL NEWS (the day's most significant world/breaking stories): 3–4 stories
 - POLITICS: 2 stories
 - BUSINESS & ECONOMY: 2 stories
-- SCIENCE & TECHNOLOGY: 2 stories
-- ARTS & CULTURE: 2 stories
 - GOOD NEWS (genuinely positive, uplifting stories): 2 stories
 
 Select the most significant story in each genre, judged by real-world importance — not by how dramatic or clickable it is. Do not duplicate a story across genres; assign each to its single best-fit genre.

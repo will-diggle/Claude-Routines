@@ -33,16 +33,19 @@ import {
 } from '../theme';
 
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'C1'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
-  de: ['A1', 'A2', 'B1', 'C1'],
+  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  de: ['A1', 'A2', 'B1'],
+  es: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
 };
-const C1_LABEL: Record<string, string> = {
-  en: 'C1 / Native',
-  fr: 'C1 / Natif',
-  de: 'C1 / Muttersprachlich',
-  es: 'C1 / Nativo',
-  it: 'C1 / Madrelingua',
+// C2 is the mastery / native-speaker tier — label shown in the target language
+const NATIVE_LABEL: Record<string, string> = {
+  en: 'C2 / Native',
+  fr: 'C2 / Natif',
+  de: 'C2 / Muttersprachlich',
+  es: 'C2 / Nativo',
+  it: 'C2 / Madrelingua',
 };
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
@@ -52,12 +55,10 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
 const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
-  { key: 'worldNews',   label: 'World News' },
-  { key: 'politics',    label: 'Politics' },
-  { key: 'business',    label: 'Business & Economy' },
-  { key: 'scienceTech', label: 'Science & Technology' },
-  { key: 'artsCulture', label: 'Arts & Culture' },
-  { key: 'goodNews',    label: 'Good News' },
+  { key: 'worldNews', label: 'Global News' },
+  { key: 'politics',  label: 'Politics' },
+  { key: 'business',  label: 'Business & Economy' },
+  { key: 'goodNews',  label: 'Good News' },
 ];
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
@@ -281,7 +282,7 @@ export function SettingsScreen() {
                   Level
                 </Text>
                 <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {lang.level === 'C1' ? (C1_LABEL[lang.code] ?? 'C1 / Native') : lang.level}
+                  {lang.level === 'C2' ? (NATIVE_LABEL[lang.code] ?? 'C2 / Native') : lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
               </TouchableOpacity>
@@ -515,7 +516,7 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'C1']).map((level) => (
+            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1', 'C2']).map((level) => (
               <TouchableOpacity
                 key={level}
                 style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
@@ -525,10 +526,9 @@ export function SettingsScreen() {
                 }}
               >
                 <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {level === 'C1' ? (C1_LABEL[levelModal?.code ?? 'en'] ?? 'C1 / Native') : level}
+                  {level === 'C2' ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? 'C2 / Native') : level}
                 </Text>
-                {(levelModal?.level === level ||
-                  (level === 'C1' && (levelModal?.level === 'C2' || levelModal?.level === 'Native'))) && (
+                {levelModal?.level === level && (
                   <Ionicons name="checkmark" size={20} color={colors.inkDark} />
                 )}
               </TouchableOpacity>

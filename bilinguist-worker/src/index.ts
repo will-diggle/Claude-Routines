@@ -44,7 +44,10 @@ export default {
         Authorization: `Bearer ${env.GITHUB_TOKEN}`,
         'User-Agent': 'Bilinguist-Brief-Worker/1.0',
       },
-    });
+      // Always fetch fresh from GitHub — data changes once a day and staleness
+      // (serving yesterday's bundle) breaks the app's date-match check.
+      cf: { cacheEverything: false },
+    } as RequestInit & { cf: { cacheEverything: boolean } });
 
     if (!githubRes.ok) {
       const status = githubRes.status === 404 ? 404 : 502;
@@ -56,7 +59,8 @@ export default {
     return new Response(body, {
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600', // CDN caches for 1 hour — fine, bundle changes once a day
+        // no-cache: clients must revalidate; no stale bundles survive a new deploy
+        'Cache-Control': 'no-cache',
         'Access-Control-Allow-Origin': '*',
       },
     });

@@ -351,8 +351,6 @@ const RESEARCH_SYSTEM = `You are a news researcher. Your job is to find today's 
 - GLOBAL NEWS (3-4 stories)
 - POLITICS (2 stories)
 - BUSINESS & ECONOMY (2 stories)
-- SCIENCE & TECHNOLOGY (2 stories)
-- ARTS & CULTURE (2 stories)
 - GOOD NEWS (2 stories)
 
 Today's date is {DATE}. Search for news from today and the preceding 24 hours only. Do not rely on training data for current events.

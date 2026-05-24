@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { ScrollView, StyleSheet, View, Text, Image, Dimensions } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ScrollView, RefreshControl, StyleSheet, View, Text, Image, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
@@ -59,21 +59,33 @@ export function BriefingScreen() {
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
+  const [refreshing, setRefreshing] = useState(false);
 
   const activeLangKey =
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}`).join(',') +
     `:${settings.readLength}`;
 
-  useEffect(() => {
+  const runSync = useCallback(async () => {
     const langs = settings.languages.filter((l) => l.active);
-    syncFromServer();
-    langs.forEach((lang) => {
+    await syncFromServer();
+    await Promise.all(langs.map((lang) => {
       const level = lang.level ?? 'B1';
-      loadBriefing(lang.code, level, resolveLength(level, settings.readLength), false);
-    });
+      return loadBriefing(lang.code, level, resolveLength(level, settings.readLength), true);
+    }));
     if (langs.length > 0) loadWeather(langs[0].code);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
+
+  useEffect(() => {
+    runSync();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLangKey]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await runSync();
+    setRefreshing(false);
+  }, [runSync]);
 
   const firstBriefing = Object.values(briefings)[0];
   const publishedAt = firstBriefing?.generatedAt ?? bundleReceivedAt;
@@ -89,6 +101,13 @@ export function BriefingScreen() {
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.inkLight}
+        />
+      }
     >
       {/* ══ Masthead ══════════════════════════════════════════════════════ */}
 

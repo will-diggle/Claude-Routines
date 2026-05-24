@@ -24,8 +24,6 @@ export interface Topics {
   worldNews: boolean;
   goodNews: boolean;
   politics: boolean;
-  artsCulture: boolean;
-  scienceTech: boolean;
   business: boolean;
   [key: string]: boolean;
 }
@@ -70,7 +68,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'goodNews',
+  'worldNews', 'politics', 'business', 'goodNews',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -80,8 +78,6 @@ const DEFAULT_SETTINGS: Settings = {
     worldNews: true,
     goodNews: true,
     politics: true,
-    artsCulture: true,
-    scienceTech: true,
     business: true,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
@@ -168,8 +164,8 @@ export const useSettingsStore = create<SettingsStore>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        // Remove parked topics (sport, countryNews) that were in older builds
-        const VALID = new Set(['worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'goodNews']);
+        // Remove parked topics (sport, countryNews, scienceTech, artsCulture) that were in older builds
+        const VALID = new Set(['worldNews', 'politics', 'business', 'goodNews']);
         const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => VALID.has(k));
         VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
         state.topicOrder = cleanOrder;
