@@ -78,7 +78,7 @@ function parseServerJSON(raw: string): any | null {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it';
-type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 interface BriefingArticle { genre: string; headline: string; body: string; }
 interface FactbaseStory {
@@ -133,16 +133,17 @@ interface DailyBundle {
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
-// Per-language level lists:
-//   en → A2, B1, C1
-//   fr → A1, A2, B1, B2, C1
-//   de → A1, A2, B1, C1
-// A1/A2 → short only; B1/B2/C1 → medium + longer
+// Per-language level lists (must match LEVELS_BY_LANG in SettingsScreen.tsx):
+//   en → A2, B1, B2, C1, C2
+//   fr → A1, A2, B1, B2, C1, C2
+//   de → A1, A2, B1  (learners don't typically reach C1+ in German)
+// A1/A2 → short only; B1+ → medium + longer
+// C2 maps to the C1/Native writing tier via normaliseLevel()
 
 const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'C1'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
-  de: ['A1', 'A2', 'B1', 'C1'],
+  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  de: ['A1', 'A2', 'B1'],
   es: [],
   it: [],
 };
@@ -162,7 +163,7 @@ for (const language of LANGUAGES) {
     }
   }
 }
-// en:5 + fr:8 + de:6 = 19 writing requests
+// en: A2(1)+B1–C2(8) = 9 | fr: A1–A2(2)+B1–C2(8) = 10 | de: A1–A2(2)+B1(2) = 4 → 23 writing requests
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
