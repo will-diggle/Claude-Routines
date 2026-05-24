@@ -7,6 +7,7 @@ import { BriefingLoading } from './BriefingLoading';
 import { Spacing } from '../theme';
 import type { GeneratedBriefing, BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
+import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 
 // Maps the genre strings the API returns to settings topic keys
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
@@ -48,13 +49,14 @@ function genreColor(genre: string): string {
   return GENRE_COLORS[genre.toUpperCase()] ?? '#3D3D3D';
 }
 
-// C1 displays as "C1 / Native" in the language being learned
-const C1_LABEL: Record<LanguageCode, string> = {
-  en: 'C1 / Native',
-  fr: 'C1 / Natif',
-  de: 'C1 / Muttersprachlich',
-  es: 'C1 / Nativo',
-  it: 'C1 / Madrelingua',
+// The native/journalistic tier label — driven by NATIVE_WRITING_LEVEL in prompts.ts
+// so it stays in sync if the writing system ever defines a higher tier.
+const NATIVE_LEVEL_LABEL: Record<LanguageCode, string> = {
+  en: `${NATIVE_WRITING_LEVEL} / Native`,
+  fr: `${NATIVE_WRITING_LEVEL} / Natif`,
+  de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
+  es: `${NATIVE_WRITING_LEVEL} / Nativo`,
+  it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
 };
 
 interface Props {
@@ -77,8 +79,8 @@ function formatGeneratedAt(ts: number): string {
 }
 
 function levelLabel(level: LanguageLevel, langCode: LanguageCode): string {
-  if (level === 'C1' || level === 'C2' || level === 'Native') {
-    return C1_LABEL[langCode] ?? 'C1 / Native';
+  if (level === NATIVE_WRITING_LEVEL || level === 'Native') {
+    return NATIVE_LEVEL_LABEL[langCode] ?? `${NATIVE_WRITING_LEVEL} / Native`;
   }
   return level;
 }

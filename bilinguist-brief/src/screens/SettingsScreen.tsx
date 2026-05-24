@@ -16,6 +16,7 @@ import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
+import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
@@ -32,20 +33,24 @@ import {
   type FontSizeKey,
 } from '../theme';
 
+// C2 is not a separate writing tier — both C1 and C2 produce C1/Native quality
+// articles. The NATIVE_WRITING_LEVEL constant (imported from prompts.ts) tells us
+// which row shows the "/ Native" label — it moves automatically if the prompt
+// ever adds a true C2 tier.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  en: ['A2', 'B1', 'B2', 'C1'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
   de: ['A1', 'A2', 'B1'],
-  es: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
-  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  es: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  it: ['A1', 'A2', 'B1', 'B2', 'C1'],
 };
-// C2 is the mastery / native-speaker tier — label shown in the target language
+// Label shown on the NATIVE_WRITING_LEVEL row — in the target language
 const NATIVE_LABEL: Record<string, string> = {
-  en: 'C2 / Native',
-  fr: 'C2 / Natif',
-  de: 'C2 / Muttersprachlich',
-  es: 'C2 / Nativo',
-  it: 'C2 / Madrelingua',
+  en: `${NATIVE_WRITING_LEVEL} / Native`,
+  fr: `${NATIVE_WRITING_LEVEL} / Natif`,
+  de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
+  es: `${NATIVE_WRITING_LEVEL} / Nativo`,
+  it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
 };
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
@@ -282,7 +287,7 @@ export function SettingsScreen() {
                   Level
                 </Text>
                 <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {lang.level === 'C2' ? (NATIVE_LABEL[lang.code] ?? 'C2 / Native') : lang.level}
+                  {lang.level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[lang.code] ?? `${NATIVE_WRITING_LEVEL} / Native`) : lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
               </TouchableOpacity>
@@ -516,7 +521,7 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1', 'C2']).map((level) => (
+            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1']).map((level) => (
               <TouchableOpacity
                 key={level}
                 style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
@@ -526,7 +531,7 @@ export function SettingsScreen() {
                 }}
               >
                 <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {level === 'C2' ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? 'C2 / Native') : level}
+                  {level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
                 </Text>
                 {levelModal?.level === level && (
                   <Ionicons name="checkmark" size={20} color={colors.inkDark} />

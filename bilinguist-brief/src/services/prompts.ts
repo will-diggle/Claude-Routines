@@ -25,7 +25,12 @@ export const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// C2 is not a valid journalistic tier; map to C1/Native
+// The CEFR level at which the WRITING_SYSTEM's native/journalistic tier begins.
+// The UI reads this to decide where to display the "/ Native" label — if this
+// ever changes (e.g. we add a genuine C2 tier), the label moves automatically.
+export const NATIVE_WRITING_LEVEL = 'C1';
+
+// C2 is not a separate journalistic tier; normalise it to C1/Native
 export function normaliseLevel(level: string): string {
   if (level === 'C2' || level === 'Native') return 'C1/Native';
   return level;
