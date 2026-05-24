@@ -30,9 +30,9 @@ export const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {
 // ever changes (e.g. we add a genuine C2 tier), the label moves automatically.
 export const NATIVE_WRITING_LEVEL = 'C1';
 
-// C2 is not a separate journalistic tier; normalise it to C1/Native
+// C1 = journalistic/native tier  |  C2 = distinct harder scholar tier (own prompt)
 export function normaliseLevel(level: string): string {
-  if (level === 'C2' || level === 'Native') return 'C1/Native';
+  if (level === 'Native') return 'C1/Native';
   return level;
 }
 
@@ -144,4 +144,5 @@ READING LEVEL — {LEVEL}. Write with absolute precision to this level:
 - A2: 4–5 sentences. Present and simple past. ~1000 common words. Simple connectors (and, but, because, so). Minimal attribution, kept simple.
 - B1: 5–6 sentences. Mixed tenses. Moderate vocabulary. One or two topic words explained by context. Simple attribution (“officials say”). No idioms.
 - B2: 6–7 sentences. Full range of tenses. Varied structure. Some idiom. Proper attribution of contested claims. Vocabulary of a well-read adult.
-- C1 / Native: 7–8 sentences. Complex syntax, rich and idiomatic vocabulary, full journalistic register. Subordinate clauses, nominalisation, passive where natural. Write exactly as a staff journalist at that outlet would.`;
+- C1 / Native: 7–8 sentences. Complex syntax, rich and idiomatic vocabulary, full journalistic register. Subordinate clauses, nominalisation, passive where natural. Write exactly as a staff journalist at that outlet would.
+- C2 / Scholar: 10–14 sentences. Significantly harder than journalistic prose — the register of a serious long-form essayist, cultural critic, or intellectual commentator. Dense, multi-clause sentence architecture with embedded subordination and apposition. Deliberate rhetorical devices: inversion, ellipsis, parallelism, antithesis. Precise, elevated vocabulary that is accurate rather than accessible — favour the exact term over the common one. Analytical meta-commentary woven into the reporting: contextualise the story within broader political, economic, or cultural currents; draw explicit connections to precedent or pattern. The reader should be pushed and occasionally challenged. This is prose that assumes a well-read, intellectually engaged native speaker who enjoys being stretched.`;

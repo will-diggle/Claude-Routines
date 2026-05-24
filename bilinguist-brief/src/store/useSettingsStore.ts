@@ -177,11 +177,6 @@ export const useSettingsStore = create<SettingsStore>()(
         if (!(state as any).readLength) {
           state.readLength = 'medium';
         }
-        // C2 was removed — it maps to the same writing tier as C1.
-        // Migrate any saved C2 level to C1 so the correct bundle slot is fetched.
-        state.languages = state.languages.map((l) =>
-          (l.level as string) === 'C2' ? { ...l, level: 'C1' } : l,
-        );
       },
     }
   )

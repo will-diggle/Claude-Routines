@@ -134,15 +134,15 @@ interface DailyBundle {
 
 // ── Combinations ──────────────────────────────────────────────────────────────
 // Per-language level lists (must match LEVELS_BY_LANG in SettingsScreen.tsx):
-//   en → A2, B1, B2, C1          (C1 = native/journalistic tier)
-//   fr → A1, A2, B1, B2, C1
+//   en → A2, B1, B2, C1, C2
+//   fr → A1, A2, B1, B2, C1, C2
 //   de → A1, A2, B1  (learners don't typically reach C1 in German)
 // A1/A2 → short only; B1+ → medium + longer
-// C2 is not a separate writing tier — both C1 and C2 reach NATIVE_WRITING_LEVEL
+// C1 = journalistic/native tier; C2 = distinct harder scholar tier
 
 const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'B2', 'C1'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
   de: ['A1', 'A2', 'B1'],
   es: [],
   it: [],
@@ -163,7 +163,7 @@ for (const language of LANGUAGES) {
     }
   }
 }
-// en: A2(1)+B1–C1(6) = 7 | fr: A1–A2(2)+B1–C1(6) = 8 | de: A1–A2(2)+B1(2) = 4 → 19 writing requests
+// en: A2(1)+B1–C2(8) = 9 | fr: A1–A2(2)+B1–C2(8) = 10 | de: A1–A2(2)+B1(2) = 4 → 23 writing requests
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 

@@ -33,16 +33,14 @@ import {
   type FontSizeKey,
 } from '../theme';
 
-// C2 is not a separate writing tier — both C1 and C2 produce C1/Native quality
-// articles. The NATIVE_WRITING_LEVEL constant (imported from prompts.ts) tells us
-// which row shows the "/ Native" label — it moves automatically if the prompt
-// ever adds a true C2 tier.
+// NATIVE_WRITING_LEVEL (from prompts.ts) = the row that shows "/ Native".
+// Levels above it get a grey italic sub-label that also moves dynamically.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'B2', 'C1'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
   de: ['A1', 'A2', 'B1'],
-  es: ['A1', 'A2', 'B1', 'B2', 'C1'],
-  it: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  es: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
 };
 // Label shown on the NATIVE_WRITING_LEVEL row — in the target language
 const NATIVE_LABEL: Record<string, string> = {
@@ -52,6 +50,31 @@ const NATIVE_LABEL: Record<string, string> = {
   es: `${NATIVE_WRITING_LEVEL} / Nativo`,
   it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
 };
+// Sub-labels for levels above NATIVE_WRITING_LEVEL, in the target language.
+// "harder" = one step above native; "scholar" = two+ steps above.
+const LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+const HARDER_LABEL: Record<string, string> = {
+  en: 'Harder than natural',  fr: 'Plus difficile que naturel',
+  de: 'Schwerer als muttersprachlich',
+  es: 'Más difícil que lo natural',
+  it: 'Più difficile del naturale',
+};
+const SCHOLAR_LABEL: Record<string, string> = {
+  en: 'Literature scholar',
+  fr: 'Chercheur en littérature',
+  de: 'Literaturwissenschaftler',
+  es: 'Erudito literario',
+  it: 'Studioso di letteratura',
+};
+function levelSublabel(level: string, langCode: string): string | null {
+  const nativeIdx = LEVEL_ORDER.indexOf(NATIVE_WRITING_LEVEL as typeof LEVEL_ORDER[number]);
+  const levelIdx  = LEVEL_ORDER.indexOf(level as typeof LEVEL_ORDER[number]);
+  if (levelIdx <= nativeIdx) return null;
+  const stepsAbove = levelIdx - nativeIdx;
+  return stepsAbove === 1
+    ? (HARDER_LABEL[langCode] ?? null)
+    : (SCHOLAR_LABEL[langCode] ?? null);
+}
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
   { key: 'white', label: 'White', color: Colors.white },
   { key: 'cream', label: 'Cream', color: Colors.cream },
@@ -521,7 +544,7 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1']).map((level) => (
+            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1', 'C2']).map((level) => (
               <TouchableOpacity
                 key={level}
                 style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
@@ -530,9 +553,19 @@ export function SettingsScreen() {
                   setLevelModalLang(null);
                 }}
               >
-                <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                    {level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
+                  </Text>
+                  {(() => {
+                    const sub = levelSublabel(level, levelModal?.code ?? 'en');
+                    return sub ? (
+                      <Text style={[modalStyles.optionSublabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                        {sub}
+                      </Text>
+                    ) : null;
+                  })()}
+                </View>
                 {levelModal?.level === level && (
                   <Ionicons name="checkmark" size={20} color={colors.inkDark} />
                 )}
@@ -759,7 +792,8 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  optionText: { flex: 1, fontSize: 16 },
+  optionText: { fontSize: 16 },
+  optionSublabel: { fontSize: 11, marginTop: 1 },
   cancel: {
     paddingVertical: Spacing.md,
     alignItems: 'center',
