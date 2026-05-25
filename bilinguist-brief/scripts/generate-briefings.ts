@@ -165,6 +165,30 @@ for (const language of LANGUAGES) {
 }
 // en: A2(1)+B1–C2(8) = 9 | fr: A1–A2(2)+B1–C2(8) = 10 | de: A1–A2(2)+B1(2) = 4 → 23 writing requests
 
+// ── Model routing ─────────────────────────────────────────────────────────────
+// A1/A2 → Haiku  (shorter articles, simpler prose — quality holds, cost drops)
+// B1+   → Sonnet (richer writing needed for intermediate through scholar levels)
+//
+// CACHE NAMESPACE NOTE: Haiku and Sonnet maintain SEPARATE prompt-cache stores.
+// Within each tier the cached system blocks must be byte-identical across all calls.
+// Variables ({LANGUAGE}, {LEVEL}, {WORD_COUNT}) are injected via the user message only,
+// keeping Block 1 (factbase) and Block 2 (writing instructions) fully static per tier.
+
+const LEVEL_LABELS: Record<LanguageLevel, string> = {
+  A1: 'Beginner',
+  A2: 'Elementary',
+  B1: 'Intermediate',
+  B2: 'Upper Intermediate',
+  C1: 'Advanced / Native',
+  C2: 'Scholar',
+};
+
+function writingModel(level: LanguageLevel): string {
+  return level === 'A1' || level === 'A2'
+    ? 'claude-haiku-4-5-20251001'
+    : 'claude-sonnet-4-6';
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -235,35 +259,40 @@ function buildWritingRequest(
   length: ArticleLength,
   date: string,
 ) {
-  // ── Action 2: factbase in system prompt block 1 ───────────────────────────
-  // The factbase is IDENTICAL across all writing requests. Placing it first
-  // with its own cache_control means it is written to cache once (first call,
-  // ~25% cache-write premium) and read from cache for every subsequent call
-  // (~90% discount). Block 2 (writing instructions) varies per language/level
-  // so it is cached separately per combination.
+  const model = writingModel(level);
+
+  // Block 1: factbase — STATIC across all 23 requests in this run.
+  // (${date} and ${factbase.length} are identical for every call in the batch.)
+  // Written to cache once per model tier; read for every subsequent call in that tier.
   const factbaseBlock =
     `TODAY'S FACT-BASE (${date}) — ${factbase.length} stories:\n` +
     JSON.stringify(factbase, null, 2) +
     `\n\nThese are the only facts to use. Do not add events, figures, or claims not present above.`;
 
-  const instructionsBlock = WRITING_SYSTEM
-    .replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language])
-    .replace(/\{LEVEL\}/g, normaliseLevel(level))
-    .replace(/\{WORD_COUNT\}/g, String(WORDS_PER_ARTICLE[length]));
+  // Block 2: writing instructions — NO variable substitution → byte-identical for every
+  // call using the same model tier.
+  //   Sonnet tier: one cache entry shared by all B1/B2/C1/C2 requests (9+ calls)
+  //   Haiku tier:  one cache entry shared by all A1/A2 requests (3 calls)
+  // Variables go to the user message only — see below.
+  const instructionsBlock = WRITING_SYSTEM;
 
+  // User message: inject all per-request variables here. ~30 tokens. Not cached.
+  const levelLabel = LEVEL_LABELS[level];
+  const wordCount = WORDS_PER_ARTICLE[length];
   const user =
-    `Today is ${date}. Write one original news article for every story in the fact-base. ` +
+    `Write all articles in ${LANGUAGE_NAMES[language]} at ${normaliseLevel(level)} (${levelLabel}), ` +
+    `approximately ${wordCount} words per article. ` +
     `Call submit_article once per story — all ${factbase.length} stories, do not stop early.`;
 
   return {
     custom_id: customId,
     params: {
-      model: 'claude-sonnet-4-6',
+      model,
       max_tokens: 64000,
       system: [
-        // Block 1: factbase — same for all requests → cached once, read ~N-1 times
+        // Block 1: factbase — static per run → cached once per tier, read N-1 times
         { type: 'text', text: factbaseBlock, cache_control: { type: 'ephemeral' } },
-        // Block 2: writing instructions — varies per language/level → cached per combo
+        // Block 2: writing instructions — static across all calls → single cache entry per tier
         { type: 'text', text: instructionsBlock, cache_control: { type: 'ephemeral' } },
       ],
       messages: [{ role: 'user', content: user }],
@@ -429,6 +458,19 @@ async function main() {
   }
 
   const factbase = await gatherFactbase(date);
+
+  // ── Cache diagnostic ──────────────────────────────────────────────────────
+  // Block 2 (WRITING_SYSTEM) must be byte-identical within each model tier.
+  // Log its size here; after the run, verify cache_read_input_tokens > cache_creation_input_tokens
+  // in the Anthropic dashboard batch row.
+  const block2Bytes = Buffer.byteLength(WRITING_SYSTEM, 'utf8');
+  const haikuCalls  = COMBINATIONS.filter(c => c.level === 'A1' || c.level === 'A2').length;
+  const sonnetCalls = COMBINATIONS.filter(c => c.level !== 'A1' && c.level !== 'A2').length;
+  console.log(`[cache-diag] Block 2 (WRITING_SYSTEM) bytes: ${block2Bytes} — fully static, zero variables`);
+  console.log(`[cache-diag] Haiku  (A1/A2): ${haikuCalls} calls — Block 2 shared across all ${haikuCalls}`);
+  console.log(`[cache-diag] Sonnet (B1+):   ${sonnetCalls} calls — Block 2 shared across all ${sonnetCalls}`);
+  console.log(`[cache-diag] Expected: 2 cache writes per tier + reads for the rest`);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, briefings: {} };
 
