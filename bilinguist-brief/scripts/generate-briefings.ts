@@ -7,9 +7,11 @@
  *   scripts/output/YYYY-MM-DD.json   — archived dated copy
  *   scripts/output/latest.json       — overwritten daily (app fetches this)
  *
- * Stage 1 — Gather (sequential, 2 regular API calls):
- *   Call A: web search ON  — free-form research notes
- *   Call B: web search OFF — structures notes into factbase JSON
+ * Stage 1 — Gather (single call per model, run in parallel for A/B test):
+ *   Claude Sonnet + web_search tool  →  factbase JSON  (primary, feeds writing)
+ *   Gemini Flash + search grounding  →  factbase JSON  (A/B test, logged only)
+ *   Overlap score logged after both complete. Writing phase always uses Claude output.
+ *   Set GEMINI_API_KEY to enable the Gemini A/B leg; omit to skip gracefully.
  *
  * Stage 2 — Write (Anthropic Message Batches API):
  *   All language/level/length combinations submitted as a single batch.
@@ -17,13 +19,14 @@
  *   Polls for completion, then assembles the bundle.
  *
  * Usage:
- *   ANTHROPIC_API_KEY=sk-... npx tsx scripts/generate-briefings.ts
+ *   ANTHROPIC_API_KEY=sk-ant-... [GEMINI_API_KEY=...] npx tsx scripts/generate-briefings.ts
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { jsonrepair } from 'jsonrepair';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   GATHERING_SYSTEM,
   WRITING_SYSTEM,
@@ -81,16 +84,61 @@ type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it';
 type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 
 interface BriefingArticle { genre: string; headline: string; body: string; }
+
+interface CrossReferenceScore {
+  total: number;
+  outlets_covering: string[];
+  rank: number;
+}
+
 interface FactbaseStory {
-  genre: string; slug: string; what_happened: string[]; attribution: string[];
-  verified: string[]; contested: string[];
-  numbers: string[]; proper_nouns: string[]; key_terms: string[];
+  genre: string;
+  slug: string;
+  cross_reference_score?: CrossReferenceScore; // GLOBAL NEWS only
+  what_happened: string[];
+  attribution: string[];
+  verified: string[];
+  contested: string[];
+  numbers: string[];
+  proper_nouns: string[];
+  key_terms: string[];
+}
+
+// ── A/B test types ────────────────────────────────────────────────────────────
+
+interface ABTestEntry {
+  slugs: string[];
+  storyCount: number;
+  parseSuccess: boolean;
+  parseError?: string;
+  durationMs: number;
+  estimatedCostUSD?: number;
+}
+
+interface ABTestLog {
+  claude: ABTestEntry;
+  gemini: ABTestEntry;
+  overlapScore: number; // 0–100 Jaccard similarity of slug sets
+  writingFactbaseSource: 'claude'; // always Claude during A/B test
+}
+
+interface GeneratedBriefing {
+  articles: BriefingArticle[]; date: string;
+  language: LanguageCode; level: LanguageLevel; length: ArticleLength;
+  generatedAt: number;
+}
+
+interface DailyBundle {
+  date: string;
+  generatedAt: number;
+  factbase: FactbaseStory[];
+  abTest?: ABTestLog;
+  briefings: { [lang: string]: { [level: string]: { [length: string]: GeneratedBriefing } } };
 }
 
 // ── Story validator ───────────────────────────────────────────────────────────
 // Coerces any missing/non-array fields to [] and logs a warning.
-// Repeated warnings on a field = signal to tighten the gathering prompt.
-// neutral_descriptors and why_it_matters were removed from the schema (Change 3).
+// cross_reference_score is an optional object (GLOBAL NEWS only) — not coerced.
 
 const FACTBASE_ARRAY_FIELDS = [
   'what_happened', 'attribution', 'verified', 'contested',
@@ -116,16 +164,12 @@ function validateStory(raw: any, index: number): FactbaseStory {
     console.warn(`[validate] story[${index}] missing slug — auto-generating`);
     story.slug = `story-${index}`;
   }
+  // Warn if GLOBAL NEWS story has no cross_reference_score
+  if (story.genre?.toUpperCase() === 'GLOBAL NEWS' &&
+      (!story.cross_reference_score || typeof story.cross_reference_score.total !== 'number')) {
+    console.warn(`[validate] story[${index}] "${story.slug}" is GLOBAL NEWS but has no cross_reference_score`);
+  }
   return story as FactbaseStory;
-}
-interface GeneratedBriefing {
-  articles: BriefingArticle[]; date: string;
-  language: LanguageCode; level: LanguageLevel; length: ArticleLength;
-  generatedAt: number;
-}
-interface DailyBundle {
-  date: string; generatedAt: number; factbase: FactbaseStory[];
-  briefings: { [lang: string]: { [level: string]: { [length: string]: GeneratedBriefing } } };
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
@@ -133,8 +177,8 @@ interface DailyBundle {
 //   en → C1, C2, Native  (testing phase — A2/B1/B2 removed until pipeline is stable)
 //   fr → A1, A2, B1, B2, C1, C2
 //   de → A1, A2, B1  (learners don't typically reach C1 in German)
-// A1/A2 → short only; B1/Native+ → medium + longer
-// C1 = journalistic/native tier; C2 = distinct harder scholar tier; Native = C1/Native label
+// A1/A2 → short only; B1/C1/C2/Native → medium + longer
+// C1 = Advanced; C2 = Challenge; Native = C1/Native label (same prompt tier as C1)
 
 const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
   en: ['C1', 'C2', 'Native'],
@@ -166,24 +210,35 @@ for (const language of LANGUAGES) {
 // B1+   → Sonnet (richer writing needed for intermediate through scholar levels)
 //
 // CACHE NAMESPACE NOTE: Haiku and Sonnet maintain SEPARATE prompt-cache stores.
-// Within each tier the cached system blocks must be byte-identical across all calls.
-// Variables ({LANGUAGE}, {LEVEL}, {WORD_COUNT}) are injected via the user message only,
-// keeping Block 1 (factbase) and Block 2 (writing instructions) fully static per tier.
+// Block 1 (factbase) and Block 2 (WRITING_SYSTEM) must be byte-identical within each tier.
+// Variables ({LANGUAGE}, {LEVEL}, {WORD_COUNT}) are injected via the user message only.
 
+// App-facing labels — matches the label table in the prompts reference doc.
 const LEVEL_LABELS: Record<LanguageLevel, string> = {
   A1: 'Beginner',
   A2: 'Elementary',
   B1: 'Intermediate',
   B2: 'Upper Intermediate',
-  C1: 'Advanced / Native',
-  C2: 'Scholar',
-  Native: 'Advanced / Native',
+  C1: 'Advanced',
+  C2: 'Challenge',
+  Native: 'Native',
 };
 
 function writingModel(level: LanguageLevel): string {
   return level === 'A1' || level === 'A2'
     ? 'claude-haiku-4-5-20251001'
     : 'claude-sonnet-4-6';
+}
+
+// ── Overlap scoring ───────────────────────────────────────────────────────────
+
+function overlapScore(slugsA: string[], slugsB: string[]): number {
+  if (slugsA.length === 0 && slugsB.length === 0) return 100;
+  const setA = new Set(slugsA);
+  const setB = new Set(slugsB);
+  const intersectionSize = [...setA].filter((s) => setB.has(s)).length;
+  const unionSize = new Set([...setA, ...setB]).size;
+  return Math.round((intersectionSize / unionSize) * 100);
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
@@ -232,6 +287,35 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
   return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
 }
 
+// ── Gemini gathering call ─────────────────────────────────────────────────────
+// Uses the same GATHERING_SYSTEM prompt as Claude.
+// Search grounding is enabled automatically via tools: [{ googleSearch: {} }].
+// Do NOT set responseMimeType: 'application/json' — this disables search grounding.
+
+async function callGemini(systemPrompt: string, userMessage: string): Promise<{ raw: string; inputTokens: number; outputTokens: number }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    tools: [{ googleSearch: {} }] as any,
+  });
+
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n' + userMessage }] }],
+    generationConfig: { temperature: 0.1 },
+  } as any);
+
+  const raw = result.response.text();
+  const usage = result.response.usageMetadata;
+  return {
+    raw,
+    inputTokens: usage?.promptTokenCount ?? 0,
+    outputTokens: usage?.candidatesTokenCount ?? 0,
+  };
+}
+
 // ── Batch API helpers ─────────────────────────────────────────────────────────
 
 const ARTICLE_TOOL = {
@@ -258,7 +342,7 @@ function buildWritingRequest(
 ) {
   const model = writingModel(level);
 
-  // Block 1: factbase — STATIC across all 23 requests in this run.
+  // Block 1: factbase — STATIC across all requests in this run.
   // (${date} and ${factbase.length} are identical for every call in the batch.)
   // Written to cache once per model tier; read for every subsequent call in that tier.
   const factbaseBlock =
@@ -268,8 +352,8 @@ function buildWritingRequest(
 
   // Block 2: writing instructions — NO variable substitution → byte-identical for every
   // call using the same model tier.
-  //   Sonnet tier: one cache entry shared by all B1/B2/C1/C2 requests (9+ calls)
-  //   Haiku tier:  one cache entry shared by all A1/A2 requests (3 calls)
+  //   Sonnet tier: one cache entry shared by all B1/B2/C1/C2/Native requests
+  //   Haiku tier:  one cache entry shared by all A1/A2 requests (separate namespace)
   // Variables go to the user message only — see below.
   const instructionsBlock = WRITING_SYSTEM;
 
@@ -373,40 +457,83 @@ function extractArticles(result: any): BriefingArticle[] | null {
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
+// Single prompt (GATHERING_SYSTEM) run in parallel on both Claude and Gemini.
+// Claude output feeds the writing phase. Gemini output is logged for A/B comparison.
 
-const RESEARCH_SYSTEM = `You are a news researcher. Your job is to find today's most significant news stories across these genres using web search:
-- GLOBAL NEWS (3-4 stories)
-- POLITICS (2 stories)
-- BUSINESS & ECONOMY (2 stories)
-- GOOD NEWS (2 stories)
-
-Today's date is {DATE}. Search for news from today and the preceding 24 hours only. Do not rely on training data for current events.
-
-For each story note: what happened (in chronological order), key figures, exact numbers, places, organisations, what is independently verified vs what is contested/single-source, and why it matters. Be thorough — this research will be used to write multilingual news articles.`;
-
-async function gatherFactbase(date: string): Promise<FactbaseStory[]> {
-  console.log(`[gather] Step 1/2 — researching today's news…`);
-  const researchSystem = RESEARCH_SYSTEM.replace(/\{DATE\}/g, date);
-  const research = await callClaude(researchSystem, `Today is ${date}. Please search for today's top news stories across all genres.`, true);
-
-  console.log(`[gather] Step 2/2 — structuring factbase JSON…`);
-  const structureSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
-  const structureUser = `Today is ${date}. Based on the following research notes, produce the factbase JSON exactly as specified in your instructions. Do not search for additional information — use only what is provided below.
-
-RESEARCH NOTES:
-${research}`;
-
-  const raw = await callClaude(structureSystem, structureUser, false);
-  const parsed = parseServerJSON(raw);
-  if (!parsed || !Array.isArray(parsed.factbase)) {
-    console.error('[gather] Full raw response:\n', raw);
-    throw new Error(`Gathering returned invalid JSON (${raw.length} chars)`);
+async function runClaudeGather(gatherSystem: string, date: string): Promise<ABTestEntry & { factbase: FactbaseStory[] | null }> {
+  const start = Date.now();
+  try {
+    const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
+    const raw = await callClaude(gatherSystem, user, true);
+    const parsed = parseServerJSON(raw);
+    if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
+      console.error('[gather:claude] Parse failed. Raw (first 500):', raw.slice(0, 500));
+      return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: 'invalid JSON', durationMs: Date.now() - start };
+    }
+    const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
+    return { factbase, slugs: factbase.map((s) => s.slug), storyCount: factbase.length, parseSuccess: true, durationMs: Date.now() - start };
+  } catch (e) {
+    return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: String(e).slice(0, 200), durationMs: Date.now() - start };
   }
-  const stories: FactbaseStory[] = parsed.factbase.map(
-    (raw: any, i: number) => validateStory(raw, i),
-  );
-  console.log(`[gather] ${stories.length} stories gathered and validated`);
-  return stories;
+}
+
+async function runGeminiGather(gatherSystem: string, date: string): Promise<ABTestEntry & { factbase: FactbaseStory[] | null }> {
+  const start = Date.now();
+  try {
+    const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
+    const { raw, inputTokens, outputTokens } = await callGemini(gatherSystem, user);
+    // Gemini Flash pricing: $0.10/M input, $0.40/M output
+    const estimatedCostUSD = (inputTokens / 1e6) * 0.10 + (outputTokens / 1e6) * 0.40;
+    console.log(`[gather:gemini] tokens — input:${inputTokens} output:${outputTokens} cost:$${estimatedCostUSD.toFixed(4)}`);
+
+    const parsed = parseServerJSON(raw);
+    if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
+      console.warn('[gather:gemini] Parse failed. Raw (first 500):', raw.slice(0, 500));
+      return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: 'invalid JSON', durationMs: Date.now() - start, estimatedCostUSD };
+    }
+    const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
+    return { factbase, slugs: factbase.map((s) => s.slug), storyCount: factbase.length, parseSuccess: true, durationMs: Date.now() - start, estimatedCostUSD };
+  } catch (e) {
+    console.warn('[gather:gemini] Error:', String(e).slice(0, 200));
+    return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: String(e).slice(0, 200), durationMs: Date.now() - start };
+  }
+}
+
+async function gatherFactbase(date: string): Promise<{ factbase: FactbaseStory[]; abTest?: ABTestLog }> {
+  const gatherSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+
+  console.log(`[gather] Running Claude + ${hasGemini ? 'Gemini (A/B)' : 'no Gemini (GEMINI_API_KEY not set)'} in parallel…`);
+
+  // Run both in parallel — Gemini failure must not block Claude
+  const [claudeResult, geminiResult] = await Promise.all([
+    runClaudeGather(gatherSystem, date),
+    hasGemini ? runGeminiGather(gatherSystem, date) : Promise.resolve(null),
+  ]);
+
+  if (!claudeResult.parseSuccess || !claudeResult.factbase) {
+    throw new Error(`Claude gathering failed: ${claudeResult.parseError ?? 'unknown error'}`);
+  }
+
+  console.log(`[gather] Claude: ${claudeResult.storyCount} stories (${claudeResult.durationMs}ms)`);
+
+  let abTest: ABTestLog | undefined;
+  if (geminiResult) {
+    const score = overlapScore(claudeResult.slugs, geminiResult.slugs);
+    const quality = score >= 70 ? 'HIGH — models agree on top stories' : 'LOW — inspect manually for editorial diff';
+    console.log(`[gather] Gemini: ${geminiResult.storyCount} stories (${geminiResult.durationMs}ms) — overlap ${score}% (${quality})`);
+
+    const { factbase: _cf, ...claudeEntry } = claudeResult;
+    const { factbase: _gf, ...geminiEntry } = geminiResult;
+    abTest = {
+      claude: claudeEntry,
+      gemini: geminiEntry,
+      overlapScore: score,
+      writingFactbaseSource: 'claude',
+    };
+  }
+
+  return { factbase: claudeResult.factbase, abTest };
 }
 
 // ── Stage 2: Write (Batch API) ────────────────────────────────────────────────
@@ -454,22 +581,18 @@ async function main() {
     console.log(`[bilinguist]   ${lang}: ${LANGUAGE_LEVELS[lang].join(', ')}`);
   }
 
-  const factbase = await gatherFactbase(date);
-
   // ── Cache diagnostic ──────────────────────────────────────────────────────
-  // Block 2 (WRITING_SYSTEM) must be byte-identical within each model tier.
-  // Log its size here; after the run, verify cache_read_input_tokens > cache_creation_input_tokens
-  // in the Anthropic dashboard batch row.
   const block2Bytes = Buffer.byteLength(WRITING_SYSTEM, 'utf8');
   const haikuCalls  = COMBINATIONS.filter(c => c.level === 'A1' || c.level === 'A2').length;
   const sonnetCalls = COMBINATIONS.filter(c => c.level !== 'A1' && c.level !== 'A2').length;
   console.log(`[cache-diag] Block 2 (WRITING_SYSTEM) bytes: ${block2Bytes} — fully static, zero variables`);
   console.log(`[cache-diag] Haiku  (A1/A2): ${haikuCalls} calls — Block 2 shared across all ${haikuCalls}`);
   console.log(`[cache-diag] Sonnet (B1+):   ${sonnetCalls} calls — Block 2 shared across all ${sonnetCalls}`);
-  console.log(`[cache-diag] Expected: 2 cache writes per tier + reads for the rest`);
   // ─────────────────────────────────────────────────────────────────────────
 
-  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, briefings: {} };
+  const { factbase, abTest } = await gatherFactbase(date);
+
+  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, abTest, briefings: {} };
 
   const briefings = await writeBriefingsBatch(factbase, date);
   for (const briefing of briefings) {
@@ -480,6 +603,12 @@ async function main() {
   }
 
   console.log(`[bilinguist] ${briefings.length}/${COMBINATIONS.length} briefings generated`);
+
+  // Log A/B test summary if available
+  if (abTest) {
+    console.log(`[ab-test] Claude: ${abTest.claude.storyCount} stories | Gemini: ${abTest.gemini.storyCount} stories | overlap: ${abTest.overlapScore}%`);
+    if (!abTest.gemini.parseSuccess) console.warn(`[ab-test] Gemini parse failed: ${abTest.gemini.parseError}`);
+  }
 
   const outputDir = path.join(__dirname, 'output');
   fs.mkdirSync(outputDir, { recursive: true });
