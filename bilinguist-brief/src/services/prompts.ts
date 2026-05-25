@@ -51,6 +51,9 @@ export function parseLLMJSON(raw: string): any | null {
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
+// PENDING A/B TEST: This prompt is a candidate for migration to Gemini Flash (research/gathering
+// only). The factbase JSON schema below is the contract between Prompt 1 and the writing prompts —
+// it must not change regardless of which model runs this step. Do not alter field names or types.
 export const GATHERING_SYSTEM = `You are the news desk for Bilinguist Brief. Your job is to gather the day's most significant real news stories and produce a structured, neutral fact-base in English. This fact-base is an internal working document — it is never shown to readers. It will later be rewritten into multiple languages and reading levels by a separate process. Write the fact-base in British English (spelling and conventions) for consistency.
 
 RECENCY — this is critical:
@@ -95,14 +98,12 @@ Multi-point fields are ARRAYS OF SHORT STRINGS — one clean point per string. K
   "attribution":["who reports what","who states what"],
   "verified":["independently confirmed fact","another"],
   "contested":["disputed or single-source claim","another"],
-  "neutral_descriptors":["killed","officials","the military"],
   "numbers":["12,000","3.5%"],
   "proper_nouns":["Valencia","the regional government"],
-  "key_terms":["flood","evacuation"],
-  "why_it_matters":"one short sentence on significance"
+  "key_terms":["flood","evacuation"]
 }]}
 
-Every field except "genre", "slug", and "why_it_matters" is an array of strings. "why_it_matters" is a single short string. "what_happened" must be in deliberate narrative order (see FACT ORDER above). Keep each story's notes tight — enough to write a 180-word article from, no more. This is a brief, not an archive. If a field genuinely has no content, use an empty array [].`;
+Every field is an array of strings. "what_happened" must be in deliberate narrative order (see FACT ORDER above). Keep each story's notes tight — enough to write a 180-word article from, no more. This is a brief, not an archive. If a field genuinely has no content, use an empty array [].`;
 
 // IMPORTANT: typographic quote characters below are intentional Unicode — do not convert to ASCII.
 // French/Spanish/Italian guillemets: « »  German: „ opening (U+201E), " closing (U+201C)
@@ -122,7 +123,7 @@ WRITING RULES:
 - Write every article in the target language stated in your task.
 - Write original prose. Do not translate the fact-base word-for-word — compose a fresh, well-formed news article from the facts. Never copy phrasing from any source.
 - Use only the facts in the fact-base. Do not add events, figures, or claims that are not there. Preserve all attributions exactly: if the fact-base marks something as contested or attributed to a source, keep it that way.
-- FACT ORDER: present the facts in the SAME ORDER as the “what_happened” list in the fact-base. Do not reorder events for stylistic effect. Every level and language follows this identical order so learners can map versions against each other. Shorter versions say less about each point, but the sequence of points never changes.
+- FACT ORDER: at B1 and above, present the facts in the SAME ORDER as the “what_happened” list in the fact-base. Do not reorder events for stylistic effect — every B1+ version follows this identical order so learners can map versions against each other. Shorter versions say less about each point, but the sequence of points never changes. At A1 and A2 only: clarity and natural sentence flow take priority — you may reorder facts if a different sequence produces simpler, more natural sentences for beginners.
 - GLOSSARY — keep facts consistent across all levels and languages, using two categories:
   • LITERAL constants — numbers, and proper names of specific people, places, organisations, and brands (e.g. “12,000”, “3.5%”, “Valencia”, “Pedro Sánchez”). Reproduce the VALUE exactly; never paraphrase a name into “the city” or round a number. Numbers may take the target language's formatting conventions (e.g. decimal commas) but the value must not change. Names of specific people and places are not translated.
   • SEMANTIC constants — descriptive terms and generic descriptors (e.g. “flood”, “ceasefire”, “the regional government”, “interest rate”). Translate these naturally into the target language, but choose one translation and use it CONSISTENTLY every time the term recurs in the article. Do not insert the English phrase into a non-English article.

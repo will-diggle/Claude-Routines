@@ -78,24 +78,23 @@ function parseServerJSON(raw: string): any | null {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it';
-type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 
 interface BriefingArticle { genre: string; headline: string; body: string; }
 interface FactbaseStory {
   genre: string; slug: string; what_happened: string[]; attribution: string[];
-  verified: string[]; contested: string[]; neutral_descriptors: string[];
+  verified: string[]; contested: string[];
   numbers: string[]; proper_nouns: string[]; key_terms: string[];
-  why_it_matters: string;
 }
 
-// ── Action 1: Story validator ─────────────────────────────────────────────────
-// All fields that the gathering prompt should return as arrays.
-// If any are missing or non-array (LLM occasionally drops them), coerce to []
-// and log a warning — repeated warnings are a signal to tighten the prompt.
+// ── Story validator ───────────────────────────────────────────────────────────
+// Coerces any missing/non-array fields to [] and logs a warning.
+// Repeated warnings on a field = signal to tighten the gathering prompt.
+// neutral_descriptors and why_it_matters were removed from the schema (Change 3).
 
 const FACTBASE_ARRAY_FIELDS = [
   'what_happened', 'attribution', 'verified', 'contested',
-  'neutral_descriptors', 'numbers', 'proper_nouns', 'key_terms',
+  'numbers', 'proper_nouns', 'key_terms',
 ] as const;
 
 function validateStory(raw: any, index: number): FactbaseStory {
@@ -117,9 +116,6 @@ function validateStory(raw: any, index: number): FactbaseStory {
     console.warn(`[validate] story[${index}] missing slug — auto-generating`);
     story.slug = `story-${index}`;
   }
-  if (typeof story.why_it_matters !== 'string') {
-    story.why_it_matters = '';
-  }
   return story as FactbaseStory;
 }
 interface GeneratedBriefing {
@@ -134,14 +130,14 @@ interface DailyBundle {
 
 // ── Combinations ──────────────────────────────────────────────────────────────
 // Per-language level lists (must match LEVELS_BY_LANG in SettingsScreen.tsx):
-//   en → A2, B1, B2, C1, C2
+//   en → C1, C2, Native  (testing phase — A2/B1/B2 removed until pipeline is stable)
 //   fr → A1, A2, B1, B2, C1, C2
 //   de → A1, A2, B1  (learners don't typically reach C1 in German)
-// A1/A2 → short only; B1+ → medium + longer
-// C1 = journalistic/native tier; C2 = distinct harder scholar tier
+// A1/A2 → short only; B1/Native+ → medium + longer
+// C1 = journalistic/native tier; C2 = distinct harder scholar tier; Native = C1/Native label
 
 const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  en: ['C1', 'C2', 'Native'],
   fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
   de: ['A1', 'A2', 'B1'],
   es: [],
@@ -163,7 +159,7 @@ for (const language of LANGUAGES) {
     }
   }
 }
-// en: A2(1)+B1–C2(8) = 9 | fr: A1–A2(2)+B1–C2(8) = 10 | de: A1–A2(2)+B1(2) = 4 → 23 writing requests
+// en: C1–Native(6) = 6 | fr: A1–A2(2)+B1–C2(8) = 10 | de: A1–A2(2)+B1(2) = 4 → 20 writing requests
 
 // ── Model routing ─────────────────────────────────────────────────────────────
 // A1/A2 → Haiku  (shorter articles, simpler prose — quality holds, cost drops)
@@ -181,6 +177,7 @@ const LEVEL_LABELS: Record<LanguageLevel, string> = {
   B2: 'Upper Intermediate',
   C1: 'Advanced / Native',
   C2: 'Scholar',
+  Native: 'Advanced / Native',
 };
 
 function writingModel(level: LanguageLevel): string {
