@@ -39,6 +39,7 @@ jobs:
         working-directory: bilinguist-brief
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npx tsx scripts/generate-briefings.ts
 
       - name: Push bundle to data repo
