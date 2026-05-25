@@ -29,6 +29,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   GATHERING_SYSTEM,
   WRITING_SYSTEM,
+  NATIVE_JOURNALISM_SYSTEM,
+  GRADING_SYSTEM,
   LANGUAGE_NAMES,
   WORDS_PER_ARTICLE,
   normaliseLevel,
@@ -116,12 +118,29 @@ interface GeneratedBriefing {
   generatedAt: number;
 }
 
+interface NativeArticle {
+  genre: string;
+  slug: string;
+  headline: string;
+  body: string;
+}
+
+interface GradingAssessment {
+  genre: string;
+  slug: string;
+  level: string; // A1 | A2 | B1 | B2 | C1 | C2
+  length: 'short' | 'medium' | 'longer';
+  reasoning: string;
+}
+
 interface DailyBundle {
   date: string;
   generatedAt: number;
   factbase: FactbaseStory[];
   gatherSource: 'gemini' | 'claude'; // which model gathered today's factbase
   briefings: { [lang: string]: { [level: string]: { [length: string]: GeneratedBriefing } } };
+  nativeJournalism: { [lang: string]: NativeArticle[] };  // Prompt 3 output
+  grading: { [lang: string]: GradingAssessment[] };        // Prompt 4 output
 }
 
 // ── Story validator ───────────────────────────────────────────────────────────
@@ -414,8 +433,99 @@ function extractArticles(result: any): BriefingArticle[] | null {
   return articles.length > 0 ? articles : null;
 }
 
+// ── Real-time Anthropic call (non-batch) ─────────────────────────────────────
+// Used for Prompts 3 and 4 — small number of calls, no batch overhead needed.
+
+async function callAnthropicMessage(model: string, system: string, user: string): Promise<string> {
+  const data = await callAnthropicAPI(
+    {
+      model,
+      max_tokens: 8192,
+      system,
+      messages: [{ role: 'user', content: user }],
+    },
+    { 'anthropic-version': '2023-06-01' },
+  );
+  return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+}
+
+// ── Stage 3: Native journalism (Prompt 3) ────────────────────────────────────
+// One Sonnet call per language, run in parallel alongside the writing batch.
+// Produces unconstrained native journalism from the factbase.
+
+async function runAllNativeJournalism(
+  factbase: FactbaseStory[],
+): Promise<{ [lang: string]: NativeArticle[] }> {
+  const factbaseJSON = JSON.stringify(factbase, null, 2);
+
+  const results = await Promise.all(
+    LANGUAGES.map(async (language) => {
+      const system = NATIVE_JOURNALISM_SYSTEM.replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language]);
+      const user =
+        `Write every story in ${LANGUAGE_NAMES[language]}. ` +
+        `Include the "slug" from the corresponding fact-base story in each article.\n\n` +
+        `Today's fact-base:\n${factbaseJSON}`;
+      try {
+        const raw = await callAnthropicMessage('claude-sonnet-4-6', system, user);
+        const parsed = parseServerJSON(raw);
+        if (!parsed?.articles || !Array.isArray(parsed.articles)) {
+          console.error(`[native:${language}] Parse failed. Raw (first 300):`, raw.slice(0, 300));
+          return { language, articles: [] as NativeArticle[] };
+        }
+        console.log(`[native:${language}] ${parsed.articles.length} articles`);
+        return { language, articles: parsed.articles as NativeArticle[] };
+      } catch (e) {
+        console.error(`[native:${language}] Error:`, String(e).slice(0, 200));
+        return { language, articles: [] as NativeArticle[] };
+      }
+    }),
+  );
+
+  const output: { [lang: string]: NativeArticle[] } = {};
+  for (const { language, articles } of results) output[language] = articles;
+  return output;
+}
+
+// ── Stage 4: Grading (Prompt 4) ───────────────────────────────────────────────
+// One Haiku call per language, runs after Stage 3 completes.
+// Assesses each native article's CEFR level and length band.
+// Note: Prompt 4 header in prompts doc says Sonnet — testing config table says Haiku.
+// Using Haiku per testing config (grading is pattern-matching, Haiku is sufficient).
+
+async function runAllGrading(
+  nativeJournalism: { [lang: string]: NativeArticle[] },
+): Promise<{ [lang: string]: GradingAssessment[] }> {
+  const languages = Object.keys(nativeJournalism).filter(
+    (lang) => nativeJournalism[lang].length > 0,
+  );
+
+  const results = await Promise.all(
+    languages.map(async (language) => {
+      const system = GRADING_SYSTEM.replace(/\{LANGUAGE\}/g, LANGUAGE_NAMES[language]);
+      const user = JSON.stringify({ articles: nativeJournalism[language] }, null, 2);
+      try {
+        const raw = await callAnthropicMessage('claude-haiku-4-5-20251001', system, user);
+        const parsed = parseServerJSON(raw);
+        if (!parsed?.assessments || !Array.isArray(parsed.assessments)) {
+          console.error(`[grade:${language}] Parse failed. Raw (first 300):`, raw.slice(0, 300));
+          return { language, assessments: [] as GradingAssessment[] };
+        }
+        console.log(`[grade:${language}] ${parsed.assessments.length} assessments`);
+        return { language, assessments: parsed.assessments as GradingAssessment[] };
+      } catch (e) {
+        console.error(`[grade:${language}] Error:`, String(e).slice(0, 200));
+        return { language, assessments: [] as GradingAssessment[] };
+      }
+    }),
+  );
+
+  const output: { [lang: string]: GradingAssessment[] } = {};
+  for (const { language, assessments } of results) output[language] = assessments;
+  return output;
+}
+
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
-// Gemini Flash (primary) → Claude Sonnet fallback if Gemini parse fails.
+// Gemini Flash (primary) — fails the run if Gemini parse fails.
 
 async function gatherFactbase(date: string): Promise<GatherResult> {
   const gatherSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
@@ -493,20 +603,38 @@ async function main() {
   console.log(`[cache-diag] Sonnet (B1+):   ${sonnetCalls} calls — Block 2 shared across all ${sonnetCalls}`);
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Stage 1: Gather ────────────────────────────────────────────────────────
   const { factbase, source: gatherSource } = await gatherFactbase(date);
   console.log(`[bilinguist] Gather complete — source: ${gatherSource}, ${factbase.length} stories`);
 
-  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, gatherSource, briefings: {} };
+  const bundle: DailyBundle = {
+    date, generatedAt: Date.now(), factbase, gatherSource,
+    briefings: {}, nativeJournalism: {}, grading: {},
+  };
 
-  const briefings = await writeBriefingsBatch(factbase, date);
+  // ── Stages 2+3: writing batch + native journalism run in parallel ───────────
+  // Prompt 2 (writing batch) and Prompt 3 (native journalism) are both independent
+  // of each other — they both only need the factbase. Submit simultaneously.
+  console.log('[bilinguist] Stage 2 (writing batch) + Stage 3 (native journalism) — running in parallel…');
+  const [briefings, nativeJournalism] = await Promise.all([
+    writeBriefingsBatch(factbase, date),
+    runAllNativeJournalism(factbase),
+  ]);
+
   for (const briefing of briefings) {
     const { language, level, length } = briefing;
     bundle.briefings[language] ??= {};
     bundle.briefings[language][level] ??= {};
     bundle.briefings[language][level][length] = briefing;
   }
-
+  bundle.nativeJournalism = nativeJournalism;
   console.log(`[bilinguist] ${briefings.length}/${COMBINATIONS.length} briefings generated`);
+  console.log(`[bilinguist] Native journalism: ${Object.entries(nativeJournalism).map(([l, a]) => `${l}:${a.length}`).join(' ')}`);
+
+  // ── Stage 4: Grading — depends on Stage 3 output ──────────────────────────
+  console.log('[bilinguist] Stage 4 (grading)…');
+  bundle.grading = await runAllGrading(nativeJournalism);
+  console.log(`[bilinguist] Grading: ${Object.entries(bundle.grading).map(([l, a]) => `${l}:${a.length}`).join(' ')}`);
 
   const outputDir = path.join(__dirname, 'output');
   fs.mkdirSync(outputDir, { recursive: true });
