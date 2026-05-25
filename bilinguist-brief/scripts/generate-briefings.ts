@@ -246,24 +246,6 @@ async function callAnthropicAPI(
   throw new Error('callAnthropicAPI: exhausted retries');
 }
 
-async function callClaude(system: string, user: string, useSearch = false): Promise<string> {
-  const body: Record<string, unknown> = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 64000,
-    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: user }],
-  };
-  if (useSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-
-  const data = await callAnthropicAPI(body, {
-    'anthropic-version': '2023-06-01',
-    'anthropic-beta': useSearch
-      ? 'web-search-2025-03-05,prompt-caching-2024-07-31'
-      : 'prompt-caching-2024-07-31',
-  });
-  return (data.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
-}
-
 // ── Gemini gathering call ─────────────────────────────────────────────────────
 // Primary gather model — uses Google Search grounding automatically.
 // Do NOT set responseMimeType: 'application/json' — this disables search grounding.
@@ -435,55 +417,26 @@ function extractArticles(result: any): BriefingArticle[] | null {
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
 // Gemini Flash (primary) → Claude Sonnet fallback if Gemini parse fails.
 
-async function runGeminiGather(gatherSystem: string, date: string): Promise<GatherResult | null> {
-  const start = Date.now();
-  const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
-  try {
-    const { raw, inputTokens, outputTokens } = await callGemini(gatherSystem, user);
-    // Gemini Flash pricing: $0.10/M input, $0.40/M output (non-cached)
-    const estimatedCostUSD = (inputTokens / 1e6) * 0.10 + (outputTokens / 1e6) * 0.40;
-    console.log(`[gather:gemini] tokens — input:${inputTokens} output:${outputTokens} estimated cost: $${estimatedCostUSD.toFixed(4)}`);
-
-    const parsed = parseServerJSON(raw);
-    if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
-      console.warn('[gather:gemini] Parse failed. Raw (first 500):', raw.slice(0, 500));
-      return null;
-    }
-    const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
-    console.log(`[gather:gemini] ${factbase.length} stories parsed (${Date.now() - start}ms)`);
-    return { factbase, source: 'gemini', durationMs: Date.now() - start, estimatedCostUSD };
-  } catch (e) {
-    console.warn('[gather:gemini] Error:', String(e).slice(0, 200));
-    return null;
-  }
-}
-
-async function runClaudeFallback(gatherSystem: string, date: string): Promise<GatherResult> {
-  const start = Date.now();
-  console.warn('[gather:claude] Running Claude fallback gather (Gemini failed)…');
-  const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
-  const raw = await callClaude(gatherSystem, user, true);
-  const parsed = parseServerJSON(raw);
-  if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
-    throw new Error(`Claude fallback gather also failed to parse. Raw (first 500): ${raw.slice(0, 500)}`);
-  }
-  const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
-  console.log(`[gather:claude] ${factbase.length} stories parsed (${Date.now() - start}ms)`);
-  return { factbase, source: 'claude', durationMs: Date.now() - start };
-}
-
 async function gatherFactbase(date: string): Promise<GatherResult> {
   const gatherSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
+  const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
 
   console.log('[gather] Stage 1 — Gemini Flash + Google Search…');
-  const geminiResult = await runGeminiGather(gatherSystem, date);
+  const start = Date.now();
 
-  if (geminiResult) {
-    return geminiResult;
+  const { raw, inputTokens, outputTokens } = await callGemini(gatherSystem, user);
+  // Gemini Flash pricing: $0.10/M input, $0.40/M output (non-cached)
+  const estimatedCostUSD = (inputTokens / 1e6) * 0.10 + (outputTokens / 1e6) * 0.40;
+  console.log(`[gather:gemini] tokens — input:${inputTokens} output:${outputTokens} estimated cost: $${estimatedCostUSD.toFixed(4)}`);
+
+  const parsed = parseServerJSON(raw);
+  if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
+    throw new Error(`[gather:gemini] Parse failed. Raw (first 500): ${raw.slice(0, 500)}`);
   }
 
-  // Gemini failed — fall back to Claude with web_search
-  return runClaudeFallback(gatherSystem, date);
+  const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
+  console.log(`[gather:gemini] ${factbase.length} stories parsed (${Date.now() - start}ms)`);
+  return { factbase, source: 'gemini', durationMs: Date.now() - start, estimatedCostUSD };
 }
 
 // ── Stage 2: Write (Batch API) ────────────────────────────────────────────────
