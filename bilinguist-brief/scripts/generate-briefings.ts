@@ -7,11 +7,10 @@
  *   scripts/output/YYYY-MM-DD.json   — archived dated copy
  *   scripts/output/latest.json       — overwritten daily (app fetches this)
  *
- * Stage 1 — Gather (single call per model, run in parallel for A/B test):
- *   Claude Sonnet + web_search tool  →  factbase JSON  (primary, feeds writing)
- *   Gemini Flash + search grounding  →  factbase JSON  (A/B test, logged only)
- *   Overlap score logged after both complete. Writing phase always uses Claude output.
- *   Set GEMINI_API_KEY to enable the Gemini A/B leg; omit to skip gracefully.
+ * Stage 1 — Gather (Gemini Flash primary, Claude fallback):
+ *   Gemini Flash + Google Search grounding  →  factbase JSON  (primary)
+ *   Claude Sonnet + web_search tool         →  factbase JSON  (fallback only, if Gemini fails)
+ *   GEMINI_API_KEY is required. Claude fallback uses ANTHROPIC_API_KEY.
  *
  * Stage 2 — Write (Anthropic Message Batches API):
  *   All language/level/length combinations submitted as a single batch.
@@ -19,7 +18,7 @@
  *   Polls for completion, then assembles the bundle.
  *
  * Usage:
- *   ANTHROPIC_API_KEY=sk-ant-... [GEMINI_API_KEY=...] npx tsx scripts/generate-briefings.ts
+ *   ANTHROPIC_API_KEY=sk-ant-... GEMINI_API_KEY=... npx tsx scripts/generate-briefings.ts
  */
 
 import * as fs from 'fs';
@@ -104,22 +103,11 @@ interface FactbaseStory {
   key_terms: string[];
 }
 
-// ── A/B test types ────────────────────────────────────────────────────────────
-
-interface ABTestEntry {
-  slugs: string[];
-  storyCount: number;
-  parseSuccess: boolean;
-  parseError?: string;
+interface GatherResult {
+  factbase: FactbaseStory[];
+  source: 'gemini' | 'claude';
   durationMs: number;
   estimatedCostUSD?: number;
-}
-
-interface ABTestLog {
-  claude: ABTestEntry;
-  gemini: ABTestEntry;
-  overlapScore: number; // 0–100 Jaccard similarity of slug sets
-  writingFactbaseSource: 'claude'; // always Claude during A/B test
 }
 
 interface GeneratedBriefing {
@@ -132,7 +120,7 @@ interface DailyBundle {
   date: string;
   generatedAt: number;
   factbase: FactbaseStory[];
-  abTest?: ABTestLog;
+  gatherSource: 'gemini' | 'claude'; // which model gathered today's factbase
   briefings: { [lang: string]: { [level: string]: { [length: string]: GeneratedBriefing } } };
 }
 
@@ -230,17 +218,6 @@ function writingModel(level: LanguageLevel): string {
     : 'claude-sonnet-4-6';
 }
 
-// ── Overlap scoring ───────────────────────────────────────────────────────────
-
-function overlapScore(slugsA: string[], slugsB: string[]): number {
-  if (slugsA.length === 0 && slugsB.length === 0) return 100;
-  const setA = new Set(slugsA);
-  const setB = new Set(slugsB);
-  const intersectionSize = [...setA].filter((s) => setB.has(s)).length;
-  const unionSize = new Set([...setA, ...setB]).size;
-  return Math.round((intersectionSize / unionSize) * 100);
-}
-
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -288,13 +265,12 @@ async function callClaude(system: string, user: string, useSearch = false): Prom
 }
 
 // ── Gemini gathering call ─────────────────────────────────────────────────────
-// Uses the same GATHERING_SYSTEM prompt as Claude.
-// Search grounding is enabled automatically via tools: [{ googleSearch: {} }].
+// Primary gather model — uses Google Search grounding automatically.
 // Do NOT set responseMimeType: 'application/json' — this disables search grounding.
 
 async function callGemini(systemPrompt: string, userMessage: string): Promise<{ raw: string; inputTokens: number; outputTokens: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set — required for gathering');
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
@@ -457,83 +433,57 @@ function extractArticles(result: any): BriefingArticle[] | null {
 }
 
 // ── Stage 1: Gather ───────────────────────────────────────────────────────────
-// Single prompt (GATHERING_SYSTEM) run in parallel on both Claude and Gemini.
-// Claude output feeds the writing phase. Gemini output is logged for A/B comparison.
+// Gemini Flash (primary) → Claude Sonnet fallback if Gemini parse fails.
 
-async function runClaudeGather(gatherSystem: string, date: string): Promise<ABTestEntry & { factbase: FactbaseStory[] | null }> {
+async function runGeminiGather(gatherSystem: string, date: string): Promise<GatherResult | null> {
   const start = Date.now();
+  const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
   try {
-    const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
-    const raw = await callClaude(gatherSystem, user, true);
-    const parsed = parseServerJSON(raw);
-    if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
-      console.error('[gather:claude] Parse failed. Raw (first 500):', raw.slice(0, 500));
-      return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: 'invalid JSON', durationMs: Date.now() - start };
-    }
-    const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
-    return { factbase, slugs: factbase.map((s) => s.slug), storyCount: factbase.length, parseSuccess: true, durationMs: Date.now() - start };
-  } catch (e) {
-    return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: String(e).slice(0, 200), durationMs: Date.now() - start };
-  }
-}
-
-async function runGeminiGather(gatherSystem: string, date: string): Promise<ABTestEntry & { factbase: FactbaseStory[] | null }> {
-  const start = Date.now();
-  try {
-    const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
     const { raw, inputTokens, outputTokens } = await callGemini(gatherSystem, user);
-    // Gemini Flash pricing: $0.10/M input, $0.40/M output
+    // Gemini Flash pricing: $0.10/M input, $0.40/M output (non-cached)
     const estimatedCostUSD = (inputTokens / 1e6) * 0.10 + (outputTokens / 1e6) * 0.40;
-    console.log(`[gather:gemini] tokens — input:${inputTokens} output:${outputTokens} cost:$${estimatedCostUSD.toFixed(4)}`);
+    console.log(`[gather:gemini] tokens — input:${inputTokens} output:${outputTokens} estimated cost: $${estimatedCostUSD.toFixed(4)}`);
 
     const parsed = parseServerJSON(raw);
     if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
       console.warn('[gather:gemini] Parse failed. Raw (first 500):', raw.slice(0, 500));
-      return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: 'invalid JSON', durationMs: Date.now() - start, estimatedCostUSD };
+      return null;
     }
     const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
-    return { factbase, slugs: factbase.map((s) => s.slug), storyCount: factbase.length, parseSuccess: true, durationMs: Date.now() - start, estimatedCostUSD };
+    console.log(`[gather:gemini] ${factbase.length} stories parsed (${Date.now() - start}ms)`);
+    return { factbase, source: 'gemini', durationMs: Date.now() - start, estimatedCostUSD };
   } catch (e) {
     console.warn('[gather:gemini] Error:', String(e).slice(0, 200));
-    return { factbase: null, slugs: [], storyCount: 0, parseSuccess: false, parseError: String(e).slice(0, 200), durationMs: Date.now() - start };
+    return null;
   }
 }
 
-async function gatherFactbase(date: string): Promise<{ factbase: FactbaseStory[]; abTest?: ABTestLog }> {
+async function runClaudeFallback(gatherSystem: string, date: string): Promise<GatherResult> {
+  const start = Date.now();
+  console.warn('[gather:claude] Running Claude fallback gather (Gemini failed)…');
+  const user = `Today is ${date}. Search for today's top news stories across all genres and produce the factbase JSON.`;
+  const raw = await callClaude(gatherSystem, user, true);
+  const parsed = parseServerJSON(raw);
+  if (!parsed?.factbase || !Array.isArray(parsed.factbase)) {
+    throw new Error(`Claude fallback gather also failed to parse. Raw (first 500): ${raw.slice(0, 500)}`);
+  }
+  const factbase: FactbaseStory[] = parsed.factbase.map((r: any, i: number) => validateStory(r, i));
+  console.log(`[gather:claude] ${factbase.length} stories parsed (${Date.now() - start}ms)`);
+  return { factbase, source: 'claude', durationMs: Date.now() - start };
+}
+
+async function gatherFactbase(date: string): Promise<GatherResult> {
   const gatherSystem = GATHERING_SYSTEM.replace(/\{DATE\}/g, date);
-  const hasGemini = !!process.env.GEMINI_API_KEY;
 
-  console.log(`[gather] Running Claude + ${hasGemini ? 'Gemini (A/B)' : 'no Gemini (GEMINI_API_KEY not set)'} in parallel…`);
+  console.log('[gather] Stage 1 — Gemini Flash + Google Search…');
+  const geminiResult = await runGeminiGather(gatherSystem, date);
 
-  // Run both in parallel — Gemini failure must not block Claude
-  const [claudeResult, geminiResult] = await Promise.all([
-    runClaudeGather(gatherSystem, date),
-    hasGemini ? runGeminiGather(gatherSystem, date) : Promise.resolve(null),
-  ]);
-
-  if (!claudeResult.parseSuccess || !claudeResult.factbase) {
-    throw new Error(`Claude gathering failed: ${claudeResult.parseError ?? 'unknown error'}`);
-  }
-
-  console.log(`[gather] Claude: ${claudeResult.storyCount} stories (${claudeResult.durationMs}ms)`);
-
-  let abTest: ABTestLog | undefined;
   if (geminiResult) {
-    const score = overlapScore(claudeResult.slugs, geminiResult.slugs);
-    const quality = score >= 70 ? 'HIGH — models agree on top stories' : 'LOW — inspect manually for editorial diff';
-    console.log(`[gather] Gemini: ${geminiResult.storyCount} stories (${geminiResult.durationMs}ms) — overlap ${score}% (${quality})`);
-
-    const { factbase: _cf, ...claudeEntry } = claudeResult;
-    const { factbase: _gf, ...geminiEntry } = geminiResult;
-    abTest = {
-      claude: claudeEntry,
-      gemini: geminiEntry,
-      overlapScore: score,
-      writingFactbaseSource: 'claude',
-    };
+    return geminiResult;
   }
 
-  return { factbase: claudeResult.factbase, abTest };
+  // Gemini failed — fall back to Claude with web_search
+  return runClaudeFallback(gatherSystem, date);
 }
 
 // ── Stage 2: Write (Batch API) ────────────────────────────────────────────────
@@ -590,9 +540,10 @@ async function main() {
   console.log(`[cache-diag] Sonnet (B1+):   ${sonnetCalls} calls — Block 2 shared across all ${sonnetCalls}`);
   // ─────────────────────────────────────────────────────────────────────────
 
-  const { factbase, abTest } = await gatherFactbase(date);
+  const { factbase, source: gatherSource } = await gatherFactbase(date);
+  console.log(`[bilinguist] Gather complete — source: ${gatherSource}, ${factbase.length} stories`);
 
-  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, abTest, briefings: {} };
+  const bundle: DailyBundle = { date, generatedAt: Date.now(), factbase, gatherSource, briefings: {} };
 
   const briefings = await writeBriefingsBatch(factbase, date);
   for (const briefing of briefings) {
@@ -604,12 +555,6 @@ async function main() {
 
   console.log(`[bilinguist] ${briefings.length}/${COMBINATIONS.length} briefings generated`);
 
-  // Log A/B test summary if available
-  if (abTest) {
-    console.log(`[ab-test] Claude: ${abTest.claude.storyCount} stories | Gemini: ${abTest.gemini.storyCount} stories | overlap: ${abTest.overlapScore}%`);
-    if (!abTest.gemini.parseSuccess) console.warn(`[ab-test] Gemini parse failed: ${abTest.gemini.parseError}`);
-  }
-
   const outputDir = path.join(__dirname, 'output');
   fs.mkdirSync(outputDir, { recursive: true });
 
@@ -618,7 +563,7 @@ async function main() {
   fs.writeFileSync(path.join(outputDir, 'latest.json'), json, 'utf8');
 
   const approxKB = Math.round(Buffer.byteLength(json, 'utf8') / 1024);
-  console.log(`[bilinguist] Done — output/${date}.json (${approxKB} KB)`);
+  console.log(`[bilinguist] Done — output/${date}.json (${approxKB} KB) — gathered by ${gatherSource}`);
 }
 
 main().catch((err) => {
