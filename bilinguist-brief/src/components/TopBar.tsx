@@ -87,15 +87,25 @@ export function TopBar({ routeName }: Props) {
   }
 
   // ── Compact header — Settings / Practice ────────────────────────────────────
-  // Shows only the themed masthead lockup, centred, no extra marks.
+  // All four masthead variants are rendered stacked and pre-decoded on first
+  // mount. Switching theme just flips opacity (instant — no decode latency).
+  const bg = (background as BackgroundKey) in MASTHEADS ? (background as BackgroundKey) : 'cream';
   return (
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <View style={styles.compactRow}>
-        <Image
-          source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
-          style={[styles.compactLockup, imageStyle]}
-          resizeMode="contain"
-        />
+        {(Object.keys(MASTHEADS) as BackgroundKey[]).map((key, i) => (
+          <Image
+            key={key}
+            source={MASTHEADS[key]}
+            style={[
+              styles.compactLockup,
+              imageStyle,
+              i > 0 && styles.compactLockupAbsolute,
+              { opacity: key === bg ? 1 : 0 },
+            ]}
+            resizeMode="contain"
+          />
+        ))}
       </View>
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
     </View>
@@ -179,6 +189,13 @@ const styles = StyleSheet.create({
   compactLockup: {
     width: '100%',
     height: 32,
+  },
+  // Layers 2–4 stack absolutely on top of layer 1 (which sets the row height)
+  compactLockupAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    right: 12,
   },
   compactRule: {
     height: StyleSheet.hairlineWidth,
