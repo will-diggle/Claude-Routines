@@ -24,11 +24,12 @@ const GAMES: Array<{
   label: string;
   icon: any;
   description: string;
+  tint: string;
 }> = [
-  { key: 'Flashcards', label: 'Flashcards', icon: 'layers-outline', description: 'Flip cards with spaced repetition' },
-  { key: 'MultipleChoice', label: 'Multiple Choice', icon: 'list-outline', description: 'Which word means…? Four options' },
-  { key: 'FillBlank', label: 'Fill in the Blank', icon: 'pencil-outline', description: 'Complete the original news sentence' },
-  { key: 'Translation', label: 'Translation Challenge', icon: 'swap-horizontal-outline', description: 'Translate between languages' },
+  { key: 'Flashcards',    label: 'Flashcards',           icon: 'layers-outline',          description: 'Flip cards with spaced repetition',   tint: '#4A6FA5' },
+  { key: 'MultipleChoice',label: 'Multiple Choice',      icon: 'list-outline',            description: 'Which word means…? Four options',      tint: '#1E6B3A' },
+  { key: 'FillBlank',     label: 'Fill in the Blank',    icon: 'pencil-outline',          description: 'Complete the original news sentence',  tint: '#6A1B9A' },
+  { key: 'Translation',   label: 'Translation Challenge',icon: 'swap-horizontal-outline', description: 'Translate between languages',           tint: '#8B1A1A' },
 ];
 
 const LANG_NATIVE: Record<LanguageCode, string> = {
@@ -174,8 +175,8 @@ export function PracticeScreen() {
           activeOpacity={hasWords ? 0.7 : 1}
           onPress={() => hasWords && navigation.navigate(game.key as any)}
         >
-          <View style={[styles.gameIcon, { backgroundColor: hasWords ? colors.accentGold + '22' : colors.borderLight }]}>
-            <Ionicons name={game.icon} size={20} color={hasWords ? colors.accentGold : colors.inkLight} />
+          <View style={[styles.gameIcon, { backgroundColor: hasWords ? game.tint + '1a' : colors.borderLight }]}>
+            <Ionicons name={game.icon} size={20} color={hasWords ? game.tint : colors.inkLight} />
           </View>
           <View style={styles.gameText}>
             <Text style={[styles.gameName, { color: hasWords ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>

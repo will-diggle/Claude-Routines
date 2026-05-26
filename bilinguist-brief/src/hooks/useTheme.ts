@@ -36,6 +36,12 @@ export function useTheme() {
       : Colors.borderMid,
     accentGold: Colors.accentGold,
     accentRed: Colors.accentRed,
+    // chrome = the paired accent ink for the current background
+    // (cream→navy, navy→cream, night→cream, white→inkDark)
+    chrome: background === 'cream' ? Colors.navyBg
+          : background === 'softGrey' ? Colors.cream
+          : background === 'night' ? Colors.cream
+          : Colors.inkDark,
     isNight,
   };
 

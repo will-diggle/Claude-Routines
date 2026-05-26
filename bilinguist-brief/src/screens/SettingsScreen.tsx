@@ -75,11 +75,11 @@ function levelSublabel(level: string, langCode: string): string | null {
     ? (HARDER_LABEL[langCode] ?? null)
     : (SCHOLAR_LABEL[langCode] ?? null);
 }
-const BACKGROUNDS: { key: BackgroundKey; label: string; color: string }[] = [
-  { key: 'white', label: 'White', color: Colors.white },
-  { key: 'cream', label: 'Cream', color: Colors.cream },
-  { key: 'softGrey', label: 'Navy', color: '#162032' },
-  { key: 'night', label: 'Night', color: Colors.night },
+const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: string }[] = [
+  { key: 'white',    label: 'White', color: Colors.white,   ink: Colors.inkDark },
+  { key: 'cream',    label: 'Cream', color: Colors.cream,   ink: Colors.navyBg  },
+  { key: 'softGrey', label: 'Navy',  color: '#162032',      ink: Colors.cream   },
+  { key: 'night',    label: 'Night', color: Colors.night,   ink: Colors.cream   },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
 const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
@@ -112,7 +112,7 @@ function SegmentedControl({
   colors,
   fontFamily,
 }: {
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; optionFontSize?: number }[];
   value: string;
   onChange: (v: string) => void;
   colors: any;
@@ -127,7 +127,7 @@ function SegmentedControl({
             key={opt.value}
             style={[
               segStyles.option,
-              selected && { backgroundColor: colors.inkDark },
+              selected && { backgroundColor: colors.chrome },
               i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
             ]}
             onPress={() => onChange(opt.value)}
@@ -135,7 +135,12 @@ function SegmentedControl({
             <Text
               style={[
                 segStyles.label,
-                { fontFamily: fontFamily.regular, color: selected ? '#FFF' : colors.inkMid },
+                {
+                  fontFamily: selected ? fontFamily.bold : fontFamily.regular,
+                  color: selected ? colors.bg : colors.inkMid,
+                  fontSize: opt.optionFontSize ?? 13,
+                  lineHeight: (opt.optionFontSize ?? 13) * 1.2,
+                },
               ]}
             >
               {opt.label}
@@ -405,22 +410,32 @@ export function SettingsScreen() {
       <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
 
       <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Background</Text>
-      <View style={styles.backgroundRow}>
-        {BACKGROUNDS.map((bg) => (
-          <TouchableOpacity
-            key={bg.key}
-            style={[
-              styles.bgSwatch,
-              { backgroundColor: bg.color, borderColor: store.background === bg.key ? colors.inkDark : colors.borderMid },
-              store.background === bg.key && styles.bgSwatchSelected,
-            ]}
-            onPress={() => store.setBackground(bg.key)}
-          >
-            <Text style={[styles.bgSwatchLabel, { color: (bg.key === 'night' || bg.key === 'softGrey') ? Colors.nightInkDark : Colors.inkMid }]}>
-              {bg.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={[styles.bgContainer, { borderColor: colors.borderMid }]}>
+        {BACKGROUNDS.map((bg, i) => {
+          const selected = store.background === bg.key;
+          return (
+            <TouchableOpacity
+              key={bg.key}
+              style={[
+                styles.bgSegment,
+                { backgroundColor: bg.color },
+                i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
+              ]}
+              onPress={() => store.setBackground(bg.key)}
+            >
+              <Text style={[styles.bgSegmentLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>
+                {bg.label}
+              </Text>
+              {/* Inset highlight border on selected segment */}
+              {selected && (
+                <View
+                  pointerEvents="none"
+                  style={[StyleSheet.absoluteFillObject, { borderWidth: 1.5, borderColor: bg.ink }]}
+                />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
@@ -448,7 +463,12 @@ export function SettingsScreen() {
 
       <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
       <SegmentedControl
-        options={FONT_SIZES.map((k) => ({ label: FontSizes[k].label, value: k }))}
+        options={[
+          { label: 'A', value: 'small',      optionFontSize: 11 },
+          { label: 'A', value: 'medium',     optionFontSize: 14 },
+          { label: 'A', value: 'large',      optionFontSize: 17 },
+          { label: 'A', value: 'extraLarge', optionFontSize: 20 },
+        ]}
         value={store.fontSize}
         onChange={(v) => store.setFontSize(v as FontSizeKey)}
         colors={colors}
@@ -653,22 +673,21 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     textTransform: 'uppercase',
   },
-  backgroundRow: {
+  bgContainer: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
     marginBottom: Spacing.sm,
   },
-  bgSwatch: {
+  bgSegment: {
     flex: 1,
-    height: 52,
-    borderRadius: 8,
-    borderWidth: 2,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bgSwatchSelected: { borderWidth: 2 },
-  bgSwatchLabel: { fontSize: 10, fontWeight: '500' },
+  bgSegmentLabel: { fontSize: 13 },
   fontRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -695,7 +714,7 @@ const tabStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingBottom: 9,
     alignItems: 'center',
-    borderBottomWidth: 2,
+    borderBottomWidth: 1,
     borderBottomColor: 'transparent',
     marginBottom: -StyleSheet.hairlineWidth,
   },
