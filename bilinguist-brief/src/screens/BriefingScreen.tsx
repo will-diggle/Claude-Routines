@@ -38,7 +38,7 @@ function resolveLength(level: LanguageLevel, readLength: ArticleLength): Article
   return level === 'A1' || level === 'A2' ? 'short' : readLength;
 }
 
-// Returns "Published: Monday 26 May 2026 · 05:47" (or bare date when no timestamp)
+// Returns "Published at Monday, 26 May 2026 · 05:47"
 function publishedDateStr(ts: number | null): string {
   const d = ts ? new Date(ts) : new Date();
   const datePart = d.toLocaleDateString('en-GB', {
@@ -46,7 +46,24 @@ function publishedDateStr(ts: number | null): string {
   });
   if (!ts) return datePart;
   const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `Published: ${datePart} · ${timePart}`;
+  return `Published at ${datePart} · ${timePart}`;
+}
+
+// Daily Roman numeral volume — increments by one each day.
+// Vol. I = 25 May 2026 (launch day); today = days since epoch + 1.
+const BRIEF_EPOCH_MS = new Date('2026-05-25T00:00:00Z').getTime();
+function toRoman(n: number): string {
+  const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+  const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+  let r = '';
+  for (let i = 0; i < vals.length; i++) {
+    while (n >= vals[i]) { r += syms[i]; n -= vals[i]; }
+  }
+  return r;
+}
+function dailyVol(): string {
+  const days = Math.floor((Date.now() - BRIEF_EPOCH_MS) / 86_400_000) + 1;
+  return `Vol. ${toRoman(Math.max(1, days))}`;
 }
 
 // Brand chrome colour: each background has a matching ink for rules and the lockup tint.
@@ -67,9 +84,10 @@ function hairlineColor(background: string): string {
 }
 
 function mastheadTagline(count: number): string {
-  if (count >= 3) return 'The trilingual morning brief';
-  if (count === 2) return 'The bilingual morning brief';
-  return 'The morning brief';
+  if (count >= 4) return 'Your multilingual brief';
+  if (count === 3) return 'Your trilingual brief';
+  if (count === 2) return 'Your bilingual brief';
+  return 'Your monolingual brief';
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -139,21 +157,15 @@ export function BriefingScreen() {
       }
     >
       {/* ══ Masthead ══════════════════════════════════════════════════════
-           Structure matches Common.jsx / tokens.jsx design spec:
-             Cities (centred, 9px, tracked uppercase)
-             2px rule (chrome)
-             1px hairline rule
-             Lockup PNG (full width, tinted to chrome)
-             [Published italic date  ·  Vol. II]
-             1px hairline rule
-             2px rule (chrome)
-             Tagline (14px bold, centred)
+           2px rule (chrome)
+           1px hairline rule
+           Lockup PNG (full width)
+           Cities (centred, 9px, tracked uppercase) — between lockup and meta
+           [Published at date  ·  Vol. N]  (non-italic, same tracked style)
+           1px hairline rule
+           2px rule (chrome)
+           Tagline (italic, "Your … brief")
           ═══════════════════════════════════════════════════════════════ */}
-
-      {/* Cities */}
-      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-        {locationStr}
-      </Text>
 
       {/* Top double rules */}
       <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
@@ -168,16 +180,21 @@ export function BriefingScreen() {
         />
       </View>
 
-      {/* Meta row: published italic date (left) · Vol. II (right) */}
+      {/* Cities — below lockup, evenly spaced above and below */}
+      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+        {locationStr}
+      </Text>
+
+      {/* Meta row: published date (left) · Vol. N (right), both non-italic */}
       <View style={styles.metaRow}>
         <Text
-          style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.italic }]}
+          style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
           numberOfLines={2}
         >
           {publishedDateStr(publishedAt)}
         </Text>
         <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          Vol. II
+          {dailyVol()}
         </Text>
       </View>
 
@@ -185,8 +202,8 @@ export function BriefingScreen() {
       <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
       <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
 
-      {/* Tagline */}
-      <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.bold }]}>
+      {/* Tagline — italic, personalised to language count */}
+      <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
         {taglineText}
       </Text>
 
@@ -242,15 +259,15 @@ const styles = StyleSheet.create({
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
 
   // ── Masthead ───────────────────────────────────────────────────────
-  // Cities line — centred, 9px, tracked uppercase, sits above the top rule
+  // Cities line — centred, 9px, tracked uppercase, sits between lockup and meta row
   cities: {
     width: SCREEN_WIDTH,
     textAlign: 'center',
     fontSize: 9,
-    letterSpacing: 2.5,   // ≈ 0.28em at 9px
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingTop: 5,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
 
   // Lockup image wrapper — full width, horizontal padding matches RevealMasthead
@@ -277,7 +294,6 @@ const styles = StyleSheet.create({
   metaDate: {
     flex: 1,
     fontSize: 10,
-    fontStyle: 'italic',
     opacity: 0.6,
     lineHeight: 14,
   },
@@ -287,10 +303,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // Tagline — bold, centred, below the bottom rule
+  // Tagline — italic, centred, below the bottom rule
   tagline: {
     width: SCREEN_WIDTH,
     fontSize: 14,
+    fontStyle: 'italic',
     textAlign: 'center',
     paddingTop: 8,
     paddingBottom: 6,
