@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout app repo
         uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
 
       - name: Notify — started
         run: |
