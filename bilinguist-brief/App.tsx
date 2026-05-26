@@ -11,10 +11,10 @@ import {
   PlayfairDisplay_400Regular_Italic,
 } from '@expo-google-fonts/playfair-display';
 import {
-  PTSerif_400Regular,
-  PTSerif_700Bold,
-  PTSerif_400Regular_Italic,
-} from '@expo-google-fonts/pt-serif';
+  EBGaramond_400Regular,
+  EBGaramond_700Bold,
+  EBGaramond_400Regular_Italic,
+} from '@expo-google-fonts/eb-garamond';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
@@ -48,9 +48,9 @@ export default function App() {
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
     PlayfairDisplay_400Regular_Italic,
-    PTSerif_400Regular,
-    PTSerif_700Bold,
-    PTSerif_400Regular_Italic,
+    EBGaramond_400Regular,
+    EBGaramond_700Bold,
+    EBGaramond_400Regular_Italic,
   });
 
   if (!fontsLoaded) {

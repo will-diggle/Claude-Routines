@@ -44,26 +44,33 @@ export const BackgroundColors: Record<BackgroundKey, string> = {
   night: Colors.night,
 };
 
-export type FontFamilyKey = 'georgia' | 'playfair' | 'ptserif';
+export type FontFamilyKey = 'playfair' | 'garamond' | 'times' | 'georgia';
 
 export const FontFamilies: Record<FontFamilyKey, { regular: string; bold: string; italic: string; label: string }> = {
-  georgia: {
-    regular: 'Georgia',
-    bold: 'Georgia-Bold',
-    italic: 'Georgia-Italic',
-    label: 'Georgia',
-  },
   playfair: {
     regular: 'PlayfairDisplay_400Regular',
     bold: 'PlayfairDisplay_700Bold',
     italic: 'PlayfairDisplay_400Regular_Italic',
     label: 'Playfair Display',
   },
-  ptserif: {
-    regular: 'PTSerif_400Regular',
-    bold: 'PTSerif_700Bold',
-    italic: 'PTSerif_400Regular_Italic',
-    label: 'PT Serif',
+  garamond: {
+    regular: 'EBGaramond_400Regular',
+    bold: 'EBGaramond_700Bold',
+    italic: 'EBGaramond_400Regular_Italic',
+    label: 'EB Garamond',
+  },
+  // Times New Roman is a native iOS system font; falls back to default serif on Android.
+  times: {
+    regular: 'TimesNewRomanPSMT',
+    bold: 'TimesNewRomanPS-BoldMT',
+    italic: 'TimesNewRomanPS-ItalicMT',
+    label: 'Times New Roman',
+  },
+  georgia: {
+    regular: 'Georgia',
+    bold: 'Georgia-Bold',
+    italic: 'Georgia-Italic',
+    label: 'Georgia',
   },
 };
 

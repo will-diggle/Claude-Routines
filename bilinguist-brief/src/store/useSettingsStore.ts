@@ -177,6 +177,10 @@ export const useSettingsStore = create<SettingsStore>()(
         if (!(state as any).readLength) {
           state.readLength = 'medium';
         }
+        // Migrate old ptserif → garamond (PT Serif removed; EB Garamond is the replacement)
+        if ((state as any).fontFamily === 'ptserif') {
+          state.fontFamily = 'garamond';
+        }
       },
     }
   )

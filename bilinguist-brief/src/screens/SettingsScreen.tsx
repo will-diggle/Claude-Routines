@@ -424,7 +424,7 @@ export function SettingsScreen() {
       </View>
 
       <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
-      {(['georgia', 'playfair', 'ptserif'] as FontFamilyKey[]).map((key) => {
+      {(['playfair', 'garamond', 'times', 'georgia'] as FontFamilyKey[]).map((key) => {
         const fam = FontFamilies[key];
         const selected = store.fontFamily === key;
         return (
