@@ -1,10 +1,9 @@
 name: Generate Daily Briefings
 
 on:
-  schedule:
-    # 04:30 UTC — 04:30 GMT in winter, 05:30 BST in summer
-    - cron: '30 4 * * *'
-  # Manual trigger for testing
+  # Triggered daily by cron-job.org at 06:30 Europe/Vienna (CEST/CET).
+  # cron-job.org POSTs to the GitHub dispatches API — more reliable than
+  # GitHub's own scheduler which can be delayed by up to 60 minutes.
   workflow_dispatch:
 
 jobs:
