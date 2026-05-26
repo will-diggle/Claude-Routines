@@ -3,13 +3,13 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
-export type LanguageCode = 'fr' | 'de' | 'en' | 'es' | 'it';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'es' | 'it' | 'sv';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
 // User-facing depth choice. Only applies to B1+ levels.
 // A1/A2 always generate at 'short' regardless of this setting.
-export type ReadLength = 'medium' | 'longer';
+export type ReadLength = 'short' | 'medium' | 'longer';
 
 export interface LanguagePreference {
   code: LanguageCode;
@@ -25,6 +25,12 @@ export interface Topics {
   goodNews: boolean;
   politics: boolean;
   business: boolean;
+  scienceTech: boolean;
+  artsCulture: boolean;
+  asia: boolean;
+  europe: boolean;
+  middleEast: boolean;
+  africa: boolean;
   [key: string]: boolean;
 }
 
@@ -64,11 +70,12 @@ const ALL_LANGUAGES: LanguagePreference[] = [
   { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', active: false },
   { code: 'es', name: 'Spanish', nativeName: 'Español',  flag: '🇪🇸', level: 'A1', active: false },
   { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', active: false },
+  { code: 'sv', name: 'Swedish', nativeName: 'Svenska',  flag: '🇸🇪', level: 'A2', active: false },
   { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'C1', active: true  },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'worldNews', 'politics', 'business', 'goodNews',
+  'worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'asia', 'europe', 'middleEast', 'africa', 'goodNews',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -76,9 +83,15 @@ const DEFAULT_SETTINGS: Settings = {
   displayLanguage: 'en',
   topics: {
     worldNews: true,
-    goodNews: true,
     politics: true,
     business: true,
+    scienceTech: true,
+    artsCulture: true,
+    asia: true,
+    europe: true,
+    middleEast: true,
+    africa: true,
+    goodNews: true,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
   readLength: 'medium',
@@ -164,12 +177,10 @@ export const useSettingsStore = create<SettingsStore>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        // Remove parked topics (sport, countryNews, scienceTech, artsCulture) that were in older builds
-        const VALID = new Set(['worldNews', 'politics', 'business', 'goodNews']);
+        const VALID = new Set(['worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'asia', 'europe', 'middleEast', 'africa', 'goodNews']);
         const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => VALID.has(k));
         VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
         state.topicOrder = cleanOrder;
-        // Ensure topics object has exactly the valid keys
         const cleanTopics: any = {};
         VALID.forEach((k) => { cleanTopics[k] = state.topics?.[k] !== false; });
         state.topics = cleanTopics;

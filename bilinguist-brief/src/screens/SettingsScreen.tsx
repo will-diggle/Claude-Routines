@@ -41,6 +41,7 @@ const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
   de: ['A1', 'A2', 'B1'],
   es: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
   it: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  sv: ['A1', 'A2', 'B1', 'B2', 'C1'],
 };
 // Label shown on the NATIVE_WRITING_LEVEL row — in the target language
 const NATIVE_LABEL: Record<string, string> = {
@@ -49,6 +50,7 @@ const NATIVE_LABEL: Record<string, string> = {
   de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
   es: `${NATIVE_WRITING_LEVEL} / Nativo`,
   it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
+  sv: `${NATIVE_WRITING_LEVEL} / Modersmål`,
 };
 // Sub-labels for levels above NATIVE_WRITING_LEVEL, in the target language.
 // "harder" = one step above native; "scholar" = two+ steps above.
@@ -58,6 +60,7 @@ const HARDER_LABEL: Record<string, string> = {
   de: 'Schwerer als muttersprachlich',
   es: 'Más difícil que lo natural',
   it: 'Più difficile del naturale',
+  sv: 'Svårare än naturligt',
 };
 const SCHOLAR_LABEL: Record<string, string> = {
   en: 'Literature scholar',
@@ -65,6 +68,7 @@ const SCHOLAR_LABEL: Record<string, string> = {
   de: 'Literaturwissenschaftler',
   es: 'Erudito literario',
   it: 'Studioso di letteratura',
+  sv: 'Litteraturvetare',
 };
 function levelSublabel(level: string, langCode: string): string | null {
   const nativeIdx = LEVEL_ORDER.indexOf(NATIVE_WRITING_LEVEL as typeof LEVEL_ORDER[number]);
@@ -83,10 +87,16 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: stri
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
 const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
-  { key: 'worldNews', label: 'Global News' },
-  { key: 'politics',  label: 'Politics' },
-  { key: 'business',  label: 'Business & Economy' },
-  { key: 'goodNews',  label: 'Good News' },
+  { key: 'worldNews',  label: 'Global News' },
+  { key: 'politics',   label: 'Politics' },
+  { key: 'business',   label: 'Business & Economy' },
+  { key: 'scienceTech',label: 'Science & Technology' },
+  { key: 'artsCulture',label: 'Arts & Culture' },
+  { key: 'asia',       label: 'Asia' },
+  { key: 'europe',     label: 'Europe' },
+  { key: 'middleEast', label: 'Middle East' },
+  { key: 'africa',     label: 'Africa' },
+  { key: 'goodNews',   label: 'Good News' },
 ];
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
@@ -282,11 +292,11 @@ export function SettingsScreen() {
       <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
       <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        Toggle any language on. More languages coming soon.
+        Toggle languages on to include them in your briefing.
       </Text>
 
       <DraggableList
-        items={store.languages.filter((l) => l.code === 'en' || l.code === 'fr' || l.code === 'de')}
+        items={store.languages}
         keyExtractor={(lang) => lang.code}
         itemHeight={56}
         onReorder={store.reorderLanguages}
@@ -355,8 +365,9 @@ export function SettingsScreen() {
       <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Article Depth</Text>
       <SegmentedControl
         options={[
-          { label: 'Medium', value: 'medium' },
-          { label: 'Longer', value: 'longer' },
+          { label: 'Concise',   value: 'short' },
+          { label: 'Balanced',  value: 'medium' },
+          { label: 'Long-form', value: 'longer' },
         ]}
         value={store.readLength}
         onChange={(v) => store.setReadLength(v as ReadLength)}
@@ -364,7 +375,7 @@ export function SettingsScreen() {
         fontFamily={fontFamily}
       />
       <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: 4 }]}>
-        A1/A2 articles are always short regardless of this setting.
+        Beginner levels always receive Concise regardless of this setting.
       </Text>
 
       <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>

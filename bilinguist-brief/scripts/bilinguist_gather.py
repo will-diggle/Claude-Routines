@@ -1,0 +1,193 @@
+"""
+bilinguist_gather.py
+====================
+Stage 1 of the Bilinguist Brief daily pipeline.
+
+Calls Google Gemini 2.5 Pro via the Flex service tier to gather today's
+news and produce a structured, neutral JSON fact-base.
+
+Flex tier: 50% discount on input/output tokens.
+Response time: 1–15 minutes (acceptable for background editorial deadline).
+Web search: enabled via Google Search grounding tool.
+
+Usage:
+    python bilinguist_gather.py
+
+Requirements:
+    pip install google-genai
+    export GEMINI_API_KEY=your_key_from_aistudio.google.com
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+from google import genai
+from google.genai import types
+
+
+# ── Configuration ────────────────────────────────────────────────────────────
+
+MODEL = "gemini-2.5-pro-preview-05-06"   # flagship reasoning model
+PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
+TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
+OUTPUT_FILE = f"factbase_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def load_prompt(path: str) -> str:
+    """Load the system prompt from a local markdown file."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    full_path = os.path.join(script_dir, path)
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(
+            f"Prompt file not found: {full_path}\n"
+            "Make sure gemini_prompt_brief.md is in the scripts/ directory."
+        )
+    with open(full_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def inject_date(prompt: str) -> str:
+    """Replace the {DATE} placeholder with today's UTC date."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return prompt.replace("{DATE}", today)
+
+
+def parse_llm_json(raw: str) -> dict | None:
+    """
+    Extract and parse a JSON object from LLM output.
+    Tolerates markdown code fences, preamble, and trailing text.
+    Fails soft — returns None rather than raising on bad output.
+    """
+    if not raw:
+        return None
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        print("[parse] WARNING: No JSON object found in response.", file=sys.stderr)
+        return None
+    candidate = raw[start:end + 1]
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as e:
+        print(f"[parse] WARNING: JSON decode failed — {e}", file=sys.stderr)
+        return None
+
+
+def validate_story(story: dict) -> dict:
+    """
+    Ensure all required array fields are present.
+    Coerces missing or null fields to [] rather than crashing.
+    Logs a warning per coerced field so prompt drift is visible.
+    """
+    array_fields = [
+        "what_happened", "attribution", "verified",
+        "contested", "numbers", "proper_nouns", "key_terms"
+    ]
+    for field in array_fields:
+        if not isinstance(story.get(field), list):
+            print(
+                f"[validate] WARNING: story '{story.get('slug', '?')}' "
+                f"missing or invalid field '{field}' — coercing to []",
+                file=sys.stderr
+            )
+            story[field] = []
+    return story
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
+
+    # 1. Load and prepare the prompt
+    raw_prompt = load_prompt(PROMPT_FILE)
+    prompt = inject_date(raw_prompt)
+    print(f"[gather] Prompt loaded from '{PROMPT_FILE}' ({len(prompt)} chars)")
+
+    # 2. Initialise the Gemini client
+    client = genai.Client(
+        http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS)
+    )
+    print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s)")
+
+    # 3. Build the generation config
+    #    - google_search tool: enables live web search grounding
+    #    - service_tier='flex': 50% discount on input/output tokens
+    #    - temperature 0.1: factual consistency
+    #    NOTE: do NOT set response_mime_type='application/json' — this disables search grounding
+    config = types.GenerateContentConfig(
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+        temperature=0.1,
+        service_tier="flex",
+    )
+
+    # 4. Fire the request
+    print(f"[gather] Sending request to {MODEL} via Flex tier (may take 1–15 min)...")
+    try:
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=config,
+        )
+    except Exception as e:
+        print(f"[gather] ERROR: Gemini request failed — {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # 5. Extract raw text
+    raw_output = response.text
+    if not raw_output:
+        print("[gather] ERROR: Empty response from Gemini.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[gather] Response received ({len(raw_output)} chars)")
+
+    # 6. Parse JSON
+    parsed = parse_llm_json(raw_output)
+    if not parsed or not isinstance(parsed.get("factbase"), list):
+        print("[gather] ERROR: Response did not contain a valid factbase array.", file=sys.stderr)
+        print("[gather] Raw output (first 500 chars):", raw_output[:500], file=sys.stderr)
+        sys.exit(1)
+
+    factbase = parsed["factbase"]
+    print(f"[gather] Parsed {len(factbase)} stories from factbase")
+
+    # 7. Validate every story
+    factbase = [validate_story(story) for story in factbase]
+
+    # 8. Log cross-reference scores for Global News stories (editorial audit)
+    global_stories = [s for s in factbase if s.get("genre") == "GLOBAL NEWS"]
+    if global_stories:
+        print(f"[gather] Global News cross-reference scores:")
+        for s in sorted(global_stories, key=lambda x: x.get("cross_reference_score", {}).get("rank", 99)):
+            score = s.get("cross_reference_score", {})
+            print(
+                f"  Rank {score.get('rank', '?')}: {s.get('slug', '?')} "
+                f"— {score.get('total', '?')} outlets: {score.get('outlets_covering', [])}"
+            )
+
+    # 9. Write output to file
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_path = os.path.join(script_dir, OUTPUT_FILE)
+    output = {
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "model": MODEL,
+        "service_tier": "flex",
+        "story_count": len(factbase),
+        "factbase": factbase
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False, indent=2)
+
+    print(f"[gather] Factbase written to '{output_path}'")
+    print(f"[gather] Done. {len(factbase)} stories across "
+          f"{len(set(s.get('genre') for s in factbase))} genres.")
+
+
+if __name__ == "__main__":
+    main()

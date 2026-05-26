@@ -23,29 +23,32 @@ jobs:
             -d "Daily briefing generation started for $(date -u +%Y-%m-%d). Usually ready in 20–30 minutes." \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: bilinguist-brief/package-lock.json
+          python-version: '3.12'
 
-      - name: Install dependencies
-        working-directory: bilinguist-brief
-        run: npm install
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
 
-      - name: Generate briefings bundle
-        working-directory: bilinguist-brief
+      - name: Stage 1 — Gather news (Gemini Flex + search)
+        working-directory: bilinguist-brief/scripts
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: npx tsx scripts/generate-briefings.ts
+        run: python bilinguist_gather.py
+
+      - name: Stages 2–4 — Write and grade (Gemini Batch)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python bilinguist_write.py
 
       - name: Push bundle to data repo
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
         run: |
-          DATE=$(node -e "process.stdout.write(new Date().toISOString().split('T')[0])")
+          DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")
 
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
 

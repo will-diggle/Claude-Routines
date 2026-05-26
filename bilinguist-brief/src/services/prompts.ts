@@ -15,6 +15,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   de: 'German (Deutsch)',
   es: 'Spanish (Español)',
   it: 'Italian (Italiano)',
+  sv: 'Swedish (Svenska)',
 };
 
 export const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {

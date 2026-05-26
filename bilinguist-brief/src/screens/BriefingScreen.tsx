@@ -28,12 +28,13 @@ const LANG_CITY: Record<string, string> = {
   de: 'Berlin',
   es: 'Madrid',
   it: 'Rome',
+  sv: 'Stockholm',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// A1/A2 always use 'short'; B1+ use the user's chosen read length.
-function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): ArticleLength {
+// TODO: length-per-level policy — A1/A2 always Concise for now; revisit if we want user choice at beginner levels
+function resolveLength(level: LanguageLevel, readLength: ArticleLength): ArticleLength {
   return level === 'A1' || level === 'A2' ? 'short' : readLength;
 }
 

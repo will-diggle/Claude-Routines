@@ -11,23 +11,31 @@ import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 
 // Maps the genre strings the API returns to settings topic keys
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
-  'GLOBAL NEWS': 'worldNews',
-  'POLITICS': 'politics',
-  'BUSINESS & ECONOMY': 'business',
-  'SCIENCE & TECHNOLOGY': 'scienceTech',
-  'ARTS & CULTURE': 'artsCulture',
-  'GOOD NEWS': 'goodNews',
+  'GLOBAL NEWS':          'worldNews',
+  'POLITICS':             'politics',
+  'BUSINESS & ECONOMY':  'business',
+  'SCIENCE & TECHNOLOGY':'scienceTech',
+  'ARTS & CULTURE':      'artsCulture',
+  'ASIA':                'asia',
+  'EUROPE':              'europe',
+  'MIDDLE EAST':         'middleEast',
+  'AFRICA':              'africa',
+  'GOOD NEWS':           'goodNews',
 };
 
 // Genre labels translated into each supported language.
 // The API always returns genre in English — we translate on the display side.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
-  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',       fr: 'ACTUALITÉS MONDIALES', de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI'     },
-  'POLITICS':             { en: 'POLITICS',           fr: 'POLITIQUE',            de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA'             },
-  'BUSINESS & ECONOMY':   { en: 'BUSINESS & ECONOMY', fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA'             },
-  'SCIENCE & TECHNOLOGY': { en: 'SCIENCES & TECH',    fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA'    },
-  'ARTS & CULTURE':       { en: 'ARTS & CULTURE',     fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA'       },
-  'GOOD NEWS':            { en: 'GOOD NEWS',          fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE'        },
+  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES', de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER'       },
+  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',            de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK'             },
+  'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA',              sv: 'EKONOMI'             },
+  'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK'  },
+  'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR'              },
+  'ASIA':                { en: 'ASIA',                fr: 'ASIE',                 de: 'ASIEN',                   es: 'ASIA',                  it: 'ASIA',                  sv: 'ASIEN'               },
+  'EUROPE':              { en: 'EUROPE',              fr: 'EUROPE',               de: 'EUROPA',                  es: 'EUROPA',                it: 'EUROPA',                sv: 'EUROPA'              },
+  'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN'        },
+  'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA'              },
+  'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER'        },
 };
 
 function translateGenre(genre: string, lang: LanguageCode): string {
@@ -39,10 +47,14 @@ function translateGenre(genre: string, lang: LanguageCode): string {
 const GENRE_COLORS: Record<string, string> = {
   'GLOBAL NEWS':          '#4A6FA5',
   'POLITICS':             '#8B1A1A',
-  'BUSINESS & ECONOMY':   '#1E6B3A',
-  'SCIENCE & TECHNOLOGY': '#005F73',
-  'ARTS & CULTURE':       '#6A1B9A',
-  'GOOD NEWS':            '#2E7D32',
+  'BUSINESS & ECONOMY':  '#1E6B3A',
+  'SCIENCE & TECHNOLOGY':'#005F73',
+  'ARTS & CULTURE':      '#6A1B9A',
+  'ASIA':                '#7B4F3A',
+  'EUROPE':              '#3D5A80',
+  'MIDDLE EAST':         '#8B5E3C',
+  'AFRICA':              '#9B6B0C',
+  'GOOD NEWS':           '#2E7D32',
 };
 
 function genreColor(genre: string): string {
@@ -57,6 +69,7 @@ const NATIVE_LEVEL_LABEL: Record<LanguageCode, string> = {
   de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
   es: `${NATIVE_WRITING_LEVEL} / Nativo`,
   it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
+  sv: `${NATIVE_WRITING_LEVEL} / Modersmål`,
 };
 
 interface Props {
