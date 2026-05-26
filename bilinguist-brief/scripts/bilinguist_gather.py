@@ -41,6 +41,7 @@ MODEL_CANDIDATES = [
 
 PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
 TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
+TIMEOUT_MS      = TIMEOUT_SECONDS * 1000 # HttpOptions.timeout is in milliseconds
 OUTPUT_FILE = f"factbase_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
 
 
@@ -147,9 +148,9 @@ def main():
 
     # 2. Initialise the Gemini client
     client = genai.Client(
-        http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS)
+        http_options=types.HttpOptions(timeout=TIMEOUT_MS)
     )
-    print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s)")
+    print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s / {TIMEOUT_MS}ms)")
 
     # 2b. Resolve the best available model
     MODEL = resolve_model(client)
