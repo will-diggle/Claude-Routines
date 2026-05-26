@@ -29,7 +29,7 @@ from google.genai import types
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-MODEL = "gemini-2.5-pro-preview-05-06"   # flagship reasoning model
+MODEL = "gemini-2.5-pro-preview"   # stable alias — always current preview version
 PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
 TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
 OUTPUT_FILE = f"factbase_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
