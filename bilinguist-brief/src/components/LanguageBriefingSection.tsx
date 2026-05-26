@@ -146,15 +146,9 @@ export function LanguageBriefingSection({
 
       {!isGenerating && error && (
         <View style={styles.centerBlock}>
-          <Ionicons name="alert-circle-outline" size={36} color={colors.inkFaint} />
-          <Text style={[styles.errorText, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+          <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             {error}
           </Text>
-          <TouchableOpacity style={[styles.button, { borderColor: colors.borderMid }]} onPress={onRetry}>
-            <Text style={[styles.buttonText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-              Try again
-            </Text>
-          </TouchableOpacity>
         </View>
       )}
 

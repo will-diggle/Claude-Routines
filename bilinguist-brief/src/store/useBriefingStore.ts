@@ -21,7 +21,7 @@ function todayString(): string {
 }
 
 const NOT_READY_MESSAGE =
-  "Today's briefing is generated at 04:30 UTC. If it's before then, check back shortly after — it usually arrives within 30 minutes.";
+  "Today's briefing isn't ready yet — check back shortly after 06:30.";
 
 interface BriefingStore {
   briefings: Partial<Record<LanguageCode, GeneratedBriefing>>;
