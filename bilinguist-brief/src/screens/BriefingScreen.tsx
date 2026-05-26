@@ -10,10 +10,13 @@ import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import type { ArticleLength } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 
-// Pre-composed masthead lockup per background mode.
-// TODO: replace with require('../../assets/masthead-{theme}.png') when those assets land.
-// For now, tint the single logotype PNG to the chrome colour for each theme.
-const LOGOTYPE = require('../../assets/logotype.png');
+// Pre-composed masthead lockups — one per background mode, colours baked in.
+const MASTHEADS: Record<string, ReturnType<typeof require>> = {
+  cream:    require('../../assets/masthead-cream.png'),
+  softGrey: require('../../assets/masthead-navy.png'),
+  white:    require('../../assets/masthead-white.png'),
+  night:    require('../../assets/masthead-black.png'),
+};
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -155,11 +158,11 @@ export function BriefingScreen() {
       <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
       <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
-      {/* Lockup — tinted logotype.png; swap with themed PNG when assets land */}
+      {/* Lockup — pre-composed masthead PNG, colours baked in per theme */}
       <View style={styles.lockupWrap}>
         <Image
-          source={LOGOTYPE}
-          style={[styles.lockup, { tintColor: chrome }]}
+          source={MASTHEADS[background] ?? MASTHEADS.cream}
+          style={styles.lockup}
           resizeMode="contain"
         />
       </View>

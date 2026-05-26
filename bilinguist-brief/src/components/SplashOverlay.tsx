@@ -27,20 +27,21 @@ import type { BackgroundKey } from '../theme';
 
 // ── Assets ───────────────────────────────────────────────────────────────────
 
-// Single-colour crest used now (tinted at runtime).
-// When the pre-composed splash-crest-*.png assets land, replace this
-// block with the CRESTS map and update the crestSource lookup below.
-const CREST_FALLBACK = require('../../assets/logomark.png');
+// Pre-composed splash crests — one per background mode
+const CRESTS: Record<BackgroundKey, ReturnType<typeof require>> = {
+  cream:    require('../../assets/splash-crest-cream.png'),
+  softGrey: require('../../assets/splash-crest-navy.png'),
+  white:    require('../../assets/splash-crest-white.png'),
+  night:    require('../../assets/splash-crest-black.png'),
+};
 
-// Uncomment once splash-crest-*.png files are in assets/:
-// const CRESTS: Record<BackgroundKey, ReturnType<typeof require>> = {
-//   cream:    require('../../assets/splash-crest-cream.png'),
-//   softGrey: require('../../assets/splash-crest-navy.png'),
-//   white:    require('../../assets/splash-crest-white.png'),
-//   night:    require('../../assets/splash-crest-black.png'),
-// };
-
-const LOGOTYPE = require('../../assets/logotype.png');
+// Pre-composed masthead lockups — one per background mode
+const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
+  cream:    require('../../assets/masthead-cream.png'),
+  softGrey: require('../../assets/masthead-navy.png'),
+  white:    require('../../assets/masthead-white.png'),
+  night:    require('../../assets/masthead-black.png'),
+};
 
 // ── Theme map ─────────────────────────────────────────────────────────────────
 // Brand pairing rule: cream↔navy, white↔inkDark, night↔cream
@@ -138,7 +139,7 @@ export function SplashOverlay({ onDone }: Props) {
 
       {/* ── Reveal layer — masthead preview, fades in after the dive ── */}
       <Animated.View style={[styles.revealLayer, { opacity: revealOpacity, backgroundColor: t.bg }]}>
-        <RevealMasthead t={t} />
+        <RevealMasthead t={t} background={background} />
       </Animated.View>
 
       {/* ── Splash cover — dives away ─────────────────────────────── */}
@@ -157,15 +158,13 @@ export function SplashOverlay({ onDone }: Props) {
           style={[styles.ruleInner, styles.ruleTopInner, { backgroundColor: t.hair, transform: [{ scaleX: topInnerScaleX }] }]}
         />
 
-        {/* Crest — slow zoom in.
-            Switch tintColor → crestSource when pre-composed PNGs land:
-              const crestSource = CRESTS[background as BackgroundKey] ?? CRESTS.cream; */}
+        {/* Crest — slow zoom in */}
         <Animated.View
           style={[styles.crestWrap, { opacity: crestOpacity, transform: [{ scale: crestScale }] }]}
         >
           <Image
-            source={CREST_FALLBACK}
-            style={[styles.crest, { tintColor: t.ink }]}
+            source={CRESTS[background as BackgroundKey] ?? CRESTS.cream}
+            style={styles.crest}
             resizeMode="contain"
           />
         </Animated.View>
@@ -197,9 +196,9 @@ export function SplashOverlay({ onDone }: Props) {
 
 // ── RevealMasthead ─────────────────────────────────────────────────────────────
 
-interface RevealProps { t: { bg: string; ink: string; hair: string } }
+interface RevealProps { t: { bg: string; ink: string; hair: string }; background: string }
 
-function RevealMasthead({ t }: RevealProps) {
+function RevealMasthead({ t, background }: RevealProps) {
   const d       = new Date();
   const datePart = d.toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -212,7 +211,11 @@ function RevealMasthead({ t }: RevealProps) {
       <View style={[rm.ruleOuter, { backgroundColor: t.ink }]} />
       <View style={[rm.ruleHairline, { backgroundColor: t.hair }]} />
       <View style={rm.lockupPad}>
-        <Image source={LOGOTYPE} style={[rm.lockup, { tintColor: t.ink }]} resizeMode="contain" />
+        <Image
+          source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
+          style={rm.lockup}
+          resizeMode="contain"
+        />
       </View>
       <View style={rm.metaRow}>
         <Text style={[rm.date, { color: t.ink }]}>Published: {datePart} · {timePart}</Text>
