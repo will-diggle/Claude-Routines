@@ -343,10 +343,16 @@ def build_grading_prompt(lang: str, native_articles: list) -> str:
 # ── Batch helpers ─────────────────────────────────────────────────────────────
 
 def make_batch_request(prompt: str, model: str) -> dict:
-    """Build a single inline batch request dict."""
+    """
+    Build a single InlinedRequestDict for the Gemini Batch API.
+
+    SDK shape (google-genai ≥ 1.10):
+        client.batches.create(model=..., src=[InlinedRequestDict, ...])
+    Each InlinedRequestDict has 'contents' and 'config' (NOT 'generation_config').
+    """
     return {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generation_config": {
+        "config": {
             "temperature": 0.1,
             "response_mime_type": "application/json",
         },
@@ -358,7 +364,7 @@ def submit_batch(client: genai.Client, model: str, requests: list, label: str) -
     print(f"[{label}] Submitting {len(requests)} requests to {model}...")
     batch_job = client.batches.create(
         model=model,
-        inline_config={"requests": requests},
+        src=requests,    # list of InlinedRequestDict
     )
     print(f"[{label}] Batch submitted — name: {batch_job.name}")
     return batch_job
@@ -400,8 +406,10 @@ def wait_for_batches(
 
 
 def get_inline_responses(job: object) -> list:
-    """Extract inline responses from a completed batch job."""
-    return list(getattr(job, "inline_responses", []) or [])
+    """Extract inline responses from a completed batch job.
+    SDK field is 'inlined_responses' (with 'd'), not 'inline_responses'.
+    """
+    return list(getattr(job, "inlined_responses", []) or [])
 
 
 def extract_text(response) -> Optional[str]:
