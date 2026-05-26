@@ -2,14 +2,6 @@
 // Animation sequence ported from ui_kits/mobile_app/SplashScreen.html.
 // Reads the user's current background setting so the crest and colours
 // match the theme they chose last session.
-//
-// ASSET TODO — drop these four files into bilinguist-brief/assets/ and
-// uncomment the CRESTS map below to switch from tinted logomark to the
-// pre-composed PNGs:
-//   splash-crest-cream.png   (navy crest on cream)
-//   splash-crest-navy.png    (cream crest on navy)
-//   splash-crest-white.png   (dark crest on white)
-//   splash-crest-black.png   (white crest on black / night)
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import {
@@ -27,13 +19,11 @@ import type { BackgroundKey } from '../theme';
 
 // ── Assets ───────────────────────────────────────────────────────────────────
 
-// Pre-composed splash crests — one per background mode
-const CRESTS: Record<BackgroundKey, ReturnType<typeof require>> = {
-  cream:    require('../../assets/splash-crest-cream.png'),
-  softGrey: require('../../assets/splash-crest-navy.png'),
-  white:    require('../../assets/splash-crest-white.png'),
-  night:    require('../../assets/splash-crest-black.png'),
-};
+// Use the lightweight logomark (153 KB) for the splash crest.
+// The pre-composed splash-crest PNGs (5–9 MB each) take longer than the
+// animation window to decode over a network connection, so the crest
+// would never appear before the dive transition completes.
+const LOGOMARK = require('../../assets/logomark.png');
 
 // Pre-composed masthead lockups — one per background mode
 const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
@@ -183,12 +173,13 @@ export function SplashOverlay({ onDone }: Props) {
           style={[styles.ruleInner, styles.ruleTopInner, { backgroundColor: t.hair, transform: [{ scaleX: topInnerScaleX }] }]}
         />
 
-        {/* Crest — zooms in once the PNG has decoded (onLoadEnd) */}
+        {/* Crest — zooms in on mount. Uses lightweight logomark (153 KB)
+            so it decodes well before the 2.1 s dive transition. */}
         <Animated.View
           style={[styles.crestWrap, { opacity: crestOpacity, transform: [{ scale: crestScale }] }]}
         >
           <Image
-            source={CRESTS[background as BackgroundKey] ?? CRESTS.cream}
+            source={LOGOMARK}
             style={styles.crest}
             resizeMode="contain"
             onLoadEnd={() => {

@@ -192,6 +192,20 @@ export const useSettingsStore = create<SettingsStore>()(
         if ((state as any).fontFamily === 'ptserif') {
           state.fontFamily = 'garamond';
         }
+        // Migrate languages: remove es/it (not in pipeline), ensure sv is present
+        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en']);
+        const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
+        const presentCodes = new Set(filtered.map((l) => l.code));
+        ALL_LANGUAGES.forEach((l) => {
+          if (!presentCodes.has(l.code)) filtered.push(l);
+        });
+        // Restore canonical order: fr, de, sv, en
+        const order = ['fr', 'de', 'sv', 'en'];
+        state.languages = order.map((c) => filtered.find((l) => l.code === c)!).filter(Boolean);
+        // If the display language was es/it, fall back to the first active language
+        if (!VALID_CODES.has(state.displayLanguage)) {
+          state.displayLanguage = state.languages.find((l) => l.active)?.code ?? 'en';
+        }
       },
     }
   )

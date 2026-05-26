@@ -87,27 +87,15 @@ export function TopBar({ routeName }: Props) {
   }
 
   // ── Compact header — Settings / Practice ────────────────────────────────────
-  // Shows the themed masthead lockup (logomark + logotype in the correct ink
-  // for the current background) with a small logomark on the left for balance.
+  // Shows only the themed masthead lockup, centred, no extra marks.
   return (
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <View style={styles.compactRow}>
-        {/* Logomark — left anchor */}
         <Image
-          source={LOGOMARK}
-          style={[styles.compactMark, imageStyle]}
+          source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
+          style={[styles.compactLockup, imageStyle]}
           resizeMode="contain"
         />
-        {/* Themed masthead lockup — centred */}
-        <View style={styles.compactLockupWrap}>
-          <Image
-            source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
-            style={styles.compactLockup}
-            resizeMode="contain"
-          />
-        </View>
-        {/* Right spacer mirrors left logomark for visual balance */}
-        <View style={{ width: COMPACT_MARK_W }} />
       </View>
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
     </View>
