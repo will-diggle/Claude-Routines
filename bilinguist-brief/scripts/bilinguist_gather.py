@@ -29,7 +29,16 @@ from google.genai import types
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-MODEL = "gemini-2.5-pro-preview"   # stable alias — always current preview version
+# Priority list — first name found in the API's model list wins.
+# Google rotates preview model IDs frequently; this list auto-adapts.
+MODEL_CANDIDATES = [
+    "gemini-2.5-pro",                    # GA stable (available once out of preview)
+    "gemini-2.5-pro-preview",            # Latest preview alias (when live)
+    "gemini-2.5-pro-preview-06-05",      # June 5 preview drop
+    "gemini-2.5-pro-preview-05-06",      # May 6 preview drop
+    "gemini-2.5-flash",                  # Flash fallback — still capable for gathering
+]
+
 PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
 TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
 OUTPUT_FILE = f"factbase_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
@@ -77,6 +86,34 @@ def parse_llm_json(raw: str) -> dict | None:
         return None
 
 
+def resolve_model(client: genai.Client) -> str:
+    """
+    Return the first MODEL_CANDIDATE that is available in the current API.
+    Falls back to the last candidate if the listing call itself fails.
+    """
+    try:
+        available = {m.name.split("/")[-1] for m in client.models.list()}
+        for candidate in MODEL_CANDIDATES:
+            if candidate in available:
+                print(f"[gather] Using model: {candidate}")
+                return candidate
+        # None of the preferred names matched — use the first (most preferred)
+        # and let the generate_content call surface the real error.
+        print(
+            f"[gather] WARNING: none of the preferred model names found in API listing. "
+            f"Trying '{MODEL_CANDIDATES[0]}' anyway.",
+            file=sys.stderr,
+        )
+        return MODEL_CANDIDATES[0]
+    except Exception as e:
+        print(
+            f"[gather] WARNING: model listing failed ({e}). "
+            f"Defaulting to '{MODEL_CANDIDATES[0]}'.",
+            file=sys.stderr,
+        )
+        return MODEL_CANDIDATES[0]
+
+
 def validate_story(story: dict) -> dict:
     """
     Ensure all required array fields are present.
@@ -113,6 +150,9 @@ def main():
         http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS)
     )
     print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s)")
+
+    # 2b. Resolve the best available model
+    MODEL = resolve_model(client)
 
     # 3. Build the generation config
     #    - google_search tool: enables live web search grounding
