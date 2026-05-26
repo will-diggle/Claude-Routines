@@ -4,11 +4,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useTheme } from '../hooks/useTheme';
+import { Colors } from '../theme';
 import { WeatherStrip } from '../components/WeatherStrip';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import type { ArticleLength } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 
+// Pre-composed masthead lockup per background mode.
+// TODO: replace with require('../../assets/masthead-{theme}.png') when those assets land.
+// For now, tint the single logotype PNG to the chrome colour for each theme.
 const LOGOTYPE = require('../../assets/logotype.png');
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -30,14 +34,32 @@ function resolveLength(level: LanguageLevel, readLength: 'medium' | 'longer'): A
   return level === 'A1' || level === 'A2' ? 'short' : readLength;
 }
 
-function mastheadDateStr(ts: number | null): string {
+// Returns "Published: Monday 26 May 2026 · 05:47" (or bare date when no timestamp)
+function publishedDateStr(ts: number | null): string {
   const d = ts ? new Date(ts) : new Date();
   const datePart = d.toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).toUpperCase();
+  });
   if (!ts) return datePart;
   const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `${datePart} · ${timePart}`;
+  return `Published: ${datePart} · ${timePart}`;
+}
+
+// Brand chrome colour: each background has a matching ink for rules and the lockup tint.
+// cream→navy, softGrey(navy)→cream, white→inkDark, night→cream
+function chromeColor(background: string): string {
+  if (background === 'cream')     return Colors.navyBg;
+  if (background === 'softGrey')  return Colors.cream;
+  if (background === 'white')     return Colors.inkDark;
+  return Colors.cream; // night
+}
+
+// Hairline rule opacity — paired with the chrome so the double-rule reads as a unit
+function hairlineColor(background: string): string {
+  if (background === 'cream')    return 'rgba(22,32,50,0.32)';
+  if (background === 'softGrey') return 'rgba(245,240,232,0.40)';
+  if (background === 'white')    return 'rgba(26,26,26,0.30)';
+  return 'rgba(245,240,232,0.40)'; // night
 }
 
 function mastheadTagline(count: number): string {
@@ -49,7 +71,7 @@ function mastheadTagline(count: number): string {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export function BriefingScreen() {
-  const { colors, fontFamily, isDark } = useTheme();
+  const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const {
@@ -89,13 +111,16 @@ export function BriefingScreen() {
 
   const firstBriefing = Object.values(briefings)[0];
   const publishedAt = firstBriefing?.generatedAt ?? bundleReceivedAt;
-  const imageStyle = isDark ? { tintColor: '#F0EDE6' } : undefined;
 
   // Masthead strings
   const locationStr = activeLanguages
     .map((l) => LANG_CITY[l.code] ?? l.name)
     .join(' · ');
   const taglineText = mastheadTagline(activeLanguages.length);
+
+  // Brand pairing: each background has a chrome ink and a hairline tint
+  const chrome   = chromeColor(background);
+  const hairline = hairlineColor(background);
 
   return (
     <ScrollView
@@ -109,52 +134,56 @@ export function BriefingScreen() {
         />
       }
     >
-      {/* ══ Masthead ══════════════════════════════════════════════════════ */}
+      {/* ══ Masthead ══════════════════════════════════════════════════════
+           Structure matches Common.jsx / tokens.jsx design spec:
+             Cities (centred, 9px, tracked uppercase)
+             2px rule (chrome)
+             1px hairline rule
+             Lockup PNG (full width, tinted to chrome)
+             [Published italic date  ·  Vol. II]
+             1px hairline rule
+             2px rule (chrome)
+             Tagline (14px bold, centred)
+          ═══════════════════════════════════════════════════════════════ */}
 
-      {/* Top double rules */}
-      <View style={[styles.ruleOuter, { backgroundColor: colors.inkDark }]} />
-      <View style={[styles.ruleInner, { backgroundColor: colors.borderMid }]} />
-
-      {/* Three-column row: Vol. II  |  logotype  |  London · Paris */}
-      <View style={styles.mastRow}>
-
-        <View style={styles.mastLeft}>
-          <Text style={[styles.volLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-            Vol. II
-          </Text>
-        </View>
-
-        <View style={styles.mastCentre}>
-          <Image
-            source={LOGOTYPE}
-            style={[styles.logotype, imageStyle]}
-            resizeMode="contain"
-          />
-        </View>
-
-        <View style={styles.mastRight}>
-          <Text
-            style={[styles.locationLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
-            numberOfLines={3}
-          >
-            {locationStr}
-          </Text>
-        </View>
-
-      </View>
-
-      {/* Italic tagline: "The bilingual morning brief" */}
-      <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-        {taglineText}
+      {/* Cities */}
+      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+        {locationStr}
       </Text>
 
-      {/* Bottom double rules */}
-      <View style={[styles.ruleInner, { backgroundColor: colors.borderMid }]} />
-      <View style={[styles.ruleOuter, { backgroundColor: colors.inkDark }]} />
+      {/* Top double rules */}
+      <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+      <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
-      {/* Published date */}
-      <Text style={[styles.mastheadDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-        {mastheadDateStr(publishedAt)}
+      {/* Lockup — tinted logotype.png; swap with themed PNG when assets land */}
+      <View style={styles.lockupWrap}>
+        <Image
+          source={LOGOTYPE}
+          style={[styles.lockup, { tintColor: chrome }]}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Meta row: published italic date (left) · Vol. II (right) */}
+      <View style={styles.metaRow}>
+        <Text
+          style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.italic }]}
+          numberOfLines={2}
+        >
+          {publishedDateStr(publishedAt)}
+        </Text>
+        <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+          Vol. II
+        </Text>
+      </View>
+
+      {/* Bottom double rules */}
+      <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+      <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+
+      {/* Tagline */}
+      <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.bold }]}>
+        {taglineText}
       </Text>
 
       <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
@@ -203,70 +232,67 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingBottom: 48 },
 
-  // Rules
+  // ── Rules ──────────────────────────────────────────────────────────
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
-  ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 1 },
+  ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
 
-  // Three-column masthead row
-  mastRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // ── Masthead ───────────────────────────────────────────────────────
+  // Cities line — centred, 9px, tracked uppercase, sits above the top rule
+  cities: {
     width: SCREEN_WIDTH,
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 2,
-  },
-  mastLeft: {
-    flex: 1,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  mastCentre: {
-    flex: 3,
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  mastRight: {
-    flex: 1,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    textAlign: 'center',
+    fontSize: 9,
+    letterSpacing: 2.5,   // ≈ 0.28em at 9px
+    textTransform: 'uppercase',
+    paddingTop: 5,
+    paddingBottom: 4,
   },
 
-  // Masthead text elements
-  volLabel: {
-    fontSize: 9,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
+  // Lockup image wrapper — full width, horizontal padding matches RevealMasthead
+  lockupWrap: {
+    width: SCREEN_WIDTH,
+    paddingHorizontal: 16,
+    paddingTop: 5,
   },
-  locationLabel: {
-    fontSize: 9,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    textAlign: 'right',
+  lockup: {
+    width: '100%',
+    height: 52,
+  },
+
+  // Meta row: [Published italic date …  |  Vol. II]
+  metaRow: {
+    width: SCREEN_WIDTH,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  metaDate: {
+    flex: 1,
+    fontSize: 10,
+    fontStyle: 'italic',
+    opacity: 0.6,
     lineHeight: 14,
   },
-  logotype: {
-    width: '100%',
-    height: 48,
-  },
-  tagline: {
-    fontSize: 11,
-    letterSpacing: 0.4,
-    textAlign: 'center',
-    paddingTop: 2,
-    paddingBottom: 7,
-    width: SCREEN_WIDTH,
-  },
-  mastheadDate: {
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textAlign: 'center',
-    paddingVertical: 7,
-    width: SCREEN_WIDTH,
+  metaVol: {
+    fontSize: 9,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
   },
 
-  // Sync banner
+  // Tagline — bold, centred, below the bottom rule
+  tagline: {
+    width: SCREEN_WIDTH,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+
+  // ── Sync banner ────────────────────────────────────────────────────
   syncBanner: {
     paddingVertical: 8,
     paddingHorizontal: 16,
