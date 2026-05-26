@@ -2,15 +2,30 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
+import type { BackgroundKey } from '../theme';
 
 const LOGOMARK = require('../../assets/logomark.png');
 const LOGOTYPE = require('../../assets/logotype.png');
+
+// Per-theme masthead lockups — logomark + logotype composed in the right ink
+// for each background. Used in the compact header so Settings & Practice
+// always show the correct colour variant.
+const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
+  cream:    require('../../assets/masthead-cream.png'),
+  softGrey: require('../../assets/masthead-navy.png'),
+  white:    require('../../assets/masthead-white.png'),
+  night:    require('../../assets/masthead-black.png'),
+};
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // Logomark: 600×297 source → 2.02:1 ratio
 const LOGOMARK_W = 68;
 const LOGOMARK_H = Math.round(LOGOMARK_W * (297 / 600)); // ≈ 34
+
+// Compact logomark — smaller for the Settings / Practice header
+const COMPACT_MARK_W = 44;
+const COMPACT_MARK_H = Math.round(COMPACT_MARK_W * (297 / 600)); // ≈ 22
 
 interface Props {
   routeName?: string;
@@ -25,7 +40,7 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 
 export function TopBar({ routeName }: Props) {
   const insets = useSafeAreaInsets();
-  const { colors, fontFamily, isNight } = useTheme();
+  const { colors, fontFamily, isNight, background } = useTheme();
   const isBriefing = routeName === 'Briefing';
   const dateStr = new Date().toLocaleDateString('en-GB', DATE_OPTIONS).toUpperCase();
   const imageStyle = isNight ? { opacity: 0.85 } : undefined;
@@ -38,7 +53,7 @@ export function TopBar({ routeName }: Props) {
         {/* Inner grey rule */}
         <View style={[styles.ruleInner, { backgroundColor: colors.borderMid }]} />
 
-        {/* Logomark left + logotype centered */}
+        {/* Logomark left + logotype centred */}
         <View style={styles.logotypeRow}>
           <Image
             source={LOGOMARK}
@@ -52,7 +67,7 @@ export function TopBar({ routeName }: Props) {
               resizeMode="contain"
             />
           </View>
-          {/* Right spacer matches logomark width so logotype stays centred */}
+          {/* Right spacer mirrors logomark width so logotype stays centred */}
           <View style={styles.logomarkSpacer} />
         </View>
 
@@ -71,14 +86,29 @@ export function TopBar({ routeName }: Props) {
     );
   }
 
-  // Compact header for Settings / Practice
+  // ── Compact header — Settings / Practice ────────────────────────────────────
+  // Shows the themed masthead lockup (logomark + logotype in the correct ink
+  // for the current background) with a small logomark on the left for balance.
   return (
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
-      <Image
-        source={LOGOTYPE}
-        style={[styles.logotypeCompact, imageStyle]}
-        resizeMode="contain"
-      />
+      <View style={styles.compactRow}>
+        {/* Logomark — left anchor */}
+        <Image
+          source={LOGOMARK}
+          style={[styles.compactMark, imageStyle]}
+          resizeMode="contain"
+        />
+        {/* Themed masthead lockup — centred */}
+        <View style={styles.compactLockupWrap}>
+          <Image
+            source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
+            style={styles.compactLockup}
+            resizeMode="contain"
+          />
+        </View>
+        {/* Right spacer mirrors left logomark for visual balance */}
+        <View style={{ width: COMPACT_MARK_W }} />
+      </View>
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
     </View>
   );
@@ -141,13 +171,26 @@ const styles = StyleSheet.create({
   compact: {
     zIndex: 10,
     elevation: 10,
-    alignItems: 'center',
     paddingBottom: 0,
   },
-  logotypeCompact: {
-    width: SCREEN_WIDTH - 80,
-    height: 28,
-    marginVertical: 6,
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: SCREEN_WIDTH,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  compactMark: {
+    width: COMPACT_MARK_W,
+    height: COMPACT_MARK_H,
+  },
+  compactLockupWrap: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  compactLockup: {
+    width: '100%',
+    height: 32,
   },
   compactRule: {
     height: StyleSheet.hairlineWidth,

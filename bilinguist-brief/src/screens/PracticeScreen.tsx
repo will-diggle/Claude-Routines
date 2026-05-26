@@ -35,8 +35,7 @@ const GAMES: Array<{
 const LANG_NATIVE: Record<LanguageCode, string> = {
   fr: 'Français',
   de: 'Deutsch',
-  es: 'Español',
-  it: 'Italiano',
+  sv: 'Svenska',
   en: 'English',
 };
 

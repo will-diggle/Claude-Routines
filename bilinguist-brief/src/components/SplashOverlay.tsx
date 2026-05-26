@@ -11,7 +11,7 @@
 //   splash-crest-white.png   (dark crest on white)
 //   splash-crest-black.png   (white crest on black / night)
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Image,
@@ -73,7 +73,7 @@ export function SplashOverlay({ onDone }: Props) {
   const t = THEME_MAP[background as BackgroundKey] ?? THEME_MAP.cream;
 
   // ── Animated values ───────────────────────────────────────────────────────
-  // Crest — scale(0.30→1) + opacity(0→1), 1.40 s spring, delay 0.10 s
+  // Crest — scale(0.30→1) + opacity(0→1), 1.40 s spring
   const crestOpacity   = useRef(new Animated.Value(0)).current;
   const crestScale     = useRef(new Animated.Value(0.30)).current;
 
@@ -85,10 +85,10 @@ export function SplashOverlay({ onDone }: Props) {
   const editionOpacity = useRef(new Animated.Value(0)).current;
 
   // Rules — scaleX(0→1), 0.75 s ease-out, staggered delays
-  const topOuterScaleX = useRef(new Animated.Value(0)).current; // 0.40 s
-  const topInnerScaleX = useRef(new Animated.Value(0)).current; // 0.55 s
-  const botOuterScaleX = useRef(new Animated.Value(0)).current; // 0.50 s
-  const botInnerScaleX = useRef(new Animated.Value(0)).current; // 0.65 s
+  const topOuterScaleX = useRef(new Animated.Value(0)).current;
+  const topInnerScaleX = useRef(new Animated.Value(0)).current;
+  const botOuterScaleX = useRef(new Animated.Value(0)).current;
+  const botInnerScaleX = useRef(new Animated.Value(0)).current;
 
   // Dive — scale(1→16) + opacity(1→0), 1.20 s, delay 2.10 s
   const diveScale   = useRef(new Animated.Value(1)).current;
@@ -96,6 +96,23 @@ export function SplashOverlay({ onDone }: Props) {
 
   // Reveal — opacity(0→1), 0.55 s ease-out, delay 3.10 s
   const revealOpacity = useRef(new Animated.Value(0)).current;
+
+  // Track whether the crest image has decoded — the PNG files are large
+  // (5–9 MB) and may take a moment to decode on device. The crest animation
+  // starts only after the image signals it is ready via onLoadEnd.
+  const crestReadyRef = useRef(false);
+  const mainAnimDoneRef = useRef(false);
+
+  const startCrestAnim = useCallback(() => {
+    if (!crestReadyRef.current) return;
+    const spring = Easing.bezier(0.16, 0.84, 0.24, 1.0);
+    const anim = (v: Animated.Value, to: number, dur: number, delay: number) =>
+      Animated.timing(v, { toValue: to, duration: dur, delay, easing: spring, useNativeDriver: true });
+    Animated.parallel([
+      anim(crestOpacity, 1, 1400, 0),
+      anim(crestScale,   1, 1400, 0),
+    ]).start();
+  }, [crestOpacity, crestScale]);
 
   useEffect(() => {
     const spring = Easing.bezier(0.16, 0.84, 0.24, 1.0);
@@ -110,15 +127,14 @@ export function SplashOverlay({ onDone }: Props) {
       easing: (n: number) => number,
     ) => Animated.timing(v, { toValue: to, duration: dur, delay, easing, useNativeDriver: true });
 
+    // Rules, tagline, edition, dive, and reveal run immediately.
+    // Crest is triggered separately via startCrestAnim once the image loads.
     Animated.parallel([
       // Rules draw in
       anim(topOuterScaleX, 1,  750,  400, eOut),
       anim(topInnerScaleX, 1,  750,  550, eOut),
       anim(botOuterScaleX, 1,  750,  500, eOut),
       anim(botInnerScaleX, 1,  750,  650, eOut),
-      // Crest zooms in
-      anim(crestOpacity,   1, 1400,  100, spring),
-      anim(crestScale,     1, 1400,  100, spring),
       // Tagline floats up
       anim(taglineOpacity, 1,  800, 1200, spring),
       anim(taglineTransY,  0,  800, 1200, spring),
@@ -130,6 +146,15 @@ export function SplashOverlay({ onDone }: Props) {
       // Brief masthead reveals
       anim(revealOpacity,  1,   550, 3100, eOut),
     ]).start(() => onDone());
+
+    // Fallback: if image hasn't loaded within 300 ms, start the crest
+    // animation anyway so it doesn't silently skip on slow decoders.
+    const fallback = setTimeout(() => {
+      crestReadyRef.current = true;
+      startCrestAnim();
+    }, 300);
+
+    return () => clearTimeout(fallback);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,7 +183,7 @@ export function SplashOverlay({ onDone }: Props) {
           style={[styles.ruleInner, styles.ruleTopInner, { backgroundColor: t.hair, transform: [{ scaleX: topInnerScaleX }] }]}
         />
 
-        {/* Crest — slow zoom in */}
+        {/* Crest — zooms in once the PNG has decoded (onLoadEnd) */}
         <Animated.View
           style={[styles.crestWrap, { opacity: crestOpacity, transform: [{ scale: crestScale }] }]}
         >
@@ -166,6 +191,10 @@ export function SplashOverlay({ onDone }: Props) {
             source={CRESTS[background as BackgroundKey] ?? CRESTS.cream}
             style={styles.crest}
             resizeMode="contain"
+            onLoadEnd={() => {
+              crestReadyRef.current = true;
+              startCrestAnim();
+            }}
           />
         </Animated.View>
 

@@ -3,7 +3,9 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
-export type LanguageCode = 'fr' | 'de' | 'en' | 'es' | 'it' | 'sv';
+// Only the four languages the pipeline currently generates.
+// Spanish and Italian will be added once their pipeline stages are validated.
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
@@ -68,8 +70,6 @@ interface SettingsStore extends Settings {
 const ALL_LANGUAGES: LanguagePreference[] = [
   { code: 'fr', name: 'French',  nativeName: 'Français', flag: '🇫🇷', level: 'B1', active: false },
   { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', active: false },
-  { code: 'es', name: 'Spanish', nativeName: 'Español',  flag: '🇪🇸', level: 'A1', active: false },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', active: false },
   { code: 'sv', name: 'Swedish', nativeName: 'Svenska',  flag: '🇸🇪', level: 'A2', active: false },
   { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'C1', active: true  },
 ];

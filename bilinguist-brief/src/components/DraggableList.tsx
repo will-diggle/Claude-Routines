@@ -21,8 +21,8 @@ const SHIFT_CONFIG = { damping: 22, stiffness: 280, mass: 0.8, useNativeDriver: 
 const LIFT_CONFIG  = { damping: 18, stiffness: 350, mass: 0.6, useNativeDriver: true } as const;
 
 const MAX_ITEMS = 10;
-const LONG_PRESS_MS = 400;
-const CANCEL_THRESHOLD = 8; // px movement before long press cancels
+const LONG_PRESS_MS = 300;   // hold duration before drag activates
+const CANCEL_THRESHOLD = 8;  // px movement before long press cancels
 
 // ── Drag context (shared between DraggableList and each DraggableRow) ─────────
 
@@ -57,14 +57,23 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
     let active = false;
 
     return PanResponder.create({
-      // Don't grab on touch start — let ScrollView handle taps/scrolls first
-      onStartShouldSetPanResponder:        () => false,
+      // Claim the responder on touch start so the long-press timer can begin.
+      // We do NOT capture (capture:false) so that child buttons (Switch,
+      // TouchableOpacity) can still claim the responder themselves — their
+      // internal capture handlers fire before ours and win, leaving taps intact.
+      onStartShouldSetPanResponder:        () => true,
       onStartShouldSetPanResponderCapture: () => false,
-      // Grab during move only once long-press has fired
+      // Re-claim during move once the long-press has confirmed drag intent.
       onMoveShouldSetPanResponder:         () => active,
       onMoveShouldSetPanResponderCapture:  () => active,
 
+      // Yield to the ScrollView (or any other responder) while we are NOT
+      // actively dragging. This lets the user scroll normally if they start
+      // moving before the 300 ms long-press fires.
+      onPanResponderTerminationRequest: () => !active,
+
       onPanResponderGrant: () => {
+        // Responder granted — start the long-press countdown.
         timer = setTimeout(() => {
           active = true;
           ctx.onDragStart(indexRef.current);
@@ -73,7 +82,7 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
 
       onPanResponderMove: (_, gs) => {
         if (!active) {
-          // Cancel long-press if the finger moves significantly before 400ms
+          // Cancel long-press if the finger moves significantly before it fires.
           if (timer && (Math.abs(gs.dy) > CANCEL_THRESHOLD || Math.abs(gs.dx) > CANCEL_THRESHOLD)) {
             clearTimeout(timer);
             timer = null;
