@@ -15,6 +15,8 @@ import { useWordBankStore } from '../store/useWordBankStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { translateWord } from '../services/deepl';
 import { explainWord } from '../services/wordLookup';
+import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordExplanation } from '../services/wordLookup';
@@ -136,6 +138,11 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
             "{sentence}"
           </Text>
 
+          {/* Audio pronunciation */}
+          {translation && (
+            <AudioButton word={word} language={language} />
+          )}
+
           {/* Tell me more — paid only */}
           {!explanation && !isExplaining && (
             fullAccess ? (
@@ -222,6 +229,109 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
     </Modal>
   );
 }
+
+function AudioButton({ word, language }: { word: string; language: LanguageCode }) {
+  const { colors, fontFamily } = useTheme();
+  const { state, play, stop } = useAudioPlayer();
+  const [capInfo, setCapInfo] = React.useState<{ remaining: number; limit: number } | null>(null);
+  const [capReached, setCapReached] = React.useState(false);
+  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
+
+  React.useEffect(() => {
+    getMonthlyAudioUsage().then((u) => {
+      setCapInfo({ remaining: u.remaining, limit: u.limit });
+      setCapReached(u.remaining <= 0);
+    });
+  }, []);
+
+  if (!apiKey) return null; // key not configured yet — silent
+
+  async function handlePress() {
+    if (state === 'playing') { await stop(); return; }
+    if (state === 'loading' || capReached) return;
+    const result = await synthesizeWord(word, language);
+    if (result.ok) {
+      // Refresh cap counter after playing
+      getMonthlyAudioUsage().then((u) => {
+        setCapInfo({ remaining: u.remaining, limit: u.limit });
+        setCapReached(u.remaining <= 0);
+      });
+      await play(result.audioUri);
+    } else if (result.reason === 'cap_reached') {
+      setCapReached(true);
+    }
+  }
+
+  const isLoading = state === 'loading';
+  const isPlaying = state === 'playing';
+  const disabled  = capReached || isLoading;
+
+  return (
+    <View style={audioStyles.row}>
+      <TouchableOpacity
+        onPress={handlePress}
+        disabled={disabled}
+        style={[
+          audioStyles.button,
+          { borderColor: colors.borderMid },
+          disabled && audioStyles.buttonDisabled,
+        ]}
+        activeOpacity={0.7}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={colors.inkFaint} />
+        ) : (
+          <Ionicons
+            name={isPlaying ? 'stop-circle-outline' : 'volume-high-outline'}
+            size={18}
+            color={capReached ? colors.inkFaint : colors.inkMid}
+          />
+        )}
+        <Text
+          style={[
+            audioStyles.label,
+            { color: capReached ? colors.inkFaint : colors.inkMid, fontFamily: fontFamily.regular },
+          ]}
+        >
+          {capReached ? 'Monthly limit reached' : isPlaying ? 'Stop' : 'Hear pronunciation'}
+        </Text>
+      </TouchableOpacity>
+
+      {capInfo && !capReached && (
+        <Text style={[audioStyles.usage, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+          {capInfo.remaining.toLocaleString()} / {capInfo.limit.toLocaleString()} plays left
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const audioStyles = StyleSheet.create({
+  row: {
+    width: '100%',
+    gap: 6,
+    marginBottom: 12,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  buttonDisabled: {
+    opacity: 0.45,
+  },
+  label: {
+    fontSize: 14,
+  },
+  usage: {
+    fontSize: 11,
+    paddingLeft: 2,
+  },
+});
 
 const styles = StyleSheet.create({
   overlay: {
