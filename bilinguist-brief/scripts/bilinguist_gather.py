@@ -21,6 +21,7 @@ Requirements:
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 from google import genai
@@ -42,7 +43,15 @@ MODEL_CANDIDATES = [
 PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
 TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
 TIMEOUT_MS      = TIMEOUT_SECONDS * 1000 # HttpOptions.timeout is in milliseconds
-OUTPUT_FILE = f"factbase_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.json"
+
+# Retries for transient server errors (503 UNAVAILABLE, 429 RESOURCE_EXHAUSTED)
+MAX_RETRIES    = 4
+RETRY_DELAYS   = [30, 60, 120, 240]     # seconds between attempts (exponential back-off)
+RETRYABLE_CODES = {503, 429}
+
+# Date is read from BRIEF_DATE env var (set once by the workflow at job start)
+# so gather and write always agree even when the pipeline crosses midnight UTC.
+BRIEF_DATE = os.environ.get("BRIEF_DATE") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -166,17 +175,32 @@ def main():
         service_tier="flex",
     )
 
-    # 4. Fire the request
+    # 4. Fire the request — retry on transient 503/429 with exponential back-off
     print(f"[gather] Sending request to {MODEL} via Flex tier (may take 1–15 min)...")
-    try:
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=prompt,
-            config=config,
-        )
-    except Exception as e:
-        print(f"[gather] ERROR: Gemini request failed — {e}", file=sys.stderr)
-        sys.exit(1)
+    response = None
+    for attempt in range(1, MAX_RETRIES + 2):   # up to MAX_RETRIES+1 total attempts
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
+                config=config,
+            )
+            break  # success
+        except Exception as e:
+            err_str = str(e)
+            # Extract HTTP status code if present in the error message
+            is_retryable = any(str(code) in err_str for code in RETRYABLE_CODES)
+            if is_retryable and attempt <= MAX_RETRIES:
+                delay = RETRY_DELAYS[attempt - 1]
+                print(
+                    f"[gather] Attempt {attempt} failed ({e}). "
+                    f"Retrying in {delay}s...",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+            else:
+                print(f"[gather] ERROR: Gemini request failed — {e}", file=sys.stderr)
+                sys.exit(1)
 
     # 5. Extract raw text
     raw_output = response.text
@@ -210,11 +234,11 @@ def main():
                 f"— {score.get('total', '?')} outlets: {score.get('outlets_covering', [])}"
             )
 
-    # 9. Write output to file
+    # 9. Write output to file — filename uses BRIEF_DATE so write.py can find it
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path = os.path.join(script_dir, OUTPUT_FILE)
+    output_path = os.path.join(script_dir, f"factbase_{BRIEF_DATE}.json")
     output = {
-        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "date": BRIEF_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": MODEL,
         "service_tier": "flex",

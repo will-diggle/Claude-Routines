@@ -34,23 +34,31 @@ jobs:
         working-directory: bilinguist-brief/scripts
         run: pip install -r requirements.txt
 
+      # Set BRIEF_DATE once so all steps agree on the date even if the
+      # pipeline crosses midnight UTC (batch jobs can take 1–2 hours).
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
       - name: Stage 1 — Gather news (Gemini Flex + search)
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_gather.py
 
       - name: Stages 2–4 — Write and grade (Gemini Batch)
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python bilinguist_write.py
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }}
 
       - name: Push bundle to data repo
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
         run: |
-          DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")
+          DATE=${{ env.BRIEF_DATE }}
 
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
 
