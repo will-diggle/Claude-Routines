@@ -20,16 +20,18 @@ import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordExplanation } from '../services/wordLookup';
+import { isAudioAllowed } from '../constants/limits';
 
 interface Props {
   word: string | null;
   sentence: string;
   language: LanguageCode;
   level: LanguageLevel;
+  genre?: string;   // ← add this
   onClose: () => void;
 }
 
-export function WordPopup({ word, sentence, language, level, onClose }: Props) {
+export function WordPopup({ word, sentence, language, level, genre, onClose }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const { saveWord, isWordSaved } = useWordBankStore();
@@ -140,7 +142,7 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
 
           {/* Audio pronunciation */}
           {translation && (
-            <AudioButton word={word} language={language} />
+            <AudioButton word={word} language={language} level={level} genre={genre} />
           )}
 
           {/* Tell me more — paid only */}
@@ -230,7 +232,7 @@ export function WordPopup({ word, sentence, language, level, onClose }: Props) {
   );
 }
 
-function AudioButton({ word, language }: { word: string; language: LanguageCode }) {
+function AudioButton({ word, language, level, genre }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string }) {
   const { colors, fontFamily } = useTheme();
   const { state, play, stop } = useAudioPlayer();
   const [capInfo, setCapInfo] = React.useState<{ remaining: number; limit: number } | null>(null);
@@ -245,6 +247,7 @@ function AudioButton({ word, language }: { word: string; language: LanguageCode 
   }, []);
 
   if (!apiKey) return null; // key not configured yet — silent
+  if (!isAudioAllowed(language, level, genre)) return null;
 
   async function handlePress() {
     if (state === 'playing') { await stop(); return; }

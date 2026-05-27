@@ -12,11 +12,12 @@ interface Props {
   isLast: boolean;
   language: LanguageCode;
   level: LanguageLevel;
+  genre?: string;
   locked?: boolean;
   onLockedWordPress?: () => void;
 }
 
-export function BriefingArticle({ article, isLast, language, level, locked, onLockedWordPress }: Props) {
+export function BriefingArticle({ article, isLast, language, level, genre, locked, onLockedWordPress }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
@@ -57,6 +58,7 @@ export function BriefingArticle({ article, isLast, language, level, locked, onLo
           sentence={activeSentence}
           language={language}
           level={level}
+          genre={genre}
           onClose={handleClose}
         />
       )}

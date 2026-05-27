@@ -215,6 +215,7 @@ export function LanguageBriefingSection({
                     isLast={articleIndex === group.articles.length - 1}
                     language={langCode}
                     level={level}
+                    genre={article.genre}
                     locked={false}
                     onLockedWordPress={() => {}}
                   />

@@ -283,18 +283,23 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
 
-  // Lockup image wrapper — full width, horizontal padding matches RevealMasthead
+  // Lockup image wrapper — full width, slight padding so the crest breathes
   lockupWrap: {
     width: SCREEN_WIDTH,
-    paddingHorizontal: 16,
-    paddingTop: 5,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 2,
   },
+  // aspectRatio drives the height automatically from the container width so
+  // the full crest + wordmark always fills the available space regardless of
+  // screen size. The four masthead PNGs are ~5.17–5.69:1; 5.2 is the
+  // cream/navy baseline (the default themes).
   lockup: {
     width: '100%',
-    height: 52,
+    aspectRatio: 5.2,
   },
 
   // Meta row: [Published italic date …  |  Vol. II]
