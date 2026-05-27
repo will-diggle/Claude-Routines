@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
   View,
   Text,
@@ -654,7 +655,7 @@ export function SettingsScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingBottom: 60 },
+  content: { paddingBottom: FLOAT_TAB_INSET },
   helper: { fontSize: 13, marginHorizontal: Spacing.md, marginTop: Spacing.xs, marginBottom: Spacing.sm },
   row: {
     flexDirection: 'row',

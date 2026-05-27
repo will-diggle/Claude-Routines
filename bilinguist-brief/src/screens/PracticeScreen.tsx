@@ -7,6 +7,7 @@ import { useWordBankStore, type Pile } from '../store/useWordBankStore';
 import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { Spacing } from '../theme';
+import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -231,7 +232,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
-    paddingBottom: 48,
+    paddingBottom: FLOAT_TAB_INSET,
   },
   streakBanner: {
     alignItems: 'center',

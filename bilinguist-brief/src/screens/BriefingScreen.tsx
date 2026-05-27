@@ -6,6 +6,7 @@ import { useBriefingStore } from '../store/useBriefingStore';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
+import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 
@@ -263,7 +264,7 @@ export function BriefingScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  content: { paddingBottom: 48 },
+  content: { paddingBottom: FLOAT_TAB_INSET },
 
   // ── Rules ──────────────────────────────────────────────────────────
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
