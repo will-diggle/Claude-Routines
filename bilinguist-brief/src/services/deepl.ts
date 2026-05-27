@@ -24,7 +24,9 @@ export async function translateWord(
   const allowed = await consumeTranslation();
   if (!allowed) return null;
 
-  const isFreePlan = !apiKey.startsWith('key_');
+  // DeepL Free API keys end with ':fx' (e.g. "abc123:fx").
+  // Pro keys are plain UUIDs. Using the wrong endpoint returns 403.
+  const isFreePlan = apiKey.endsWith(':fx');
   const baseUrl = isFreePlan
     ? 'https://api-free.deepl.com/v2/translate'
     : 'https://api.deepl.com/v2/translate';
