@@ -10,6 +10,7 @@ import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsSt
 import { useSettingsStore } from '../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
+import { WEATHER_IN } from '../services/weather';
 import { codeToIoniconName } from './WeatherStrip';
 
 // Maps the genre strings the API returns to settings topic keys
@@ -161,17 +162,16 @@ export function LanguageBriefingSection({
       </View>
       <View style={[styles.mastRule, { backgroundColor: colors.inkDark }]} />
 
-      {/* Inline weather strip — compact, per-language */}
+      {/* Inline weather strip — centred, per-language */}
       {weather && (
         <View style={styles.weatherLine}>
           <Ionicons
             name={codeToIoniconName(weather.code ?? 0)}
-            size={12}
+            size={16}
             color={colors.inkFaint}
-            style={styles.weatherIcon}
           />
           <Text style={[styles.weatherText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {`${weather.greeting} — ${weather.temp}°C, ${weather.description} in ${weather.city}`}
+            {`${weather.greeting} — ${weather.temp}°C, ${weather.description} ${WEATHER_IN[langCode] ?? 'in'} ${weather.city}`}
           </Text>
         </View>
       )}
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   editionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
+    marginHorizontal: Spacing.md,  // lines stop short of screen edges
     paddingVertical: 8,
     borderTopWidth: 2,
     borderBottomWidth: 2,
@@ -268,12 +268,11 @@ const styles = StyleSheet.create({
   weatherLine: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 4,
-  },
-  weatherIcon: {
-    marginTop: 1,
+    paddingTop: 10,
+    paddingBottom: 10,
+    gap: 7,
   },
   weatherText: {
     fontSize: 12,

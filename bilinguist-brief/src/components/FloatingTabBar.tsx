@@ -4,6 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../hooks/useTheme';
+import type { BackgroundKey } from '../theme';
+
+// ─── Per-theme RGB values for the gradient fade ───────────────────────────────
+const BG_RGB: Record<BackgroundKey, string> = {
+  white:     '255, 255, 255',
+  cream:     '245, 240, 232',
+  softGrey:  '22,  32,  50',
+  night:     '20,  20,  20',
+};
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -42,19 +51,47 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Background adapts to the active theme background
   const pillBg    = isDark ? 'rgba(22,22,22,0.96)' : 'rgba(255,255,255,0.96)';
   const pillBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)';
+  const navyPill  = 'rgba(30,45,66,0.97)';
+  const isNavy    = background === 'softGrey';
 
-  // Soft-grey (navy) theme uses navy surface so the pill reads against it
-  const navyPill    = 'rgba(30,45,66,0.97)';
-  const isNavy      = background === 'softGrey';
+  // Gradient fade — fades content behind the pill area
+  const rgb         = BG_RGB[background] ?? BG_RGB.white;
+  const fadeHeight  = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + 32;
+  const STEPS       = 10;
+  const segH        = fadeHeight / STEPS;
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
-    >
+    <>
+      {/* Scrim gradient — transparent at top, opaque at bottom */}
+      <View
+        pointerEvents="none"
+        style={[styles.fadeWrapper, { height: fadeHeight }]}
+      >
+        {Array.from({ length: STEPS }).map((_, i) => {
+          // i=0 is top of gradient (transparent); i=STEPS-1 is bottom (opaque)
+          const alpha = Math.pow(i / (STEPS - 1), 1.8) * 0.9;
+          return (
+            <View
+              key={i}
+              style={{
+                position: 'absolute',
+                bottom: i * segH,
+                left: 0,
+                right: 0,
+                height: segH + 1, // +1 prevents hairline gaps between strips
+                backgroundColor: `rgba(${rgb}, ${alpha})`,
+              }}
+            />
+          );
+        })}
+      </View>
+
+      <View
+        pointerEvents="box-none"
+        style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
+      >
       <View
         style={[
           styles.pill,
@@ -110,6 +147,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         })}
       </View>
     </View>
+    </>
   );
 }
 
@@ -132,13 +170,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    // iOS shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.13 : 0,
-    shadowRadius: 18,
-    // Android elevation
-    elevation: 12,
+      shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === 'ios' ? 0.22 : 0,
+    shadowRadius: 24,
+    elevation: 16,
   },
 
   tab: {
@@ -160,5 +196,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     letterSpacing: 0.3,
+  },
+
+  // Full-width absolute container for the scrim gradient
+  fadeWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });

@@ -21,9 +21,10 @@ import { useTheme } from '../hooks/useTheme';
 const SHIFT_CONFIG = { damping: 20, stiffness: 300, mass: 0.7, useNativeDriver: true } as const;
 const LIFT_CONFIG  = { damping: 16, stiffness: 380, mass: 0.5, useNativeDriver: true } as const;
 
-const MAX_ITEMS       = 10;
-const LONG_PRESS_MS   = 300;   // hold duration before drag activates
+const MAX_ITEMS        = 10;
+const LONG_PRESS_MS    = 300;  // hold duration before drag activates
 const CANCEL_THRESHOLD = 8;   // px movement before long press cancels
+const GAP_BONUS        = 14;  // extra px neighbours shift beyond item height → visible slot gap
 
 // ── Drag context (shared between DraggableList and each DraggableRow) ─────────
 
@@ -235,12 +236,12 @@ export function DraggableList<T>({
         setDropTargetIdx(target);
       }
 
-      // Shift neighbouring items out of the way
+      // Shift neighbouring items out of the way — extra GAP_BONUS makes the slot obvious
       for (let i = 0; i < n; i++) {
         if (i === idx) continue;
         let val = 0;
-        if (idx < target && i > idx && i <= target) val = -h;
-        if (idx > target && i >= target && i < idx) val = h;
+        if (idx < target && i > idx && i <= target) val = -(h + GAP_BONUS);
+        if (idx > target && i >= target && i < idx) val =  (h + GAP_BONUS);
         Animated.spring(translateYs[i], { toValue: val, ...SHIFT_CONFIG }).start();
       }
     },
@@ -250,12 +251,14 @@ export function DraggableList<T>({
       const h = itemHeightRef.current;
       const to = Math.max(0, Math.min(n - 1, Math.round(idx + dy / h)));
 
-      // Subtle haptic on drop — feels like it clicks into place
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
+      // Reset ALL animated values instantly before calling onReorder.
+      // If we spring-animate back to 0 first, React re-renders the new item
+      // order while translateYs still hold the shifted values → snap-back glitch.
       for (let i = 0; i < n; i++) {
-        Animated.spring(translateYs[i], { toValue: 0, ...SHIFT_CONFIG }).start();
-        Animated.spring(scales[i],      { toValue: 1, ...LIFT_CONFIG  }).start();
+        translateYs[i].setValue(0);
+        scales[i].setValue(1);
       }
 
       draggingIdxRef.current   = -1;
