@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
-import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings } from '../services/briefingSync';
+import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
@@ -20,8 +20,18 @@ function todayString(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-const NOT_READY_MESSAGE =
-  "Today's briefing isn't ready yet — check back shortly after 06:30.";
+function notReadyMessage(result?: BundleFetchResult): string {
+  if (!result || result.ok) return "Today's briefing isn't ready yet — check back shortly after 06:30.";
+  if (result.reason === 'network') return "Can't reach the server — check your connection and pull to refresh.";
+  if (result.reason === 'http') {
+    const s = result.status;
+    if (s === 404) return "Today's briefing hasn't been published yet — check back shortly after 06:30.";
+    if (s === 502 || s === 503) return "Server error fetching today's brief (502) — check back soon or pull to refresh.";
+    return `Can't fetch today's brief (HTTP ${s}) — pull to refresh or check back later.`;
+  }
+  if (result.reason === 'date-mismatch') return `Today's brief isn't ready yet — last published: ${result.bundleDate ?? 'unknown'}.`;
+  return "Today's briefing isn't ready yet — check back shortly after 06:30.";
+}
 
 interface BriefingStore {
   briefings: Partial<Record<LanguageCode, GeneratedBriefing>>;
@@ -33,6 +43,7 @@ interface BriefingStore {
   isSyncing: boolean;
   syncMessage: string | null;
   bundleReceivedAt: number | null;
+  lastFetchResult: BundleFetchResult | null;
 
   syncFromServer: () => Promise<void>;
   loadBriefing: (
@@ -58,14 +69,20 @@ export const useBriefingStore = create<BriefingStore>()(
       isSyncing: false,
       syncMessage: null,
       bundleReceivedAt: null,
+      lastFetchResult: null,
 
       syncFromServer: async () => {
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
         try {
-          const bundle = await fetchTodayBundle();
-          if (!bundle) return;
+          const result = await fetchTodayBundle();
+          if (!result.ok) {
+            // Store the fetch result so loadBriefing can surface the right error
+            set({ lastFetchResult: result });
+            return;
+          }
 
-          set({ syncMessage: 'Applying…' });
+          const { bundle } = result;
+          set({ syncMessage: 'Applying…', lastFetchResult: result });
           await applyBundleToCache(bundle);
           await clearPreviousDaysBriefings(bundle.date);
 
@@ -196,7 +213,10 @@ export const useBriefingStore = create<BriefingStore>()(
 
         set((s) => ({
           generatingFor: s.generatingFor.filter((l) => l !== language),
-          errorsFor: { ...s.errorsFor, [language]: NOT_READY_MESSAGE },
+          errorsFor: {
+            ...s.errorsFor,
+            [language]: notReadyMessage(s.lastFetchResult ?? undefined),
+          },
         }));
       },
 

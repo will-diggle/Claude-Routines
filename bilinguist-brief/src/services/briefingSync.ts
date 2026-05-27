@@ -35,18 +35,31 @@ const BUNDLE_URL = process.env.EXPO_PUBLIC_DATA_URL
   ? `${DATA_BASE}/latest`
   : `${DATA_BASE}/latest.json`;
 
+// ─── Fetch result ─────────────────────────────────────────────────────────────
+
+export type BundleFetchResult =
+  | { ok: true; bundle: DailyBundle }
+  | { ok: false; reason: 'network' | 'http' | 'date-mismatch'; status?: number; bundleDate?: string };
+
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
-export async function fetchTodayBundle(): Promise<DailyBundle | null> {
+export async function fetchTodayBundle(): Promise<BundleFetchResult> {
   const today = new Date().toISOString().split('T')[0];
   try {
     const res = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[bilinguist] fetchTodayBundle HTTP ${res.status} from ${BUNDLE_URL}`);
+      return { ok: false, reason: 'http', status: res.status };
+    }
     const bundle: DailyBundle = await res.json();
-    if (bundle.date !== today) return null;
-    return bundle;
-  } catch {
-    return null;
+    if (bundle.date !== today) {
+      console.warn(`[bilinguist] fetchTodayBundle date mismatch: bundle=${bundle.date} today=${today}`);
+      return { ok: false, reason: 'date-mismatch', status: res.status, bundleDate: bundle.date };
+    }
+    return { ok: true, bundle };
+  } catch (err) {
+    console.warn('[bilinguist] fetchTodayBundle network error:', err);
+    return { ok: false, reason: 'network' };
   }
 }
 

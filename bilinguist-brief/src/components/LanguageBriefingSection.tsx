@@ -7,6 +7,7 @@ import { BriefingLoading } from './BriefingLoading';
 import { Spacing } from '../theme';
 import type { GeneratedBriefing, BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
 import { codeToIoniconName } from './WeatherStrip';
@@ -134,6 +135,7 @@ export function LanguageBriefingSection({
   onRetry,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
+  const setDeveloperMode = useSettingsStore((s) => s.setDeveloperMode);
 
   // Filter articles by enabled topics (client-side — no extra API call needed)
   const visibleArticles = briefing?.articles.filter((a) => {
@@ -181,6 +183,15 @@ export function LanguageBriefingSection({
           <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             {error}
           </Text>
+          <TouchableOpacity
+            style={[styles.demoBtn, { borderColor: colors.borderMid }]}
+            onPress={() => { setDeveloperMode(true); onRetry(); }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.demoBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+              Load demo content
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -283,6 +294,14 @@ const styles = StyleSheet.create({
   },
   buttonText: { fontSize: 15 },
   emptyNote: { fontSize: 13, textAlign: 'center' },
+  demoBtn: {
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  demoBtnText: { fontSize: 13 },
 
   // Section header
   sectionHeader: {
