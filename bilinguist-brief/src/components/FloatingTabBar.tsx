@@ -10,7 +10,7 @@ import { useTheme } from '../hooks/useTheme';
 const TABS = [
   {
     route:    'Preferences',
-    label:    'Settings',
+    label:    'Preferences',
     icon:     'settings'         as const,
     iconOff:  'settings-outline' as const,
   },
@@ -30,7 +30,7 @@ const TABS = [
 
 // ─── Shared geometry — import this wherever screens need bottom padding ────────
 
-export const FLOAT_TAB_H      = 66;   // pill height
+export const FLOAT_TAB_H      = 58;   // pill height (compact)
 export const FLOAT_TAB_BOTTOM = 16;   // gap from safe-area bottom
 
 // Total vertical space the floating bar occupies (use as paddingBottom in ScrollViews)
@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
   // Full-width transparent container — lets touches fall through to the page
   wrapper: {
     position: 'absolute',
-    left: 48,
-    right: 48,
+    left: 64,
+    right: 64,
     alignItems: 'center',
   },
 
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   pill: {
     width: '100%',
     height: FLOAT_TAB_H,
-    borderRadius: FLOAT_TAB_H / 2,
+    borderRadius: FLOAT_TAB_H / 2, // stays a perfect pill regardless of height
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,

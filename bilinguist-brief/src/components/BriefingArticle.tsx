@@ -1,12 +1,12 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { TappableText } from './TappableText';
 import { WordPopup } from './WordPopup';
-import { synthesizeWord } from '../services/elevenlabs';
+import { playAudioHeadline, pauseAudio } from '../services/audioPlayer';
+import { useAudioStore } from '../store/useAudioStore';
 import type { BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
@@ -22,73 +22,40 @@ interface AudioBtnProps {
 // Languages supported by ElevenLabs eleven_multilingual_v2
 const AUDIO_LANGUAGES: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
 
-function ArticleAudioButton({ headline, language, level, genre }: AudioBtnProps) {
+function ArticleAudioButton({ headline, language }: AudioBtnProps) {
   const { colors } = useTheme();
-  const [status, setStatus] = useState<'idle' | 'loading' | 'playing'>('idle');
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const { isPlaying, isLoading, headline: activeHeadline } = useAudioStore();
 
   // Only render for languages the TTS model supports
   if (!AUDIO_LANGUAGES.includes(language)) return null;
 
+  const isThisPlaying = isPlaying && activeHeadline === headline;
+  const isThisLoading = isLoading && activeHeadline === headline;
+
   async function handlePress() {
-    if (status === 'loading') return;
-
-    // Pause if already playing
-    if (status === 'playing' && soundRef.current) {
-      await soundRef.current.pauseAsync();
-      setStatus('idle');
+    if (isThisLoading) return;
+    if (isThisPlaying) {
+      await pauseAudio();
       return;
     }
-
-    // Resume if sound already loaded
-    if (soundRef.current) {
-      await soundRef.current.playAsync();
-      setStatus('playing');
-      return;
-    }
-
-    // First press — synthesise and play
-    setStatus('loading');
-    const result = await synthesizeWord(headline, language);
-    if (!result.ok) { setStatus('idle'); return; }
-
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: result.audioUri },
-        { shouldPlay: true },
-      );
-      soundRef.current = sound;
-      setStatus('playing');
-
-      sound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && s.didJustFinish) {
-          setStatus('idle');
-          soundRef.current = null;
-        }
-      });
-    } catch {
-      setStatus('idle');
-    }
+    await playAudioHeadline(headline, language);
   }
-
-  const isLoading = status === 'loading';
-  const isPlaying = status === 'playing';
 
   return (
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.75}
-      style={[styles.audioBtn, { borderColor: colors.borderMid }]}
+      style={[styles.audioBtn, { backgroundColor: colors.accentGold }]}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      {isLoading ? (
-        <ActivityIndicator size="small" color={colors.inkMid} />
+      {isThisLoading ? (
+        <ActivityIndicator size="small" color="#FFF" />
       ) : (
         <Ionicons
-          name={isPlaying ? 'pause' : 'play'}
+          name={isThisPlaying ? 'pause' : 'play'}
           size={13}
-          color={colors.inkMid}
-          style={isPlaying ? undefined : { marginLeft: 2 }} // optical nudge for play triangle
+          color="#FFF"
+          style={isThisPlaying ? undefined : { marginLeft: 2 }} // optical nudge for play triangle
         />
       )}
     </TouchableOpacity>
@@ -185,12 +152,11 @@ const styles = StyleSheet.create({
     // flex: 1 set inline so headline wraps and button stays pinned right
   },
 
-  // Round play / pause button
+  // Round play / pause button — filled with accent colour
   audioBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4, // align with first line of headline

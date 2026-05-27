@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
   View,
@@ -217,7 +217,6 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
-  const insets = useSafeAreaInsets();
   const store = useSettingsStore();
   const { loadBriefing } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
@@ -264,9 +263,10 @@ export function SettingsScreen() {
   const levelModal = store.languages.find((l) => l.code === levelModalLang);
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
+      contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       scrollEnabled={!isDragging}
     >
@@ -650,6 +650,7 @@ export function SettingsScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

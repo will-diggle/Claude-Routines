@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
 import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
@@ -43,7 +43,6 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<PracticeNav>();
   const { words, seedSampleWords } = useWordBankStore();
   const { activeLanguages } = useSettingsStore();
@@ -73,12 +72,14 @@ export function PracticeScreen() {
   const presentLangs = Array.from(new Set(words.map((w) => w.language))) as LanguageCode[];
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
+      contentContainerStyle={styles.content}
     >
       {/* Streak */}
       <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+        <Ionicons name="flame" size={18} color={colors.accentGold} />
         <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
@@ -226,6 +227,7 @@ export function PracticeScreen() {
         </>
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -238,13 +240,16 @@ const styles = StyleSheet.create({
   },
   streakBanner: {
     alignItems: 'center',
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.sm,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: Spacing.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
   },
-  streakNumber: { fontSize: 48, lineHeight: 54 },
-  streakLabel: { fontSize: 14, letterSpacing: 0.5 },
+  streakNumber: { fontSize: 28, lineHeight: 34 },
+  streakLabel: { fontSize: 12, letterSpacing: 0.5 },
   tabsScroll: {
     marginBottom: Spacing.lg,
   },
