@@ -4,10 +4,14 @@ bilinguist_write.py
 Stages 2S, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
 
 Reads the factbase produced by bilinguist_gather.py and:
-  2S — Short writing   : gemini-2.5-flash-lite  Batch  A1/A2 + all short lengths
-  2M — Medium/long     : gemini-2.5-flash        Batch  B1+ medium and long
-  3  — Native journalism: gemini-2.5-flash        Batch  one per language
-  4  — Grading         : gemini-2.5-flash-lite   Batch  grades Stage 3 output
+  2S — Short writing    : gemini-2.5-flash  Concurrent  A1/A2 + all short lengths
+  2M — Medium/long      : gemini-2.5-flash  Concurrent  B1+ medium and long
+  3  — Native journalism : gemini-2.5-flash  Concurrent  one per language
+  4  — Grading           : gemini-2.5-flash  Sequential  grades Stage 3 output
+
+All stages use direct generate_content() calls with a thread pool (max 5 concurrent)
+rather than the Gemini Batch API. This avoids batch quota requirements and is
+faster (no polling delay) while naturally handling rate limits via the semaphore.
 
 Outputs:
   scripts/output/YYYY-MM-DD.json   — archived bundle
@@ -28,6 +32,8 @@ import json
 import os
 import sys
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -37,10 +43,22 @@ from google.genai import types
 
 # ── Models ───────────────────────────────────────────────────────────────────
 
-MODEL_2S = "gemini-2.5-flash-lite"          # A1/A2 + all short lengths
+# All stages use Flash — it's the only model reliably available for concurrent
+# direct calls. Flash-lite saved cost via the Batch API (50% discount) but the
+# Batch API doesn't support flash-lite and returns empty inlined_responses.
+MODEL_2S = "gemini-2.5-flash"               # A1/A2 + all short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+ medium and long
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
-MODEL_4  = "gemini-2.5-flash-lite"          # Grading of native journalism
+MODEL_4  = "gemini-2.5-flash"               # Grading of native journalism
+
+# Concurrency limit — keeps total inflight calls below Gemini Flash RPM limit.
+# At 5 concurrent × ~10s average = ~30 req/min, within typical free-tier limits.
+_MAX_WORKERS   = 5
+_API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
+
+# Retry settings for transient API errors
+MAX_RETRIES   = 3
+RETRY_DELAYS  = [30, 60, 120]   # seconds between retries
 
 
 # ── Language / level matrix ───────────────────────────────────────────────────
@@ -340,212 +358,116 @@ def build_grading_prompt(lang: str, native_articles: list) -> str:
     return prompt
 
 
-# ── Batch helpers ─────────────────────────────────────────────────────────────
+# ── Direct API call helper ────────────────────────────────────────────────────
 
-def make_batch_request(prompt: str, model: str) -> dict:
+def call_gemini(client: genai.Client, model: str, prompt: str, label: str) -> Optional[str]:
     """
-    Build a single InlinedRequestDict for the Gemini Batch API.
-
-    SDK shape (google-genai ≥ 1.10):
-        client.batches.create(model=..., src=[InlinedRequestDict, ...])
-    Each InlinedRequestDict has 'contents' and 'config' (NOT 'generation_config').
+    Call generate_content() directly with retry logic for transient errors.
+    Uses a shared semaphore to cap concurrent inflight requests.
+    Returns the raw text response or None on failure.
     """
-    return {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "config": {
-            "temperature": 0.1,
-            "response_mime_type": "application/json",
-        },
-    }
-
-
-def submit_batch(client: genai.Client, model: str, requests: list, label: str) -> object:
-    """Submit a batch job and return the job object."""
-    print(f"[{label}] Submitting {len(requests)} requests to {model}...")
-    batch_job = client.batches.create(
-        model=model,
-        src=requests,    # list of InlinedRequestDict
-    )
-    print(f"[{label}] Batch submitted — name: {batch_job.name}")
-    return batch_job
-
-
-def wait_for_batches(
-    client: genai.Client,
-    jobs: dict[str, object],
-    poll_interval: int = 60,
-    max_wait_minutes: int = 300,
-) -> dict[str, object]:
-    """
-    Poll multiple batch jobs until all complete.
-    Returns the final job objects keyed by the same labels.
-    """
-    terminal = {"JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"}
-    max_polls = (max_wait_minutes * 60) // poll_interval
-    completed = dict(jobs)
-
-    for poll in range(1, max_polls + 1):
-        pending = {k: v for k, v in completed.items() if getattr(v, "state", None) not in terminal}
-        if not pending:
-            break
-
-        time.sleep(poll_interval)
-
-        for label, job in pending.items():
-            try:
-                completed[label] = client.batches.get(name=job.name)
-                state = getattr(completed[label], "state", "unknown")
-                print(f"[poll {poll}] {label}: {state}")
-            except Exception as e:
-                print(f"[poll {poll}] {label}: poll error — {e}", file=sys.stderr)
-    else:
-        still_pending = [k for k, v in completed.items() if getattr(v, "state", None) not in terminal]
-        print(f"[wait] WARNING: jobs still pending after {max_wait_minutes}min: {still_pending}", file=sys.stderr)
-
-    return completed
-
-
-def get_inline_responses(job: object) -> list:
-    """Extract inline responses from a completed batch job.
-    SDK field is 'inlined_responses' (with 'd'), not 'inline_responses'.
-    """
-    return list(getattr(job, "inlined_responses", []) or [])
-
-
-def extract_text(response) -> Optional[str]:
-    """Pull text from one batch response item."""
-    try:
-        return response.candidates[0].content.parts[0].text
-    except (AttributeError, IndexError):
-        return None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            with _API_SEMAPHORE:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        response_mime_type="application/json",
+                    ),
+                )
+            return response.text
+        except Exception as e:
+            code = getattr(e, "code", None) or getattr(e, "status_code", None)
+            if attempt < MAX_RETRIES:
+                delay = RETRY_DELAYS[attempt]
+                print(f"[{label}] Attempt {attempt + 1} failed (code={code}): {e} — retrying in {delay}s",
+                      file=sys.stderr)
+                time.sleep(delay)
+            else:
+                print(f"[{label}] All {MAX_RETRIES + 1} attempts failed: {e}", file=sys.stderr)
+                return None
+    return None
 
 
 # ── Stage runners ─────────────────────────────────────────────────────────────
 
-def run_writing_batches(
+def run_writing_concurrent(
     client: genai.Client,
     factbase: list,
-) -> tuple[list[tuple[str, str, str]], list[dict], list[tuple[str, str, str]], list[dict], list[str], list[dict]]:
-    """
-    Build and submit 2S, 2M, and 3 batches simultaneously.
-    Returns metadata and request lists for use during result processing.
-    """
-    combos_2s, combos_2m = build_combinations()
-
-    # Stage 2S — flash-lite, all short editions
-    meta_2s = []
-    reqs_2s = []
-    for lang, level, length in combos_2s:
-        prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
-        meta_2s.append((lang, level, length))
-        reqs_2s.append(make_batch_request(prompt, MODEL_2S))
-
-    # Stage 2M — flash, medium + long editions
-    meta_2m = []
-    reqs_2m = []
-    for lang, level, length in combos_2m:
-        prompt = build_writing_prompt(PROMPT_2M_HEADER, lang, level, length, factbase)
-        meta_2m.append((lang, level, length))
-        reqs_2m.append(make_batch_request(prompt, MODEL_2M))
-
-    # Stage 3 — flash, native journalism, one per language
-    native_langs = list(LANGUAGE_LEVELS.keys())
-    reqs_3 = []
-    for lang in native_langs:
-        prompt = build_native_prompt(lang, factbase)
-        reqs_3.append(make_batch_request(prompt, MODEL_3))
-
-    # Submit all three simultaneously
-    batch_2s = submit_batch(client, MODEL_2S, reqs_2s, "2S")
-    batch_2m = submit_batch(client, MODEL_2M, reqs_2m, "2M")
-    batch_3  = submit_batch(client, MODEL_3,  reqs_3,  "3")
-
-    return meta_2s, reqs_2s, meta_2m, reqs_2m, native_langs, reqs_3, batch_2s, batch_2m, batch_3
-
-
-def process_writing_results(
-    jobs: dict[str, object],
-    meta_2s: list[tuple[str, str, str]],
-    meta_2m: list[tuple[str, str, str]],
-    native_langs: list[str],
     generated_at: int,
     date: str,
 ) -> tuple[dict, dict]:
     """
-    Parse completed 2S, 2M, 3 batch results.
-    Returns (briefings, native_journalism) dicts.
+    Run stages 2S, 2M, and 3 concurrently using direct generate_content() calls.
+    Returns (briefings, native_journalism).
     """
+    combos_2s, combos_2m = build_combinations()
+    native_langs = list(LANGUAGE_LEVELS.keys())
+
+    # Build task list: (stage, lang, level, length, model, prompt)
+    tasks: list[tuple[str, str, Optional[str], Optional[str], str, str]] = []
+
+    for lang, level, length in combos_2s:
+        prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
+        tasks.append(("2S", lang, level, length, MODEL_2S, prompt))
+
+    for lang, level, length in combos_2m:
+        prompt = build_writing_prompt(PROMPT_2M_HEADER, lang, level, length, factbase)
+        tasks.append(("2M", lang, level, length, MODEL_2M, prompt))
+
+    for lang in native_langs:
+        prompt = build_native_prompt(lang, factbase)
+        tasks.append(("3", lang, None, None, MODEL_3, prompt))
+
+    print(f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)...")
+
     briefings: dict = {}
     native_journalism: dict = {}
 
-    # Process 2S
-    responses_2s = get_inline_responses(jobs["2S"])
-    print(f"[2S] {len(responses_2s)} responses received (expected {len(meta_2s)})")
-    for i, resp in enumerate(responses_2s):
-        if i >= len(meta_2s):
-            break
-        lang, level, length = meta_2s[i]
-        raw = extract_text(resp)
-        if not raw:
-            print(f"[2S] No text for {lang}-{level}-{length}", file=sys.stderr)
-            continue
-        parsed = parse_llm_json(raw)
-        articles = parsed.get("articles", []) if parsed else []
-        if not articles:
-            print(f"[2S] No articles for {lang}-{level}-{length}", file=sys.stderr)
-            continue
-        briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
-            "articles": articles,
-            "date": date,
-            "language": lang,
-            "level": level,
-            "length": length,
-            "generatedAt": generated_at,
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+        future_to_meta = {
+            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}"): (stage, lang, level, length)
+            for stage, lang, level, length, model, prompt in tasks
         }
-        print(f"[2S] {lang}-{level}-{length}: {len(articles)} articles")
 
-    # Process 2M
-    responses_2m = get_inline_responses(jobs["2M"])
-    print(f"[2M] {len(responses_2m)} responses received (expected {len(meta_2m)})")
-    for i, resp in enumerate(responses_2m):
-        if i >= len(meta_2m):
-            break
-        lang, level, length = meta_2m[i]
-        raw = extract_text(resp)
-        if not raw:
-            print(f"[2M] No text for {lang}-{level}-{length}", file=sys.stderr)
-            continue
-        parsed = parse_llm_json(raw)
-        articles = parsed.get("articles", []) if parsed else []
-        if not articles:
-            print(f"[2M] No articles for {lang}-{level}-{length}", file=sys.stderr)
-            continue
-        briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
-            "articles": articles,
-            "date": date,
-            "language": lang,
-            "level": level,
-            "length": length,
-            "generatedAt": generated_at,
-        }
-        print(f"[2M] {lang}-{level}-{length}: {len(articles)} articles")
+        for future in as_completed(future_to_meta):
+            stage, lang, level, length = future_to_meta[future]
+            label = f"{stage}/{lang}-{level}-{length}" if level else f"{stage}/{lang}"
+            raw = future.result()
 
-    # Process Stage 3 — native journalism
-    responses_3 = get_inline_responses(jobs["3"])
-    print(f"[3] {len(responses_3)} responses received (expected {len(native_langs)})")
-    for i, resp in enumerate(responses_3):
-        if i >= len(native_langs):
-            break
-        lang = native_langs[i]
-        raw = extract_text(resp)
-        if not raw:
-            print(f"[3] No text for {lang}", file=sys.stderr)
-            native_journalism[lang] = []
-            continue
-        parsed = parse_llm_json(raw)
-        articles = parsed.get("articles", []) if parsed else []
-        native_journalism[lang] = articles
-        print(f"[3] {lang}: {len(articles)} native articles")
+            if not raw:
+                print(f"[{stage}] SKIP {lang}-{level}-{length}: no response", file=sys.stderr)
+                continue
+
+            parsed = parse_llm_json(raw)
+            if not parsed:
+                print(f"[{stage}] SKIP {lang}-{level}-{length}: JSON parse failed", file=sys.stderr)
+                continue
+
+            if stage in ("2S", "2M"):
+                articles = parsed.get("articles", [])
+                if not articles:
+                    print(f"[{stage}] SKIP {lang}-{level}-{length}: empty articles list", file=sys.stderr)
+                    continue
+                briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
+                    "articles": articles,
+                    "date": date,
+                    "language": lang,
+                    "level": level,
+                    "length": length,
+                    "generatedAt": generated_at,
+                }
+                print(f"[{stage}] {lang}-{level}-{length}: {len(articles)} articles ✓")
+
+            elif stage == "3":
+                articles = parsed.get("articles", [])
+                if not articles:
+                    print(f"[3] SKIP {lang}: empty native articles", file=sys.stderr)
+                    continue
+                native_journalism[lang] = articles
+                print(f"[3] {lang}: {len(articles)} native articles ✓")
 
     return briefings, native_journalism
 
@@ -553,38 +475,37 @@ def process_writing_results(
 def run_grading(
     client: genai.Client,
     native_journalism: dict,
-    generated_at: int,
 ) -> dict:
-    """Submit Stage 4 grading batch and return results."""
+    """Run Stage 4 grading with direct concurrent calls. Returns grading dict."""
     langs_with_articles = [lang for lang, arts in native_journalism.items() if arts]
     if not langs_with_articles:
         print("[4] No native articles to grade — skipping", file=sys.stderr)
         return {}
 
-    reqs_4 = []
-    for lang in langs_with_articles:
-        prompt = build_grading_prompt(lang, native_journalism[lang])
-        reqs_4.append(make_batch_request(prompt, MODEL_4))
-
-    batch_4 = submit_batch(client, MODEL_4, reqs_4, "4")
-    final = wait_for_batches(client, {"4": batch_4})
-
+    print(f"[4] Grading {len(langs_with_articles)} languages...")
     grading: dict = {}
-    responses_4 = get_inline_responses(final["4"])
-    print(f"[4] {len(responses_4)} responses received (expected {len(langs_with_articles)})")
-    for i, resp in enumerate(responses_4):
-        if i >= len(langs_with_articles):
-            break
-        lang = langs_with_articles[i]
-        raw = extract_text(resp)
-        if not raw:
-            print(f"[4] No text for {lang}", file=sys.stderr)
-            grading[lang] = []
-            continue
-        parsed = parse_llm_json(raw)
-        assessments = parsed.get("assessments", []) if parsed else []
-        grading[lang] = assessments
-        print(f"[4] {lang}: {len(assessments)} assessments")
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+        future_to_lang = {
+            executor.submit(
+                call_gemini, client, MODEL_4,
+                build_grading_prompt(lang, native_journalism[lang]),
+                f"4/{lang}"
+            ): lang
+            for lang in langs_with_articles
+        }
+
+        for future in as_completed(future_to_lang):
+            lang = future_to_lang[future]
+            raw = future.result()
+            if not raw:
+                print(f"[4] SKIP {lang}: no response", file=sys.stderr)
+                grading[lang] = []
+                continue
+            parsed = parse_llm_json(raw)
+            assessments = parsed.get("assessments", []) if parsed else []
+            grading[lang] = assessments
+            print(f"[4] {lang}: {len(assessments)} assessments ✓")
 
     return grading
 
@@ -625,31 +546,19 @@ def main():
 
     generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
 
-    # ── Stages 2S + 2M + 3 — submit simultaneously ───────────────────────────
-    print("[write] Submitting stages 2S, 2M, and 3 simultaneously...")
-    meta_2s, reqs_2s, meta_2m, reqs_2m, native_langs, reqs_3, batch_2s, batch_2m, batch_3 = \
-        run_writing_batches(client, factbase)
+    # ── Stages 2S + 2M + 3 — run concurrently ────────────────────────────────
+    briefings, native_journalism = run_writing_concurrent(client, factbase, generated_at, date)
 
-    # Wait for all three to complete
-    final_writing = wait_for_batches(client, {"2S": batch_2s, "2M": batch_2m, "3": batch_3})
-
-    # Parse results
-    briefings, native_journalism = process_writing_results(
-        final_writing, meta_2s, meta_2m, native_langs, generated_at, date
-    )
-    print(f"[write] {sum(len(ls) for ls in (briefings.get(l, {}) for l in briefings) for ls in ls.values() if isinstance(ls, dict)) } briefings assembled")
-    # Simpler count:
     total_briefings = sum(
         1
         for lang_data in briefings.values()
         for level_data in lang_data.values()
         for _ in level_data.values()
     )
-    print(f"[write] Total briefings: {total_briefings} / {len(meta_2s) + len(meta_2m)}")
+    print(f"[write] Writing done: {total_briefings} / {len(combos_2s) + len(combos_2m)} briefings assembled")
 
     # ── Stage 4 — grading (depends on Stage 3 output) ────────────────────────
-    print("[write] Running Stage 4 grading...")
-    grading = run_grading(client, native_journalism, generated_at)
+    grading = run_grading(client, native_journalism)
 
     # ── Assemble DailyBundle ──────────────────────────────────────────────────
     bundle = {

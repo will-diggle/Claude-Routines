@@ -82,6 +82,23 @@ export const useBriefingStore = create<BriefingStore>()(
           }
 
           const { bundle } = result;
+
+          // Guard: the write pipeline sometimes produces an empty briefings dict
+          // (e.g. all batch jobs failed). Treat this as "not ready yet" so the
+          // user gets a meaningful message rather than a silent empty screen.
+          const hasBriefings = Object.keys(bundle.briefings ?? {}).length > 0;
+          if (!hasBriefings) {
+            console.warn('[bilinguist] Bundle fetched but briefings is empty — write pipeline likely failed');
+            set({
+              lastFetchResult: {
+                ok: false,
+                reason: 'date-mismatch',
+                bundleDate: `${bundle.date} (articles not ready yet)`,
+              },
+            });
+            return;
+          }
+
           set({ syncMessage: 'Applying…', lastFetchResult: result });
           await applyBundleToCache(bundle);
           await clearPreviousDaysBriefings(bundle.date);
