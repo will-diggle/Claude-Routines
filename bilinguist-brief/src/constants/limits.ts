@@ -18,22 +18,21 @@ import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 // ─── Trial-stage audio allowlist ──────────────────────────────────────────────
 //
-// Audio pronunciation is only enabled for specific language/level/genre combos
-// during the testing phase. Remove or expand this list when going wider.
-//
-// genre: undefined = any genre is allowed for this combo.
-// level: undefined = any level is allowed for this combo.
+// Audio pronunciation is enabled for all supported languages at any level/genre.
+// The API key check and monthly cap are the effective guards.
+// Narrow this list down if you want to restrict audio to specific combos.
 
 interface AudioAllowCombo {
   language: LanguageCode;
   level?: LanguageLevel;
-  genre?: string; // uppercase WMO genre string, e.g. 'GLOBAL NEWS'
+  genre?: string; // uppercase genre string, e.g. 'GLOBAL NEWS'
 }
 
 const AUDIO_TRIAL_ALLOWLIST: AudioAllowCombo[] = [
-  { language: 'fr', level: 'Native', genre: 'GLOBAL NEWS' }, // French — Native, Global News only
-  { language: 'en', level: 'Native', genre: 'GLOBAL NEWS' }, // English — Native, Global News only
-  { language: 'de', level: 'A2',     genre: 'GLOBAL NEWS' }, // German  — A2,     Global News only
+  { language: 'fr' }, // French — all levels, all genres
+  { language: 'en' }, // English — all levels, all genres
+  { language: 'de' }, // German — all levels, all genres
+  { language: 'sv' }, // Swedish — all levels, all genres
 ];
 
 /**
