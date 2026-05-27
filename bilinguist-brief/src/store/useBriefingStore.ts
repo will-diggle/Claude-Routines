@@ -174,7 +174,21 @@ export const useBriefingStore = create<BriefingStore>()(
           }
         }
 
-        // ── 3. Developer mock mode ───────────────────────────────────────────
+        // ── 2.5. syncFromServer may have already loaded real content ───────
+        // When forceRefresh=true, steps 1 and 2 are skipped above. But
+        // syncFromServer (called concurrently in BriefingScreen) may have
+        // already written today's real briefing into the store. Use it and
+        // skip mock/error paths — this prevents developer mode from
+        // overwriting real content with demo articles.
+        {
+          const fresh = get().briefings[language];
+          if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
+            set((s) => ({ generatingFor: s.generatingFor.filter((l) => l !== language) }));
+            return;
+          }
+        }
+
+        // ── 3. Developer mock mode (fallback only — no real content found) ──
         if (useSettingsStore.getState().developerMode) {
           const mock = getMockBriefing(language, level, length);
           set((s) => ({
