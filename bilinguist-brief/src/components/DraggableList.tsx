@@ -1,35 +1,36 @@
 /**
  * DraggableList — React Native Animated rewrite
  *
- * Replaces react-native-reanimated with React Native's built-in Animated API
- * and PanResponder. Same external interface as the original.
- *
- * Visual feedback (Apple Reminders style):
- *   • Long-press (400ms) → item scales up slightly ("lifted")
- *   • Drag → other items spring out of the way
+ * Visual feedback (polished drag UX):
+ *   • Long-press (300 ms) → item shrinks slightly ("plucked off the list") +
+ *     light haptic impact so it feels like a physical click
+ *   • Drag → other items spring out of the way smoothly, leaving a visible
+ *     coloured-line "slot" at the insertion point
  *   • Release → items spring back, order updates
  *
  * Supports up to 10 items (covers languages: 3, topics: 6).
  */
 
 import React, { useRef, useState } from 'react';
-import { Animated, PanResponder, View } from 'react-native';
+import { Animated, PanResponder, View, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { useTheme } from '../hooks/useTheme';
 
 // ── Spring configs ────────────────────────────────────────────────────────────
 
-const SHIFT_CONFIG = { damping: 22, stiffness: 280, mass: 0.8, useNativeDriver: true } as const;
-const LIFT_CONFIG  = { damping: 18, stiffness: 350, mass: 0.6, useNativeDriver: true } as const;
+const SHIFT_CONFIG = { damping: 20, stiffness: 300, mass: 0.7, useNativeDriver: true } as const;
+const LIFT_CONFIG  = { damping: 16, stiffness: 380, mass: 0.5, useNativeDriver: true } as const;
 
-const MAX_ITEMS = 10;
-const LONG_PRESS_MS = 300;   // hold duration before drag activates
-const CANCEL_THRESHOLD = 8;  // px movement before long press cancels
+const MAX_ITEMS       = 10;
+const LONG_PRESS_MS   = 300;   // hold duration before drag activates
+const CANCEL_THRESHOLD = 8;   // px movement before long press cancels
 
 // ── Drag context (shared between DraggableList and each DraggableRow) ─────────
 
 interface DragCtx {
   translateYs: Animated.Value[];
-  scales: Animated.Value[];
-  itemCount: () => number;
+  scales:      Animated.Value[];
+  itemCount:  () => number;
   itemHeight: () => number;
   onDragStart:  (idx: number) => void;
   onDragMove:   (idx: number, dy: number) => void;
@@ -40,14 +41,26 @@ interface DragCtx {
 // ── Individual draggable row ──────────────────────────────────────────────────
 
 interface DraggableRowProps {
-  index: number;
-  ctx: DragCtx;
+  index:         number;
+  ctx:           DragCtx;
   isDraggingThis: boolean;
-  isDraggingAny: boolean;
-  children: React.ReactNode;
+  isDraggingAny:  boolean;
+  isDropTarget:   boolean;
+  dropEdge:       'top' | 'bottom' | null;
+  slotColor:      string;
+  children:       React.ReactNode;
 }
 
-function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: DraggableRowProps) {
+function DraggableRow({
+  index,
+  ctx,
+  isDraggingThis,
+  isDraggingAny,
+  isDropTarget,
+  dropEdge,
+  slotColor,
+  children,
+}: DraggableRowProps) {
   // Keep a ref so the stable PanResponder always reads the latest index
   const indexRef = useRef(index);
   indexRef.current = index;
@@ -58,22 +71,17 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
 
     return PanResponder.create({
       // Claim the responder on touch start so the long-press timer can begin.
-      // We do NOT capture (capture:false) so that child buttons (Switch,
-      // TouchableOpacity) can still claim the responder themselves — their
-      // internal capture handlers fire before ours and win, leaving taps intact.
+      // Do NOT capture so child buttons (Switch, TouchableOpacity) still work.
       onStartShouldSetPanResponder:        () => true,
       onStartShouldSetPanResponderCapture: () => false,
-      // Re-claim during move once the long-press has confirmed drag intent.
-      onMoveShouldSetPanResponder:         () => active,
-      onMoveShouldSetPanResponderCapture:  () => active,
+      // Re-claim during move once long-press has confirmed drag intent
+      onMoveShouldSetPanResponder:        () => active,
+      onMoveShouldSetPanResponderCapture: () => active,
 
-      // Yield to the ScrollView (or any other responder) while we are NOT
-      // actively dragging. This lets the user scroll normally if they start
-      // moving before the 300 ms long-press fires.
+      // Yield to ScrollView while we're NOT dragging
       onPanResponderTerminationRequest: () => !active,
 
       onPanResponderGrant: () => {
-        // Responder granted — start the long-press countdown.
         timer = setTimeout(() => {
           active = true;
           ctx.onDragStart(indexRef.current);
@@ -82,7 +90,7 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
 
       onPanResponderMove: (_, gs) => {
         if (!active) {
-          // Cancel long-press if the finger moves significantly before it fires.
+          // Cancel long-press if finger moves significantly before it fires
           if (timer && (Math.abs(gs.dy) > CANCEL_THRESHOLD || Math.abs(gs.dx) > CANCEL_THRESHOLD)) {
             clearTimeout(timer);
             timer = null;
@@ -117,14 +125,26 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
         ],
         zIndex:        isDraggingThis ? 999 : 1,
         shadowColor:   '#000',
-        shadowOffset:  { width: 0, height: 4 },
-        shadowOpacity: isDraggingThis ? 0.14 : 0,
-        shadowRadius:  8,
-        elevation:     isDraggingThis ? 8 : 0,
+        shadowOffset:  { width: 0, height: isDraggingThis ? 8 : 4 },
+        shadowOpacity: isDraggingThis ? 0.18 : 0,
+        shadowRadius:  isDraggingThis ? 12 : 8,
+        elevation:     isDraggingThis ? 10 : 0,
       }}
       {...panResponder.panHandlers}
     >
       {children}
+
+      {/* Drop-slot indicator line */}
+      {isDraggingAny && isDropTarget && !isDraggingThis && dropEdge && (
+        <View
+          style={[
+            styles.slotLine,
+            { backgroundColor: slotColor },
+            dropEdge === 'top'    && styles.slotTop,
+            dropEdge === 'bottom' && styles.slotBottom,
+          ]}
+        />
+      )}
     </Animated.View>
   );
 }
@@ -132,16 +152,16 @@ function DraggableRow({ index, ctx, isDraggingThis, isDraggingAny, children }: D
 // ── DraggableList ─────────────────────────────────────────────────────────────
 
 export interface DraggableListProps<T> {
-  items: T[];
+  items:        T[];
   keyExtractor: (item: T) => string;
   /**
    * isAnyDragging lets the caller hide variable-height sub-rows during drag
    * so that all items remain the same height while reordering.
    */
-  renderItem: (item: T, index: number, isAnyDragging: boolean) => React.ReactNode;
-  onReorder: (from: number, to: number) => void;
+  renderItem:   (item: T, index: number, isAnyDragging: boolean) => React.ReactNode;
+  onReorder:    (from: number, to: number) => void;
   /** Must match the rendered height of one row exactly */
-  itemHeight: number;
+  itemHeight:   number;
   /** Called when drag starts/ends so the parent ScrollView can be locked */
   onDragStateChange?: (isDragging: boolean) => void;
 }
@@ -154,24 +174,31 @@ export function DraggableList<T>({
   itemHeight,
   onDragStateChange,
 }: DraggableListProps<T>) {
+  const { colors } = useTheme();
+
   const [isDraggingState, setIsDraggingState] = useState(false);
   const [draggingIdx,     setDraggingIdx]     = useState(-1);
+  const [dropTargetIdx,   setDropTargetIdx]   = useState(-1);
 
   // Stable refs so PanResponder callbacks always see latest prop values
-  const itemsRef            = useRef(items);       itemsRef.current = items;
-  const itemHeightRef       = useRef(itemHeight);  itemHeightRef.current = itemHeight;
-  const onReorderRef        = useRef(onReorder);   onReorderRef.current = onReorder;
-  const onDragStateRef      = useRef(onDragStateChange); onDragStateRef.current = onDragStateChange;
+  const itemsRef       = useRef(items);       itemsRef.current = items;
+  const itemHeightRef  = useRef(itemHeight);  itemHeightRef.current = itemHeight;
+  const onReorderRef   = useRef(onReorder);   onReorderRef.current = onReorder;
+  const onDragStateRef = useRef(onDragStateChange); onDragStateRef.current = onDragStateChange;
+
+  // Ref mirror of draggingIdx/dropTargetIdx for callbacks that can't close over state
+  const draggingIdxRef  = useRef(-1);
+  const dropTargetIdxRef = useRef(-1);
 
   // Pre-create animated values for up to MAX_ITEMS rows
   const translateYs = useRef(
-    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(0))
+    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(0)),
   ).current;
   const scales = useRef(
-    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(1))
+    Array.from({ length: MAX_ITEMS }, () => new Animated.Value(1)),
   ).current;
 
-  // Stable drag-context object (created once, callbacks use refs)
+  // Stable drag-context (created once, callbacks use refs)
   const ctx = useRef<DragCtx>({
     translateYs,
     scales,
@@ -179,17 +206,36 @@ export function DraggableList<T>({
     itemHeight: () => itemHeightRef.current,
 
     onDragStart(idx) {
-      Animated.spring(scales[idx], { toValue: 1.045, ...LIFT_CONFIG }).start();
-      setIsDraggingState(true);
+      // Gentle haptic "click" so it feels like the item snapped free
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+      // Scale DOWN a little — item looks "plucked off" / hovering
+      Animated.spring(scales[idx], { toValue: 0.95, ...LIFT_CONFIG }).start();
+
+      draggingIdxRef.current  = idx;
+      dropTargetIdxRef.current = idx;
       setDraggingIdx(idx);
+      setDropTargetIdx(idx);
+      setIsDraggingState(true);
       onDragStateRef.current?.(true);
     },
 
     onDragMove(idx, dy) {
       const n = itemsRef.current.length;
       const h = itemHeightRef.current;
+
+      // Move the dragged item exactly with the finger
       translateYs[idx].setValue(dy);
+
       const target = Math.max(0, Math.min(n - 1, Math.round(idx + dy / h)));
+
+      // Update drop-target state for slot indicator (only when it changes)
+      if (target !== dropTargetIdxRef.current) {
+        dropTargetIdxRef.current = target;
+        setDropTargetIdx(target);
+      }
+
+      // Shift neighbouring items out of the way
       for (let i = 0; i < n; i++) {
         if (i === idx) continue;
         let val = 0;
@@ -203,12 +249,20 @@ export function DraggableList<T>({
       const n = itemsRef.current.length;
       const h = itemHeightRef.current;
       const to = Math.max(0, Math.min(n - 1, Math.round(idx + dy / h)));
+
+      // Subtle haptic on drop — feels like it clicks into place
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
       for (let i = 0; i < n; i++) {
         Animated.spring(translateYs[i], { toValue: 0, ...SHIFT_CONFIG }).start();
         Animated.spring(scales[i],      { toValue: 1, ...LIFT_CONFIG  }).start();
       }
-      setIsDraggingState(false);
+
+      draggingIdxRef.current   = -1;
+      dropTargetIdxRef.current = -1;
       setDraggingIdx(-1);
+      setDropTargetIdx(-1);
+      setIsDraggingState(false);
       onDragStateRef.current?.(false);
       if (idx !== to) onReorderRef.current(idx, to);
     },
@@ -219,25 +273,54 @@ export function DraggableList<T>({
         Animated.spring(translateYs[i], { toValue: 0, ...SHIFT_CONFIG }).start();
         Animated.spring(scales[i],      { toValue: 1, ...LIFT_CONFIG  }).start();
       }
-      setIsDraggingState(false);
+      draggingIdxRef.current   = -1;
+      dropTargetIdxRef.current = -1;
       setDraggingIdx(-1);
+      setDropTargetIdx(-1);
+      setIsDraggingState(false);
       onDragStateRef.current?.(false);
     },
   }).current;
 
   return (
     <View>
-      {items.map((item, index) => (
-        <DraggableRow
-          key={keyExtractor(item)}
-          index={index}
-          ctx={ctx}
-          isDraggingAny={isDraggingState}
-          isDraggingThis={draggingIdx === index}
-        >
-          {renderItem(item, index, isDraggingState)}
-        </DraggableRow>
-      ))}
+      {items.map((item, index) => {
+        // Determine which edge of this row should show the slot indicator
+        let dropEdge: 'top' | 'bottom' | null = null;
+        if (isDraggingState && index === dropTargetIdx && index !== draggingIdx) {
+          dropEdge = draggingIdx < dropTargetIdx ? 'bottom' : 'top';
+        }
+
+        return (
+          <DraggableRow
+            key={keyExtractor(item)}
+            index={index}
+            ctx={ctx}
+            isDraggingAny={isDraggingState}
+            isDraggingThis={draggingIdx === index}
+            isDropTarget={index === dropTargetIdx && index !== draggingIdx}
+            dropEdge={dropEdge}
+            slotColor={colors.accentGold}
+          >
+            {renderItem(item, index, isDraggingState)}
+          </DraggableRow>
+        );
+      })}
     </View>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  slotLine: {
+    position: 'absolute',
+    left:  16,
+    right: 16,
+    height: 2.5,
+    borderRadius: 2,
+    opacity: 0.85,
+  },
+  slotTop:    { top:    0 },
+  slotBottom: { bottom: 0 },
+});

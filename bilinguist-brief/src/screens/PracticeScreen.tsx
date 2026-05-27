@@ -79,7 +79,6 @@ export function PracticeScreen() {
     >
       {/* Streak */}
       <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-        <Ionicons name="flame" size={18} color={colors.accentGold} />
         <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
