@@ -1,10 +1,18 @@
 name: Generate Daily Briefings
 
 on:
-  # Triggered daily by cron-job.org at 06:30 Europe/Vienna (CEST/CET).
-  # cron-job.org POSTs to the GitHub dispatches API — more reliable than
-  # GitHub's own scheduler which can be delayed by up to 60 minutes.
+  # Primary trigger: cron-job.org POSTs to the GitHub dispatches API at
+  # 06:30 Europe/Vienna (CEST = UTC+2, so 04:30 UTC in summer).
+  # More reliable than GitHub's own scheduler for exact timing.
   workflow_dispatch:
+
+  # Fallback: GitHub's built-in scheduler at 05:00 UTC daily.
+  # This fires if cron-job.org misses a day. GitHub may delay up to
+  # 30–60 min on busy days, but it's a reliable safety net.
+  # Note: GitHub only runs schedule triggers on the default branch,
+  # which is this branch (claude/build-app-from-brief-wNEna).
+  schedule:
+    - cron: '0 5 * * *'
 
 jobs:
   generate:
@@ -71,8 +79,15 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
           git add latest.json briefings/${DATE}.json
-          git commit -m "Daily briefings: ${DATE}"
-          git push
+
+          # Skip commit if nothing changed (handles duplicate trigger from
+          # both cron-job.org and the GitHub schedule fallback firing same day)
+          if git diff --cached --quiet; then
+            echo "No changes to commit — briefing for ${DATE} already pushed."
+          else
+            git commit -m "Daily briefings: ${DATE}"
+            git push
+          fi
 
       - name: Notify — success
         if: success()

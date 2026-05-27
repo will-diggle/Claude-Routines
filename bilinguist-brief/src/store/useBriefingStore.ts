@@ -182,7 +182,18 @@ export const useBriefingStore = create<BriefingStore>()(
           }
         }
 
-        // ── 5. Sync done, still nothing — show friendly not-ready message ────
+        // ── 5. Sync done — check again before giving up ─────────────────────
+        // syncFromServer may have populated the briefing concurrently; re-check
+        // before showing NOT_READY_MESSAGE (forceRefresh skips the early-return
+        // cache check, so we must verify here too).
+        const afterSyncCheck = get().briefings[language];
+        if (afterSyncCheck && afterSyncCheck.date === today) {
+          set((s) => ({
+            generatingFor: s.generatingFor.filter((l) => l !== language),
+          }));
+          return;
+        }
+
         set((s) => ({
           generatingFor: s.generatingFor.filter((l) => l !== language),
           errorsFor: { ...s.errorsFor, [language]: NOT_READY_MESSAGE },
