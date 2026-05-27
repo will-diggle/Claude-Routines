@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
   View,
@@ -216,6 +217,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
+  const insets = useSafeAreaInsets();
   const store = useSettingsStore();
   const { loadBriefing } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
@@ -264,7 +266,7 @@ export function SettingsScreen() {
   return (
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
       keyboardShouldPersistTaps="handled"
       scrollEnabled={!isDragging}
     >

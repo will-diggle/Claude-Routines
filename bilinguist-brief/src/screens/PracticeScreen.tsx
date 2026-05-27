@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
 import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
@@ -42,6 +43,7 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<PracticeNav>();
   const { words, seedSampleWords } = useWordBankStore();
   const { activeLanguages } = useSettingsStore();
@@ -73,7 +75,7 @@ export function PracticeScreen() {
   return (
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
     >
       {/* Streak */}
       <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
