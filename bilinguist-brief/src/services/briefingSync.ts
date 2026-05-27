@@ -19,13 +19,20 @@ export interface DailyBundle {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const WORKER_BASE = (process.env.EXPO_PUBLIC_WORKER_URL ?? '').replace(/\/+$/, '');
-const BUNDLE_URL = WORKER_BASE ? `${WORKER_BASE}/latest` : '';
+// Primary: EXPO_PUBLIC_DATA_URL lets you override (e.g. a Cloudflare Worker).
+// Default: GitHub raw content from the bilinguist-data repo (no extra infra
+// needed — raw.githubusercontent.com is publicly accessible and the ?t= param
+// busts the CDN cache so we always get the freshest file).
+const DATA_BASE = (
+  process.env.EXPO_PUBLIC_DATA_URL ??
+  'https://raw.githubusercontent.com/will-diggle/bilinguist-data/main'
+).replace(/\/+$/, '');
+
+const BUNDLE_URL = `${DATA_BASE}/latest.json`;
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 export async function fetchTodayBundle(): Promise<DailyBundle | null> {
-  if (!BUNDLE_URL) return null;
   const today = new Date().toISOString().split('T')[0];
   try {
     const res = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
