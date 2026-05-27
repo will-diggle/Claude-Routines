@@ -1,8 +1,5 @@
 import type { LanguageCode } from '../store/useSettingsStore';
 
-// Hardcoded to London until per-user location is added
-const LONDON = { latitude: 51.5074, longitude: -0.1278 };
-
 export interface WeatherData {
   temp: number;
   description: string;
@@ -12,15 +9,25 @@ export interface WeatherData {
   humidity: number;
   windKph: number;
   uvIndex: number;
+  code: number;
 }
 
-const GREETINGS: Record<LanguageCode, Record<'morning' | 'afternoon' | 'evening', string>> = {
+const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | 'evening', string>>> = {
   en: { morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening' },
   fr: { morning: 'Bonjour', afternoon: 'Bon après-midi', evening: 'Bonsoir' },
   de: { morning: 'Guten Morgen', afternoon: 'Guten Tag', evening: 'Guten Abend' },
-  es: { morning: 'Buenos días', afternoon: 'Buenas tardes', evening: 'Buenas noches' },
-  it: { morning: 'Buongiorno', afternoon: 'Buon pomeriggio', evening: 'Buonasera' },
+  sv: { morning: 'God morgon', afternoon: 'God dag', evening: 'God kväll' },
 };
+
+const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: number; name: string }>> = {
+  en: { latitude: 51.5074, longitude: -0.1278, name: 'London' },
+  fr: { latitude: 48.8566, longitude:  2.3522, name: 'Paris'  },
+  de: { latitude: 52.5200, longitude: 13.4050, name: 'Berlin' },
+  sv: { latitude: 59.3293, longitude: 18.0686, name: 'Stockholm' },
+};
+
+// Fallback city if language not in LANG_CITIES
+const FALLBACK_CITY = { latitude: 51.5074, longitude: -0.1278, name: 'London' };
 
 // WMO weather interpretation codes → English description
 // https://open-meteo.com/en/docs#weathervariables
@@ -46,7 +53,8 @@ function timeOfDay(): 'morning' | 'afternoon' | 'evening' {
 
 export async function fetchWeather(language: LanguageCode): Promise<WeatherData | null> {
   try {
-    const { latitude, longitude } = LONDON;
+    const cityData = LANG_CITIES[language] ?? FALLBACK_CITY;
+    const { latitude, longitude, name: city } = cityData;
 
     // Open-Meteo — free, no API key required
     const url =
@@ -63,14 +71,13 @@ export async function fetchWeather(language: LanguageCode): Promise<WeatherData 
     const temp = Math.round(data.current?.temperature_2m ?? 0);
     const code: number = data.current?.weather_code ?? 0;
     const description = WMO_DESCRIPTIONS[code] ?? 'clear sky';
-    const city = 'London';
     const greeting = GREETINGS[language]?.[timeOfDay()] ?? 'Good morning';
     const feelsLike = Math.round(data.current?.apparent_temperature ?? temp);
     const humidity = Math.round(data.current?.relative_humidity_2m ?? 0);
     const windKph = Math.round(data.current?.wind_speed_10m ?? 0);
     const uvIndex = Math.round(data.current?.uv_index ?? 0);
 
-    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex };
+    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex, code };
   } catch {
     return null;
   }

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { ScrollView, RefreshControl, StyleSheet, View, Text, Image, Dimensions } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet, View, Text, Image, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
@@ -97,7 +97,7 @@ export function BriefingScreen() {
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const {
-    briefings, generatingFor, errorsFor, weather, isLoadingWeather,
+    briefings, generatingFor, errorsFor, weather, weatherByLang, isLoadingWeather,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
     syncMessage,
   } = useBriefingStore();
@@ -109,14 +109,17 @@ export function BriefingScreen() {
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}`).join(',') +
     `:${settings.readLength}`;
 
+  const lastSyncRef = useRef<number>(0);
+
   const runSync = useCallback(async () => {
+    lastSyncRef.current = Date.now();
     const langs = settings.languages.filter((l) => l.active);
     await syncFromServer();
     await Promise.all(langs.map((lang) => {
       const level = lang.level ?? 'B1';
       return loadBriefing(lang.code, level, resolveLength(level, settings.readLength), true);
     }));
-    if (langs.length > 0) loadWeather(langs[0].code);
+    await Promise.all(langs.map((lang) => loadWeather(lang.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
@@ -124,6 +127,17 @@ export function BriefingScreen() {
     runSync();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
+
+  useEffect(() => {
+    const MIN_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active' && Date.now() - lastSyncRef.current > MIN_SYNC_INTERVAL) {
+        lastSyncRef.current = Date.now();
+        runSync();
+      }
+    });
+    return () => sub.remove();
+  }, [runSync]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -158,17 +172,24 @@ export function BriefingScreen() {
     >
       {/* ══ Masthead ══════════════════════════════════════════════════════
            2px rule (chrome)
+           Cities (centred, 9px, tracked uppercase) — between outer and inner rule
            1px hairline rule
            Lockup PNG (full width)
-           Cities (centred, 9px, tracked uppercase) — between lockup and meta
            [Published at date  ·  Vol. N]  (non-italic, same tracked style)
            1px hairline rule
            2px rule (chrome)
            Tagline (italic, "Your … brief")
           ═══════════════════════════════════════════════════════════════ */}
 
-      {/* Top double rules */}
+      {/* Top outer rule */}
       <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+
+      {/* Cities — between outer and inner rule */}
+      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+        {locationStr}
+      </Text>
+
+      {/* Top inner hairline rule */}
       <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
       {/* Lockup — pre-composed masthead PNG, colours baked in per theme */}
@@ -179,11 +200,6 @@ export function BriefingScreen() {
           resizeMode="contain"
         />
       </View>
-
-      {/* Cities — below lockup, evenly spaced above and below */}
-      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-        {locationStr}
-      </Text>
 
       {/* Meta row: published date (left) · Vol. N (right), both non-italic */}
       <View style={styles.metaRow}>
@@ -236,6 +252,7 @@ export function BriefingScreen() {
             error={errorsFor[lang.code]}
             isFirst={index === 0}
             topics={settings.topics}
+            weather={weatherByLang[lang.code] ?? null}
             onRetry={() => {
               clearError(lang.code);
               loadBriefing(lang.code, level, length, true);
@@ -259,15 +276,14 @@ const styles = StyleSheet.create({
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
 
   // ── Masthead ───────────────────────────────────────────────────────
-  // Cities line — centred, 9px, tracked uppercase, sits between lockup and meta row
+  // Cities line — centred, 9px, tracked uppercase, sits between outer and inner rule
   cities: {
     width: SCREEN_WIDTH,
     textAlign: 'center',
     fontSize: 9,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingVertical: 5,
   },
 
   // Lockup image wrapper — full width, horizontal padding matches RevealMasthead

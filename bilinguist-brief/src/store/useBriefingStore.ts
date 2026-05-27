@@ -28,6 +28,7 @@ interface BriefingStore {
   generatingFor: LanguageCode[];
   errorsFor: Partial<Record<LanguageCode, string>>;
   weather: WeatherData | null;
+  weatherByLang: Partial<Record<LanguageCode, WeatherData>>;
   isLoadingWeather: boolean;
   isSyncing: boolean;
   syncMessage: string | null;
@@ -52,6 +53,7 @@ export const useBriefingStore = create<BriefingStore>()(
       generatingFor: [],
       errorsFor: {},
       weather: null,
+      weatherByLang: {},
       isLoadingWeather: false,
       isSyncing: false,
       syncMessage: null,
@@ -97,8 +99,12 @@ export const useBriefingStore = create<BriefingStore>()(
 
       loadWeather: async (language) => {
         set({ isLoadingWeather: true });
-        const weather = await fetchWeather(language);
-        set({ weather, isLoadingWeather: false });
+        const weatherData = await fetchWeather(language);
+        set((s) => ({
+          weather: weatherData,
+          weatherByLang: { ...s.weatherByLang, [language]: weatherData ?? undefined },
+          isLoadingWeather: false,
+        }));
       },
 
       loadBriefing: async (language, level, length, forceRefresh = false) => {
@@ -192,6 +198,7 @@ export const useBriefingStore = create<BriefingStore>()(
       partialize: (state) => ({
         briefings: state.briefings,
         weather: state.weather,
+        weatherByLang: state.weatherByLang,
         bundleReceivedAt: state.bundleReceivedAt,
       }),
     }

@@ -15,6 +15,22 @@ import type { WeatherData } from '../services/weather';
 interface Props {
   weather: WeatherData | null;
   isLoading: boolean;
+  weatherCode?: number;
+}
+
+export function codeToIcon(code: number): string {
+  if (code === 0) return '☀️';
+  if (code === 1) return '🌤️';
+  if (code === 2) return '⛅';
+  if (code === 3) return '☁️';
+  if (code === 45 || code === 48) return '🌫️';
+  if (code === 51 || code === 53 || code === 55) return '🌦️';
+  if (code === 61 || code === 63 || code === 65) return '🌧️';
+  if (code === 71 || code === 73 || code === 75 || code === 77) return '❄️';
+  if (code === 80 || code === 81 || code === 82) return '🌦️';
+  if (code === 85 || code === 86) return '🌨️';
+  if (code === 95 || code === 96 || code === 99) return '⛈️';
+  return '🌡️';
 }
 
 function uvLabel(index: number): string {
@@ -24,14 +40,16 @@ function uvLabel(index: number): string {
   return 'Very High';
 }
 
-export function WeatherStrip({ weather, isLoading }: Props) {
+export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
   const { colors, fontFamily } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
 
   const text = (() => {
     if (isLoading) return null;
     if (!weather) return null;
-    return `${weather.greeting} — ${weather.temp}°C and ${weather.description} in ${weather.city}`;
+    const code = weatherCode ?? weather.code ?? 0;
+    const icon = codeToIcon(code);
+    return `${icon} ${weather.greeting} — ${weather.temp}°C, ${weather.description} in ${weather.city}`;
   })();
 
   if (!isLoading && !text) return null;
