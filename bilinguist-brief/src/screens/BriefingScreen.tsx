@@ -19,6 +19,13 @@ const MASTHEADS: Record<string, ReturnType<typeof require>> = {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// Masthead lockup dimensions — calculated from screen width so the full
+// crest + wordmark always fills the available width at the correct height.
+// The four masthead PNGs are all ~5.17:1 (3491×675 px baseline).
+const LOCKUP_PADDING = 12; // matches lockupWrap.paddingHorizontal
+const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
+const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
+
 // ── Language → masthead city ──────────────────────────────────────────────────
 
 const LANG_CITY: Record<string, string> = {
@@ -274,20 +281,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
 
-  // Lockup image wrapper — full width, slight padding so the crest breathes
+  // Lockup image wrapper — padded to match LOCKUP_PADDING constant above
   lockupWrap: {
     width: SCREEN_WIDTH,
-    paddingHorizontal: 12,
+    paddingHorizontal: LOCKUP_PADDING,
     paddingTop: 4,
     paddingBottom: 2,
   },
-  // aspectRatio drives the height automatically from the container width so
-  // the full crest + wordmark always fills the available space regardless of
-  // screen size. The four masthead PNGs are ~5.17–5.69:1; 5.2 is the
-  // cream/navy baseline (the default themes).
+  // Explicit pixel dimensions — avoids React Native quirks with percentage
+  // widths + aspectRatio on Image components. Height is pre-computed from
+  // the masthead PNG's 5.17:1 ratio so the full crest + wordmark fills the
+  // available width at exactly the right height on every screen size.
   lockup: {
-    width: '100%',
-    aspectRatio: 5.2,
+    width: LOCKUP_W,
+    height: LOCKUP_H,
   },
 
   // Meta row: [Published italic date …  |  Vol. II]
