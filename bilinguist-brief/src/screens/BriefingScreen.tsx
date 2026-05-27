@@ -5,7 +5,6 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
-import { WeatherStrip } from '../components/WeatherStrip';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import type { ArticleLength } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
@@ -97,9 +96,8 @@ export function BriefingScreen() {
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const {
-    briefings, generatingFor, errorsFor, weather, weatherByLang, isLoadingWeather,
+    briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
-    syncMessage,
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -226,16 +224,6 @@ export function BriefingScreen() {
       <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
 
       {/* ── Sync progress ─────────────────────────────────────────────── */}
-      {syncMessage != null && (
-        <View style={[styles.syncBanner, { borderBottomColor: colors.borderLight }]}>
-          <Text style={[styles.syncText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {syncMessage}
-          </Text>
-        </View>
-      )}
-
-      {/* ── Weather strip ──────────────────────────────────────────────── */}
-      <WeatherStrip weather={weather} isLoading={isLoadingWeather} />
 
       {/* ── Language sections ──────────────────────────────────────────── */}
       {activeLanguages.map((lang, index) => {

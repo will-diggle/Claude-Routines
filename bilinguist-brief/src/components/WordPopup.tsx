@@ -124,11 +124,7 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                 {translation}
               </Text>
             </>
-          ) : (
-            <Text style={[styles.noKey, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Add a DeepL API key in .env to enable instant translation
-            </Text>
-          )}
+          ) : null}
         </View>
 
         {/* Original sentence */}
