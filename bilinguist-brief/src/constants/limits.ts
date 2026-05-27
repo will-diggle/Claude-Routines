@@ -31,9 +31,9 @@ interface AudioAllowCombo {
 }
 
 const AUDIO_TRIAL_ALLOWLIST: AudioAllowCombo[] = [
-  { language: 'fr' },                                       // French — any level
-  { language: 'en' },                                       // English — any level
-  { language: 'de', level: 'A2', genre: 'GLOBAL NEWS' },   // German A2, Global News only
+  { language: 'fr', level: 'Native', genre: 'GLOBAL NEWS' }, // French — Native, Global News only
+  { language: 'en', level: 'Native', genre: 'GLOBAL NEWS' }, // English — Native, Global News only
+  { language: 'de', level: 'A2',     genre: 'GLOBAL NEWS' }, // German  — A2,     Global News only
 ];
 
 /**
