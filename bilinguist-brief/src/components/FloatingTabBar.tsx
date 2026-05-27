@@ -70,17 +70,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         style={[styles.fadeWrapper, { height: fadeHeight }]}
       >
         {Array.from({ length: STEPS }).map((_, i) => {
-          // i=0 is top of gradient (transparent); i=STEPS-1 is bottom (opaque)
-          const alpha = Math.pow(i / (STEPS - 1), 1.8) * 0.9;
+          // i=0 at top (transparent), i=STEPS-1 at bottom (fully opaque)
+          const alpha = Math.pow(i / (STEPS - 1), 2.2);
           return (
             <View
               key={i}
               style={{
                 position: 'absolute',
-                bottom: i * segH,
+                top: i * segH,
                 left: 0,
                 right: 0,
-                height: segH + 1, // +1 prevents hairline gaps between strips
+                height: segH + 1,
                 backgroundColor: `rgba(${rgb}, ${alpha})`,
               }}
             />

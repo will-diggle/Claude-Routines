@@ -152,15 +152,14 @@ export function LanguageBriefingSection({
     <View>
       {!isFirst && <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />}
 
-      {/* Edition header — newspaper style */}
-      <View style={[styles.editionRow, { borderTopColor: colors.inkDark, borderBottomColor: colors.inkDark }]}>
-        <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
+      {/* Edition header — double rule then edition text below */}
+      <View style={[styles.mastHead, { marginHorizontal: Spacing.md, marginTop: Spacing.sm }]}>
+        <View style={[styles.mastLineThick, { backgroundColor: colors.inkDark }]} />
+        <View style={[styles.mastLineThin,  { backgroundColor: colors.inkDark }]} />
         <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
           {nativeName.toUpperCase()} · {levelLabel(level, langCode)}
         </Text>
-        <View style={[styles.editionRule, { backgroundColor: colors.inkDark }]} />
       </View>
-      <View style={[styles.mastRule, { backgroundColor: colors.inkDark }]} />
 
       {/* Inline weather strip — centred, per-language */}
       {weather && (
@@ -253,18 +252,12 @@ const styles = StyleSheet.create({
     height: 2,
     marginTop: Spacing.xl,
   },
-  editionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: Spacing.md,  // lines stop short of screen edges
-    paddingVertical: 8,
-    borderTopWidth: 2,
-    borderBottomWidth: 2,
-    marginTop: Spacing.sm,
+  mastHead: {
+    paddingBottom: Spacing.xs,
   },
-  editionRule: { flex: 1, height: 1 },
-  editionText: { fontSize: 11, letterSpacing: 1.5, paddingHorizontal: Spacing.sm },
-  mastRule: { height: 1, marginHorizontal: Spacing.md, marginBottom: Spacing.xs },
+  mastLineThick: { height: 2 },
+  mastLineThin:  { height: 1, marginTop: 4 },
+  editionText: { fontSize: 11, letterSpacing: 1.5, marginTop: 8, textAlign: 'center' },
   weatherLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,12 +306,12 @@ const styles = StyleSheet.create({
   },
   sectionColorBar: {
     width: 4,
-    height: 14,
+    height: 16,
     borderRadius: 2,
     marginRight: Spacing.sm,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
