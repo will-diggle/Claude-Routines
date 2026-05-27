@@ -28,7 +28,12 @@ const DATA_BASE = (
   'https://raw.githubusercontent.com/will-diggle/bilinguist-data/main'
 ).replace(/\/+$/, '');
 
-const BUNDLE_URL = `${DATA_BASE}/latest.json`;
+// The Cloudflare Worker exposes /latest (no .json extension).
+// The raw GitHub fallback uses /latest.json — but that repo is private so
+// only the Worker path actually works in production.
+const BUNDLE_URL = process.env.EXPO_PUBLIC_DATA_URL
+  ? `${DATA_BASE}/latest`
+  : `${DATA_BASE}/latest.json`;
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
