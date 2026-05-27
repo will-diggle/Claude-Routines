@@ -192,16 +192,15 @@ export function FloatingAudioPill() {
           <Animated.View
             style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
           >
+            {/* No numberOfLines — must measure the natural (unconstrained) text width */}
             <Text
               style={[styles.marqueeText, { color: accent, fontFamily: fontFamily.regular }]}
-              numberOfLines={1}
               onLayout={e => setTextWidth(e.nativeEvent.layout.width)}
             >
               {marqueeText}
             </Text>
             <Text
               style={[styles.marqueeText, { color: accent, fontFamily: fontFamily.regular }]}
-              numberOfLines={1}
             >
               {marqueeText}
             </Text>
@@ -273,14 +272,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Two copies side-by-side inside the animated wrapper
+  // Two copies side-by-side inside the animated wrapper.
+  // flexShrink:0 prevents the track being squeezed to container width,
+  // which would make textWidth === containerW and block the animation.
   marqueeTrack: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 0,
   },
 
   marqueeText: {
     fontSize: 12,
     letterSpacing: 0.2,
+    flexShrink: 0,
   },
 });

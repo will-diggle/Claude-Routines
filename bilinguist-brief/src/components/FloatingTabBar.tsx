@@ -58,8 +58,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // Gradient fade — fades content behind the pill area
   const rgb         = BG_RGB[background] ?? BG_RGB.white;
-  const fadeHeight  = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + 32;
-  const STEPS       = 10;
+  const fadeHeight  = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + 110;
+  const STEPS       = 14;
   const segH        = fadeHeight / STEPS;
 
   return (
@@ -71,7 +71,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       >
         {Array.from({ length: STEPS }).map((_, i) => {
           // i=0 at top (transparent), i=STEPS-1 at bottom (fully opaque)
-          const alpha = Math.pow(i / (STEPS - 1), 2.2);
+          const alpha = Math.pow(i / (STEPS - 1), 1.6);
           return (
             <View
               key={i}
