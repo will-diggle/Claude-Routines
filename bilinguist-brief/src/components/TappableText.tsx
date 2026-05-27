@@ -56,8 +56,9 @@ export function TappableText({ text, style, activeWord, onWordPress }: Props) {
             onPress={() => onWordPress(token.text, findContainingSentence(text, token.text))}
             style={[
               styles.word,
-              { borderBottomColor: colors.accentGold },
-              isActive && { backgroundColor: colors.accentGold + '22' },
+              isActive
+                ? { borderBottomColor: colors.accentGold, borderBottomWidth: 2 }
+                : { borderBottomColor: colors.accentGold + '66', borderBottomWidth: 1 },
             ]}
           >
             {token.text}
@@ -70,6 +71,6 @@ export function TappableText({ text, style, activeWord, onWordPress }: Props) {
 
 const styles = StyleSheet.create({
   word: {
-    borderBottomWidth: 1,
+    // borderBottomWidth set per-word in the inline style above
   },
 });

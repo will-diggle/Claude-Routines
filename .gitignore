@@ -1,0 +1,16 @@
+# Claude Code agent worktrees (internal scratch space)
+.claude/
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Generated pipeline output (pushed to bilinguist-data repo separately)
+bilinguist-brief/scripts/output/
+bilinguist-brief/scripts/factbase_*.json
