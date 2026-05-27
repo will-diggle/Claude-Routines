@@ -9,21 +9,7 @@ import type { GeneratedBriefing, BriefingArticle as Article } from '../services/
 import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
-
-function codeToIcon(code: number): string {
-  if (code === 0) return '☀️';
-  if (code === 1) return '🌤️';
-  if (code === 2) return '⛅';
-  if (code === 3) return '☁️';
-  if (code === 45 || code === 48) return '🌫️';
-  if (code === 51 || code === 53 || code === 55) return '🌦️';
-  if (code === 61 || code === 63 || code === 65) return '🌧️';
-  if (code === 71 || code === 73 || code === 75 || code === 77) return '❄️';
-  if (code === 80 || code === 81 || code === 82) return '🌦️';
-  if (code === 85 || code === 86) return '🌨️';
-  if (code === 95 || code === 96 || code === 99) return '⛈️';
-  return '🌡️';
-}
+import { codeToIoniconName } from './WeatherStrip';
 
 // Maps the genre strings the API returns to settings topic keys
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
@@ -175,9 +161,17 @@ export function LanguageBriefingSection({
 
       {/* Inline weather strip — compact, per-language */}
       {weather && (
-        <Text style={[styles.weatherLine, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-          {`${codeToIcon(weather.code ?? 0)} ${weather.greeting} — ${weather.temp}°C, ${weather.description} in ${weather.city}`}
-        </Text>
+        <View style={styles.weatherLine}>
+          <Ionicons
+            name={codeToIoniconName(weather.code ?? 0)}
+            size={12}
+            color={colors.inkFaint}
+            style={styles.weatherIcon}
+          />
+          <Text style={[styles.weatherText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {`${weather.greeting} — ${weather.temp}°C, ${weather.description} in ${weather.city}`}
+          </Text>
+        </View>
       )}
 
       {(isGenerating || (!error && !briefing)) && <BriefingLoading />}
@@ -260,10 +254,17 @@ const styles = StyleSheet.create({
   editionText: { fontSize: 11, letterSpacing: 1.5, paddingHorizontal: Spacing.sm },
   mastRule: { height: 1, marginHorizontal: Spacing.md, marginBottom: Spacing.xs },
   weatherLine: {
-    fontSize: 12,
-    fontStyle: 'italic',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 8,
+    gap: 4,
+  },
+  weatherIcon: {
+    marginTop: 1,
+  },
+  weatherText: {
+    fontSize: 12,
   },
   centerBlock: {
     alignItems: 'center',

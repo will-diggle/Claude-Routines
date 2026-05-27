@@ -8,6 +8,7 @@ import {
   Modal,
   SafeAreaView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import type { WeatherData } from '../services/weather';
@@ -18,19 +19,20 @@ interface Props {
   weatherCode?: number;
 }
 
-export function codeToIcon(code: number): string {
-  if (code === 0) return '☀️';
-  if (code === 1) return '🌤️';
-  if (code === 2) return '⛅';
-  if (code === 3) return '☁️';
-  if (code === 45 || code === 48) return '🌫️';
-  if (code === 51 || code === 53 || code === 55) return '🌦️';
-  if (code === 61 || code === 63 || code === 65) return '🌧️';
-  if (code === 71 || code === 73 || code === 75 || code === 77) return '❄️';
-  if (code === 80 || code === 81 || code === 82) return '🌦️';
-  if (code === 85 || code === 86) return '🌨️';
-  if (code === 95 || code === 96 || code === 99) return '⛈️';
-  return '🌡️';
+// WMO code → Ionicons name
+export function codeToIoniconName(code: number): React.ComponentProps<typeof Ionicons>['name'] {
+  if (code === 0)                              return 'sunny-outline';
+  if (code === 1)                              return 'partly-sunny-outline';
+  if (code === 2)                              return 'partly-sunny-outline';
+  if (code === 3)                              return 'cloudy-outline';
+  if (code === 45 || code === 48)              return 'cloud-outline';
+  if (code >= 51 && code <= 55)               return 'rainy-outline';
+  if (code >= 61 && code <= 65)               return 'rainy-outline';
+  if (code >= 71 && code <= 77)               return 'snow-outline';
+  if (code >= 80 && code <= 82)               return 'rainy-outline';
+  if (code >= 85 && code <= 86)               return 'snow-outline';
+  if (code >= 95)                              return 'thunderstorm-outline';
+  return 'thermometer-outline';
 }
 
 function uvLabel(index: number): string {
@@ -44,15 +46,10 @@ export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
   const { colors, fontFamily } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
 
-  const text = (() => {
-    if (isLoading) return null;
-    if (!weather) return null;
-    const code = weatherCode ?? weather.code ?? 0;
-    const icon = codeToIcon(code);
-    return `${icon} ${weather.greeting} — ${weather.temp}°C, ${weather.description} in ${weather.city}`;
-  })();
+  if (!isLoading && !weather) return null;
 
-  if (!isLoading && !text) return null;
+  const code    = weatherCode ?? weather?.code ?? 0;
+  const iconName = codeToIoniconName(code);
 
   function handlePress() {
     if (!weather || isLoading) return;
@@ -69,9 +66,12 @@ export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.inkFaint} />
         ) : (
-          <Text style={[styles.text, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {text}
-          </Text>
+          <View style={styles.stripRow}>
+            <Ionicons name={iconName} size={13} color={colors.inkFaint} style={styles.stripIcon} />
+            <Text style={[styles.text, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+              {weather!.greeting} — {weather!.temp}°C, {weather!.description} in {weather!.city}
+            </Text>
+          </View>
         )}
       </TouchableOpacity>
 
@@ -95,6 +95,9 @@ export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
               {/* Drag handle */}
               <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
 
+              {/* Large icon */}
+              <Ionicons name={iconName} size={48} color={colors.inkMid} style={{ marginBottom: 8 }} />
+
               {/* Headline */}
               <Text style={[styles.city, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 {weather.city}
@@ -111,27 +114,28 @@ export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
               {/* Detail rows */}
               <View style={[styles.detailsCard, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
                 <DetailRow
+                  icon="thermometer-outline"
                   label={`Feels like ${weather.feelsLike}°C`}
                   colors={colors}
                   fontFamily={fontFamily}
                   isLast={false}
                 />
                 <DetailRow
-                  emoji="💧"
+                  icon="water-outline"
                   label={`Humidity ${weather.humidity}%`}
                   colors={colors}
                   fontFamily={fontFamily}
                   isLast={false}
                 />
                 <DetailRow
-                  emoji="💨"
+                  icon="speedometer-outline"
                   label={`Wind ${weather.windKph} km/h`}
                   colors={colors}
                   fontFamily={fontFamily}
                   isLast={false}
                 />
                 <DetailRow
-                  emoji="☀️"
+                  icon="sunny-outline"
                   label={`UV Index ${weather.uvIndex} (${uvLabel(weather.uvIndex)})`}
                   colors={colors}
                   fontFamily={fontFamily}
@@ -159,13 +163,13 @@ export function WeatherStrip({ weather, isLoading, weatherCode }: Props) {
 }
 
 function DetailRow({
-  emoji,
+  icon,
   label,
   colors,
   fontFamily,
   isLast,
 }: {
-  emoji?: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   colors: any;
   fontFamily: any;
@@ -173,11 +177,7 @@ function DetailRow({
 }) {
   return (
     <View style={[styles.detailRow, !isLast && { borderBottomColor: colors.borderLight, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-      {emoji ? (
-        <Text style={styles.detailEmoji}>{emoji}</Text>
-      ) : (
-        <View style={styles.detailEmojiPlaceholder} />
-      )}
+      <Ionicons name={icon} size={16} color={colors.inkFaint} style={styles.detailIcon} />
       <Text style={[styles.detailText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
         {label}
       </Text>
@@ -191,6 +191,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
+  },
+  stripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  stripIcon: {
+    // slight nudge so it sits on the text baseline
+    marginTop: 1,
   },
   text: {
     fontSize: 13,
@@ -245,11 +254,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 12,
   },
-  detailEmoji: {
-    fontSize: 16,
-    width: 28,
-  },
-  detailEmojiPlaceholder: {
+  detailIcon: {
     width: 28,
   },
   detailText: {
