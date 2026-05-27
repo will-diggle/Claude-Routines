@@ -20,7 +20,6 @@ import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordExplanation } from '../services/wordLookup';
-import { isAudioAllowed } from '../constants/limits';
 
 interface Props {
   word: string | null;
@@ -228,12 +227,14 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   );
 }
 
+// Languages supported by ElevenLabs eleven_multilingual_v2
+const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
+
 function AudioButton({ word, language, level, genre }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string }) {
   const { colors, fontFamily } = useTheme();
   const { state, play, stop } = useAudioPlayer();
   const [capInfo, setCapInfo] = React.useState<{ remaining: number; limit: number } | null>(null);
   const [capReached, setCapReached] = React.useState(false);
-  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
 
   React.useEffect(() => {
     getMonthlyAudioUsage().then((u) => {
@@ -242,8 +243,8 @@ function AudioButton({ word, language, level, genre }: { word: string; language:
     });
   }, []);
 
-  if (!apiKey) return null; // key not configured yet — silent
-  if (!isAudioAllowed(language, level, genre)) return null;
+  // Only render for languages the TTS model supports
+  if (!AUDIO_LANGUAGES_POPUP.includes(language)) return null;
 
   async function handlePress() {
     if (state === 'playing') { await stop(); return; }

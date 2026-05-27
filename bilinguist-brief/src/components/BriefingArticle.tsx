@@ -7,7 +7,6 @@ import { Spacing } from '../theme';
 import { TappableText } from './TappableText';
 import { WordPopup } from './WordPopup';
 import { synthesizeWord } from '../services/elevenlabs';
-import { isAudioAllowed } from '../constants/limits';
 import type { BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
@@ -20,16 +19,16 @@ interface AudioBtnProps {
   genre?: string;
 }
 
+// Languages supported by ElevenLabs eleven_multilingual_v2
+const AUDIO_LANGUAGES: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
+
 function ArticleAudioButton({ headline, language, level, genre }: AudioBtnProps) {
   const { colors } = useTheme();
   const [status, setStatus] = useState<'idle' | 'loading' | 'playing'>('idle');
   const soundRef = useRef<Audio.Sound | null>(null);
 
-  // Gate: only show for allowed trial combos
-  if (!isAudioAllowed(language, level, genre)) return null;
-
-  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ?? '';
-  if (!apiKey) return null;
+  // Only render for languages the TTS model supports
+  if (!AUDIO_LANGUAGES.includes(language)) return null;
 
   async function handlePress() {
     if (status === 'loading') return;
