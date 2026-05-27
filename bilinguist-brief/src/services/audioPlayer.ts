@@ -15,7 +15,11 @@ let _sound: Audio.Sound | null = null;
  * Synthesise `text` via ElevenLabs and begin playback.
  * Stops any currently playing audio first.
  */
-export async function playAudioHeadline(text: string, language: LanguageCode): Promise<void> {
+export async function playAudioHeadline(
+  text: string,
+  language: LanguageCode,
+  trackingKey?: string,
+): Promise<void> {
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
 
   // Stop and release any existing sound
@@ -27,7 +31,9 @@ export async function playAudioHeadline(text: string, language: LanguageCode): P
     _sound = null;
   }
 
-  setLoading(text);
+  // Use trackingKey (e.g. headline) so per-article UI state stays in sync
+  // even when `text` is the full article body.
+  setLoading(trackingKey ?? text);
 
   const result = await synthesizeWord(text, language);
   if (!result.ok) {

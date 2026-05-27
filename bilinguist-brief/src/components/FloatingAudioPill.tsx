@@ -87,8 +87,8 @@ export function FloatingAudioPill() {
     ? 'rgba(255,255,255,0.09)'
     : 'rgba(0,0,0,0.07)';
 
-  // Accent for button and bars — use the app's gold on light/dark, cream on navy
-  const accent = isNavy ? '#F5F0E8' : colors.accentGold;
+  // Accent = opposite of the current theme background (chrome)
+  const accent = colors.chrome;
 
   // ── Position: above the floating tab bar ─────────────────────────────────
   const bottomOffset = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;

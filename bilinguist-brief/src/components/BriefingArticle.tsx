@@ -14,6 +14,7 @@ import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 interface AudioBtnProps {
   headline: string;
+  body: string;
   language: LanguageCode;
   level: LanguageLevel;
   genre?: string;
@@ -22,7 +23,7 @@ interface AudioBtnProps {
 // Languages supported by ElevenLabs eleven_multilingual_v2
 const AUDIO_LANGUAGES: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
 
-function ArticleAudioButton({ headline, language }: AudioBtnProps) {
+function ArticleAudioButton({ headline, body, language }: AudioBtnProps) {
   const { colors } = useTheme();
   const { isPlaying, isLoading, headline: activeHeadline } = useAudioStore();
 
@@ -38,14 +39,21 @@ function ArticleAudioButton({ headline, language }: AudioBtnProps) {
       await pauseAudio();
       return;
     }
-    await playAudioHeadline(headline, language);
+    // Synthesise the full article (headline + body); track by headline
+    await playAudioHeadline(`${headline}. ${body}`, language, headline);
   }
+
+  // Button colour = opposite of the current theme background
+  const btnColor = colors.chrome;
+  const iconColor = colors.bg === '#162032' || colors.bg === '#141414' || colors.bg === '#F5F0E8'
+    ? '#FFF'
+    : '#FFF';
 
   return (
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.75}
-      style={[styles.audioBtn, { backgroundColor: colors.accentGold }]}
+      style={[styles.audioBtn, { backgroundColor: btnColor }]}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
       {isThisLoading ? (
@@ -55,7 +63,7 @@ function ArticleAudioButton({ headline, language }: AudioBtnProps) {
           name={isThisPlaying ? 'pause' : 'play'}
           size={13}
           color="#FFF"
-          style={isThisPlaying ? undefined : { marginLeft: 2 }} // optical nudge for play triangle
+          style={isThisPlaying ? undefined : { marginLeft: 2 }}
         />
       )}
     </TouchableOpacity>
@@ -105,6 +113,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, locke
 
         <ArticleAudioButton
           headline={article.headline}
+          body={article.body}
           language={language}
           level={level}
           genre={genre}

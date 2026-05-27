@@ -79,7 +79,7 @@ export function PracticeScreen() {
     >
       {/* Streak */}
       <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-        <Text style={[styles.streakNumber, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak}</Text>
+        <Text style={[styles.streakNumber, { color: colors.chrome, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
 
@@ -146,7 +146,7 @@ export function PracticeScreen() {
               },
             ]}
           >
-            <Ionicons name={pile.icon} size={22} color={colors.accentGold} style={{ marginBottom: Spacing.xs }} />
+            <Ionicons name={pile.icon} size={22} color={colors.chrome} style={{ marginBottom: Spacing.xs }} />
             <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {filteredCounts[pile.key]}
             </Text>
