@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
   // Full-width transparent container — lets touches fall through to the page
   wrapper: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: 48,
+    right: 48,
     alignItems: 'center',
   },
 
