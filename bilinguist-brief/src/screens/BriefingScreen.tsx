@@ -100,7 +100,7 @@ export function BriefingScreen() {
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
-    briefVolume,
+    briefVolume, isSyncing,
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -172,7 +172,7 @@ export function BriefingScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
+          refreshing={refreshing || isSyncing}
           onRefresh={onRefresh}
           tintColor={colors.inkLight}
         />

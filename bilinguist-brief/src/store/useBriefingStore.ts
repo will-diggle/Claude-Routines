@@ -132,7 +132,13 @@ export const useBriefingStore = create<BriefingStore>()(
           await applyBundleToCache(bundle);
           await clearPreviousDaysBriefings(bundle.date);
 
-          const receivedAt = Date.now();
+          // Use the server's generation timestamp so "Published at" reflects when
+          // the pipeline ran, not when the phone received the bundle.
+          // Guard against seconds vs milliseconds: server may emit either format.
+          const generatedTs = bundle.generatedAt;
+          const receivedAt = generatedTs
+            ? (generatedTs < 1e12 ? generatedTs * 1000 : generatedTs)
+            : Date.now();
           const settings = useSettingsStore.getState();
           const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
           const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
@@ -244,7 +250,7 @@ export const useBriefingStore = create<BriefingStore>()(
         // overwriting real content with demo articles.
         {
           const fresh = get().briefings[language];
-          if (fresh && fresh.language === language && fresh.level === level && fresh.length === length) {
+          if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
             set((s) => ({ generatingFor: s.generatingFor.filter((l) => l !== language) }));
             return;
           }
@@ -297,7 +303,7 @@ export const useBriefingStore = create<BriefingStore>()(
         // before showing NOT_READY_MESSAGE (forceRefresh skips the early-return
         // cache check, so we must verify here too).
         const afterSyncCheck = get().briefings[language];
-        if (afterSyncCheck && afterSyncCheck.language === language && afterSyncCheck.level === level && afterSyncCheck.length === length) {
+        if (afterSyncCheck && afterSyncCheck.date === today && afterSyncCheck.language === language && afterSyncCheck.level === level && afterSyncCheck.length === length) {
           set((s) => ({
             generatingFor: s.generatingFor.filter((l) => l !== language),
           }));
