@@ -31,7 +31,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: bilinguist-brief
-        run: npm install
+        run: rm -f package-lock.json && npm install
 
       - name: Build iOS app
         working-directory: bilinguist-brief
