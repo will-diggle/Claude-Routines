@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Bilinguist Brief uses your location to show the local weather in your morning briefing."
       }

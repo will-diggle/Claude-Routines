@@ -5,6 +5,19 @@
   "build": {
     "preview": {
       "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "simulator": false
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "language": "en-GB"
+      }
     }
   }
 }
