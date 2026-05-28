@@ -40,6 +40,11 @@
     "plugins": [
       "expo-font",
       "expo-location",
+      ["expo-build-properties", {
+        "ios": {
+          "deploymentTarget": "15.1"
+        }
+      }],
       [
         "expo-notifications",
         {
