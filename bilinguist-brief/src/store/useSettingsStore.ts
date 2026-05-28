@@ -5,7 +5,7 @@ import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
 // Only the four languages the pipeline currently generates.
 // Spanish and Italian will be added once their pipeline stages are validated.
-export type LanguageCode = 'fr' | 'de' | 'en' | 'sv';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
@@ -24,15 +24,16 @@ export interface LanguagePreference {
 
 export interface Topics {
   worldNews: boolean;
-  goodNews: boolean;
+  ukPolitics: boolean;
   politics: boolean;
   business: boolean;
+  europe: boolean;
   scienceTech: boolean;
   artsCulture: boolean;
   asia: boolean;
-  europe: boolean;
   middleEast: boolean;
   africa: boolean;
+  goodNews: boolean;
   [key: string]: boolean;
 }
 
@@ -68,14 +69,17 @@ interface SettingsStore extends Settings {
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French',  nativeName: 'Français', flag: '🇫🇷', level: 'B1', active: false },
-  { code: 'de', name: 'German',  nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', active: false },
-  { code: 'sv', name: 'Swedish', nativeName: 'Svenska',  flag: '🇸🇪', level: 'A2', active: false },
-  { code: 'en', name: 'English', nativeName: 'English',  flag: '🇬🇧', level: 'C1', active: true  },
+  { code: 'fr', name: 'French',           nativeName: 'Français', flag: '🇫🇷', level: 'B1',    active: false },
+  { code: 'de', name: 'German',           nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2',    active: false },
+  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',  flag: '🇸🇪', level: 'B2',    active: false },
+  { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'C1',    active: true  },
+  { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1',    active: false },
+  { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2',    active: false },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'asia', 'europe', 'middleEast', 'africa', 'goodNews',
+  'worldNews', 'ukPolitics', 'business', 'europe',
+  'politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -83,15 +87,16 @@ const DEFAULT_SETTINGS: Settings = {
   displayLanguage: 'en',
   topics: {
     worldNews: true,
-    politics: true,
+    ukPolitics: true,
+    politics: false,
     business: true,
-    scienceTech: true,
-    artsCulture: true,
-    asia: true,
     europe: true,
-    middleEast: true,
-    africa: true,
-    goodNews: true,
+    scienceTech: false,
+    artsCulture: false,
+    asia: false,
+    middleEast: false,
+    africa: false,
+    goodNews: false,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
   readLength: 'medium',
@@ -177,12 +182,18 @@ export const useSettingsStore = create<SettingsStore>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const VALID = new Set(['worldNews', 'politics', 'business', 'scienceTech', 'artsCulture', 'asia', 'europe', 'middleEast', 'africa', 'goodNews']);
+        const VALID = new Set(['worldNews', 'ukPolitics', 'politics', 'business', 'europe', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
         const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => VALID.has(k));
         VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
         state.topicOrder = cleanOrder;
         const cleanTopics: any = {};
-        VALID.forEach((k) => { cleanTopics[k] = state.topics?.[k] !== false; });
+        VALID.forEach((k) => {
+          // ukPolitics defaults on; coming-soon topics default off
+          const COMING_SOON = new Set(['politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
+          cleanTopics[k] = state.topics?.[k] !== undefined
+            ? state.topics[k]
+            : !COMING_SOON.has(k);
+        });
         state.topics = cleanTopics;
         // Migrate old briefingLength → readLength
         if (!(state as any).readLength) {
@@ -192,17 +203,31 @@ export const useSettingsStore = create<SettingsStore>()(
         if ((state as any).fontFamily === 'ptserif') {
           state.fontFamily = 'garamond';
         }
-        // Migrate languages: remove es/it (not in pipeline), ensure sv is present
-        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en']);
+        // Ensure all six languages are present; preserve user's existing languages
+        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es']);
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         const presentCodes = new Set(filtered.map((l) => l.code));
-        ALL_LANGUAGES.forEach((l) => {
-          if (!presentCodes.has(l.code)) filtered.push(l);
-        });
-        // Restore canonical order: fr, de, sv, en
-        const order = ['fr', 'de', 'sv', 'en'];
-        state.languages = order.map((c) => filtered.find((l) => l.code === c)!).filter(Boolean);
-        // If the display language was es/it, fall back to the first active language
+        ALL_LANGUAGES.forEach((l) => { if (!presentCodes.has(l.code)) filtered.push(l); });
+        // Canonical order: fr, de, sv, en, it, es
+        const order = ['fr', 'de', 'sv', 'en', 'it', 'es'];
+        // Migrate stale levels to the nearest valid level for the new matrix
+        const VALID_LEVELS: Record<string, string[]> = {
+          fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+          de: ['A1', 'A2', 'Native'],
+          sv: ['B2', 'Native'],
+          en: ['B2', 'C1', 'C2', 'Native'],
+          it: ['A1', 'Native'],
+          es: ['A2'],
+        };
+        const migratedLangs = order.map((c) => {
+          const lang = filtered.find((l) => l.code === c) ?? ALL_LANGUAGES.find((l) => l.code === c)!;
+          const valid = VALID_LEVELS[c];
+          if (valid && !valid.includes(lang.level)) {
+            return { ...lang, level: valid[0] as any };
+          }
+          return lang;
+        }).filter(Boolean);
+        state.languages = migratedLangs;
         if (!VALID_CODES.has(state.displayLanguage)) {
           state.displayLanguage = state.languages.find((l) => l.active)?.code ?? 'en';
         }

@@ -66,9 +66,11 @@ RETRY_DELAYS  = [30, 60, 120]   # seconds between retries
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
     "fr": ["A1", "A2", "B1", "B2", "C1", "C2"],
-    "de": ["A1", "A2", "B1"],
-    "en": ["C1", "C2", "Native"],
-    "sv": ["A1", "A2", "B1", "B2", "C1"],
+    "de": ["A1", "A2", "Native"],
+    "sv": ["B2", "Native"],
+    "en": ["B2", "C1", "C2", "Native"],
+    "it": ["A1", "Native"],
+    "es": ["A2"],
 }
 
 LANGUAGE_NAMES: dict[str, str] = {

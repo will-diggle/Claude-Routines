@@ -38,12 +38,12 @@ import {
 // NATIVE_WRITING_LEVEL (from prompts.ts) = the row that shows "/ Native".
 // Levels above it get a grey italic sub-label that also moves dynamically.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['A2', 'B1', 'B2', 'C1', 'C2'],
+  en: ['B2', 'C1', 'C2', 'Native'],
   fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
-  de: ['A1', 'A2', 'B1'],
-  es: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
-  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
-  sv: ['A1', 'A2', 'B1', 'B2', 'C1'],
+  de: ['A1', 'A2', 'Native'],
+  sv: ['B2', 'Native'],
+  it: ['A1', 'Native'],
+  es: ['A2'],
 };
 // Label shown on the NATIVE_WRITING_LEVEL row — in the target language
 const NATIVE_LABEL: Record<string, string> = {
@@ -88,17 +88,18 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: stri
   { key: 'night',    label: 'Night', color: Colors.night,   ink: Colors.cream   },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
-const ALL_TOPIC_ITEMS: { key: string; label: string }[] = [
-  { key: 'worldNews',  label: 'Global News' },
-  { key: 'politics',   label: 'Politics' },
-  { key: 'business',   label: 'Business & Economy' },
-  { key: 'scienceTech',label: 'Science & Technology' },
-  { key: 'artsCulture',label: 'Arts & Culture' },
-  { key: 'asia',       label: 'Asia' },
-  { key: 'europe',     label: 'Europe' },
-  { key: 'middleEast', label: 'Middle East' },
-  { key: 'africa',     label: 'Africa' },
-  { key: 'goodNews',   label: 'Good News' },
+const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean }[] = [
+  { key: 'worldNews',   label: 'Global News' },
+  { key: 'ukPolitics',  label: 'UK Politics' },
+  { key: 'business',    label: 'Business & Economy' },
+  { key: 'europe',      label: 'Europe' },
+  { key: 'politics',    label: 'Politics',             comingSoon: true },
+  { key: 'scienceTech', label: 'Science & Technology', comingSoon: true },
+  { key: 'artsCulture', label: 'Arts & Culture',       comingSoon: true },
+  { key: 'asia',        label: 'Asia',                 comingSoon: true },
+  { key: 'middleEast',  label: 'Middle East',          comingSoon: true },
+  { key: 'africa',      label: 'Africa',               comingSoon: true },
+  { key: 'goodNews',    label: 'Good News',            comingSoon: true },
 ];
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
@@ -255,9 +256,11 @@ export function SettingsScreen() {
     }
   }
 
+  const COMING_SOON_KEYS = new Set(ALL_TOPIC_ITEMS.filter((t) => t.comingSoon).map((t) => t.key));
   const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key)).map((key) => ({
     key,
     label: TOPIC_LABEL_MAP[key] ?? key,
+    comingSoon: COMING_SOON_KEYS.has(key),
   }));
 
   const levelModal = store.languages.find((l) => l.code === levelModalLang);
@@ -328,7 +331,7 @@ export function SettingsScreen() {
                   Level
                 </Text>
                 <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {lang.level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[lang.code] ?? `${NATIVE_WRITING_LEVEL} / Native`) : lang.level}
+                  {(lang.level === NATIVE_WRITING_LEVEL || lang.level === 'Native') ? (NATIVE_LABEL[lang.code] ?? `${NATIVE_WRITING_LEVEL} / Native`) : lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
               </TouchableOpacity>
@@ -349,15 +352,21 @@ export function SettingsScreen() {
         renderItem={(item) => (
           <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
             <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+            <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
               {item.label}
             </Text>
-            <Switch
-              value={store.topics[item.key]}
-              onValueChange={() => store.toggleTopic(item.key)}
-              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-              thumbColor="#FFF"
-            />
+            {item.comingSoon ? (
+              <Text style={[styles.comingSoonBadge, { color: colors.inkFaint, borderColor: colors.borderMid }]}>
+                Coming Soon
+              </Text>
+            ) : (
+              <Switch
+                value={store.topics[item.key]}
+                onValueChange={() => store.toggleTopic(item.key)}
+                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                thumbColor="#FFF"
+              />
+            )}
           </View>
         )}
       />
@@ -589,7 +598,7 @@ export function SettingsScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                    {level === NATIVE_WRITING_LEVEL ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
+                    {(level === NATIVE_WRITING_LEVEL || level === 'Native') ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
                   </Text>
                   {(() => {
                     const sub = levelSublabel(level, levelModal?.code ?? 'en');
@@ -712,6 +721,15 @@ const styles = StyleSheet.create({
   },
   fontSample: { fontSize: 17 },
   fontPreview: { fontSize: 13, marginTop: 2 },
+  comingSoonBadge: {
+    fontSize: 11,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    letterSpacing: 0.3,
+    opacity: 0.7,
+  },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },

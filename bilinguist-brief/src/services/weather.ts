@@ -13,10 +13,12 @@ export interface WeatherData {
 }
 
 const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | 'evening', string>>> = {
-  en: { morning: 'Good morning',  afternoon: 'Good afternoon', evening: 'Good evening' },
-  fr: { morning: 'Bonjour',       afternoon: 'Bon après-midi', evening: 'Bonsoir'       },
-  de: { morning: 'Guten Morgen',  afternoon: 'Guten Tag',      evening: 'Guten Abend'   },
-  sv: { morning: 'God morgon',    afternoon: 'God dag',        evening: 'God kväll'     },
+  en: { morning: 'Good morning',   afternoon: 'Good afternoon',  evening: 'Good evening'  },
+  fr: { morning: 'Bonjour',        afternoon: 'Bon après-midi',  evening: 'Bonsoir'        },
+  de: { morning: 'Guten Morgen',   afternoon: 'Guten Tag',       evening: 'Guten Abend'   },
+  sv: { morning: 'God morgon',     afternoon: 'God dag',         evening: 'God kväll'     },
+  it: { morning: 'Buongiorno',     afternoon: 'Buon pomeriggio', evening: 'Buonasera'     },
+  es: { morning: 'Buenos días',    afternoon: 'Buenas tardes',   evening: 'Buenas noches' },
 };
 
 const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: number; name: string }>> = {
@@ -24,6 +26,8 @@ const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: n
   fr: { latitude: 48.8566, longitude:  2.3522, name: 'Paris'     },
   de: { latitude: 52.5200, longitude: 13.4050, name: 'Berlin'    },
   sv: { latitude: 59.3293, longitude: 18.0686, name: 'Stockholm' },
+  it: { latitude: 41.9028, longitude: 12.4964, name: 'Rome'      },
+  es: { latitude: 40.4168, longitude: -3.7038, name: 'Madrid'    },
 };
 
 const FALLBACK_CITY = { latitude: 51.5074, longitude: -0.1278, name: 'London' };
@@ -75,11 +79,33 @@ const WMO: Record<string, Record<number, string>> = {
     85: 'snöbyar', 86: 'kraftiga snöbyar',
     95: 'åskväder', 96: 'åskväder med hagel', 99: 'åskväder med kraftigt hagel',
   },
+  it: {
+    0: 'cielo sereno',
+    1: 'prevalentemente sereno', 2: 'parzialmente nuvoloso', 3: 'coperto',
+    45: 'nebbia', 48: 'nebbia gelata',
+    51: 'pioggerella leggera', 53: 'pioggerella', 55: 'pioggerella intensa',
+    61: 'pioggia leggera', 63: 'pioggia', 65: 'pioggia intensa',
+    71: 'neve leggera', 73: 'neve', 75: 'neve intensa', 77: 'granelli di neve',
+    80: 'rovesci leggeri', 81: 'rovesci', 82: 'rovesci intensi',
+    85: 'rovesci di neve', 86: 'rovesci di neve intensa',
+    95: 'temporale', 96: 'temporale con grandine', 99: 'temporale con grandine intensa',
+  },
+  es: {
+    0: 'cielo despejado',
+    1: 'principalmente despejado', 2: 'parcialmente nublado', 3: 'nublado',
+    45: 'niebla', 48: 'niebla helada',
+    51: 'llovizna ligera', 53: 'llovizna', 55: 'llovizna intensa',
+    61: 'lluvia ligera', 63: 'lluvia', 65: 'lluvia intensa',
+    71: 'nieve ligera', 73: 'nieve', 75: 'nieve intensa', 77: 'granizo de nieve',
+    80: 'chubascos ligeros', 81: 'chubascos', 82: 'chubascos intensos',
+    85: 'chubascos de nieve', 86: 'chubascos de nieve intensa',
+    95: 'tormenta', 96: 'tormenta con granizo', 99: 'tormenta con granizo intenso',
+  },
 };
 
 // "in [city]" preposition per language
 export const WEATHER_IN: Partial<Record<LanguageCode, string>> = {
-  en: 'in', fr: 'à', de: 'in', sv: 'i',
+  en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en',
 };
 
 function timeOfDay(): 'morning' | 'afternoon' | 'evening' {

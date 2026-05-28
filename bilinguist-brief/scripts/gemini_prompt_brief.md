@@ -18,8 +18,8 @@ Use the CROSS-REFERENCE SCORING METHOD below to identify them.
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
-POLITICS — 2 stories
-Significant political developments at national or international level.
+UK POLITICS — 2 stories
+Significant UK and international political developments, with particular attention to UK politics.
 Search primarily: Reuters, AP, BBC News, Politico, The Guardian, Le Monde, Der Spiegel
 ─────────────────────────────────────────────
 

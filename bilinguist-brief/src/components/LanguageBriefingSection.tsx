@@ -16,6 +16,7 @@ import { codeToIoniconName } from './WeatherStrip';
 // Maps the genre strings the API returns to settings topic keys
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
   'GLOBAL NEWS':          'worldNews',
+  'UK POLITICS':          'ukPolitics',
   'POLITICS':             'politics',
   'BUSINESS & ECONOMY':  'business',
   'SCIENCE & TECHNOLOGY':'scienceTech',
@@ -30,8 +31,9 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
 // Genre labels translated into each supported language.
 // The API always returns genre in English — we translate on the display side.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
-  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES', de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER'       },
-  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',            de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK'             },
+  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER'       },
+  'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK'    },
+  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK'             },
   'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA',              sv: 'EKONOMI'             },
   'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK'  },
   'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR'              },
@@ -50,6 +52,7 @@ function translateGenre(genre: string, lang: LanguageCode): string {
 // Genre accent colour map
 const GENRE_COLORS: Record<string, string> = {
   'GLOBAL NEWS':          '#4A6FA5',
+  'UK POLITICS':          '#8B1A1A',
   'POLITICS':             '#8B1A1A',
   'BUSINESS & ECONOMY':  '#1E6B3A',
   'SCIENCE & TECHNOLOGY':'#005F73',
