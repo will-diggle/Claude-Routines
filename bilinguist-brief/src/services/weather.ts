@@ -115,10 +115,24 @@ function timeOfDay(): 'morning' | 'afternoon' | 'evening' {
   return 'evening';
 }
 
-export async function fetchWeather(language: LanguageCode): Promise<WeatherData | null> {
+export async function fetchWeather(
+  language: LanguageCode,
+  userCoords?: { latitude: number; longitude: number; cityName?: string },
+): Promise<WeatherData | null> {
   try {
-    const cityData = LANG_CITIES[language] ?? FALLBACK_CITY;
-    const { latitude, longitude, name: city } = cityData;
+    let latitude: number;
+    let longitude: number;
+    let city: string;
+
+    if (userCoords) {
+      ({ latitude, longitude } = userCoords);
+      city = userCoords.cityName ?? 'My Location';
+    } else {
+      const cityData = LANG_CITIES[language] ?? FALLBACK_CITY;
+      latitude = cityData.latitude;
+      longitude = cityData.longitude;
+      city = cityData.name;
+    }
 
     const url =
       `https://api.open-meteo.com/v1/forecast` +

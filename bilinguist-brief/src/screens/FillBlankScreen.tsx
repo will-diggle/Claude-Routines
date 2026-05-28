@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
+import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -35,13 +37,16 @@ export function FillBlankScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<PracticeStackParamList, 'FillBlank'>>();
+  const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
 
-  const eligible = useMemo(
-    () => shuffle(words.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase()))),
-    []
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const eligible = useMemo(() => {
+    const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
+    return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase())));
+  }, []);
 
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState('');

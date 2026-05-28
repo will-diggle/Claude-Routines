@@ -5,13 +5,14 @@ import { FlashcardsScreen } from '../screens/FlashcardsScreen';
 import { MultipleChoiceScreen } from '../screens/MultipleChoiceScreen';
 import { FillBlankScreen } from '../screens/FillBlankScreen';
 import { TranslationScreen } from '../screens/TranslationScreen';
+import type { LanguageCode } from '../store/useSettingsStore';
 
 export type PracticeStackParamList = {
   PracticeHome: undefined;
-  Flashcards: undefined;
-  MultipleChoice: undefined;
-  FillBlank: undefined;
-  Translation: undefined;
+  Flashcards: { language?: LanguageCode | 'all' };
+  MultipleChoice: { language?: LanguageCode | 'all' };
+  FillBlank: { language?: LanguageCode | 'all' };
+  Translation: { language?: LanguageCode | 'all' };
 };
 
 const Stack = createNativeStackNavigator<PracticeStackParamList>();

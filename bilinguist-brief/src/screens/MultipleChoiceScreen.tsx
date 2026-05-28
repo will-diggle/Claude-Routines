@@ -1,13 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
+import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const MIN_WORDS = 4;
 const MAX_QUESTIONS = 15;
@@ -49,17 +51,28 @@ export function MultipleChoiceScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<PracticeStackParamList, 'MultipleChoice'>>();
+  const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
 
-  const questions = useMemo(() => buildQuestions(words), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const questions = useMemo(() => {
+    const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
+    return buildQuestions(pool);
+  }, []);
 
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
 
-  if (words.filter((w) => w.translation).length < MIN_WORDS) {
+  const eligibleCount = (langFilter && langFilter !== 'all'
+    ? words.filter((w) => w.language === langFilter && w.translation)
+    : words.filter((w) => w.translation)
+  ).length;
+
+  if (eligibleCount < MIN_WORDS) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
         <GameHeader title="Multiple Choice" current={0} total={0} />

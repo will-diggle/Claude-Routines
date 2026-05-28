@@ -180,6 +180,19 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: 'bilinguist-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      // developerMode is intentionally excluded — always starts false on app launch
+      partialize: (state) => ({
+        languages: state.languages,
+        displayLanguage: state.displayLanguage,
+        topics: state.topics,
+        topicOrder: state.topicOrder,
+        readLength: state.readLength,
+        briefingNotificationTime: state.briefingNotificationTime,
+        practiceNotificationTime: state.practiceNotificationTime,
+        fontSize: state.fontSize,
+        background: state.background,
+        fontFamily: state.fontFamily,
+      }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         const VALID = new Set(['worldNews', 'ukPolitics', 'politics', 'business', 'europe', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -10,12 +11,14 @@ import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
+import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const MAX_CARDS = 20;
 
 const LANG_NAMES: Record<LanguageCode, string> = {
   fr: 'FRANÇAIS',
   de: 'DEUTSCH',
+  sv: 'SVENSKA',
   es: 'ESPAÑOL',
   it: 'ITALIANO',
   en: 'ENGLISH',
@@ -40,14 +43,22 @@ export function FlashcardsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<PracticeStackParamList, 'Flashcards'>>();
+  const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const { activeLanguages } = useSettingsStore();
   const activeCodes = new Set(activeLanguages().map((l) => l.code));
 
   const sessionWords = useMemo(
-    () => getSessionWords(words.filter((w) => activeCodes.has(w.language))),
-    [words, activeCodes] // eslint-disable-line
+    () => {
+      const pool = words.filter((w) =>
+        langFilter && langFilter !== 'all' ? w.language === langFilter : activeCodes.has(w.language)
+      );
+      return getSessionWords(pool);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const [index, setIndex] = useState(0);

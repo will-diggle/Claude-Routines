@@ -1,12 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
 import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
+
+// Cached user GPS coords for the session — undefined = not yet fetched, null = denied/failed
+let _userCoords: { latitude: number; longitude: number; cityName?: string } | null | undefined = undefined;
 
 // Briefings are generated server-side at 04:30 UTC and delivered via the
 // Cloudflare Worker. The app never calls Anthropic directly — no API key
@@ -171,7 +175,28 @@ export const useBriefingStore = create<BriefingStore>()(
 
       loadWeather: async (language) => {
         set({ isLoadingWeather: true });
-        const weatherData = await fetchWeather(language);
+
+        // Request and cache user's real location on first call
+        if (_userCoords === undefined) {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+              const geo = await Location.reverseGeocodeAsync({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+              });
+              const cityName = geo[0]?.city ?? geo[0]?.district ?? geo[0]?.region ?? undefined;
+              _userCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, cityName };
+            } else {
+              _userCoords = null; // permission denied — fall back to capital city
+            }
+          } catch {
+            _userCoords = null;
+          }
+        }
+
+        const weatherData = await fetchWeather(language, _userCoords ?? undefined);
         set((s) => ({
           weather: weatherData,
           weatherByLang: { ...s.weatherByLang, [language]: weatherData ?? undefined },

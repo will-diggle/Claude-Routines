@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,8 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
   de: 'Deutsch',
   sv: 'Svenska',
   en: 'English',
+  it: 'Italiano',
+  es: 'Español',
 };
 
 export function PracticeScreen() {
@@ -49,6 +51,7 @@ export function PracticeScreen() {
   const { streak } = useStreakStore();
 
   const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>('all');
+  const [gameModalVisible, setGameModalVisible] = useState(false);
 
   useEffect(() => {
     seedSampleWords();
@@ -175,7 +178,7 @@ export function PracticeScreen() {
           style={[styles.gameRow, { borderBottomColor: colors.borderLight }]}
           disabled={!hasWords}
           activeOpacity={hasWords ? 0.7 : 1}
-          onPress={() => hasWords && navigation.navigate(game.key as any)}
+          onPress={() => hasWords && navigation.navigate(game.key as any, { language: selectedLang })}
         >
           <View style={[styles.gameIcon, { backgroundColor: hasWords ? game.tint + '1a' : colors.borderLight }]}>
             <Ionicons name={game.icon} size={20} color={hasWords ? game.tint : colors.inkLight} />
@@ -196,9 +199,16 @@ export function PracticeScreen() {
       {/* Recent words preview */}
       {hasWords && (
         <>
-          <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
-            RECENTLY SAVED
-          </Text>
+          <View style={[styles.sectionRow, { marginTop: Spacing.xl }]}>
+            <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              RECENTLY SAVED
+            </Text>
+            <TouchableOpacity onPress={() => setGameModalVisible(true)}>
+              <Text style={[styles.practiseLink, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+                Practise →
+              </Text>
+            </TouchableOpacity>
+          </View>
           {filteredWords.slice(0, 5).map((w) => (
             <View key={w.id} style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}>
               <View style={{ flex: 1 }}>
@@ -226,6 +236,46 @@ export function PracticeScreen() {
         </>
       )}
     </ScrollView>
+
+    {/* Game picker modal — launched from "Practise →" in Recently Saved */}
+    <Modal
+      visible={gameModalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setGameModalVisible(false)}
+    >
+      <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={() => setGameModalVisible(false)} />
+      <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+        <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
+        <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+          {selectedLang !== 'all' ? `Practise · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
+        </Text>
+        {GAMES.map((game) => (
+          <TouchableOpacity
+            key={game.key}
+            style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight }]}
+            onPress={() => {
+              setGameModalVisible(false);
+              navigation.navigate(game.key as any, { language: selectedLang });
+            }}
+          >
+            <View style={[modalStyles.gameIcon, { backgroundColor: game.tint + '1a' }]}>
+              <Ionicons name={game.icon} size={20} color={game.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[modalStyles.gameName, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                {game.label}
+              </Text>
+              <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
+          <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
     </SafeAreaView>
   );
 }
@@ -266,10 +316,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0.3,
   },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
   sectionLabel: {
     fontSize: 11,
     letterSpacing: 1.5,
-    marginBottom: Spacing.sm,
+  },
+  practiseLink: {
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
   pilesGrid: {
     flexDirection: 'row',
@@ -321,4 +380,52 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   pileBadgeText: { fontSize: 11 },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  sheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 34,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 16,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  gameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.md,
+  },
+  gameIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gameName: { lineHeight: 22 },
+  gameDesc: { fontSize: 12, marginTop: 1 },
+  cancel: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  cancelText: { fontSize: 15 },
 });
