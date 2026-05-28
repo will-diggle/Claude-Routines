@@ -56,9 +56,7 @@ function publishedDateStr(ts: number | null): string {
   return `Published at ${datePart} · ${timePart}`;
 }
 
-// Daily Roman numeral volume — increments by one each day.
-// Vol. I = 25 May 2026 (launch day); today = days since epoch + 1.
-const BRIEF_EPOCH_MS = new Date('2026-05-25T00:00:00Z').getTime();
+// Roman numeral helper for the Vol. display
 function toRoman(n: number): string {
   const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
   const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
@@ -67,10 +65,6 @@ function toRoman(n: number): string {
     while (n >= vals[i]) { r += syms[i]; n -= vals[i]; }
   }
   return r;
-}
-function dailyVol(): string {
-  const days = Math.floor((Date.now() - BRIEF_EPOCH_MS) / 86_400_000) + 1;
-  return `Vol. ${toRoman(Math.max(1, days))}`;
 }
 
 // Brand chrome colour: each background has a matching ink for rules and the lockup tint.
@@ -106,6 +100,7 @@ export function BriefingScreen() {
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
+    briefVolume,
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
@@ -137,7 +132,14 @@ export function BriefingScreen() {
   useEffect(() => {
     const MIN_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active' && Date.now() - lastSyncRef.current > MIN_SYNC_INTERVAL) {
+      if (state !== 'active') return;
+      const today = new Date().toISOString().split('T')[0];
+      // Always sync immediately if today's bundle isn't in the cache yet —
+      // this ensures the morning brief appears the moment the app is opened,
+      // regardless of how long the app was in the background.
+      const contentIsStale = useBriefingStore.getState().lastBundleDate !== today;
+      const intervalElapsed = Date.now() - lastSyncRef.current > MIN_SYNC_INTERVAL;
+      if (contentIsStale || intervalElapsed) {
         lastSyncRef.current = Date.now();
         runSync();
       }
@@ -216,7 +218,7 @@ export function BriefingScreen() {
           {publishedDateStr(publishedAt)}
         </Text>
         <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {dailyVol()}
+          {briefVolume > 0 ? `Vol. ${toRoman(briefVolume)}` : ''}
         </Text>
       </View>
 

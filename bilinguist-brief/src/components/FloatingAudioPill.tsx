@@ -76,37 +76,66 @@ export function FloatingAudioPill() {
   }, [isPlaying]);
 
   // ── Marquee ──────────────────────────────────────────────────────────────
-  const marqAnim     = useRef(new Animated.Value(0)).current;
-  const marqLoopRef  = useRef<Animated.CompositeAnimation | null>(null);
-  const [textWidth,  setTextWidth]  = useState(0);
-  const [containerW, setContainerW] = useState(0);
+  // Dimensions are stored in refs (not state) so layout re-fires don't
+  // reset the animation position mid-scroll. animTrigger is only bumped
+  // when a measurement is genuinely new, decoupling layout events from
+  // animation lifecycle.
+  const marqAnim      = useRef(new Animated.Value(0)).current;
+  const marqLoopRef   = useRef<Animated.CompositeAnimation | null>(null);
+  const textWidthRef  = useRef(0);
+  const containerWRef = useRef(0);
+  const [animTrigger, setAnimTrigger] = useState(0);
 
-  // Restart marquee whenever the headline or play state changes
+  // Stop and reset position when headline changes (new track → start from left)
   useEffect(() => {
     marqLoopRef.current?.stop();
+    marqLoopRef.current = null;
     marqAnim.setValue(0);
+    textWidthRef.current = 0; // force re-measure for new text
+  }, [headline]);
 
-    if (!isPlaying || !headline || textWidth === 0 || containerW === 0) return;
-
-    if (textWidth <= containerW) {
-      // Text fits — no scrolling needed
-      return;
+  // Stop when paused
+  useEffect(() => {
+    if (!isPlaying) {
+      marqLoopRef.current?.stop();
+      marqLoopRef.current = null;
+      marqAnim.setValue(0);
     }
+  }, [isPlaying]);
 
-    // Animate: slide from 0 to -textWidth (second copy fills in seamlessly)
+  // Layout callbacks: update refs and bump trigger only when value is new.
+  // The `> 1` threshold ignores sub-pixel font-metric fluctuations.
+  function onContainerLayout(w: number) {
+    const changed = Math.abs(w - containerWRef.current) > 1;
+    if (!changed && marqLoopRef.current) return;
+    containerWRef.current = w;
+    if (textWidthRef.current > 0) setAnimTrigger((t) => t + 1);
+  }
+  function onTextLayout(w: number) {
+    const changed = Math.abs(w - textWidthRef.current) > 1;
+    if (!changed && marqLoopRef.current) return;
+    textWidthRef.current = w;
+    if (containerWRef.current > 0) setAnimTrigger((t) => t + 1);
+  }
+
+  // Start animation when trigger fires — reads stable dim values from refs
+  useEffect(() => {
+    const tw = textWidthRef.current;
+    const cw = containerWRef.current;
+    if (!isPlaying || !headline || tw === 0 || cw === 0 || tw <= cw) return;
+
     const loop = Animated.loop(
       Animated.timing(marqAnim, {
-        toValue:       -textWidth,
-        duration:      textWidth * MARQUEE_SPEED,
-        easing:        Easing.linear,
+        toValue:  -tw,
+        duration: tw * MARQUEE_SPEED,
+        easing:   Easing.linear,
         useNativeDriver: true,
       }),
     );
     loop.start();
     marqLoopRef.current = loop;
-
-    return () => loop.stop();
-  }, [isPlaying, headline, textWidth, containerW]);
+    return () => { loop.stop(); marqLoopRef.current = null; };
+  }, [animTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
   const isNavy     = background === 'softGrey';
@@ -186,7 +215,7 @@ export function FloatingAudioPill() {
         {/* ── Marquee title ── */}
         <View
           style={styles.marqueeContainer}
-          onLayout={e => setContainerW(e.nativeEvent.layout.width)}
+          onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
         >
           {/* Two copies of the text rendered side-by-side for a seamless loop */}
           <Animated.View
@@ -195,7 +224,7 @@ export function FloatingAudioPill() {
             {/* No numberOfLines — must measure the natural (unconstrained) text width */}
             <Text
               style={[styles.marqueeText, { color: accent, fontFamily: fontFamily.regular }]}
-              onLayout={e => setTextWidth(e.nativeEvent.layout.width)}
+              onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
             >
               {marqueeText}
             </Text>
@@ -217,8 +246,8 @@ export function FloatingAudioPill() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 64,
-    right: 64,
+    left: 80,
+    right: 80,
     alignItems: 'center',
   },
 

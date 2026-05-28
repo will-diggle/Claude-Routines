@@ -44,6 +44,10 @@ interface BriefingStore {
   syncMessage: string | null;
   bundleReceivedAt: number | null;
   lastFetchResult: BundleFetchResult | null;
+  // Persistent volume counter — increments each time a new daily bundle is applied.
+  // Displayed as "Vol. N" in the masthead, so it tracks real publications not calendar days.
+  briefVolume: number;
+  lastBundleDate: string | null;
 
   syncFromServer: () => Promise<void>;
   loadBriefing: (
@@ -70,6 +74,8 @@ export const useBriefingStore = create<BriefingStore>()(
       syncMessage: null,
       bundleReceivedAt: null,
       lastFetchResult: null,
+      briefVolume: 0,
+      lastBundleDate: null,
 
       syncFromServer: async () => {
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
@@ -119,12 +125,15 @@ export const useBriefingStore = create<BriefingStore>()(
             }
           }
 
+          const isNewDate = get().lastBundleDate !== bundle.date;
           set((s) => ({
             briefings: { ...s.briefings, ...updates },
             // Clear spinner and error for any language that now has content
             generatingFor: s.generatingFor.filter((l) => !(l in updates)),
             errorsFor: { ...s.errorsFor, ...clearedErrors },
             bundleReceivedAt: receivedAt,
+            lastBundleDate: bundle.date,
+            briefVolume: isNewDate ? s.briefVolume + 1 : s.briefVolume,
           }));
         } finally {
           set({ isSyncing: false, syncMessage: null });
@@ -262,6 +271,8 @@ export const useBriefingStore = create<BriefingStore>()(
         weather: state.weather,
         weatherByLang: state.weatherByLang,
         bundleReceivedAt: state.bundleReceivedAt,
+        briefVolume: state.briefVolume,
+        lastBundleDate: state.lastBundleDate,
       }),
     }
   )
