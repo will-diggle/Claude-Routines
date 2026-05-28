@@ -21,7 +21,7 @@ import { useTheme } from '../hooks/useTheme';
 const SHIFT_CONFIG = { damping: 20, stiffness: 300, mass: 0.7, useNativeDriver: true } as const;
 const LIFT_CONFIG  = { damping: 16, stiffness: 380, mass: 0.5, useNativeDriver: true } as const;
 
-const MAX_ITEMS        = 10;
+const MAX_ITEMS        = 15;
 const LONG_PRESS_MS    = 300;  // hold duration before drag activates
 const CANCEL_THRESHOLD = 8;   // px movement before long press cancels
 const GAP_BONUS        = 14;  // extra px neighbours shift beyond item height → visible slot gap
