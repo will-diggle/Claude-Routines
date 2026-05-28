@@ -4,6 +4,17 @@ import type { FactbaseStory } from './factbase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// Prompt 4 output — one assessment per native-journalism article per language.
+// level is a CEFR string (A1–C2); the modal across assessments for a given
+// language gives today's native difficulty grade for that language.
+export interface GradingAssessment {
+  genre: string;
+  slug: string;
+  level: string; // 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'
+  length: 'short' | 'medium' | 'longer';
+  reasoning: string;
+}
+
 export interface DailyBundle {
   date: string;
   generatedAt: number;
@@ -15,6 +26,9 @@ export interface DailyBundle {
       };
     };
   };
+  // Prompt 4 grading — present in bundles generated after the schema was updated.
+  // Optional so old cached bundles still parse cleanly.
+  grading?: { [lang: string]: GradingAssessment[] };
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────

@@ -26,9 +26,9 @@ export const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// The CEFR level at which the WRITING_SYSTEM's native/journalistic tier begins.
-// The UI reads this to decide where to display the "/ Native" label — if this
-// ever changes (e.g. we add a genuine C2 tier), the label moves automatically.
+// Fallback CEFR level used before Prompt 4 grading data is available.
+// Once the first bundle has been fetched, the live grade per language per day
+// is stored in useBriefingStore.nativeGradeByLang and used in place of this.
 export const NATIVE_WRITING_LEVEL = 'C1';
 
 // C1 = journalistic/native tier  |  C2 = distinct harder scholar tier (own prompt)

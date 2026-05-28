@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
-import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
+import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult, type GradingAssessment } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
@@ -18,6 +18,21 @@ function cacheKey(date: string, language: LanguageCode, level: LanguageLevel, le
 
 function todayString(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+// Derive a single CEFR grade per language from Prompt 4's per-article assessments.
+// Uses the modal (most frequent) level — gives a single stable value that
+// reflects the dominant difficulty of today's native journalism for that language.
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+function modalCefr(assessments: GradingAssessment[]): LanguageLevel {
+  const counts: Record<string, number> = {};
+  for (const a of assessments) {
+    if (CEFR_ORDER.includes(a.level as typeof CEFR_ORDER[number])) {
+      counts[a.level] = (counts[a.level] ?? 0) + 1;
+    }
+  }
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  return (best ?? 'C1') as LanguageLevel;
 }
 
 function notReadyMessage(result?: BundleFetchResult): string {
@@ -48,6 +63,10 @@ interface BriefingStore {
   // Displayed as "Vol. N" in the masthead, so it tracks real publications not calendar days.
   briefVolume: number;
   lastBundleDate: string | null;
+  // Daily native CEFR grade per language — derived from Prompt 4 assessments.
+  // The modal CEFR level across all native-journalism articles for a given language.
+  // Used to position the 'Native' slot in the level picker dynamically.
+  nativeGradeByLang: Partial<Record<LanguageCode, LanguageLevel>>;
 
   syncFromServer: () => Promise<void>;
   loadBriefing: (
@@ -76,6 +95,7 @@ export const useBriefingStore = create<BriefingStore>()(
       lastFetchResult: null,
       briefVolume: 0,
       lastBundleDate: null,
+      nativeGradeByLang: {},
 
       syncFromServer: async () => {
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
@@ -126,6 +146,17 @@ export const useBriefingStore = create<BriefingStore>()(
           }
 
           const isNewDate = get().lastBundleDate !== bundle.date;
+
+          // Derive daily native CEFR grade per language from Prompt 4 results
+          const gradeUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
+          if (bundle.grading) {
+            for (const [lang, assessments] of Object.entries(bundle.grading)) {
+              if (assessments.length > 0) {
+                gradeUpdates[lang as LanguageCode] = modalCefr(assessments);
+              }
+            }
+          }
+
           set((s) => ({
             briefings: { ...s.briefings, ...updates },
             // Clear spinner and error for any language that now has content
@@ -134,6 +165,7 @@ export const useBriefingStore = create<BriefingStore>()(
             bundleReceivedAt: receivedAt,
             lastBundleDate: bundle.date,
             briefVolume: isNewDate ? s.briefVolume + 1 : s.briefVolume,
+            nativeGradeByLang: { ...s.nativeGradeByLang, ...gradeUpdates },
           }));
         } finally {
           set({ isSyncing: false, syncMessage: null });
@@ -273,6 +305,7 @@ export const useBriefingStore = create<BriefingStore>()(
         bundleReceivedAt: state.bundleReceivedAt,
         briefVolume: state.briefVolume,
         lastBundleDate: state.lastBundleDate,
+        nativeGradeByLang: state.nativeGradeByLang,
       }),
     }
   )

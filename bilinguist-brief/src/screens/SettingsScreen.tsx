@@ -35,8 +35,7 @@ import {
   type FontSizeKey,
 } from '../theme';
 
-// NATIVE_WRITING_LEVEL (from prompts.ts) = the row that shows "/ Native".
-// Levels above it get a grey italic sub-label that also moves dynamically.
+// Full list of levels available per language. 'Native' = Prompt 3 journalism track.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
   en: ['B2', 'C1', 'C2', 'Native'],
   fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
@@ -45,41 +44,66 @@ const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
   it: ['A1', 'Native'],
   es: ['A2'],
 };
-// Label shown on the NATIVE_WRITING_LEVEL row — in the target language
-const NATIVE_LABEL: Record<string, string> = {
-  en: `${NATIVE_WRITING_LEVEL} / Native`,
-  fr: `${NATIVE_WRITING_LEVEL} / Natif`,
-  de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
-  es: `${NATIVE_WRITING_LEVEL} / Nativo`,
-  it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
-  sv: `${NATIVE_WRITING_LEVEL} / Modersmål`,
+
+// Canonical CEFR ordering — used to position 'Native' dynamically.
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+type CefrLevel = typeof CEFR_ORDER[number];
+
+// Localised word for "Native" in each language — used when building the label.
+const NATIVE_WORD: Record<string, string> = {
+  en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
+  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
 };
-// Sub-labels for levels above NATIVE_WRITING_LEVEL, in the target language.
-// "harder" = one step above native; "scholar" = two+ steps above.
-const LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
-const HARDER_LABEL: Record<string, string> = {
-  en: 'Harder than natural',  fr: 'Plus difficile que naturel',
-  de: 'Schwerer als muttersprachlich',
-  es: 'Más difícil que lo natural',
-  it: 'Più difficile del naturale',
-  sv: 'Svårare än naturligt',
+
+// Build the "B2 / Native" style label using today's graded CEFR level.
+// Falls back to NATIVE_WRITING_LEVEL (C1) if no grading data is available.
+function nativeLabel(langCode: string, grade?: LanguageLevel): string {
+  const g = grade ?? NATIVE_WRITING_LEVEL;
+  return `${g} / ${NATIVE_WORD[langCode] ?? 'Native'}`;
+}
+
+// Return the ordered level list for the modal, inserting 'Native' at the
+// graded position so it appears after all easier CEFR levels and before all
+// harder ones. Levels above the native grade receive challenge sub-labels.
+function orderedLevels(langCode: string, grade?: LanguageLevel): LanguageLevel[] {
+  const base = LEVELS_BY_LANG[langCode] ?? [];
+  if (!base.includes('Native' as LanguageLevel)) return base;
+
+  const cefr = base.filter((l) => l !== 'Native') as LanguageLevel[];
+  const gradeIdx = CEFR_ORDER.indexOf((grade ?? NATIVE_WRITING_LEVEL) as CefrLevel);
+
+  // Insert 'Native' after the last CEFR level that is ≤ the graded position
+  let insertAt = 0;
+  for (let i = 0; i < cefr.length; i++) {
+    if (CEFR_ORDER.indexOf(cefr[i] as CefrLevel) <= gradeIdx) insertAt = i + 1;
+  }
+  const result = [...cefr] as LanguageLevel[];
+  result.splice(insertAt, 0, 'Native' as LanguageLevel);
+  return result;
+}
+
+// Sub-labels for CEFR levels above today's native grade.
+// "Extended Challenge" = one step above; "Advanced Challenge" = two+ steps above.
+const EXTENDED_CHALLENGE: Record<string, string> = {
+  en: 'Extended Challenge',   fr: 'Défi étendu',
+  de: 'Erweitertes Niveau',   es: 'Desafío extendido',
+  it: 'Sfida estesa',         sv: 'Utökad utmaning',
 };
-const SCHOLAR_LABEL: Record<string, string> = {
-  en: 'Literature scholar',
-  fr: 'Chercheur en littérature',
-  de: 'Literaturwissenschaftler',
-  es: 'Erudito literario',
-  it: 'Studioso di letteratura',
-  sv: 'Litteraturvetare',
+const ADVANCED_CHALLENGE: Record<string, string> = {
+  en: 'Advanced Challenge',   fr: 'Défi avancé',
+  de: 'Fortgeschrittenes Niveau', es: 'Desafío avanzado',
+  it: 'Sfida avanzata',       sv: 'Avancerad utmaning',
 };
-function levelSublabel(level: string, langCode: string): string | null {
-  const nativeIdx = LEVEL_ORDER.indexOf(NATIVE_WRITING_LEVEL as typeof LEVEL_ORDER[number]);
-  const levelIdx  = LEVEL_ORDER.indexOf(level as typeof LEVEL_ORDER[number]);
-  if (levelIdx <= nativeIdx) return null;
-  const stepsAbove = levelIdx - nativeIdx;
-  return stepsAbove === 1
-    ? (HARDER_LABEL[langCode] ?? null)
-    : (SCHOLAR_LABEL[langCode] ?? null);
+
+// Returns a sub-label for a CEFR level that is above today's native grade, or
+// null if it is at or below the native level (no special label needed).
+function levelSublabel(level: string, langCode: string, nativeGrade?: LanguageLevel): string | null {
+  const nativeIdx = CEFR_ORDER.indexOf((nativeGrade ?? NATIVE_WRITING_LEVEL) as CefrLevel);
+  const levelIdx  = CEFR_ORDER.indexOf(level as CefrLevel);
+  if (levelIdx < 0 || levelIdx <= nativeIdx) return null;
+  return (levelIdx - nativeIdx) === 1
+    ? (EXTENDED_CHALLENGE[langCode] ?? null)
+    : (ADVANCED_CHALLENGE[langCode] ?? null);
 }
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: string }[] = [
   { key: 'white',    label: 'White', color: Colors.white,   ink: Colors.inkDark },
@@ -219,7 +243,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const store = useSettingsStore();
-  const { loadBriefing } = useBriefingStore();
+  const { loadBriefing, nativeGradeByLang } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
   const [isDragging, setIsDragging] = useState(false);
@@ -331,7 +355,7 @@ export function SettingsScreen() {
                   Level
                 </Text>
                 <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {(lang.level === NATIVE_WRITING_LEVEL || lang.level === 'Native') ? (NATIVE_LABEL[lang.code] ?? `${NATIVE_WRITING_LEVEL} / Native`) : lang.level}
+                  {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
               </TouchableOpacity>
@@ -587,33 +611,36 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {(LEVELS_BY_LANG[levelModalLang ?? ''] ?? ['A2', 'B1', 'B2', 'C1', 'C2']).map((level) => (
-              <TouchableOpacity
-                key={level}
-                style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
-                onPress={() => {
-                  if (levelModalLang) store.setLanguageLevel(levelModalLang as any, level);
-                  setLevelModalLang(null);
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                    {(level === NATIVE_WRITING_LEVEL || level === 'Native') ? (NATIVE_LABEL[levelModal?.code ?? 'en'] ?? `${NATIVE_WRITING_LEVEL} / Native`) : level}
-                  </Text>
-                  {(() => {
-                    const sub = levelSublabel(level, levelModal?.code ?? 'en');
-                    return sub ? (
+            {orderedLevels(levelModalLang ?? '', nativeGradeByLang[levelModal?.code ?? '']).map((level) => {
+              const langCode = levelModal?.code ?? 'en';
+              const grade = nativeGradeByLang[langCode];
+              const mainLabel = level === 'Native' ? nativeLabel(langCode, grade) : level;
+              const sub = level !== 'Native' ? levelSublabel(level, langCode, grade) : null;
+              return (
+                <TouchableOpacity
+                  key={level}
+                  style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
+                  onPress={() => {
+                    if (levelModalLang) store.setLanguageLevel(levelModalLang as any, level);
+                    setLevelModalLang(null);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[modalStyles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                      {mainLabel}
+                    </Text>
+                    {sub && (
                       <Text style={[modalStyles.optionSublabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                         {sub}
                       </Text>
-                    ) : null;
-                  })()}
-                </View>
-                {levelModal?.level === level && (
-                  <Ionicons name="checkmark" size={20} color={colors.inkDark} />
-                )}
-              </TouchableOpacity>
-            ))}
+                    )}
+                  </View>
+                  {levelModal?.level === level && (
+                    <Ionicons name="checkmark" size={20} color={colors.inkDark} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             <TouchableOpacity style={modalStyles.cancel} onPress={() => setLevelModalLang(null)}>
               <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
             </TouchableOpacity>

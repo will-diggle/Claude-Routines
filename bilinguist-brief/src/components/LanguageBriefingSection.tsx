@@ -12,6 +12,7 @@ import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
 import { WEATHER_IN } from '../services/weather';
 import { codeToIoniconName } from './WeatherStrip';
+import { useBriefingStore } from '../store/useBriefingStore';
 
 // Maps the genre strings the API returns to settings topic keys
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
@@ -68,15 +69,10 @@ function genreColor(genre: string): string {
   return GENRE_COLORS[genre.toUpperCase()] ?? '#3D3D3D';
 }
 
-// The native/journalistic tier label — driven by NATIVE_WRITING_LEVEL in prompts.ts
-// so it stays in sync if the writing system ever defines a higher tier.
-const NATIVE_LEVEL_LABEL: Record<LanguageCode, string> = {
-  en: `${NATIVE_WRITING_LEVEL} / Native`,
-  fr: `${NATIVE_WRITING_LEVEL} / Natif`,
-  de: `${NATIVE_WRITING_LEVEL} / Muttersprachlich`,
-  es: `${NATIVE_WRITING_LEVEL} / Nativo`,
-  it: `${NATIVE_WRITING_LEVEL} / Madrelingua`,
-  sv: `${NATIVE_WRITING_LEVEL} / Modersmål`,
+// Localised word for "Native" — second half of the "B2 / Native" label.
+const NATIVE_WORD: Partial<Record<LanguageCode, string>> = {
+  en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
+  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
 };
 
 interface Props {
@@ -99,9 +95,13 @@ function formatGeneratedAt(ts: number): string {
   }) + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function levelLabel(level: LanguageLevel, langCode: LanguageCode): string {
-  if (level === NATIVE_WRITING_LEVEL || level === 'Native') {
-    return NATIVE_LEVEL_LABEL[langCode] ?? `${NATIVE_WRITING_LEVEL} / Native`;
+// Build the masthead level label. For the 'Native' track, use today's Prompt 4
+// graded CEFR level from the store (e.g. "B2 / Muttersprachlich"). Falls back
+// to NATIVE_WRITING_LEVEL (C1) when grading hasn't run yet.
+function levelLabel(level: LanguageLevel, langCode: LanguageCode, nativeGrade?: LanguageLevel): string {
+  if (level === 'Native') {
+    const grade = nativeGrade ?? NATIVE_WRITING_LEVEL;
+    return `${grade} / ${NATIVE_WORD[langCode] ?? 'Native'}`;
   }
   return level;
 }
@@ -140,6 +140,7 @@ export function LanguageBriefingSection({
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const setDeveloperMode = useSettingsStore((s) => s.setDeveloperMode);
+  const nativeGradeByLang = useBriefingStore((s) => s.nativeGradeByLang);
 
   // Filter articles by enabled topics (client-side — no extra API call needed)
   const visibleArticles = briefing?.articles.filter((a) => {
@@ -160,7 +161,7 @@ export function LanguageBriefingSection({
         <View style={[styles.mastLineThick, { backgroundColor: colors.inkDark }]} />
         <View style={[styles.mastLineThin,  { backgroundColor: colors.inkDark }]} />
         <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {nativeName.toUpperCase()} · {levelLabel(level, langCode)}
+          {nativeName.toUpperCase()} · {levelLabel(level, langCode, nativeGradeByLang[langCode])}
         </Text>
       </View>
 
