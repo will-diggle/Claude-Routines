@@ -260,6 +260,22 @@ export function BriefingScreen() {
           />
         );
       })}
+
+      {/* ── Article footer — once at the very end ─────────────────────── */}
+      {activeLanguages.some((l) => briefings[l.code]) && (
+        <View style={[styles.articleFooter, { borderTopColor: colors.borderLight }]}>
+          <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+          <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+          <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {publishedDateStr(publishedAt)}
+          </Text>
+          <Text style={[styles.footerMessage, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {'Tune in tomorrow for your next daily briefing.\nTo read more today, add a language or open a topic in preferences.'}
+          </Text>
+          <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+          <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -335,6 +351,27 @@ const styles = StyleSheet.create({
   },
 
   // ── Sync banner ────────────────────────────────────────────────────
+  articleFooter: {
+    marginTop: 32,
+    paddingHorizontal: 18,
+    paddingBottom: 8,
+    alignItems: 'center',
+    gap: 10,
+  },
+  footerDate: {
+    fontSize: 11,
+    opacity: 0.7,
+    textAlign: 'center',
+    paddingTop: 10,
+  },
+  footerMessage: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 19,
+    opacity: 0.6,
+    paddingBottom: 10,
+  },
+
   syncBanner: {
     paddingVertical: 8,
     paddingHorizontal: 16,

@@ -216,7 +216,7 @@ export function LanguageBriefingSection({
                 {/* Section header */}
                 <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
                   <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
-                  <Text style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.regular }]}>
+                  <Text style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}>
                     {label}
                   </Text>
                 </View>
@@ -238,13 +238,6 @@ export function LanguageBriefingSection({
             );
           })}
 
-          <View style={[styles.sectionFooter, { borderTopColor: colors.borderLight }]}>
-            <Text style={[styles.footerText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              {briefing?.generatedAt
-                ? `Published ${formatGeneratedAt(briefing.generatedAt)}`
-                : 'Published by Claude with live web search'}
-            </Text>
-          </View>
         </>
       )}
     </View>
@@ -261,7 +254,7 @@ const styles = StyleSheet.create({
   },
   mastLineThick: { height: 2 },
   mastLineThin:  { height: 1, marginTop: 4 },
-  editionText: { fontSize: 11, letterSpacing: 1.5, marginTop: 8, textAlign: 'center' },
+  editionText: { fontSize: 14, letterSpacing: 1.5, marginTop: 8, textAlign: 'center' },
   weatherLine: {
     flexDirection: 'row',
     alignItems: 'center',

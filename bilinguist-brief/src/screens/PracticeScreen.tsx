@@ -203,8 +203,12 @@ export function PracticeScreen() {
             <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
               RECENTLY SAVED
             </Text>
-            <TouchableOpacity onPress={() => setGameModalVisible(true)}>
-              <Text style={[styles.practiseLink, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+            <TouchableOpacity
+              style={[styles.practisePill, { borderColor: colors.chrome }]}
+              onPress={() => setGameModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
                 Practise →
               </Text>
             </TouchableOpacity>
@@ -326,8 +330,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
   },
-  practiseLink: {
-    fontSize: 13,
+  practisePill: {
+    borderWidth: 1,
+    borderRadius: 99,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  practisePillText: {
+    fontSize: 12,
     letterSpacing: 0.3,
   },
   pilesGrid: {
