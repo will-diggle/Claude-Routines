@@ -4,15 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../hooks/useTheme';
-import type { BackgroundKey } from '../theme';
-
-// ─── Per-theme RGB values for the gradient fade ───────────────────────────────
-const BG_RGB: Record<BackgroundKey, string> = {
-  white:     '255, 255, 255',
-  cream:     '245, 240, 232',
-  softGrey:  '22,  32,  50',
-  night:     '20,  20,  20',
-};
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
@@ -56,38 +47,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const navyPill  = 'rgba(30,45,66,0.97)';
   const isNavy    = background === 'softGrey';
 
-  // Gradient fade — fades content behind the pill area
-  const rgb         = BG_RGB[background] ?? BG_RGB.white;
-  const fadeHeight  = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + 110;
-  const STEPS       = 40;
-  const segH        = fadeHeight / STEPS;
-
   return (
     <>
-      {/* Scrim gradient — transparent at top, opaque at bottom */}
-      <View
-        pointerEvents="none"
-        style={[styles.fadeWrapper, { height: fadeHeight }]}
-      >
-        {Array.from({ length: STEPS }).map((_, i) => {
-          // i=0 at top (transparent), i=STEPS-1 at bottom (fully opaque)
-          const alpha = Math.pow(i / (STEPS - 1), 1.6);
-          return (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                top: i * segH,
-                left: 0,
-                right: 0,
-                height: segH + 0.5,
-                backgroundColor: `rgba(${rgb}, ${alpha})`,
-              }}
-            />
-          );
-        })}
-      </View>
-
       <View
         pointerEvents="box-none"
         style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
@@ -198,11 +159,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Full-width absolute container for the scrim gradient
-  fadeWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
 });
