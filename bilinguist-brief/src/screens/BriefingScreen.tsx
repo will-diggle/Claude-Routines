@@ -239,13 +239,15 @@ export function BriefingScreen() {
       {activeLanguages.map((lang, index) => {
         const level = lang.level ?? 'B1';
         const length = resolveLength(level, settings.readLength);
+        const stored = briefings[lang.code];
+        const briefing = (stored?.level === level && stored?.length === length) ? stored : undefined;
         return (
           <LanguageBriefingSection
             key={lang.code}
             langCode={lang.code}
             nativeName={lang.nativeName}
             level={level}
-            briefing={briefings[lang.code]}
+            briefing={briefing}
             isGenerating={generatingFor.includes(lang.code)}
             error={errorsFor[lang.code]}
             isFirst={index === 0}

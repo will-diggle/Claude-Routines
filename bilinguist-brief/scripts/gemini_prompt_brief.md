@@ -29,37 +29,6 @@ Significant market, economic, or corporate developments.
 Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal, Reuters Business, AP Business
 ─────────────────────────────────────────────
 
-─────────────────────────────────────────────
-ASIA — 2 stories
-Significant political, economic, or social developments across the Asia-Pacific region.
-Search primarily: Nikkei Asia, South China Morning Post, The Straits Times, NHK World, Yonhap News, The Hindu, Caixin Global, Reuters Asia, AP Asia
-─────────────────────────────────────────────
-
-─────────────────────────────────────────────
-EUROPE — 2 stories
-Significant political, economic, or social developments within Europe, including EU affairs.
-Search primarily: Euronews, Politico Europe, EUobserver, Le Monde, Der Spiegel, Süddeutsche Zeitung, Corriere della Sera, El País, The Guardian Europe
-─────────────────────────────────────────────
-
-─────────────────────────────────────────────
-MIDDLE EAST — 2 stories
-Significant political, humanitarian, or economic developments across the Middle East region.
-Search primarily: Al Jazeera English, Al-Monitor, Arab News, Haaretz English, Asharq Al-Awsat, Middle East Eye, Reuters Middle East, AP Middle East
-NOTE: This region has outlets with varied editorial perspectives. A story appearing across multiple outlets with different perspectives is a stronger signal of genuine significance. Apply the neutrality rules with particular care here.
-─────────────────────────────────────────────
-
-─────────────────────────────────────────────
-AFRICA — 2 stories
-Significant political, economic, or social developments across the African continent.
-Search primarily: AllAfrica, Africanews, Daily Nation (Kenya), Mail & Guardian (South Africa), The East African, Reuters Africa, AP Africa
-─────────────────────────────────────────────
-
-─────────────────────────────────────────────
-GOOD NEWS — 2 stories
-Genuinely positive, uplifting stories with real substance. Not trivial. Stories that would make a reader feel something meaningful happened today — a scientific breakthrough, a humanitarian success, a significant positive social development.
-Search primarily: BBC News, The Guardian, Reuters (positive stories), Good News Network, Positive News
-NOTE: Weight story quality and genuine significance over outlet authority for this genre.
-─────────────────────────────────────────────
 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD:
 Do not rely on a single source for Global News. Search across all of the following outlets and score each candidate story by how many are independently covering it. The more outlets covering a story, the more globally significant it is.
