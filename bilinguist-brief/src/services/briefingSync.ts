@@ -49,7 +49,7 @@ const BUNDLE_URL = process.env.EXPO_PUBLIC_DATA_URL
 
 export type BundleFetchResult =
   | { ok: true; bundle: DailyBundle }
-  | { ok: false; reason: 'network' | 'http' | 'date-mismatch'; status?: number; bundleDate?: string };
+  | { ok: false; reason: 'network' | 'http'; status?: number };
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
@@ -63,8 +63,9 @@ export async function fetchTodayBundle(): Promise<BundleFetchResult> {
     }
     const bundle: DailyBundle = await res.json();
     if (bundle.date !== today) {
-      console.warn(`[bilinguist] fetchTodayBundle date mismatch: bundle=${bundle.date} today=${today}`);
-      return { ok: false, reason: 'date-mismatch', status: res.status, bundleDate: bundle.date };
+      // Log the gap but still serve the bundle — the Published timestamp tells
+      // the reader when it's from, and showing something is better than nothing.
+      console.warn(`[bilinguist] fetchTodayBundle: serving bundle from ${bundle.date} (today is ${today})`);
     }
     return { ok: true, bundle };
   } catch (err) {

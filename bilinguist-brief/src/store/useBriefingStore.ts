@@ -41,10 +41,9 @@ function notReadyMessage(result?: BundleFetchResult): string {
   if (result.reason === 'http') {
     const s = result.status;
     if (s === 404) return "Today's briefing hasn't been published yet — check back shortly after 06:30.";
-    if (s === 502 || s === 503) return "Server error fetching today's brief (502) — check back soon or pull to refresh.";
+    if (s === 502 || s === 503) return "Server error fetching today's brief — check back soon or pull to refresh.";
     return `Can't fetch today's brief (HTTP ${s}) — pull to refresh or check back later.`;
   }
-  if (result.reason === 'date-mismatch') return `Today's brief isn't ready yet — last published: ${result.bundleDate ?? 'unknown'}.`;
   return "Today's briefing isn't ready yet — check back shortly after 06:30.";
 }
 
@@ -189,7 +188,6 @@ export const useBriefingStore = create<BriefingStore>()(
           const cached = get().briefings[language];
           if (
             cached &&
-            cached.date === today &&
             cached.language === language &&
             cached.level === level &&
             cached.length === length
@@ -221,7 +219,7 @@ export const useBriefingStore = create<BriefingStore>()(
         // overwriting real content with demo articles.
         {
           const fresh = get().briefings[language];
-          if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
+          if (fresh && fresh.language === language && fresh.level === level && fresh.length === length) {
             set((s) => ({ generatingFor: s.generatingFor.filter((l) => l !== language) }));
             return;
           }
@@ -274,7 +272,7 @@ export const useBriefingStore = create<BriefingStore>()(
         // before showing NOT_READY_MESSAGE (forceRefresh skips the early-return
         // cache check, so we must verify here too).
         const afterSyncCheck = get().briefings[language];
-        if (afterSyncCheck && afterSyncCheck.date === today) {
+        if (afterSyncCheck && afterSyncCheck.language === language && afterSyncCheck.level === level && afterSyncCheck.length === length) {
           set((s) => ({
             generatingFor: s.generatingFor.filter((l) => l !== language),
           }));
