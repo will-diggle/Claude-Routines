@@ -1,4 +1,4 @@
-name: Deploy App Update
+name: Build & Submit to TestFlight
 
 on:
   workflow_dispatch:
@@ -10,16 +10,13 @@ on:
       - 'bilinguist-brief/assets/**'
       - 'bilinguist-brief/App.tsx'
       - 'bilinguist-brief/app.json'
-      - 'bilinguist-brief/eas.json'
       - 'bilinguist-brief/package.json'
       - 'bilinguist-brief/babel.config.js'
 
 jobs:
-  deploy:
+  build-and-submit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -28,7 +25,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: bilinguist-brief/package-lock.json
 
@@ -36,15 +33,14 @@ jobs:
         working-directory: bilinguist-brief
         run: npm install
 
-      - name: Create .env
-        working-directory: bilinguist-brief
-        run: |
-          echo "EXPO_PUBLIC_WORKER_URL=${{ secrets.EXPO_PUBLIC_WORKER_URL }}" > .env
-
-      - name: Publish EAS update
+      - name: Build iOS app
         working-directory: bilinguist-brief
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          CI: "1"
-        run: |
-          npx eas-cli update --branch preview --message "Auto-deploy from push" --non-interactive
+        run: npx eas-cli build --platform ios --profile production --non-interactive
+
+      - name: Submit to TestFlight
+        working-directory: bilinguist-brief
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli submit --platform ios --latest --non-interactive
