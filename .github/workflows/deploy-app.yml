@@ -36,9 +36,11 @@ jobs:
         env:
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           [ -n "$DEEPL_API_KEY" ] && echo "EXPO_PUBLIC_DEEPL_API_KEY=$DEEPL_API_KEY" >> .env.local || true
           [ -n "$ELEVENLABS_API_KEY" ] && echo "EXPO_PUBLIC_ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY" >> .env.local || true
+          [ -n "$ANTHROPIC_API_KEY" ] && echo "EXPO_PUBLIC_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env.local || true
 
       - name: Build iOS app
         working-directory: bilinguist-brief
