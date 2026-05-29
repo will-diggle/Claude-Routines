@@ -1,18 +1,10 @@
 name: Generate Daily Briefings
 
 on:
-  # Primary trigger: cron-job.org POSTs to the GitHub dispatches API at
+  # Triggered daily by cron-job.org via the GitHub dispatches API at
   # 06:30 Europe/Vienna (CEST = UTC+2, so 04:30 UTC in summer).
-  # More reliable than GitHub's own scheduler for exact timing.
+  # Can also be run manually from the Actions tab.
   workflow_dispatch:
-
-  # Fallback: GitHub's built-in scheduler at 05:00 UTC daily.
-  # This fires if cron-job.org misses a day. GitHub may delay up to
-  # 30–60 min on busy days, but it's a reliable safety net.
-  # Note: GitHub only runs schedule triggers on the default branch,
-  # which is this branch (claude/build-app-from-brief-wNEna).
-  schedule:
-    - cron: '0 5 * * *'
 
 jobs:
   generate:
