@@ -31,7 +31,7 @@ jobs:
         working-directory: bilinguist-brief
         run: rm -f package-lock.json && npm install
 
-      - name: Inject API keys
+      - name: Inject API keys into eas.json
         working-directory: bilinguist-brief
         env:
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
@@ -44,15 +44,28 @@ jobs:
           ELEVENLABS_VOICE_IT: ${{ secrets.ELEVENLABS_VOICE_IT }}
           ELEVENLABS_VOICE_ES: ${{ secrets.ELEVENLABS_VOICE_ES }}
         run: |
-          [ -n "$DEEPL_API_KEY" ] && echo "EXPO_PUBLIC_DEEPL_API_KEY=$DEEPL_API_KEY" >> .env.local || true
-          [ -n "$ELEVENLABS_API_KEY" ] && echo "EXPO_PUBLIC_ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY" >> .env.local || true
-          [ -n "$ANTHROPIC_API_KEY" ] && echo "EXPO_PUBLIC_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_FR" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_FR=$ELEVENLABS_VOICE_FR" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_DE" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_DE=$ELEVENLABS_VOICE_DE" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_SV" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_SV=$ELEVENLABS_VOICE_SV" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_EN" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_EN=$ELEVENLABS_VOICE_EN" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_IT" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_IT=$ELEVENLABS_VOICE_IT" >> .env.local || true
-          [ -n "$ELEVENLABS_VOICE_ES" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_ES=$ELEVENLABS_VOICE_ES" >> .env.local || true
+          node -e "
+            const fs = require('fs');
+            const eas = JSON.parse(fs.readFileSync('eas.json', 'utf8'));
+            const env = eas.build.production.env || {};
+            const map = {
+              DEEPL_API_KEY:        'EXPO_PUBLIC_DEEPL_API_KEY',
+              ELEVENLABS_API_KEY:   'EXPO_PUBLIC_ELEVENLABS_API_KEY',
+              ANTHROPIC_API_KEY:    'EXPO_PUBLIC_ANTHROPIC_API_KEY',
+              ELEVENLABS_VOICE_FR:  'EXPO_PUBLIC_ELEVENLABS_VOICE_FR',
+              ELEVENLABS_VOICE_DE:  'EXPO_PUBLIC_ELEVENLABS_VOICE_DE',
+              ELEVENLABS_VOICE_SV:  'EXPO_PUBLIC_ELEVENLABS_VOICE_SV',
+              ELEVENLABS_VOICE_EN:  'EXPO_PUBLIC_ELEVENLABS_VOICE_EN',
+              ELEVENLABS_VOICE_IT:  'EXPO_PUBLIC_ELEVENLABS_VOICE_IT',
+              ELEVENLABS_VOICE_ES:  'EXPO_PUBLIC_ELEVENLABS_VOICE_ES',
+            };
+            for (const [secret, expoKey] of Object.entries(map)) {
+              if (process.env[secret]) env[expoKey] = process.env[secret];
+            }
+            eas.build.production.env = env;
+            fs.writeFileSync('eas.json', JSON.stringify(eas, null, 2));
+            console.log('Injected keys:', Object.keys(env).join(', '));
+          "
 
       - name: Build iOS app
         working-directory: bilinguist-brief

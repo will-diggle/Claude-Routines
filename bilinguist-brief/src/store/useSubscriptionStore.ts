@@ -24,7 +24,7 @@ interface SubscriptionStore {
 export const useSubscriptionStore = create<SubscriptionStore>()(
   persist(
     (set, get) => ({
-      status: 'free',
+      status: 'promo',
       promoLabel: null,
 
       isFullAccess: () => {
