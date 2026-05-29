@@ -228,7 +228,7 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 }
 
 // Languages supported by ElevenLabs eleven_multilingual_v2
-const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
+const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv', 'it', 'es'];
 
 function AudioButton({ word, language, level, genre }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string }) {
   const { colors, fontFamily } = useTheme();

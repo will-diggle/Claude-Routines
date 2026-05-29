@@ -29,10 +29,12 @@ interface AudioAllowCombo {
 }
 
 const AUDIO_TRIAL_ALLOWLIST: AudioAllowCombo[] = [
-  { language: 'fr' }, // French — all levels, all genres
-  { language: 'en' }, // English — all levels, all genres
-  { language: 'de' }, // German — all levels, all genres
-  { language: 'sv' }, // Swedish — all levels, all genres
+  { language: 'fr' },
+  { language: 'en' },
+  { language: 'de' },
+  { language: 'sv' },
+  { language: 'it' },
+  { language: 'es' },
 ];
 
 /**

@@ -14,7 +14,7 @@ const MODEL_ID = 'eleven_multilingual_v2';
 /**
  * Default voice: "Charlotte" — calm, clear, works well across European languages.
  * Voice ID can be overridden per-language via env vars:
- *   EXPO_PUBLIC_ELEVENLABS_VOICE_FR, _DE, _SV, _EN
+ *   EXPO_PUBLIC_ELEVENLABS_VOICE_FR, _DE, _SV, _EN, _IT, _ES
  * To find voice IDs: https://elevenlabs.io/docs/voices/voice-library
  */
 const DEFAULT_VOICE_ID = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_DEFAULT ?? 'XB0fDUnXU5powFXDhCwa';
@@ -24,6 +24,8 @@ const LANG_VOICE: Partial<Record<LanguageCode, string>> = {
   de: process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_DE ?? DEFAULT_VOICE_ID,
   sv: process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_SV ?? DEFAULT_VOICE_ID,
   en: process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_EN ?? DEFAULT_VOICE_ID,
+  it: process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_IT ?? DEFAULT_VOICE_ID,
+  es: process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ES ?? DEFAULT_VOICE_ID,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -37,10 +37,22 @@ jobs:
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_VOICE_FR: ${{ secrets.ELEVENLABS_VOICE_FR }}
+          ELEVENLABS_VOICE_DE: ${{ secrets.ELEVENLABS_VOICE_DE }}
+          ELEVENLABS_VOICE_SV: ${{ secrets.ELEVENLABS_VOICE_SV }}
+          ELEVENLABS_VOICE_EN: ${{ secrets.ELEVENLABS_VOICE_EN }}
+          ELEVENLABS_VOICE_IT: ${{ secrets.ELEVENLABS_VOICE_IT }}
+          ELEVENLABS_VOICE_ES: ${{ secrets.ELEVENLABS_VOICE_ES }}
         run: |
           [ -n "$DEEPL_API_KEY" ] && echo "EXPO_PUBLIC_DEEPL_API_KEY=$DEEPL_API_KEY" >> .env.local || true
           [ -n "$ELEVENLABS_API_KEY" ] && echo "EXPO_PUBLIC_ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY" >> .env.local || true
           [ -n "$ANTHROPIC_API_KEY" ] && echo "EXPO_PUBLIC_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_FR" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_FR=$ELEVENLABS_VOICE_FR" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_DE" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_DE=$ELEVENLABS_VOICE_DE" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_SV" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_SV=$ELEVENLABS_VOICE_SV" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_EN" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_EN=$ELEVENLABS_VOICE_EN" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_IT" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_IT=$ELEVENLABS_VOICE_IT" >> .env.local || true
+          [ -n "$ELEVENLABS_VOICE_ES" ] && echo "EXPO_PUBLIC_ELEVENLABS_VOICE_ES=$ELEVENLABS_VOICE_ES" >> .env.local || true
 
       - name: Build iOS app
         working-directory: bilinguist-brief
