@@ -57,12 +57,12 @@ function ArticleAudioButton({ headline, body, language }: AudioBtnProps) {
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
       {isThisLoading ? (
-        <ActivityIndicator size="small" color="#FFF" />
+        <ActivityIndicator size="small" color={colors.bg} />
       ) : (
         <Ionicons
           name={isThisPlaying ? 'pause' : 'play'}
           size={13}
-          color="#FFF"
+          color={colors.bg}
           style={isThisPlaying ? undefined : { marginLeft: 2 }}
         />
       )}

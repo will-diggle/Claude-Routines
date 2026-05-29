@@ -180,7 +180,7 @@ export function SplashOverlay({ onDone }: Props) {
         >
           <Image
             source={LOGOMARK}
-            style={[styles.crest, { tintColor: t.ink }]}
+            style={styles.crest}
             resizeMode="contain"
             onLoadEnd={() => {
               crestReadyRef.current = true;

@@ -42,9 +42,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const pillBg    = isDark ? 'rgba(22,22,22,0.82)' : 'rgba(255,255,255,0.82)';
+  const pillBg    = isDark ? 'rgba(22,22,22,0.92)' : 'rgba(255,255,255,0.92)';
   const pillBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)';
-  const navyPill  = 'rgba(30,45,66,0.84)';
+  const navyPill  = 'rgba(30,45,66,0.93)';
   const isNavy    = background === 'softGrey';
 
   return (
