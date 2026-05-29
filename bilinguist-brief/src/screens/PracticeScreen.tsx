@@ -46,16 +46,12 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const navigation = useNavigation<PracticeNav>();
-  const { words, seedSampleWords } = useWordBankStore();
+  const { words } = useWordBankStore();
   const { activeLanguages } = useSettingsStore();
   const { streak } = useStreakStore();
 
   const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>('all');
   const [gameModalVisible, setGameModalVisible] = useState(false);
-
-  useEffect(() => {
-    seedSampleWords();
-  }, []);
 
   const activeLangs = activeLanguages();
   const showLangTabs = activeLangs.length > 1 || words.some((w) => activeLangs.every((l) => l.code !== w.language));
@@ -130,47 +126,58 @@ export function PracticeScreen() {
         </ScrollView>
       )}
 
-      {/* Word bank section */}
-      <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        WORD BANK
-      </Text>
+      {/* Empty state */}
+      {!hasWords && (
+        <View style={styles.emptyState}>
+          <Ionicons name="bookmark-outline" size={40} color={colors.borderMid} />
+          <Text style={[styles.emptyTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+            Your word bank is empty
+          </Text>
+          <Text style={[styles.emptyBody, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            Tap any word in your daily briefing to look it up, then save it here to start building your collection.
+          </Text>
+        </View>
+      )}
 
-      <View style={[styles.pilesGrid, { borderColor: colors.borderLight }]}>
-        {PILE_META.map((pile, index) => (
-          <TouchableOpacity
-            key={pile.key}
-            style={[
-              styles.pileCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.borderLight,
-                borderRightWidth: index % 2 === 0 ? StyleSheet.hairlineWidth : 0,
-                borderBottomWidth: index < 2 ? StyleSheet.hairlineWidth : 0,
-              },
-            ]}
-          >
-            <Ionicons name={pile.icon} size={22} color={colors.chrome} style={{ marginBottom: Spacing.xs }} />
-            <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              {filteredCounts[pile.key]}
-            </Text>
-            <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-              {pile.label}
-            </Text>
-            <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Word bank section */}
+      {hasWords && (
+        <>
+        <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+          WORD BANK
+        </Text>
+
+        <View style={[styles.pilesGrid, { borderColor: colors.borderLight }]}>
+          {PILE_META.map((pile, index) => (
+            <TouchableOpacity
+              key={pile.key}
+              style={[
+                styles.pileCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.borderLight,
+                  borderRightWidth: index % 2 === 0 ? StyleSheet.hairlineWidth : 0,
+                  borderBottomWidth: index < 2 ? StyleSheet.hairlineWidth : 0,
+                },
+              ]}
+            >
+              <Ionicons name={pile.icon} size={22} color={colors.chrome} style={{ marginBottom: Spacing.xs }} />
+              <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {filteredCounts[pile.key]}
+              </Text>
+              <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                {pile.label}
+              </Text>
+              <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        </>
+      )}
 
       {/* Games section */}
       <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
         PRACTICE GAMES
       </Text>
-
-      {!hasWords && (
-        <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-          Tap words in your briefing to save them here, then use games to practise.
-        </Text>
-      )}
 
       {GAMES.map((game) => (
         <TouchableOpacity
@@ -355,7 +362,14 @@ const styles = StyleSheet.create({
   pileCount: { fontSize: 28, lineHeight: 34 },
   pileLabel: { fontSize: 13, marginTop: 2 },
   pileDesc: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 15 },
-  emptyNote: { fontSize: 14, marginBottom: Spacing.md, lineHeight: 22 },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  emptyTitle: { fontSize: 18, textAlign: 'center' },
+  emptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 22, opacity: 0.8 },
   gameRow: {
     flexDirection: 'row',
     alignItems: 'center',
