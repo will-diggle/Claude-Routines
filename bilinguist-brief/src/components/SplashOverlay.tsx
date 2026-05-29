@@ -19,11 +19,14 @@ import type { BackgroundKey } from '../theme';
 
 // ── Assets ───────────────────────────────────────────────────────────────────
 
-// Use the lightweight logomark (153 KB) for the splash crest.
-// The pre-composed splash-crest PNGs (5–9 MB each) take longer than the
-// animation window to decode over a network connection, so the crest
-// would never appear before the dive transition completes.
-const LOGOMARK = require('../../assets/logomark.png');
+// Theme-matched crest images — one per background. Each has the correct
+// background colour baked in so it blends seamlessly on every theme.
+const CRESTS: Record<BackgroundKey, ReturnType<typeof require>> = {
+  cream:    require('../../assets/splash-crest-cream.png'),
+  softGrey: require('../../assets/splash-crest-navy.png'),
+  white:    require('../../assets/splash-crest-white.png'),
+  night:    require('../../assets/splash-crest-black.png'),
+};
 
 // Pre-composed masthead lockups — one per background mode
 const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
@@ -179,7 +182,7 @@ export function SplashOverlay({ onDone }: Props) {
           style={[styles.crestWrap, { opacity: crestOpacity, transform: [{ scale: crestScale }] }]}
         >
           <Image
-            source={LOGOMARK}
+            source={CRESTS[background as BackgroundKey] ?? CRESTS.cream}
             style={styles.crest}
             resizeMode="contain"
             onLoadEnd={() => {
