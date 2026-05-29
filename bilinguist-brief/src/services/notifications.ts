@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import type { LanguageCode } from '../store/useSettingsStore';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -10,6 +11,15 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+const BRIEFING_COPY: Record<LanguageCode, { title: string; body: string }> = {
+  en: { title: 'Good Morning',  body: 'Your daily news briefing is ready.' },
+  fr: { title: 'Bonjour',       body: 'Votre bref d\'actualités quotidien est prêt.' },
+  de: { title: 'Guten Morgen',  body: 'Ihr täglicher Nachrichtenüberblick ist bereit.' },
+  sv: { title: 'God morgon',    body: 'Din dagliga nyhetssammanfattning är redo.' },
+  it: { title: 'Buongiorno',    body: 'Il tuo briefing quotidiano sulle notizie è pronto.' },
+  es: { title: 'Buenos días',   body: 'Tu resumen diario de noticias está listo.' },
+};
 
 export async function requestNotificationPermission(): Promise<boolean> {
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -34,7 +44,6 @@ async function scheduleDaily(
   body: string,
   hhmm: string
 ): Promise<void> {
-  // Cancel any existing notification with this identifier
   await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
 
   const time = parseTime(hhmm);
@@ -51,15 +60,14 @@ async function scheduleDaily(
   });
 }
 
-export async function scheduleBriefingNotification(time: string): Promise<void> {
+export async function scheduleBriefingNotification(
+  time: string,
+  language: LanguageCode = 'en'
+): Promise<void> {
   const granted = await requestNotificationPermission();
   if (!granted) return;
-  await scheduleDaily(
-    'daily-briefing',
-    'Your briefing is ready',
-    "Today's edition has been prepared. Tap to read.",
-    time
-  );
+  const copy = BRIEFING_COPY[language] ?? BRIEFING_COPY.en;
+  await scheduleDaily('daily-briefing', copy.title, copy.body, time);
 }
 
 export async function schedulePracticeNotification(time: string): Promise<void> {

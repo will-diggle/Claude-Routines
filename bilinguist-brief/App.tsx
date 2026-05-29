@@ -19,9 +19,10 @@ import {
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
+import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
 
 function AppContent() {
-  const { background } = useSettingsStore();
+  const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages } = useSettingsStore();
   const isNight = background === 'night';
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
@@ -43,6 +44,11 @@ function AppContent() {
       setShowSplash(show);
       setSplashChecked(true);
     });
+    // Schedule notifications using the user's saved times and top active language.
+    // Runs on every launch so language changes take effect without needing a settings visit.
+    const topLanguage = activeLanguages()[0]?.code ?? 'en';
+    scheduleBriefingNotification(briefingNotificationTime, topLanguage);
+    schedulePracticeNotification(practiceNotificationTime);
   }, [storeHydrated]);
 
   if (!splashChecked) return null;

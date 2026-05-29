@@ -424,7 +424,10 @@ export function SettingsScreen() {
         <TimeInput
           value={store.briefingNotificationTime}
           onChange={store.setBriefingNotificationTime}
-          onCommit={() => scheduleBriefingNotification(store.briefingNotificationTime)}
+          onCommit={() => {
+            const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
+            scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+          }}
           colors={colors}
           fontFamily={fontFamily}
         />
