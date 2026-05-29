@@ -13,12 +13,12 @@ Notifications.setNotificationHandler({
 });
 
 const BRIEFING_COPY: Record<LanguageCode, { title: string; body: string }> = {
-  en: { title: 'Good Morning',  body: 'Your daily news briefing is ready.' },
-  fr: { title: 'Bonjour',       body: 'Votre bref d\'actualités quotidien est prêt.' },
-  de: { title: 'Guten Morgen',  body: 'Ihr täglicher Nachrichtenüberblick ist bereit.' },
-  sv: { title: 'God morgon',    body: 'Din dagliga nyhetssammanfattning är redo.' },
-  it: { title: 'Buongiorno',    body: 'Il tuo briefing quotidiano sulle notizie è pronto.' },
-  es: { title: 'Buenos días',   body: 'Tu resumen diario de noticias está listo.' },
+  en: { title: '🇬🇧 Good Morning',  body: 'Your daily news briefing is ready.' },
+  fr: { title: '🇫🇷 Bonjour',       body: 'Votre bref d\'actualités quotidien est prêt.' },
+  de: { title: '🇩🇪 Guten Morgen',  body: 'Ihr täglicher Nachrichtenüberblick ist bereit.' },
+  sv: { title: '🇸🇪 God morgon',    body: 'Din dagliga nyhetssammanfattning är redo.' },
+  it: { title: '🇮🇹 Buongiorno',    body: 'Il tuo briefing quotidiano sulle notizie è pronto.' },
+  es: { title: '🇪🇸 Buenos días',   body: 'Tu resumen diario de noticias está listo.' },
 };
 
 export async function requestNotificationPermission(): Promise<boolean> {
