@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MONTHLY_AUDIO_CAP, MONTHLY_TRANSLATION_CAP } from '../constants/limits';
+import { DAILY_AUDIO_CAP, MONTHLY_TRANSLATION_CAP } from '../constants/limits';
 
 // ─── Daily briefing quota ─────────────────────────────────────────────────────
 
@@ -79,22 +79,43 @@ async function incrementMonthlyUsage(storageKey: string, cap: number): Promise<b
   return true;
 }
 
-// ── Audio (ElevenLabs) ──
+// ── Audio (ElevenLabs) — daily cap ──
 
-/** Returns { used, limit, remaining } for the current calendar month. */
+const DAILY_AUDIO_KEY = 'bilinguist_daily_audio';
+
+interface DailyAudioUsage {
+  date: string;
+  count: number;
+}
+
+async function getDailyAudioRecord(): Promise<DailyAudioUsage> {
+  try {
+    const raw = await AsyncStorage.getItem(DAILY_AUDIO_KEY);
+    if (raw) {
+      const parsed: DailyAudioUsage = JSON.parse(raw);
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.date === today) return parsed;
+    }
+  } catch { /* fall through */ }
+  return { date: new Date().toISOString().split('T')[0], count: 0 };
+}
+
+/** Returns { used, limit, remaining } for today. */
 export async function getMonthlyAudioUsage(): Promise<{ used: number; limit: number; remaining: number }> {
-  const record = await getMonthlyUsageRecord(MONTHLY_AUDIO_KEY);
-  const used = record.count;
-  return { used, limit: MONTHLY_AUDIO_CAP, remaining: Math.max(0, MONTHLY_AUDIO_CAP - used) };
+  const record = await getDailyAudioRecord();
+  return { used: record.count, limit: DAILY_AUDIO_CAP, remaining: Math.max(0, DAILY_AUDIO_CAP - record.count) };
 }
 
 /**
  * Attempt to consume one audio play.
- * Returns true if the play was counted (cap not exceeded),
- * false if the monthly cap has been reached.
+ * Returns true if counted (daily cap not exceeded), false if cap reached.
  */
 export async function consumeAudioPlay(): Promise<boolean> {
-  return incrementMonthlyUsage(MONTHLY_AUDIO_KEY, MONTHLY_AUDIO_CAP);
+  const record = await getDailyAudioRecord();
+  if (record.count >= DAILY_AUDIO_CAP) return false;
+  record.count += 1;
+  await AsyncStorage.setItem(DAILY_AUDIO_KEY, JSON.stringify(record));
+  return true;
 }
 
 // ── Translation (DeepL) ──

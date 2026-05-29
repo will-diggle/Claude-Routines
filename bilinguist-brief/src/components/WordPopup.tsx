@@ -299,7 +299,7 @@ function AudioButton({ word, language, level, genre }: { word: string; language:
 
       {capInfo && !capReached && (
         <Text style={[audioStyles.usage, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-          {capInfo.remaining.toLocaleString()} / {capInfo.limit.toLocaleString()} plays left
+          {capInfo.remaining} / {capInfo.limit} plays left today
         </Text>
       )}
     </View>

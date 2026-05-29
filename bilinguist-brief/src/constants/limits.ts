@@ -3,8 +3,8 @@
  * Change these values when moving to a higher pricing tier.
  */
 
-/** ElevenLabs word-pronunciation plays per user per calendar month. */
-export const MONTHLY_AUDIO_CAP = 1_000;
+/** ElevenLabs word-pronunciation plays per user per calendar day. */
+export const DAILY_AUDIO_CAP = 3;
 
 /**
  * DeepL word-translation lookups per user per calendar month.
