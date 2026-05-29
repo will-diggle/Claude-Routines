@@ -1,11 +1,13 @@
 import type { LanguageCode } from '../store/useSettingsStore';
 import { consumeTranslation } from './apiUsage';
 
-const DEEPL_SOURCE_LANG: Record<LanguageCode, string> = {
+const DEEPL_SOURCE_LANG: Partial<Record<LanguageCode, string>> = {
   fr: 'FR',
   de: 'DE',
   sv: 'SV',
   en: 'EN',
+  it: 'IT',
+  es: 'ES',
 };
 
 export interface TranslationResult {
