@@ -45,8 +45,8 @@ TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queu
 TIMEOUT_MS      = TIMEOUT_SECONDS * 1000 # HttpOptions.timeout is in milliseconds
 
 # Retries for transient server errors (503 UNAVAILABLE, 429 RESOURCE_EXHAUSTED)
-MAX_RETRIES    = 4
-RETRY_DELAYS   = [30, 60, 120, 240]     # seconds between attempts (exponential back-off)
+MAX_RETRIES    = 6
+RETRY_DELAYS   = [30, 60, 120, 300, 600, 600]  # ~28 min total before giving up
 RETRYABLE_CODES = {503, 429}
 
 # Date is read from BRIEF_DATE env var (set once by the workflow at job start)
