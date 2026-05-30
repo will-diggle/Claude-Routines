@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useBriefingStore } from '../store/useBriefingStore';
 import type { BackgroundKey } from '../theme';
 
 // ── Assets ───────────────────────────────────────────────────────────────────
@@ -222,7 +223,8 @@ export function SplashOverlay({ onDone }: Props) {
 interface RevealProps { t: { bg: string; ink: string; hair: string }; background: string }
 
 function RevealMasthead({ t, background }: RevealProps) {
-  const d       = new Date();
+  const { bundleReceivedAt } = useBriefingStore();
+  const d = bundleReceivedAt ? new Date(bundleReceivedAt) : new Date();
   const datePart = d.toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
