@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
 import { BriefingLoading } from './BriefingLoading';
+import { TappableText } from './TappableText';
+import { WordPopup } from './WordPopup';
 import { Spacing } from '../theme';
 import type { GeneratedBriefing, BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel, Topics } from '../store/useSettingsStore';
@@ -126,6 +128,35 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
   return groups;
 }
 
+function SectionHeader({
+  label, accent, language, level,
+}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel }) {
+  const { colors, fontFamily } = useTheme();
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  return (
+    <>
+      <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
+        <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
+        <TappableText
+          text={label}
+          style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}
+          activeWord={activeWord}
+          onWordPress={(word) => setActiveWord(word)}
+        />
+      </View>
+      {activeWord && (
+        <WordPopup
+          word={activeWord}
+          sentence={label}
+          language={language}
+          level={level}
+          onClose={() => setActiveWord(null)}
+        />
+      )}
+    </>
+  );
+}
+
 export function LanguageBriefingSection({
   langCode,
   nativeName,
@@ -213,13 +244,8 @@ export function LanguageBriefingSection({
             const label = translateGenre(group.genre, langCode);
             return (
               <View key={`${group.genre}-${groupIndex}`}>
-                {/* Section header */}
-                <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
-                  <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
-                  <Text style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}>
-                    {label}
-                  </Text>
-                </View>
+                {/* Section header — words are tappable */}
+                <SectionHeader label={label} accent={accent} language={langCode} level={level} />
 
                 {/* Articles in this genre group */}
                 {group.articles.map((article, articleIndex) => (

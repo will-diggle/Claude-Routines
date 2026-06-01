@@ -102,14 +102,15 @@ export function BriefingArticle({ article, isLast, language, level, genre, locke
 
       {/* Headline row — text + round play button */}
       <View style={styles.headlineRow}>
-        <Text
+        <TappableText
+          text={article.headline}
           style={[
             styles.headline,
             { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading, flex: 1 },
           ]}
-        >
-          {article.headline}
-        </Text>
+          activeWord={activeWord}
+          onWordPress={handleWordPress}
+        />
 
         <ArticleAudioButton
           headline={article.headline}

@@ -4,6 +4,15 @@ const LANGUAGE_NAMES: Record<LanguageCode, string> = {
   en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish',
 };
 
+const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {
+  fr: 'passé composé',
+  de: 'Präteritum',
+  es: 'pretérito indefinido',
+  it: 'passato prossimo',
+  sv: 'preteritum',
+  en: 'simple past',
+};
+
 const VERB_PRONOUNS: Partial<Record<LanguageCode, string[]>> = {
   fr: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'],
   de: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'],
@@ -21,7 +30,9 @@ export interface WordExplanation {
   example: string;
   pronunciation: string;
   verbTable?: Record<string, string> | null;
+  verbTablePast?: Record<string, string> | null;
   forms?: Record<string, string> | null;
+  tip?: string | null;
 }
 
 export async function explainWord(
@@ -35,6 +46,7 @@ export async function explainWord(
 
   const pronouns = VERB_PRONOUNS[language] ?? VERB_PRONOUNS.fr!;
   const langName = LANGUAGE_NAMES[language];
+  const pastTenseName = PAST_TENSE_NAME[language] ?? 'simple past';
 
   const prompt = `A language learner studying ${langName} at ${level} level tapped the word "${word}" in this sentence:
 
@@ -47,7 +59,9 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "example": "A new ${langName} example sentence using this word",
   "pronunciation": "IPA pronunciation of ${word}",
   "verbTable": if verb, present tense conjugation as {"${pronouns[0]}": "...", "${pronouns[1]}": "...", "${pronouns[2]}": "...", "${pronouns[3]}": "...", "${pronouns[4]}": "...", "${pronouns[5]}": "..."} — otherwise null,
-  "forms": if noun, {"gender": "masculine/feminine/neuter", "plural": "plural form"} — if adjective, {"feminine": "feminine form", "comparative": "comparative form"} — otherwise null
+  "verbTablePast": if verb, ${pastTenseName} conjugation as {"${pronouns[0]}": "...", "${pronouns[1]}": "...", "${pronouns[2]}": "...", "${pronouns[3]}": "...", "${pronouns[4]}": "...", "${pronouns[5]}": "..."} — otherwise null,
+  "forms": if noun, {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article (e.g. le/la/der/die/das/il/la/den)"} — if adjective, {"feminine": "feminine form", "comparative": "comparative form", "superlative": "superlative form"} — otherwise null,
+  "tip": a short memorable tip about this word — etymology hint, common learner mistake, or memory hook — or null
 }`;
 
   try {
@@ -60,7 +74,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 700,
+        max_tokens: 900,
         messages: [{ role: 'user', content: prompt }],
       }),
     });

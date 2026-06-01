@@ -21,6 +21,15 @@ import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordExplanation } from '../services/wordLookup';
 
+const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
+  fr: 'PASSÉ COMPOSÉ',
+  de: 'PRÄTERITUM',
+  es: 'PRETÉRITO',
+  it: 'PASSATO PROSSIMO',
+  sv: 'PRETERITUM',
+  en: 'SIMPLE PAST',
+};
+
 interface Props {
   word: string | null;
   sentence: string;
@@ -212,6 +221,34 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                 </>
               )}
 
+              {/* Verb past tense table */}
+              {explanation.verbTablePast && Object.keys(explanation.verbTablePast).length > 0 && (
+                <>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {PAST_TENSE_LABEL[language] ?? 'PAST TENSE'}
+                  </Text>
+                  <View style={[styles.conjugationTable, { borderColor: colors.borderMid }]}>
+                    {Object.entries(explanation.verbTablePast).map(([pronoun, form], i) => (
+                      <View
+                        key={pronoun}
+                        style={[
+                          styles.conjugationRow,
+                          { borderTopColor: colors.borderLight },
+                          i === 0 && styles.conjugationRowFirst,
+                        ]}
+                      >
+                        <Text style={[styles.conjugationPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                          {pronoun}
+                        </Text>
+                        <Text style={[styles.conjugationForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                          {form}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
               {/* Noun / adjective forms */}
               {explanation.forms && Object.keys(explanation.forms).length > 0 && (
                 <>
@@ -253,6 +290,15 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                     /{explanation.pronunciation}/
                   </Text>
                 </>
+              ) : null}
+
+              {explanation.tip ? (
+                <View style={[styles.tipBox, { backgroundColor: colors.borderLight }]}>
+                  <Ionicons name="bulb-outline" size={13} color={colors.accentGold} />
+                  <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                    {explanation.tip}
+                  </Text>
+                </View>
               ) : null}
             </View>
           )}
@@ -547,6 +593,20 @@ const styles = StyleSheet.create({
   },
   formChipValue: {
     fontSize: 15,
+  },
+  tipBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  tipText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
   },
   saveButton: {
     flexDirection: 'row',
