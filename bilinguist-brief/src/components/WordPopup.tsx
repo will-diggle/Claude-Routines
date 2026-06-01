@@ -173,9 +173,65 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 
           {explanation && (
             <View style={[styles.explanationBox, { borderLeftColor: colors.accentGold }]}>
+              {/* Word type badge */}
+              <View style={[styles.wordTypeBadge, { backgroundColor: colors.borderLight }]}>
+                <Text style={[styles.wordTypeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                  {explanation.wordType.toUpperCase()}
+                </Text>
+              </View>
+
               <Text style={[styles.explanationText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                 {explanation.explanation}
               </Text>
+
+              {/* Verb conjugation table */}
+              {explanation.verbTable && Object.keys(explanation.verbTable).length > 0 && (
+                <>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    CONJUGATION
+                  </Text>
+                  <View style={[styles.conjugationTable, { borderColor: colors.borderMid }]}>
+                    {Object.entries(explanation.verbTable).map(([pronoun, form], i) => (
+                      <View
+                        key={pronoun}
+                        style={[
+                          styles.conjugationRow,
+                          { borderTopColor: colors.borderLight },
+                          i === 0 && styles.conjugationRowFirst,
+                        ]}
+                      >
+                        <Text style={[styles.conjugationPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                          {pronoun}
+                        </Text>
+                        <Text style={[styles.conjugationForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                          {form}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {/* Noun / adjective forms */}
+              {explanation.forms && Object.keys(explanation.forms).length > 0 && (
+                <>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    FORMS
+                  </Text>
+                  <View style={styles.formsRow}>
+                    {Object.entries(explanation.forms).map(([key, value]) => (
+                      <View key={key} style={[styles.formChip, { backgroundColor: colors.borderLight }]}>
+                        <Text style={[styles.formChipLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                          {key.toUpperCase()}
+                        </Text>
+                        <Text style={[styles.formChipValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                          {value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
 
               {explanation.example ? (
                 <>
@@ -439,6 +495,58 @@ const styles = StyleSheet.create({
   pronunciationText: {
     fontSize: 15,
     letterSpacing: 1,
+  },
+  wordTypeBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 2,
+  },
+  wordTypeText: {
+    fontSize: 10,
+    letterSpacing: 1.5,
+  },
+  conjugationTable: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 2,
+  },
+  conjugationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  conjugationRowFirst: {
+    borderTopWidth: 0,
+  },
+  conjugationPronoun: {
+    fontSize: 14,
+  },
+  conjugationForm: {
+    fontSize: 14,
+  },
+  formsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 2,
+  },
+  formChip: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  formChipLabel: {
+    fontSize: 9,
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  formChipValue: {
+    fontSize: 15,
   },
   saveButton: {
     flexDirection: 'row',
