@@ -47,6 +47,7 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   const fullAccess = isFullAccess();
 
   const [translation, setTranslation] = useState<string | null>(null);
+  const [translationError, setTranslationError] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [explanation, setExplanation] = useState<WordExplanation | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -58,12 +59,14 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   useEffect(() => {
     if (!word) return;
     setTranslation(null);
+    setTranslationError(null);
     setExplanation(null);
     setSaved(false);
     setIsTranslating(true);
 
     translateWord(word, language).then((result) => {
-      setTranslation(result?.translation ?? null);
+      setTranslation(result?.translation || null);
+      setTranslationError(result?.error ?? null);
       setIsTranslating(false);
     });
   }, [word, language]);
@@ -132,6 +135,10 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                 {translation}
               </Text>
             </>
+          ) : translationError ? (
+            <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+              Translation unavailable · {translationError}
+            </Text>
           ) : null}
         </View>
 
@@ -479,6 +486,10 @@ const styles = StyleSheet.create({
   },
   translation: {
     flex: 1,
+  },
+  translationError: {
+    flex: 1,
+    fontSize: 12,
   },
   noKey: {
     flex: 1,

@@ -13,6 +13,7 @@ const DEEPL_SOURCE_LANG: Partial<Record<LanguageCode, string>> = {
 export interface TranslationResult {
   translation: string;
   detectedSourceLang?: string;
+  error?: string;
 }
 
 export async function translateWord(
@@ -20,11 +21,11 @@ export async function translateWord(
   sourceLanguage: LanguageCode
 ): Promise<TranslationResult | null> {
   const apiKey = process.env.EXPO_PUBLIC_DEEPL_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { translation: '', error: 'no_key' };
 
   // Check monthly translation cap before calling the API
   const allowed = await consumeTranslation();
-  if (!allowed) return null;
+  if (!allowed) return { translation: '', error: 'cap_reached' };
 
   // DeepL Free API keys end with ':fx' (e.g. "abc123:fx").
   // Pro keys are plain UUIDs. Using the wrong endpoint returns 403.
@@ -47,14 +48,14 @@ export async function translateWord(
       }),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return { translation: '', error: `api_${res.status}` };
 
     const data = await res.json();
     const translation = data.translations?.[0]?.text;
-    if (!translation) return null;
+    if (!translation) return { translation: '', error: 'empty_response' };
 
     return { translation, detectedSourceLang: data.translations?.[0]?.detected_source_language };
   } catch {
-    return null;
+    return { translation: '', error: 'network_error' };
   }
 }
