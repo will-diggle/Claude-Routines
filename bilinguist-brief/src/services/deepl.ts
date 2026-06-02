@@ -18,7 +18,11 @@ export async function translateWord(
   if (!allowed) return { translation: '', error: 'cap_reached' };
 
   const src = LANG_CODE[sourceLanguage] ?? 'fr';
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=${src}|en`;
+  // MyMemory expects raw UTF-8 in the query string — encodeURIComponent
+  // converts ü/é/ö etc. to %XX which MyMemory treats as literal text.
+  // Only encode characters that would break URL structure.
+  const safeWord = word.replace(/[&=?#+]/g, (c) => encodeURIComponent(c));
+  const url = `https://api.mymemory.translated.net/get?q=${safeWord}&langpair=${src}|en`;
 
   try {
     const res = await fetch(url);
