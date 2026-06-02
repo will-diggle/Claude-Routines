@@ -29,6 +29,12 @@ Significant market, economic, or corporate developments.
 Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal, Reuters Business, AP Business
 ─────────────────────────────────────────────
 
+─────────────────────────────────────────────
+EUROPE — 2 stories
+Significant European political, economic, social, or institutional developments — EU policy, elections, intra-European disputes, major national stories with continental relevance.
+Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, The Guardian Europe, Financial Times Europe
+─────────────────────────────────────────────
+
 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD:
 Do not rely on a single source for Global News. Search across all of the following outlets and score each candidate story by how many are independently covering it. The more outlets covering a story, the more globally significant it is.

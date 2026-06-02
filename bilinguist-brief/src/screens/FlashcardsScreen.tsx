@@ -10,6 +10,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
+import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
@@ -198,7 +199,7 @@ export function FlashcardsScreen() {
 
       {/* Mark buttons */}
       {revealed && (
-        <View style={[styles.markRow, { paddingBottom: insets.bottom + Spacing.lg, borderTopColor: colors.borderLight, backgroundColor: colors.bg }]}>
+        <View style={[styles.markRow, { paddingBottom: insets.bottom + FLOAT_TAB_INSET, borderTopColor: colors.borderLight, backgroundColor: colors.bg }]}>
           <MarkButton label="No idea" iconName="close-circle-outline" onPress={() => handleMark('no')} colors={colors} fontFamily={fontFamily} tint="#E53935" />
           <MarkButton label="Nearly" iconName="refresh-outline" onPress={() => handleMark('nearly')} colors={colors} fontFamily={fontFamily} tint={colors.inkFaint} />
           <MarkButton label="Got it!" iconName="checkmark-circle-outline" onPress={() => handleMark('got')} colors={colors} fontFamily={fontFamily} tint="#43A047" />

@@ -24,6 +24,13 @@ const VERB_PRONOUNS: Partial<Record<LanguageCode, string[]>> = {
 
 export type WordType = 'verb' | 'noun' | 'adjective' | 'adverb' | 'phrase' | 'other';
 
+export interface WordMeta {
+  isRegular?: boolean | null;
+  auxiliary?: string | null;
+  verbClass?: string | null;
+  isSeparable?: boolean | null;
+}
+
 export interface WordExplanation {
   wordType: WordType;
   explanation: string;
@@ -33,6 +40,7 @@ export interface WordExplanation {
   verbTablePast?: Record<string, string> | null;
   forms?: Record<string, string> | null;
   tip?: string | null;
+  meta?: WordMeta | null;
 }
 
 export async function explainWord(
@@ -61,7 +69,8 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "verbTable": if verb, present tense conjugation as {"${pronouns[0]}": "...", "${pronouns[1]}": "...", "${pronouns[2]}": "...", "${pronouns[3]}": "...", "${pronouns[4]}": "...", "${pronouns[5]}": "..."} — otherwise null,
   "verbTablePast": if verb, ${pastTenseName} conjugation as {"${pronouns[0]}": "...", "${pronouns[1]}": "...", "${pronouns[2]}": "...", "${pronouns[3]}": "...", "${pronouns[4]}": "...", "${pronouns[5]}": "..."} — otherwise null,
   "forms": if noun, {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article (e.g. le/la/der/die/das/il/la/den)"} — if adjective, {"feminine": "feminine form", "comparative": "comparative form", "superlative": "superlative form"} — otherwise null,
-  "tip": a short memorable tip about this word — etymology hint, common learner mistake, or memory hook — or null
+  "tip": a short memorable tip about this word — etymology hint, common learner mistake, or memory hook — or null,
+  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb for compound tenses e.g. "haben"/"sein"/"avoir"/"être"/"essere"/"avere" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir"/"-re" for French, "-are"/"-ere"/"-ire" for Italian, "Group 1"/"Group 2"/"Group 3" for Swedish, "-en"/"-ern" for German (null if not applicable), "isSeparable": true/false for German separable verbs (null for all other languages)} — otherwise null
 }`;
 
   try {

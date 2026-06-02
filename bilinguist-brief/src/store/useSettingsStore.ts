@@ -221,9 +221,7 @@ export const useSettingsStore = create<SettingsStore>()(
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         const presentCodes = new Set(filtered.map((l) => l.code));
         ALL_LANGUAGES.forEach((l) => { if (!presentCodes.has(l.code)) filtered.push(l); });
-        // Canonical order: fr, de, sv, en, it, es
-        const order = ['fr', 'de', 'sv', 'en', 'it', 'es'];
-        // Migrate stale levels to the nearest valid level for the new matrix
+        // Validate levels without resetting the user's custom drag order
         const VALID_LEVELS: Record<string, string[]> = {
           fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
           de: ['A1', 'A2', 'Native'],
@@ -232,14 +230,17 @@ export const useSettingsStore = create<SettingsStore>()(
           it: ['A1', 'Native'],
           es: ['A2'],
         };
-        const migratedLangs = order.map((c) => {
-          const lang = filtered.find((l) => l.code === c) ?? ALL_LANGUAGES.find((l) => l.code === c)!;
-          const valid = VALID_LEVELS[c];
+        // Preserve user's saved order — only migrate stale levels
+        const migratedLangs: LanguagePreference[] = filtered.map((lang) => {
+          const valid = VALID_LEVELS[lang.code];
           if (valid && !valid.includes(lang.level)) {
-            return { ...lang, level: valid[0] as any };
+            return { ...lang, level: valid[0] as LanguageLevel };
           }
           return lang;
-        }).filter(Boolean);
+        });
+        // Append any newly added languages not yet in the user's list
+        const presentCodes = new Set(migratedLangs.map((l) => l.code));
+        ALL_LANGUAGES.forEach((l) => { if (!presentCodes.has(l.code)) migratedLangs.push(l); });
         state.languages = migratedLangs;
         if (!VALID_CODES.has(state.displayLanguage)) {
           state.displayLanguage = state.languages.find((l) => l.active)?.code ?? 'en';

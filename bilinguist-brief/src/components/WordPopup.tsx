@@ -19,7 +19,7 @@ import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
-import type { WordExplanation } from '../services/wordLookup';
+import type { WordExplanation, WordMeta } from '../services/wordLookup';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ',
@@ -189,71 +189,66 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 
           {explanation && (
             <View style={[styles.explanationBox, { borderLeftColor: colors.accentGold }]}>
-              {/* Word type badge */}
-              <View style={[styles.wordTypeBadge, { backgroundColor: colors.borderLight }]}>
-                <Text style={[styles.wordTypeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                  {explanation.wordType.toUpperCase()}
-                </Text>
+              {/* Word type badge + grammar metadata */}
+              <View style={styles.grammarHeaderRow}>
+                <View style={[styles.wordTypeBadge, { backgroundColor: colors.borderLight }]}>
+                  <Text style={[styles.wordTypeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                    {explanation.wordType.toUpperCase()}
+                  </Text>
+                </View>
+                {explanation.meta && (
+                  <Text style={[styles.grammarMeta, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {buildMetaLine(explanation.meta, explanation.wordType)}
+                  </Text>
+                )}
               </View>
 
               <Text style={[styles.explanationText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                 {explanation.explanation}
               </Text>
 
-              {/* Verb conjugation table */}
+              {/* Two-column conjugation tables — present + past side by side */}
               {explanation.verbTable && Object.keys(explanation.verbTable).length > 0 && (
-                <>
-                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    CONJUGATION
-                  </Text>
-                  <View style={[styles.conjugationTable, { borderColor: colors.borderMid }]}>
-                    {Object.entries(explanation.verbTable).map(([pronoun, form], i) => (
-                      <View
-                        key={pronoun}
-                        style={[
-                          styles.conjugationRow,
-                          { borderTopColor: colors.borderLight },
-                          i === 0 && styles.conjugationRowFirst,
-                        ]}
-                      >
-                        <Text style={[styles.conjugationPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                <View style={styles.conjColumns}>
+                  {/* Present tense */}
+                  <View style={styles.conjCol}>
+                    <Text style={[styles.conjHeader, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
+                      PRESENT
+                    </Text>
+                    {Object.entries(explanation.verbTable).map(([pronoun, form]) => (
+                      <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                        <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                           {pronoun}
                         </Text>
-                        <Text style={[styles.conjugationForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                        <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                           {form}
                         </Text>
                       </View>
                     ))}
                   </View>
-                </>
-              )}
 
-              {/* Verb past tense table */}
-              {explanation.verbTablePast && Object.keys(explanation.verbTablePast).length > 0 && (
-                <>
-                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    {PAST_TENSE_LABEL[language] ?? 'PAST TENSE'}
-                  </Text>
-                  <View style={[styles.conjugationTable, { borderColor: colors.borderMid }]}>
-                    {Object.entries(explanation.verbTablePast).map(([pronoun, form], i) => (
-                      <View
-                        key={pronoun}
-                        style={[
-                          styles.conjugationRow,
-                          { borderTopColor: colors.borderLight },
-                          i === 0 && styles.conjugationRowFirst,
-                        ]}
-                      >
-                        <Text style={[styles.conjugationPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                          {pronoun}
+                  {/* Past tense — only if present */}
+                  {explanation.verbTablePast && Object.keys(explanation.verbTablePast).length > 0 && (
+                    <>
+                      <View style={[styles.conjDivider, { backgroundColor: colors.borderLight }]} />
+                      <View style={styles.conjCol}>
+                        <Text style={[styles.conjHeader, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
+                          {PAST_TENSE_LABEL[language] ?? 'PAST'}
                         </Text>
-                        <Text style={[styles.conjugationForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                          {form}
-                        </Text>
+                        {Object.entries(explanation.verbTablePast).map(([pronoun, form]) => (
+                          <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                            <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                              {pronoun}
+                            </Text>
+                            <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                              {form}
+                            </Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
-                  </View>
-                </>
+                    </>
+                  )}
+                </View>
               )}
 
               {/* Noun / adjective forms */}
@@ -334,6 +329,16 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
       </View>
     </Modal>
   );
+}
+
+function buildMetaLine(meta: WordMeta, wordType: string): string {
+  const parts: string[] = [];
+  if (meta.isRegular === true)  parts.push('regular');
+  if (meta.isRegular === false) parts.push('irregular');
+  if (meta.auxiliary)   parts.push(meta.auxiliary);
+  if (meta.isSeparable) parts.push('separable');
+  if (meta.verbClass)   parts.push(meta.verbClass);
+  return parts.join(' · ');
 }
 
 // Languages supported by ElevenLabs eleven_multilingual_v2
@@ -553,38 +558,60 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 1,
   },
+  grammarHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 2,
+  },
   wordTypeBadge: {
     alignSelf: 'flex-start',
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    marginBottom: 2,
   },
   wordTypeText: {
     fontSize: 10,
     letterSpacing: 1.5,
   },
-  conjugationTable: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 2,
+  grammarMeta: {
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
-  conjugationRow: {
+
+  // Two-column conjugation layout
+  conjColumns: {
+    flexDirection: 'row',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  conjCol: {
+    flex: 1,
+  },
+  conjDivider: {
+    width: StyleSheet.hairlineWidth,
+    marginHorizontal: 8,
+  },
+  conjHeader: {
+    fontSize: 9,
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  conjRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  conjugationRowFirst: {
-    borderTopWidth: 0,
+  conjPronoun: {
+    fontSize: 12,
+    flex: 1,
   },
-  conjugationPronoun: {
-    fontSize: 14,
-  },
-  conjugationForm: {
-    fontSize: 14,
+  conjForm: {
+    fontSize: 12,
+    flex: 1,
+    textAlign: 'right',
   },
   formsRow: {
     flexDirection: 'row',
