@@ -57,13 +57,13 @@ export function TopBar({ routeName }: Props) {
         <View style={styles.logotypeRow}>
           <Image
             source={LOGOMARK}
-            style={[styles.logomark, imageStyle]}
+            style={[styles.logomark, imageStyle, { tintColor: colors.inkDark }]}
             resizeMode="contain"
           />
           <View style={styles.logotypeWrap}>
             <Image
               source={LOGOTYPE}
-              style={[styles.logotype, imageStyle]}
+              style={[styles.logotype, imageStyle, { tintColor: colors.inkDark }]}
               resizeMode="contain"
             />
           </View>
