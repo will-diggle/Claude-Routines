@@ -88,6 +88,14 @@ export function SplashOverlay({ onDone }: Props) {
   const diveScale   = useRef(new Animated.Value(1)).current;
   const diveOpacity = useRef(new Animated.Value(1)).current;
 
+  // Shift the zoom focus upward onto the crest (which sits ~40 px above screen
+  // centre due to the tagline below it). Formula: T = d × (S − 1).
+  const diveTranslateY = diveScale.interpolate({
+    inputRange:  [1, 16],
+    outputRange: [0, 600],
+    extrapolate: 'clamp',
+  });
+
   // Reveal — opacity(0→1), 0.55 s ease-out, delay 3.10 s
   const revealOpacity = useRef(new Animated.Value(0)).current;
 
@@ -165,7 +173,7 @@ export function SplashOverlay({ onDone }: Props) {
       <Animated.View
         style={[
           styles.splash,
-          { backgroundColor: t.bg, transform: [{ scale: diveScale }], opacity: diveOpacity },
+          { backgroundColor: t.bg, transform: [{ scale: diveScale }, { translateY: diveTranslateY }], opacity: diveOpacity },
         ]}
       >
         {/* Top outer rule */}
