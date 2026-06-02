@@ -20,7 +20,7 @@ export async function translateWord(
   word: string,
   sourceLanguage: LanguageCode
 ): Promise<TranslationResult | null> {
-  const apiKey = process.env.EXPO_PUBLIC_DEEPL_API_KEY;
+  const apiKey = process.env.EXPO_PUBLIC_DEEPL_API_KEY?.trim();
   if (!apiKey) return { translation: '', error: 'no_key' };
 
   // Check monthly translation cap before calling the API
