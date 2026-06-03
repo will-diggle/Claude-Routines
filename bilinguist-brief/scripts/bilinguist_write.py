@@ -546,10 +546,16 @@ def main():
     client = genai.Client()
     print("[write] Gemini client initialised")
 
-    generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
-
     # ── Stages 2S + 2M + 3 — run concurrently ────────────────────────────────
-    briefings, native_journalism = run_writing_concurrent(client, factbase, generated_at, date)
+    briefings, native_journalism = run_writing_concurrent(client, factbase, 0, date)
+    # Stamp generatedAt AFTER writing completes so "Published at" shows when
+    # articles finished, not when the pipeline launched (which can be minutes
+    # earlier when Gemini is returning 503s and retrying).
+    generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
+    for _ld in briefings.values():
+        for _lvl in _ld.values():
+            for _b in _lvl.values():
+                _b["generatedAt"] = generated_at
 
     total_briefings = sum(
         1

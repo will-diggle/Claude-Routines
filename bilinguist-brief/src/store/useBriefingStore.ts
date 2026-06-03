@@ -219,6 +219,7 @@ export const useBriefingStore = create<BriefingStore>()(
           const cached = get().briefings[language];
           if (
             cached &&
+            cached.date === today &&
             cached.language === language &&
             cached.level === level &&
             cached.length === length
