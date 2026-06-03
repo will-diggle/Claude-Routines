@@ -71,6 +71,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "en": ["B2", "C1", "C2", "Native"],
     "it": ["A1", "Native"],
     "es": ["A2"],
+    "tr": ["A1"],
 }
 
 LANGUAGE_NAMES: dict[str, str] = {
@@ -80,6 +81,7 @@ LANGUAGE_NAMES: dict[str, str] = {
     "sv": "Swedish",
     "es": "Spanish",
     "it": "Italian",
+    "tr": "Turkish",
 }
 
 LEVEL_LABELS: dict[str, str] = {

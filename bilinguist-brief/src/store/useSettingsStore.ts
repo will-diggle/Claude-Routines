@@ -3,9 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
-// Only the four languages the pipeline currently generates.
-// Spanish and Italian will be added once their pipeline stages are validated.
-export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
@@ -75,6 +73,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
   { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'C1',    active: true  },
   { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1',    active: false },
   { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2',    active: false },
+  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',   flag: '🇹🇷', level: 'A1',    active: false },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
@@ -216,8 +215,8 @@ export const useSettingsStore = create<SettingsStore>()(
         if ((state as any).fontFamily === 'ptserif') {
           state.fontFamily = 'garamond';
         }
-        // Ensure all six languages are present; preserve user's existing languages
-        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es']);
+        // Ensure all languages are present; preserve user's existing languages
+        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es', 'tr']);
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         // Validate levels without resetting the user's custom drag order
         const VALID_LEVELS: Record<string, string[]> = {
@@ -227,6 +226,7 @@ export const useSettingsStore = create<SettingsStore>()(
           en: ['B2', 'C1', 'C2', 'Native'],
           it: ['A1', 'Native'],
           es: ['A2'],
+          tr: ['A1'],
         };
         // Preserve user's saved order — only migrate stale levels
         const migratedLangs: LanguagePreference[] = filtered.map((lang) => {

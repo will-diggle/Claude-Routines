@@ -1,7 +1,7 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const LANGUAGE_NAMES: Record<LanguageCode, string> = {
-  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish',
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
 };
 
 const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {
@@ -11,6 +11,7 @@ const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {
   it: 'passato prossimo',
   sv: 'preteritum',
   en: 'simple past',
+  tr: 'geçmiş zaman',
 };
 
 const VERB_PRONOUNS: Partial<Record<LanguageCode, string[]>> = {
@@ -20,6 +21,7 @@ const VERB_PRONOUNS: Partial<Record<LanguageCode, string[]>> = {
   it: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'],
   sv: ['jag', 'du', 'han/hon', 'vi', 'ni', 'de'],
   en: ['I', 'you', 'he/she', 'we', 'you (pl)', 'they'],
+  tr: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'],
 };
 
 export type WordType = 'verb' | 'noun' | 'adjective' | 'adverb' | 'phrase' | 'other';
