@@ -4,7 +4,7 @@
  */
 
 /** ElevenLabs word-pronunciation plays per user per calendar day. */
-export const DAILY_AUDIO_CAP = 3;
+export const DAILY_AUDIO_CAP = 4;
 
 /**
  * DeepL word-translation lookups per user per calendar month.

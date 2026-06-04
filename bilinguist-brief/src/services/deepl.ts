@@ -1,8 +1,7 @@
 import type { LanguageCode } from '../store/useSettingsStore';
-import { consumeTranslation } from './apiUsage';
 
 const LANG_CODE: Partial<Record<LanguageCode, string>> = {
-  fr: 'fr', de: 'de', sv: 'sv', en: 'en', it: 'it', es: 'es',
+  fr: 'fr', de: 'de', sv: 'sv', en: 'en', it: 'it', es: 'es', tr: 'tr',
 };
 
 export interface TranslationResult {
@@ -14,9 +13,6 @@ export async function translateWord(
   word: string,
   sourceLanguage: LanguageCode
 ): Promise<TranslationResult | null> {
-  const allowed = await consumeTranslation();
-  if (!allowed) return { translation: '', error: 'cap_reached' };
-
   const src = LANG_CODE[sourceLanguage] ?? 'fr';
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${src}&tl=en&dt=t&q=${encodeURIComponent(word)}`;
 

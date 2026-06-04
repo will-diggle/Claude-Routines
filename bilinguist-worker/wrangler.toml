@@ -11,6 +11,14 @@ binding  = "WORDS_DB"
 database_name = "bilinguist-words"
 database_id   = "REPLACE_WITH_YOUR_D1_ID"
 
+# ── R2 audio cache ────────────────────────────────────────────────────────────
+# Create the bucket once with:
+#   wrangler r2 bucket create bilinguist-audio
+# No database_id needed for R2 — bucket name is enough.
+[[r2_buckets]]
+binding     = "AUDIO_BUCKET"
+bucket_name = "bilinguist-audio"
+
 # ── Secrets — never put values here ──────────────────────────────────────────
 # Set each with: wrangler secret put <NAME>
 # Or via Cloudflare dashboard → Workers → bilinguist-brief → Settings → Variables
@@ -18,3 +26,4 @@ database_id   = "REPLACE_WITH_YOUR_D1_ID"
 #   GITHUB_TOKEN       — GitHub PAT for reading bilinguist-data repo (already set)
 #   ANTHROPIC_API_KEY  — for generating word explanations on cache miss
 #   WORKER_ADMIN_KEY   — random string used by populate script (set to anything strong)
+#   ELEVENLABS_API_KEY — for synthesising article audio on first play (cached to R2 after)

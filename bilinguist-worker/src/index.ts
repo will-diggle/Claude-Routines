@@ -12,7 +12,7 @@
 // ── Language data ─────────────────────────────────────────────────────────────
 
 const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish',
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
 };
 
 const PAST_TENSE_NAME: Record<string, string> = {
@@ -22,6 +22,7 @@ const PAST_TENSE_NAME: Record<string, string> = {
   it: 'passato prossimo',
   sv: 'preteritum',
   en: 'simple past',
+  tr: 'geçmiş zaman',
 };
 
 const VERB_PRONOUNS: Record<string, string[]> = {
@@ -31,6 +32,7 @@ const VERB_PRONOUNS: Record<string, string[]> = {
   it: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'],
   sv: ['jag', 'du', 'han/hon', 'vi', 'ni', 'de'],
   en: ['I', 'you', 'he/she', 'we', 'you (pl)', 'they'],
+  tr: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'],
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,8 +40,10 @@ const VERB_PRONOUNS: Record<string, string[]> = {
 interface Env {
   GITHUB_TOKEN: string;
   ANTHROPIC_API_KEY: string;
+  ELEVENLABS_API_KEY: string;
   WORKER_ADMIN_KEY: string;
   WORDS_DB: D1Database;
+  AUDIO_BUCKET: R2Bucket;
 }
 
 interface WordRow {
@@ -280,6 +284,80 @@ async function handleWordStats(env: Env): Promise<Response> {
   return json(rows.results);
 }
 
+// ── ElevenLabs voice for article audio ───────────────────────────────────────
+
+const CHARLOTTE_VOICE_ID = 'XB0fDUnXU5powFXDhCwa';
+
+// ── Route: POST /audio ────────────────────────────────────────────────────────
+// Body: { key: string, text: string, lang: string }
+// → checks R2 for {key}.mp3; on miss synthesises via ElevenLabs and caches
+
+async function handleAudioPost(request: Request, env: Env): Promise<Response> {
+  let body: { key?: string; text?: string; lang?: string };
+  try { body = await request.json() as { key?: string; text?: string; lang?: string }; }
+  catch { return json({ error: 'invalid_json' }, 400); }
+
+  const { key, text, lang } = body;
+  if (!key || !text) return json({ error: 'key and text are required' }, 400);
+
+  const r2Key = `${key}.mp3`;
+
+  // Cache hit — return the CDN-style worker URL directly
+  const existing = await env.AUDIO_BUCKET.head(r2Key);
+  if (existing) {
+    const workerUrl = new URL(request.url);
+    return json({ url: `${workerUrl.origin}/audio/${key}`, fromCache: true });
+  }
+
+  // Cache miss — synthesise via ElevenLabs
+  if (!env.ELEVENLABS_API_KEY) return json({ error: 'elevenlabs_not_configured' }, 503);
+
+  const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${CHARLOTTE_VOICE_ID}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': env.ELEVENLABS_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_flash_v2_5',
+      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+    }),
+  });
+
+  if (!elRes.ok) {
+    const errText = await elRes.text();
+    return json({ error: 'elevenlabs_error', detail: errText }, 502);
+  }
+
+  const audioBytes = await elRes.arrayBuffer();
+
+  await env.AUDIO_BUCKET.put(r2Key, audioBytes, {
+    httpMetadata: { contentType: 'audio/mpeg' },
+  });
+
+  const workerUrl = new URL(request.url);
+  return json({ url: `${workerUrl.origin}/audio/${key}`, fromCache: false });
+}
+
+// ── Route: GET /audio/* ───────────────────────────────────────────────────────
+// Streams the cached MP3 from R2
+
+async function handleAudioStream(key: string, env: Env): Promise<Response> {
+  const r2Key = `${key}.mp3`;
+  const obj = await env.AUDIO_BUCKET.get(r2Key);
+
+  if (!obj) return new Response('Not found', { status: 404 });
+
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      'Cache-Control': 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
 // ── Briefing routes (existing) ────────────────────────────────────────────────
 
 const REPO   = 'will-diggle/bilinguist-data';
@@ -330,8 +408,13 @@ export default {
     if (pathname === '/word/stats' && request.method === 'GET') return handleWordStats(env);
     if (pathname === '/word'       && request.method === 'GET')  return handleWordGet(url, env);
     if (pathname === '/word'       && request.method === 'POST') return handleWordPost(request, env);
+    if (pathname === '/audio'      && request.method === 'POST') return handleAudioPost(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
+
+    const audioStream = pathname.match(/^\/audio\/(.+)$/);
+    if (audioStream) return handleAudioStream(audioStream[1], env);
+
     if (pathname === '/latest')   return handleBriefing('latest.json', env);
 
     const archive = pathname.match(/^\/briefings\/(\d{4}-\d{2}-\d{2})$/);

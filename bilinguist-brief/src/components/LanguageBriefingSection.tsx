@@ -256,6 +256,7 @@ export function LanguageBriefingSection({
                     language={langCode}
                     level={level}
                     genre={article.genre}
+                    date={briefing?.date ?? new Date().toISOString().split('T')[0]}
                     locked={false}
                     onLockedWordPress={() => {}}
                   />

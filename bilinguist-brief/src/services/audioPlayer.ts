@@ -3,6 +3,8 @@ import { synthesizeWord } from './elevenlabs';
 import { useAudioStore } from '../store/useAudioStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 
+const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? '';
+
 // ─── Module-level sound instance ─────────────────────────────────────────────
 // Kept outside Zustand so it's never serialised. The store only holds the
 // boolean playing/loading flags that drive the UI.
@@ -86,6 +88,57 @@ export async function resumeAudio(): Promise<void> {
     await _sound.playAsync();
     useAudioStore.getState().setPlaying();
   } catch { /* ignore */ }
+}
+
+/**
+ * Fetch/cache article audio via the Worker (R2-backed) and play it.
+ * First caller synthesises via ElevenLabs and caches; subsequent callers stream from R2.
+ */
+export async function playArticleAudio(
+  text: string,
+  language: LanguageCode,
+  trackingKey: string,
+  audioKey: string,
+): Promise<void> {
+  const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
+
+  if (_sound) {
+    try {
+      await _sound.stopAsync();
+      await _sound.unloadAsync();
+    } catch { /* ignore */ }
+    _sound = null;
+  }
+
+  setLoading(trackingKey);
+
+  try {
+    const res = await fetch(`${WORKER_URL}/audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: audioKey, text, lang: language }),
+    });
+
+    if (!res.ok) { setIdle(); return; }
+
+    const data = await res.json() as { url?: string };
+    if (!data.url) { setIdle(); return; }
+
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+
+    const { sound } = await Audio.Sound.createAsync({ uri: data.url }, { shouldPlay: true });
+    _sound = sound;
+    setPlaying();
+
+    sound.setOnPlaybackStatusUpdate((s) => {
+      if (s.isLoaded && s.didJustFinish) {
+        setIdle();
+        _sound = null;
+      }
+    });
+  } catch {
+    setIdle();
+  }
 }
 
 /** Stop and fully release the current sound. */

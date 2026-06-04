@@ -5,7 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { TappableText } from './TappableText';
 import { WordPopup } from './WordPopup';
-import { playAudioHeadline, pauseAudio } from '../services/audioPlayer';
+import { playArticleAudio, pauseAudio } from '../services/audioPlayer';
 import { useAudioStore } from '../store/useAudioStore';
 import type { BriefingArticle as Article } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -18,17 +18,17 @@ interface AudioBtnProps {
   language: LanguageCode;
   level: LanguageLevel;
   genre?: string;
+  date: string;
 }
 
-// Languages supported by ElevenLabs eleven_multilingual_v2
-const AUDIO_LANGUAGES: LanguageCode[] = ['fr', 'en', 'de', 'sv'];
+function makeAudioKey(lang: string, date: string, headline: string): string {
+  const slug = headline.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60).replace(/-$/, '');
+  return `${lang}/${date}/${slug}`;
+}
 
-function ArticleAudioButton({ headline, body, language }: AudioBtnProps) {
+function ArticleAudioButton({ headline, body, language, date }: AudioBtnProps) {
   const { colors } = useTheme();
   const { isPlaying, isLoading, headline: activeHeadline } = useAudioStore();
-
-  // Only render for languages the TTS model supports
-  if (!AUDIO_LANGUAGES.includes(language)) return null;
 
   const isThisPlaying = isPlaying && activeHeadline === headline;
   const isThisLoading = isLoading && activeHeadline === headline;
@@ -39,8 +39,8 @@ function ArticleAudioButton({ headline, body, language }: AudioBtnProps) {
       await pauseAudio();
       return;
     }
-    // Synthesise the full article (headline + body); track by headline
-    await playAudioHeadline(`${headline}. ${body}`, language, headline);
+    const audioKey = makeAudioKey(language, date, headline);
+    await playArticleAudio(`${headline}. ${body}`, language, headline, audioKey);
   }
 
   // Button colour = opposite of the current theme background
@@ -78,11 +78,12 @@ interface Props {
   language: LanguageCode;
   level: LanguageLevel;
   genre?: string;
+  date: string;
   locked?: boolean;
   onLockedWordPress?: () => void;
 }
 
-export function BriefingArticle({ article, isLast, language, level, genre, locked, onLockedWordPress }: Props) {
+export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedWordPress }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
@@ -112,13 +113,16 @@ export function BriefingArticle({ article, isLast, language, level, genre, locke
           onWordPress={handleWordPress}
         />
 
-        <ArticleAudioButton
-          headline={article.headline}
-          body={article.body}
-          language={language}
-          level={level}
-          genre={genre}
-        />
+        {genre?.toUpperCase() === 'GLOBAL NEWS' && (
+          <ArticleAudioButton
+            headline={article.headline}
+            body={article.body}
+            language={language}
+            level={level}
+            genre={genre}
+            date={date}
+          />
+        )}
       </View>
 
       <TappableText
