@@ -49,6 +49,7 @@ interface Env {
 interface WordRow {
   word: string;
   language: string;
+  lemma: string | null;
   word_type: string | null;
   translation: string | null;
   explanation: string | null;
@@ -58,12 +59,14 @@ interface WordRow {
   verb_past: string | null;
   forms: string | null;
   tip: string | null;
+  meta: string | null;
   lookup_count: number;
 }
 
 interface WordData {
   word: string;
   language: string;
+  lemma: string | null;
   translation: string | null;
   wordType: string | null;
   explanation: string | null;
@@ -73,6 +76,7 @@ interface WordData {
   verbTablePast: Record<string, string> | null;
   forms: Record<string, string> | null;
   tip: string | null;
+  meta: Record<string, unknown> | null;
   fromCache: boolean;
 }
 
@@ -90,17 +94,19 @@ function json(data: unknown, status = 200): Response {
 
 function rowToWordData(row: WordRow, fromCache: boolean): WordData {
   return {
-    word:         row.word,
-    language:     row.language,
-    translation:  row.translation,
-    wordType:     row.word_type,
-    explanation:  row.explanation,
-    example:      row.example,
+    word:          row.word,
+    language:      row.language,
+    lemma:         row.lemma,
+    translation:   row.translation,
+    wordType:      row.word_type,
+    explanation:   row.explanation,
+    example:       row.example,
     pronunciation: row.pronunciation,
-    verbTable:    row.verb_present ? JSON.parse(row.verb_present) : null,
-    verbTablePast: row.verb_past   ? JSON.parse(row.verb_past)   : null,
-    forms:        row.forms        ? JSON.parse(row.forms)        : null,
-    tip:          row.tip,
+    verbTable:     row.verb_present ? JSON.parse(row.verb_present) : null,
+    verbTablePast: row.verb_past    ? JSON.parse(row.verb_past)    : null,
+    forms:         row.forms        ? JSON.parse(row.forms)        : null,
+    tip:           row.tip,
+    meta:          row.meta         ? JSON.parse(row.meta)         : null,
     fromCache,
   };
 }
@@ -136,14 +142,16 @@ async function generateWordData(
 
 Identify the word type and reply ONLY with a JSON object — no markdown, no preamble:
 {
+  "lemma": "the base dictionary form — for a verb the infinitive (e.g. 'haben' for 'hätte'), for a noun the nominative singular, for an adjective the base form. If '${word}' IS already the base form, repeat it here exactly.",
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other",
   "explanation": "Meaning in English, 1-2 sentences, suited to ${level} level",
   "example": "A ${langName} example sentence using this word",
   "pronunciation": "IPA pronunciation of ${word}",
-  "verbTable": if verb, present tense {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
-  "verbTablePast": if verb, ${pastName} {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
+  "verbTable": if verb, present tense of the INFINITIVE FORM {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
+  "verbTablePast": if verb, ${pastName} of the INFINITIVE FORM {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
   "forms": if noun {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article"} — if adjective {"feminine": "feminine form", "comparative": "comparative", "superlative": "superlative"} — otherwise null,
-  "tip": a short memorable tip about this word — etymology, common learner mistake, or memory hook — or null
+  "tip": a short memorable tip about this word — etymology, common learner mistake, or memory hook — or null,
+  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb for compound tenses e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "-are"/"-ere" for Italian, "Group 1"/"Group 2" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for all other languages)} — otherwise null
 }`;
 
   try {
@@ -169,6 +177,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
     if (start === -1 || end === -1) return null;
 
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
+      lemma?: string | null;
       wordType?: string;
       explanation?: string;
       example?: string;
@@ -177,9 +186,11 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       verbTablePast?: Record<string, string> | null;
       forms?: Record<string, string> | null;
       tip?: string | null;
+      meta?: Record<string, unknown> | null;
     };
 
     return {
+      lemma:         parsed.lemma?.toLowerCase() ?? null,
       word_type:     parsed.wordType     ?? null,
       explanation:   parsed.explanation  ?? null,
       example:       parsed.example      ?? null,
@@ -188,6 +199,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       verb_past:     parsed.verbTablePast ? JSON.stringify(parsed.verbTablePast) : null,
       forms:         parsed.forms         ? JSON.stringify(parsed.forms)         : null,
       tip:           parsed.tip           ?? null,
+      meta:          parsed.meta          ? JSON.stringify(parsed.meta)          : null,
     };
   } catch {
     return null;
@@ -204,6 +216,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   if (!rawWord) return json({ error: 'missing_word' }, 400);
   const word = rawWord.toLowerCase();
 
+  // ── Step 1: exact match ──────────────────────────────────────────────────────
   const hit = await env.WORDS_DB
     .prepare('SELECT * FROM words WHERE word = ?1 AND language = ?2')
     .bind(word, lang)
@@ -217,22 +230,58 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     return json(rowToWordData(hit, true));
   }
 
+  // ── Step 2: cache miss — call translation + Claude (gets lemma too) ───────────
   const [translation, generated] = await Promise.all([
     translateWord(word, lang),
     generateWordData(word, lang, level, env.ANTHROPIC_API_KEY),
   ]);
 
-  const row: Partial<WordRow> = { word, language: lang, translation, ...generated };
+  const lemma = generated?.lemma ?? word;
+
+  // ── Step 3: if inflected form, check whether the lemma is already cached ──────
+  if (lemma !== word) {
+    const lemmaHit = await env.WORDS_DB
+      .prepare('SELECT * FROM words WHERE word = ?1 AND language = ?2')
+      .bind(lemma, lang)
+      .first<WordRow>();
+
+    if (lemmaHit) {
+      // Lemma cached — store this inflected form pointing to lemma's rich data
+      await env.WORDS_DB.prepare(`
+        INSERT OR IGNORE INTO words
+          (word, language, translation, lemma, word_type, explanation, example, pronunciation,
+           verb_present, verb_past, forms, tip, meta)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+      `).bind(
+        word, lang,
+        translation ?? lemmaHit.translation,
+        lemma,
+        lemmaHit.word_type, lemmaHit.explanation, lemmaHit.example,
+        lemmaHit.pronunciation, lemmaHit.verb_present, lemmaHit.verb_past,
+        lemmaHit.forms, lemmaHit.tip, lemmaHit.meta,
+      ).run();
+
+      return json(rowToWordData(
+        { ...lemmaHit, word, translation: translation ?? lemmaHit.translation, lemma },
+        false,
+      ));
+    }
+  }
+
+  // ── Step 4: full miss — store everything and return ───────────────────────────
+  const row: Partial<WordRow> = { word, language: lang, translation, lemma, ...generated };
 
   await env.WORDS_DB.prepare(`
     INSERT OR IGNORE INTO words
-      (word, language, translation, word_type, explanation, example, pronunciation,
-       verb_present, verb_past, forms, tip)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+      (word, language, translation, lemma, word_type, explanation, example, pronunciation,
+       verb_present, verb_past, forms, tip, meta)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
   `).bind(
-    row.word, row.language, row.translation ?? null, row.word_type ?? null,
-    row.explanation ?? null, row.example ?? null, row.pronunciation ?? null,
-    row.verb_present ?? null, row.verb_past ?? null, row.forms ?? null, row.tip ?? null,
+    row.word, row.language,
+    row.translation ?? null, row.lemma ?? null,
+    row.word_type ?? null, row.explanation ?? null, row.example ?? null,
+    row.pronunciation ?? null, row.verb_present ?? null, row.verb_past ?? null,
+    row.forms ?? null, row.tip ?? null, row.meta ?? null,
   ).run();
 
   return json(rowToWordData(row as WordRow, false));
@@ -256,20 +305,22 @@ async function handleWordPost(request: Request, env: Env): Promise<Response> {
 
   await env.WORDS_DB.prepare(`
     INSERT OR REPLACE INTO words
-      (word, language, translation, word_type, explanation, example, pronunciation,
-       verb_present, verb_past, forms, tip)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+      (word, language, translation, lemma, word_type, explanation, example, pronunciation,
+       verb_present, verb_past, forms, tip, meta)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
   `).bind(
     word, language,
     (body.translation as string) ?? null,
+    (body.lemma as string) ?? null,
     (body.wordType as string) ?? null,
     (body.explanation as string) ?? null,
     (body.example as string) ?? null,
     (body.pronunciation as string) ?? null,
-    body.verbTable    ? JSON.stringify(body.verbTable)    : null,
+    body.verbTable     ? JSON.stringify(body.verbTable)     : null,
     body.verbTablePast ? JSON.stringify(body.verbTablePast) : null,
-    body.forms        ? JSON.stringify(body.forms)        : null,
+    body.forms         ? JSON.stringify(body.forms)         : null,
     (body.tip as string) ?? null,
+    body.meta          ? JSON.stringify(body.meta)          : null,
   ).run();
 
   return json({ ok: true, word, language });

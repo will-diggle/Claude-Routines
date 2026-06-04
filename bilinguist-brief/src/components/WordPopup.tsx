@@ -13,13 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
-import { translateWord } from '../services/deepl';
-import { explainWord } from '../services/wordLookup';
+import { lookupWord } from '../services/wordService';
+import type { WordEntry } from '../services/wordService';
 import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
-import type { WordExplanation, WordMeta } from '../services/wordLookup';
+import type { WordMeta } from '../services/wordLookup';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ',
@@ -47,47 +47,34 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   const { isFullAccess } = useSubscriptionStore();
   const fullAccess = isFullAccess();
 
-  const [translation, setTranslation] = useState<string | null>(null);
-  const [translationError, setTranslationError] = useState<string | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [explanation, setExplanation] = useState<WordExplanation | null>(null);
-  const [isExplaining, setIsExplaining] = useState(false);
+  const [entry, setEntry] = useState<WordEntry | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
-  // Reset and fetch translation whenever word changes
   useEffect(() => {
     if (!word) return;
-    setTranslation(null);
-    setTranslationError(null);
-    setExplanation(null);
+    setEntry(null);
+    setIsLoading(true);
+    setShowExplanation(false);
     setSaved(false);
-    setIsTranslating(true);
 
-    translateWord(word, language).then((result) => {
-      setTranslation(result?.translation || null);
-      setTranslationError(result?.error ?? null);
-      setIsTranslating(false);
+    lookupWord(word, language, level).then((result) => {
+      setEntry(result);
+      setIsLoading(false);
     });
   }, [word, language]);
-
-  async function handleTellMeMore() {
-    if (!word || explanation || isExplaining) return;
-    setIsExplaining(true);
-    const result = await explainWord(word, sentence, language, level);
-    setExplanation(result);
-    setIsExplaining(false);
-  }
 
   function handleSave() {
     if (!word || alreadySaved || saved) return;
     saveWord({
       word,
       language,
-      translation: translation ?? '',
-      explanation: explanation?.explanation ?? '',
-      exampleSentence: explanation?.example ?? '',
+      translation: entry?.translation ?? '',
+      explanation: entry?.explanation ?? '',
+      exampleSentence: entry?.example ?? '',
       originalSentence: sentence,
     });
     setSaved(true);
@@ -125,20 +112,25 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 
         {/* Translation */}
         <View style={[styles.translationRow, { borderTopColor: colors.borderLight, borderBottomColor: colors.borderLight }]}>
-          {isTranslating ? (
+          {isLoading ? (
             <ActivityIndicator size="small" color={colors.inkFaint} />
-          ) : translation ? (
+          ) : entry?.translation ? (
             <>
               <Text style={[styles.translationLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 EN
               </Text>
               <Text style={[styles.translation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {translation}
+                {entry.translation}
               </Text>
+              {entry.lemma && entry.lemma !== word?.toLowerCase() && (
+                <Text style={[styles.lemmaLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                  ← {entry.lemma}
+                </Text>
+              )}
             </>
-          ) : translationError ? (
+          ) : !isLoading ? (
             <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Translation unavailable · {translationError}
+              Translation unavailable
             </Text>
           ) : null}
         </View>
@@ -153,16 +145,16 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
           </Text>
 
           {/* Audio pronunciation */}
-          {translation && (
+          {entry?.translation && (
             <AudioButton word={word} language={language} level={level} genre={genre} />
           )}
 
-          {/* Tell me more — paid only */}
-          {!explanation && !isExplaining && (
+          {/* Tell me more — paid only; instant if cached, no second API call */}
+          {!showExplanation && !isLoading && (
             fullAccess ? (
               <TouchableOpacity
                 style={[styles.tellMore, { borderColor: colors.borderMid }]}
-                onPress={handleTellMeMore}
+                onPress={() => setShowExplanation(true)}
               >
                 <Ionicons name="sparkles-outline" size={16} color={colors.accentGold} />
                 <Text style={[styles.tellMoreText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
@@ -179,71 +171,56 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
             )
           )}
 
-          {isExplaining && (
-            <View style={styles.explaining}>
-              <ActivityIndicator size="small" color={colors.accentGold} />
-              <Text style={[styles.explainingText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                Claude is explaining…
-              </Text>
-            </View>
-          )}
-
-          {explanation && (
+          {showExplanation && entry && (
             <View style={[styles.explanationBox, { borderLeftColor: colors.accentGold }]}>
               {/* Word type badge + grammar metadata */}
-              <View style={styles.grammarHeaderRow}>
-                <View style={[styles.wordTypeBadge, { backgroundColor: colors.borderLight }]}>
-                  <Text style={[styles.wordTypeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                    {explanation.wordType.toUpperCase()}
-                  </Text>
+              {entry.wordType && (
+                <View style={styles.grammarHeaderRow}>
+                  <View style={[styles.wordTypeBadge, { backgroundColor: colors.borderLight }]}>
+                    <Text style={[styles.wordTypeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                      {entry.wordType.toUpperCase()}
+                    </Text>
+                  </View>
+                  {entry.meta && (
+                    <Text style={[styles.grammarMeta, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      {buildMetaLine(entry.meta, entry.wordType)}
+                    </Text>
+                  )}
                 </View>
-                {explanation.meta && (
-                  <Text style={[styles.grammarMeta, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    {buildMetaLine(explanation.meta, explanation.wordType)}
-                  </Text>
-                )}
-              </View>
+              )}
 
-              <Text style={[styles.explanationText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {explanation.explanation}
-              </Text>
+              {entry.explanation ? (
+                <Text style={[styles.explanationText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  {entry.explanation}
+                </Text>
+              ) : null}
 
               {/* Two-column conjugation tables — present + past side by side */}
-              {explanation.verbTable && Object.keys(explanation.verbTable).length > 0 && (
+              {entry.verbTable && Object.keys(entry.verbTable).length > 0 && (
                 <View style={styles.conjColumns}>
-                  {/* Present tense */}
                   <View style={styles.conjCol}>
                     <Text style={[styles.conjHeader, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
                       PRESENT
                     </Text>
-                    {Object.entries(explanation.verbTable).map(([pronoun, form]) => (
+                    {Object.entries(entry.verbTable).map(([pronoun, form]) => (
                       <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
-                        <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                          {pronoun}
-                        </Text>
-                        <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                          {form}
-                        </Text>
+                        <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{pronoun}</Text>
+                        <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{form}</Text>
                       </View>
                     ))}
                   </View>
 
-                  {/* Past tense — only if present */}
-                  {explanation.verbTablePast && Object.keys(explanation.verbTablePast).length > 0 && (
+                  {entry.verbTablePast && Object.keys(entry.verbTablePast).length > 0 && (
                     <>
                       <View style={[styles.conjDivider, { backgroundColor: colors.borderLight }]} />
                       <View style={styles.conjCol}>
                         <Text style={[styles.conjHeader, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
                           {PAST_TENSE_LABEL[language] ?? 'PAST'}
                         </Text>
-                        {Object.entries(explanation.verbTablePast).map(([pronoun, form]) => (
+                        {Object.entries(entry.verbTablePast).map(([pronoun, form]) => (
                           <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
-                            <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                              {pronoun}
-                            </Text>
-                            <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                              {form}
-                            </Text>
+                            <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{pronoun}</Text>
+                            <Text style={[styles.conjForm, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{form}</Text>
                           </View>
                         ))}
                       </View>
@@ -253,54 +230,42 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
               )}
 
               {/* Noun / adjective forms */}
-              {explanation.forms && Object.keys(explanation.forms).length > 0 && (
+              {entry.forms && Object.keys(entry.forms).length > 0 && (
                 <>
-                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    FORMS
-                  </Text>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>FORMS</Text>
                   <View style={styles.formsRow}>
-                    {Object.entries(explanation.forms).map(([key, value]) => (
+                    {Object.entries(entry.forms).map(([key, value]) => (
                       <View key={key} style={[styles.formChip, { backgroundColor: colors.borderLight }]}>
-                        <Text style={[styles.formChipLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                          {key.toUpperCase()}
-                        </Text>
-                        <Text style={[styles.formChipValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                          {value}
-                        </Text>
+                        <Text style={[styles.formChipLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{key.toUpperCase()}</Text>
+                        <Text style={[styles.formChipValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
                       </View>
                     ))}
                   </View>
                 </>
               )}
 
-              {explanation.example ? (
+              {entry.example ? (
                 <>
-                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    EXAMPLE
-                  </Text>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>EXAMPLE</Text>
                   <Text style={[styles.exampleText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
-                    {explanation.example}
+                    {entry.example}
                   </Text>
                 </>
               ) : null}
 
-              {explanation.pronunciation ? (
+              {entry.pronunciation ? (
                 <>
-                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    PRONUNCIATION
-                  </Text>
+                  <Text style={[styles.explanationSubLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>PRONUNCIATION</Text>
                   <Text style={[styles.pronunciationText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                    /{explanation.pronunciation}/
+                    /{entry.pronunciation}/
                   </Text>
                 </>
               ) : null}
 
-              {explanation.tip ? (
+              {entry.tip ? (
                 <View style={[styles.tipBox, { backgroundColor: colors.borderLight }]}>
                   <Ionicons name="bulb-outline" size={13} color={colors.accentGold} />
-                  <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                    {explanation.tip}
-                  </Text>
+                  <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>{entry.tip}</Text>
                 </View>
               ) : null}
             </View>
@@ -495,6 +460,10 @@ const styles = StyleSheet.create({
   translationError: {
     flex: 1,
     fontSize: 12,
+  },
+  lemmaLabel: {
+    fontSize: 11,
+    fontStyle: 'italic',
   },
   noKey: {
     flex: 1,

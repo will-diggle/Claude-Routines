@@ -1,0 +1,38 @@
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
+import type { WordType, WordMeta } from './wordLookup';
+
+const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? '';
+
+export interface WordEntry {
+  word: string;
+  language: string;
+  lemma: string | null;
+  translation: string | null;
+  wordType: WordType | null;
+  explanation: string | null;
+  example: string | null;
+  pronunciation: string | null;
+  verbTable: Record<string, string> | null;
+  verbTablePast: Record<string, string> | null;
+  forms: Record<string, string> | null;
+  tip: string | null;
+  meta: WordMeta | null;
+  fromCache: boolean;
+}
+
+export async function lookupWord(
+  word: string,
+  language: LanguageCode,
+  level: LanguageLevel,
+): Promise<WordEntry | null> {
+  if (!WORKER_URL) return null;
+  try {
+    const res = await fetch(
+      `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`,
+    );
+    if (!res.ok) return null;
+    return await res.json() as WordEntry;
+  } catch {
+    return null;
+  }
+}
