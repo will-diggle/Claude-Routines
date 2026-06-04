@@ -167,6 +167,7 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
+  Turkish: "…"
 - Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
@@ -190,7 +191,7 @@ THE READING LEVEL IS THE MASTER CONSTRAINT. Level always wins over word count.
 
 READING LEVEL — {LEVEL} ({LEVEL_LABEL}):
 
-A1 — Beginner: 3–4 short sentences. Present tense only. ~500 most common words. Subject–verb–object. No subordinate clauses. Plainest verified facts only. Skip all contested nuance.
+A1 — Beginner: MAXIMUM 3 sentences. Never more — not 4, not 5. Every sentence: subject + verb + object only. Present tense only. ~500 most common words. No subordinate clauses, no conjunctions beyond "and". Plainest single verified fact per sentence. Skip all contested nuance, all attribution, all numbers unless essential.
 
 A2 — Elementary: 4–5 sentences. Present and simple past. ~1,000 common words. Simple connectors (and, but, because, so). Minimal attribution kept simple.
 
@@ -223,6 +224,7 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
+  Turkish: "…"
 - Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
