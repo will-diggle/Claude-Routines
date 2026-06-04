@@ -1,0 +1,20 @@
+{
+  "cli": {
+    "version": ">= 19.0.0"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "simulator": false
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "language": "en-GB"
+      }
+    }
+  }
+}

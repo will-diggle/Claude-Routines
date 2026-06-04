@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Tally",
+    "slug": "tally",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#13112A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.williamdiggz.tally",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#13112A",
+          "sounds": []
+        }
+      ]
+    ]
+  }
+}

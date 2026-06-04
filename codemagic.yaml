@@ -1,0 +1,38 @@
+workflows:
+  tally-ios-testflight:
+    name: Tally iOS → TestFlight
+    max_build_duration: 120
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.williamdiggz.tally
+      node: latest
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd $CM_BUILD_DIR/tally
+          npm install
+      - name: Expo prebuild
+        script: |
+          cd $CM_BUILD_DIR/tally
+          npx expo prebuild --platform ios --clean
+      - name: Install CocoaPods
+        script: |
+          cd $CM_BUILD_DIR/tally/ios
+          pod install
+      - name: Build IPA
+        script: |
+          cd $CM_BUILD_DIR/tally
+          xcode-project build-ipa \
+            --workspace ios/tally.xcworkspace \
+            --scheme tally
+    artifacts:
+      - $CM_BUILD_DIR/tally/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
