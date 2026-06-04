@@ -8,9 +8,10 @@ interface Token {
   index: number;
 }
 
-// Tokenise into words (incl. accented chars + apostrophe contractions) and non-words
+// Tokenise into words (any Unicode letter, incl. Turkish ı/ğ/ş, Arabic, CJK)
+// and non-words. The `u` flag enables full Unicode property escapes.
 function tokenise(text: string): Token[] {
-  const regex = /([A-Za-zÀ-ÿÄÖÜäöüßœæ]+(?:'[A-Za-zÀ-ÿ]+)?)|([^A-Za-zÀ-ÿÄÖÜäöüßœæ]+)/g;
+  const regex = /(\p{L}+(?:'\p{L}+)?)|([^\p{L}]+)/gu;
   const tokens: Token[] = [];
   let match: RegExpExecArray | null;
   let index = 0;

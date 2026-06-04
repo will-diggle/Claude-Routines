@@ -28,6 +28,7 @@ const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   it: 'PASSATO PROSSIMO',
   sv: 'PRETERITUM',
   en: 'SIMPLE PAST',
+  tr: 'GEÇMİŞ ZAMAN',
 };
 
 interface Props {
@@ -341,8 +342,7 @@ function buildMetaLine(meta: WordMeta, wordType: string): string {
   return parts.join(' · ');
 }
 
-// Languages supported by ElevenLabs eleven_multilingual_v2
-const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv', 'it', 'es'];
+const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv', 'it', 'es', 'tr'];
 
 function AudioButton({ word, language, level, genre }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string }) {
   const { colors, fontFamily } = useTheme();
