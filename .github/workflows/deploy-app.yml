@@ -2,16 +2,6 @@ name: Build & Submit to TestFlight
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - claude/build-app-from-brief-wNEna
-    paths:
-      - 'bilinguist-brief/src/**'
-      - 'bilinguist-brief/assets/**'
-      - 'bilinguist-brief/App.tsx'
-      - 'bilinguist-brief/app.json'
-      - 'bilinguist-brief/package.json'
-      - 'bilinguist-brief/babel.config.js'
 
 jobs:
   build-and-submit:
