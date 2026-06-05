@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { LanguageCode } from './useSettingsStore';
+import type { WordMeta } from '../services/wordLookup';
 
 export type Pile = 'new' | 'learning' | 'mastered' | 'revisit';
 
@@ -17,6 +18,15 @@ export interface SavedWord {
   pile: Pile;
   correctStreak: number;
   lastPracticed: number | null;
+  // Rich data from worker dictionary (optional — older saves won't have these)
+  lemma?: string | null;
+  pronunciation?: string | null;
+  verbTable?: Record<string, string> | null;
+  verbTablePast?: Record<string, string> | null;
+  forms?: Record<string, string> | null;
+  wordType?: string | null;
+  tip?: string | null;
+  meta?: WordMeta | null;
 }
 
 interface WordBankStore {

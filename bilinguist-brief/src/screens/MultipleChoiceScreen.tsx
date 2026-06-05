@@ -8,7 +8,9 @@ import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
+import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const MIN_WORDS = 4;
@@ -144,9 +146,12 @@ export function MultipleChoiceScreen() {
           <Text style={[styles.questionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             What is the meaning of
           </Text>
-          <Text style={[styles.questionWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            {q.word.word}
-          </Text>
+          <View style={styles.questionWordRow}>
+            <Text style={[styles.questionWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
+              {q.word.word}
+            </Text>
+            <WordAudioButton word={q.word.word} language={q.word.language as LanguageCode} size="sm" />
+          </View>
           <Text style={[styles.questionLang, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             {q.word.language.toUpperCase()}
           </Text>
@@ -193,6 +198,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   questionLabel: { fontSize: 13 },
+  questionWordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   questionWord: { lineHeight: 44, textAlign: 'center' },
   questionLang: { fontSize: 11, letterSpacing: 1.5 },
   options: { gap: Spacing.sm },

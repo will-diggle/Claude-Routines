@@ -41,6 +41,7 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
   en: 'English',
   it: 'Italiano',
   es: 'Español',
+  tr: 'Türkçe',
 };
 
 export function PracticeScreen() {
@@ -150,6 +151,8 @@ export function PracticeScreen() {
           {PILE_META.map((pile, index) => (
             <TouchableOpacity
               key={pile.key}
+              onPress={() => navigation.navigate('WordBankList', { pile: pile.key, language: selectedLang })}
+              activeOpacity={0.7}
               style={[
                 styles.pileCard,
                 {
@@ -171,6 +174,18 @@ export function PracticeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <TouchableOpacity
+          onPress={() => navigation.navigate('WordBankList', { pile: 'all', language: selectedLang })}
+          style={[styles.allWordsBtn, { borderColor: colors.borderMid }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="library-outline" size={16} color={colors.inkMid} />
+          <Text style={[styles.allWordsBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+            View all {totalWords} words
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.inkFaint} />
+        </TouchableOpacity>
         </>
       )}
 
@@ -362,6 +377,12 @@ const styles = StyleSheet.create({
   pileCount: { fontSize: 28, lineHeight: 34 },
   pileLabel: { fontSize: 13, marginTop: 2 },
   pileDesc: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 15 },
+  allWordsBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginTop: Spacing.sm, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8, gap: 6,
+  },
+  allWordsBtnText: { fontSize: 13 },
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing.xxl,

@@ -76,6 +76,14 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
       explanation: entry?.explanation ?? '',
       exampleSentence: entry?.example ?? '',
       originalSentence: sentence,
+      lemma: entry?.lemma ?? null,
+      pronunciation: entry?.pronunciation ?? null,
+      verbTable: entry?.verbTable ?? null,
+      verbTablePast: entry?.verbTablePast ?? null,
+      forms: entry?.forms ?? null,
+      wordType: entry?.wordType ?? null,
+      tip: entry?.tip ?? null,
+      meta: entry?.meta ?? null,
     });
     setSaved(true);
   }

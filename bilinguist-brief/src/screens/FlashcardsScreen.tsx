@@ -9,6 +9,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { LanguageCode } from '../store/useSettingsStore';
@@ -17,12 +18,8 @@ import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 const MAX_CARDS = 20;
 
 const LANG_NAMES: Record<LanguageCode, string> = {
-  fr: 'FRANÇAIS',
-  de: 'DEUTSCH',
-  sv: 'SVENSKA',
-  es: 'ESPAÑOL',
-  it: 'ITALIANO',
-  en: 'ENGLISH',
+  fr: 'FRANÇAIS', de: 'DEUTSCH', sv: 'SVENSKA',
+  es: 'ESPAÑOL', it: 'ITALIANO', en: 'ENGLISH', tr: 'TÜRKÇE',
 };
 
 function getSessionWords(words: SavedWord[]): SavedWord[] {
@@ -156,10 +153,13 @@ export function FlashcardsScreen() {
             </View>
           </View>
 
-          {/* Headline word */}
-          <Text style={[styles.cardWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 1.3 }]}>
-            {card.word}
-          </Text>
+          {/* Headline word + audio */}
+          <View style={styles.cardWordRow}>
+            <Text style={[styles.cardWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 1.3, flex: 1 }]}>
+              {card.word}
+            </Text>
+            <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />
+          </View>
 
           {!revealed ? (
             <TouchableOpacity
@@ -260,12 +260,17 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   pileBadgeText: { fontSize: 10, letterSpacing: 0.5 },
-  cardWord: {
+  cardWordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.lg,
-    lineHeight: 52,
     minHeight: 180,
+    gap: Spacing.sm,
+  },
+  cardWord: {
+    lineHeight: 52,
     textAlignVertical: 'center',
   },
   revealButton: {
