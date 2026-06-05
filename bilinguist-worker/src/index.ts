@@ -335,6 +335,28 @@ async function handleWordStats(env: Env): Promise<Response> {
   return json(rows.results);
 }
 
+// ── Route: GET /word/export ───────────────────────────────────────────────────
+// Admin-only: returns the full D1 word library as JSON (protected by WORKER_ADMIN_KEY)
+
+async function handleWordExport(request: Request, env: Env): Promise<Response> {
+  const adminKey = new URL(request.url).searchParams.get('key');
+  if (!env.WORKER_ADMIN_KEY || adminKey !== env.WORKER_ADMIN_KEY) {
+    return json({ error: 'unauthorized' }, 401);
+  }
+
+  const rows = await env.WORDS_DB
+    .prepare(`SELECT word, language, lemma, translation, word_type, explanation, example,
+              pronunciation, verb_present, verb_past, forms, tip, meta, lookup_count
+              FROM words ORDER BY language, word`)
+    .all<WordRow>();
+
+  return json({
+    exported_at: new Date().toISOString(),
+    total: rows.results.length,
+    words: rows.results.map((r) => rowToWordData(r, true)),
+  });
+}
+
 // ── ElevenLabs voice for article audio ───────────────────────────────────────
 
 const CHARLOTTE_VOICE_ID = 'XB0fDUnXU5powFXDhCwa';
@@ -456,9 +478,10 @@ export default {
       });
     }
 
-    if (pathname === '/word/stats' && request.method === 'GET') return handleWordStats(env);
-    if (pathname === '/word'       && request.method === 'GET')  return handleWordGet(url, env);
-    if (pathname === '/word'       && request.method === 'POST') return handleWordPost(request, env);
+    if (pathname === '/word/stats'  && request.method === 'GET') return handleWordStats(env);
+    if (pathname === '/word/export' && request.method === 'GET') return handleWordExport(request, env);
+    if (pathname === '/word'        && request.method === 'GET') return handleWordGet(url, env);
+    if (pathname === '/word'        && request.method === 'POST') return handleWordPost(request, env);
     if (pathname === '/audio'      && request.method === 'POST') return handleAudioPost(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Share, Alert,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -49,21 +49,6 @@ export function WordBankListScreen() {
 
   const sorted = [...filtered].sort((a, b) => a.word.localeCompare(b.word));
 
-  async function handleExport() {
-    const header = 'word,language,translation,wordType,explanation,exampleSentence,pile';
-    const rows = words.map((w) =>
-      [w.word, w.language, w.translation, w.wordType ?? '', w.explanation, w.exampleSentence, w.pile]
-        .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
-        .join(',')
-    );
-    const csv = [header, ...rows].join('\n');
-    try {
-      await Share.share({ message: csv, title: 'Bilinguist Word Bank' });
-    } catch {
-      Alert.alert('Export failed', 'Could not share the word list.');
-    }
-  }
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       {/* Nav header */}
@@ -74,9 +59,7 @@ export function WordBankListScreen() {
         <Text style={[styles.navTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {PILE_LABEL[selectedPile]} {filtered.length > 0 ? `· ${filtered.length}` : ''}
         </Text>
-        <TouchableOpacity onPress={handleExport} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="share-outline" size={22} color={colors.inkMid} />
-        </TouchableOpacity>
+        <View style={{ width: 22 }} />
       </View>
 
       {/* Pile filter tabs */}
