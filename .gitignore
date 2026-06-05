@@ -14,3 +14,6 @@ __pycache__/
 # Generated pipeline output (pushed to bilinguist-data repo separately)
 bilinguist-brief/scripts/output/
 bilinguist-brief/scripts/factbase_*.json
+
+# Wrangler local state/cache
+bilinguist-worker/.wrangler/
