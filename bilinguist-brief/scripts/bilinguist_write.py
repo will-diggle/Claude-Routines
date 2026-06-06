@@ -113,18 +113,18 @@ ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 def build_combinations() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """
     Returns (combos_2s, combos_2m).
-    combos_2s → MODEL_2S (flash-lite): A1/A2 short + B1+ short
-    combos_2m → MODEL_2M (flash):      B1+ medium + B1+ longer
+    combos_2s → MODEL_2S: A2 short + B1+ short
+    combos_2m → MODEL_2M: A1 medium + B1+ medium + B1+ longer
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
 
     for lang, levels in LANGUAGE_LEVELS.items():
         for level in levels:
-            if level in ("A1", "A2"):
-                # Beginner: short only
-                # TODO: length-per-level policy — A1/A2 always Concise for now
-                combos_2s.append((lang, level, "short"))
+            if level == "A1":
+                combos_2m.append((lang, level, "medium"))   # A1 medium via 2M
+            elif level == "A2":
+                combos_2s.append((lang, level, "short"))    # A2 short via 2S
             else:
                 combos_2s.append((lang, level, "short"))    # short via 2S
                 combos_2m.append((lang, level, "medium"))   # medium via 2M

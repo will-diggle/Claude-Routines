@@ -562,11 +562,13 @@ export function SettingsScreen() {
                 if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
                 setIsForceRegenerating(true);
                 try {
-                  // A1/A2 → 'short' only; B1/B2/C1 → both 'medium' and 'longer' pre-generated
+                  // A1 → 'medium'; A2 → 'short'; B1+ → 'medium' + 'longer'
                   const calls: Array<() => Promise<void>> = [];
                   for (const lang of active) {
                     const level = lang.level ?? 'B1';
-                    if (level === 'A1' || level === 'A2') {
+                    if (level === 'A1') {
+                      calls.push(() => loadBriefing(lang.code, level, 'medium' as ArticleLength, true));
+                    } else if (level === 'A2') {
                       calls.push(() => loadBriefing(lang.code, level, 'short' as ArticleLength, true));
                     } else {
                       calls.push(() => loadBriefing(lang.code, level, 'medium' as ArticleLength, true));

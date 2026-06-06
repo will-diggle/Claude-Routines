@@ -40,9 +40,10 @@ const LANG_CITY: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// TODO: length-per-level policy — A1/A2 always Concise for now; revisit if we want user choice at beginner levels
 function resolveLength(level: LanguageLevel, readLength: ArticleLength): ArticleLength {
-  return level === 'A1' || level === 'A2' ? 'short' : readLength;
+  if (level === 'A1') return 'medium';
+  if (level === 'A2') return 'short';
+  return readLength;
 }
 
 // Returns "Published at Monday, 26 May 2026 · 05:47"

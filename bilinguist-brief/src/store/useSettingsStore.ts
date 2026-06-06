@@ -8,7 +8,7 @@ export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
 // User-facing depth choice. Only applies to B1+ levels.
-// A1/A2 always generate at 'short' regardless of this setting.
+// A1 always uses 'medium'; A2 always uses 'short'; both ignore this setting.
 export type ReadLength = 'short' | 'medium' | 'longer';
 
 export interface LanguagePreference {

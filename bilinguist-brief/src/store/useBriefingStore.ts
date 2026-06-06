@@ -146,7 +146,9 @@ export const useBriefingStore = create<BriefingStore>()(
           for (const lang of settings.languages.filter((l) => l.active)) {
             const level = lang.level ?? 'B1';
             const length: ArticleLength =
-              level === 'A1' || level === 'A2' ? 'short' : settings.readLength;
+              level === 'A1' ? 'medium' :
+              level === 'A2' ? 'short' :
+              settings.readLength;
             const briefing = bundle.briefings[lang.code]?.[level]?.[length];
             if (briefing) {
               updates[lang.code as LanguageCode] = briefing;
