@@ -4,8 +4,8 @@ bilinguist_write.py
 Stages 2S, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
 
 Reads the factbase produced by bilinguist_gather.py and:
-  2S — Short writing    : gemini-2.5-flash  Concurrent  A1/A2 + all short lengths
-  2M — Medium/long      : gemini-2.5-flash  Concurrent  B1+ medium and long
+  2S — Short writing    : gemini-2.5-flash  Concurrent  all levels short
+  2M — Medium/long      : gemini-2.5-flash  Concurrent  all levels medium + longer
   3  — Native journalism : gemini-2.5-flash  Concurrent  one per language
   4  — Grading           : gemini-2.5-flash  Sequential  grades Stage 3 output
 
@@ -94,9 +94,14 @@ LEVEL_LABELS: dict[str, str] = {
     "Native": "Native",
 }
 
-WORDS_PER_ARTICLE: dict[str, int] = {
-    "short":  80,
-    "medium": 140,
+WORDS_PER_ARTICLE_BEGINNER: dict[str, int] = {  # A1 / A2
+    "short":  60,
+    "medium": 100,
+    "longer": 145,
+}
+WORDS_PER_ARTICLE_ADVANCED: dict[str, int] = {  # B1+
+    "short":  90,
+    "medium": 145,
     "longer": 220,
 }
 
@@ -113,22 +118,18 @@ ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 def build_combinations() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """
     Returns (combos_2s, combos_2m).
-    combos_2s → MODEL_2S: A2 short + B1+ short
-    combos_2m → MODEL_2M: A1 medium + B1+ medium + B1+ longer
+    combos_2s → MODEL_2S: all levels short
+    combos_2m → MODEL_2M: all levels medium + longer
+    Every level now gets all 3 length variants; users choose per language in-app.
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
 
     for lang, levels in LANGUAGE_LEVELS.items():
         for level in levels:
-            if level == "A1":
-                combos_2m.append((lang, level, "medium"))   # A1 medium via 2M
-            elif level == "A2":
-                combos_2s.append((lang, level, "short"))    # A2 short via 2S
-            else:
-                combos_2s.append((lang, level, "short"))    # short via 2S
-                combos_2m.append((lang, level, "medium"))   # medium via 2M
-                combos_2m.append((lang, level, "longer"))   # longer via 2M
+            combos_2s.append((lang, level, "short"))
+            combos_2m.append((lang, level, "medium"))
+            combos_2m.append((lang, level, "longer"))
 
     return combos_2s, combos_2m
 
@@ -191,7 +192,7 @@ THE READING LEVEL IS THE MASTER CONSTRAINT. Level always wins over word count.
 
 READING LEVEL — {LEVEL} ({LEVEL_LABEL}):
 
-A1 — Beginner: MAXIMUM 3 sentences. Never more — not 4, not 5. Every sentence: subject + verb + object only. Present tense only. ~500 most common words. No subordinate clauses, no conjunctions beyond "and". Plainest single verified fact per sentence. Skip all contested nuance, all attribution, all numbers unless essential.
+A1 — Beginner: Subject-verb-object sentences only. Present tense only. ~500 most common words. No subordinate clauses, no conjunctions beyond "and". One plain fact per sentence. Write as many complete simple sentences as needed to reach the target word count. Skip all contested nuance, attribution, and numbers unless essential.
 
 A2 — Elementary: 4–5 sentences. Present and simple past. ~1,000 common words. Simple connectors (and, but, because, so). Minimal attribution kept simple.
 
@@ -332,7 +333,8 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     """Build a complete prompt by injecting variables and appending the factbase."""
     level_display = NATIVE_WRITING_LEVEL if level == "Native" else level
     label = LEVEL_LABELS.get(level, level)
-    word_count = WORDS_PER_ARTICLE[length]
+    words_table = WORDS_PER_ARTICLE_BEGINNER if level in ("A1", "A2") else WORDS_PER_ARTICLE_ADVANCED
+    word_count = words_table[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
 
     prompt = template

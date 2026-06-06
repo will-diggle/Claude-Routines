@@ -7,8 +7,6 @@ export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
-// User-facing depth choice. Only applies to B1+ levels.
-// A1 always uses 'medium'; A2 always uses 'short'; both ignore this setting.
 export type ReadLength = 'short' | 'medium' | 'longer';
 
 export interface LanguagePreference {
@@ -17,6 +15,7 @@ export interface LanguagePreference {
   nativeName: string;
   flag: string;
   level: LanguageLevel;
+  readLength: ReadLength;
   active: boolean;
 }
 
@@ -40,7 +39,6 @@ export interface Settings {
   displayLanguage: LanguageCode;
   topics: Topics;
   topicOrder: string[];
-  readLength: ReadLength;
   briefingNotificationTime: string;
   practiceNotificationTime: string;
   fontSize: FontSizeKey;
@@ -53,10 +51,10 @@ interface SettingsStore extends Settings {
   setDisplayLanguage: (code: LanguageCode) => void;
   toggleLanguage: (code: LanguageCode) => void;
   setLanguageLevel: (code: LanguageCode, level: LanguageLevel) => void;
+  setLanguageReadLength: (code: LanguageCode, length: ReadLength) => void;
   reorderLanguages: (from: number, to: number) => void;
   toggleTopic: (topic: keyof Topics) => void;
   reorderTopics: (from: number, to: number) => void;
-  setReadLength: (length: ReadLength) => void;
   setBriefingNotificationTime: (time: string) => void;
   setPracticeNotificationTime: (time: string) => void;
   setFontSize: (size: FontSizeKey) => void;
@@ -67,13 +65,13 @@ interface SettingsStore extends Settings {
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French',           nativeName: 'Français', flag: '🇫🇷', level: 'B1',    active: false },
-  { code: 'de', name: 'German',           nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2',    active: false },
-  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',  flag: '🇸🇪', level: 'B2',    active: false },
-  { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'C1',    active: true  },
-  { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1',    active: false },
-  { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2',    active: false },
-  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',   flag: '🇹🇷', level: 'A1',    active: false },
+  { code: 'fr', name: 'French',           nativeName: 'Français', flag: '🇫🇷', level: 'B1', readLength: 'medium', active: false },
+  { code: 'de', name: 'German',           nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', readLength: 'medium', active: false },
+  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',  flag: '🇸🇪', level: 'B2', readLength: 'medium', active: false },
+  { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'C1', readLength: 'medium', active: true  },
+  { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', readLength: 'medium', active: false },
+  { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2', readLength: 'medium', active: false },
+  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',   flag: '🇹🇷', level: 'A1', readLength: 'medium', active: false },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
@@ -98,7 +96,6 @@ const DEFAULT_SETTINGS: Settings = {
     goodNews: false,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
-  readLength: 'medium',
   briefingNotificationTime: '07:00',
   practiceNotificationTime: '18:00',
   fontSize: 'medium',
@@ -147,6 +144,13 @@ export const useSettingsStore = create<SettingsStore>()(
           ),
         }),
 
+      setLanguageReadLength: (code, readLength) =>
+        set({
+          languages: get().languages.map((l) =>
+            l.code === code ? { ...l, readLength } : l
+          ),
+        }),
+
       reorderLanguages: (from, to) => {
         const languages = [...get().languages];
         if (to < 0 || to >= languages.length) return;
@@ -166,7 +170,6 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ topicOrder: order });
       },
 
-      setReadLength: (readLength) => set({ readLength }),
       setBriefingNotificationTime: (briefingNotificationTime) => set({ briefingNotificationTime }),
       setPracticeNotificationTime: (practiceNotificationTime) => set({ practiceNotificationTime }),
       setFontSize: (fontSize) => set({ fontSize }),
@@ -185,7 +188,6 @@ export const useSettingsStore = create<SettingsStore>()(
         displayLanguage: state.displayLanguage,
         topics: state.topics,
         topicOrder: state.topicOrder,
-        readLength: state.readLength,
         briefingNotificationTime: state.briefingNotificationTime,
         practiceNotificationTime: state.practiceNotificationTime,
         fontSize: state.fontSize,
@@ -207,10 +209,6 @@ export const useSettingsStore = create<SettingsStore>()(
             : !COMING_SOON.has(k);
         });
         state.topics = cleanTopics;
-        // Migrate old briefingLength → readLength
-        if (!(state as any).readLength) {
-          state.readLength = 'medium';
-        }
         // Migrate old ptserif → garamond (PT Serif removed; EB Garamond is the replacement)
         if ((state as any).fontFamily === 'ptserif') {
           state.fontFamily = 'garamond';
@@ -228,13 +226,18 @@ export const useSettingsStore = create<SettingsStore>()(
           es: ['A2'],
           tr: ['A1'],
         };
-        // Preserve user's saved order — only migrate stale levels
-        const migratedLangs: LanguagePreference[] = filtered.map((lang) => {
+        // Preserve user's saved order — migrate stale levels and backfill readLength
+        const globalReadLength = ((state as any).readLength as ReadLength) ?? 'medium';
+        const migratedLangs: LanguagePreference[] = filtered.map((lang: any) => {
           const valid = VALID_LEVELS[lang.code];
-          if (valid && !valid.includes(lang.level)) {
-            return { ...lang, level: valid[0] as LanguageLevel };
-          }
-          return lang;
+          const migratedLevel = (valid && !valid.includes(lang.level))
+            ? valid[0] as LanguageLevel
+            : lang.level;
+          return {
+            ...lang,
+            level: migratedLevel,
+            readLength: (lang.readLength as ReadLength) ?? globalReadLength,
+          };
         });
         // Append any newly added languages not yet in the user's list
         const presentCodes = new Set(migratedLangs.map((l) => l.code));

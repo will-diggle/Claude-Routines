@@ -18,11 +18,19 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   sv: 'Swedish (Svenska)',
 };
 
-export const WORDS_PER_ARTICLE: Record<ArticleLength, number> = {
-  short: 80,    // A1/A2 — reading level is the hard constraint, not this number
-  medium: 140,  // B1/B2/C1 default
-  longer: 220,  // B1/B2/C1 extended read
+export const WORDS_PER_ARTICLE_BEGINNER: Record<ArticleLength, number> = {
+  short: 60,    // A1/A2 concise
+  medium: 100,  // A1/A2 balanced
+  longer: 145,  // A1/A2 long-form
 };
+
+export const WORDS_PER_ARTICLE_ADVANCED: Record<ArticleLength, number> = {
+  short: 90,    // B1+ concise
+  medium: 145,  // B1+ balanced
+  longer: 220,  // B1+ long-form
+};
+
+export const WORDS_PER_ARTICLE = WORDS_PER_ARTICLE_ADVANCED; // backward compat
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -186,7 +194,7 @@ THE READING LEVEL IS THE MASTER CONSTRAINT. If word count and the reading level 
 
 READING LEVEL — specified in the user message. Write with absolute precision to this level:
 
-A1 — Beginner: 3–4 short sentences. Present tense only. The ~500 most common words in the language. Subject–verb–object structure. No subordinate clauses. State only the plainest verified facts. Skip contested nuance entirely — it cannot be expressed at this level without breaking it.
+A1 — Beginner: Subject-verb-object sentences only. Present tense only. The ~500 most common words in the language. No subordinate clauses. One plain fact per sentence. Scale sentence count to reach the target word length. Skip contested nuance entirely.
 
 A2 — Elementary: 4–5 sentences. Present and simple past tense. ~1,000 common words. Simple connectors (and, but, because, so). Minimal attribution, kept simple ("officials say").
 

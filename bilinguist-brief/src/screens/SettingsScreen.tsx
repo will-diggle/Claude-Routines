@@ -345,20 +345,50 @@ export function SettingsScreen() {
                 thumbColor="#FFF"
               />
             </View>
-            {/* Hide level row during drag to keep all items the same height */}
+            {/* Hide level/length rows during drag to keep all items the same height */}
             {lang.active && !isAnyDragging && (
-              <TouchableOpacity
-                style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
-                onPress={() => setLevelModalLang(lang.code)}
-              >
-                <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                  Level
-                </Text>
-                <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
+                  onPress={() => setLevelModalLang(lang.code)}
+                >
+                  <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                    Level
+                  </Text>
+                  <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                    {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
+                <View style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}>
+                  <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                    Length
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {([['short', 'Concise'], ['medium', 'Balanced'], ['longer', 'Long-form']] as const).map(([val, label]) => {
+                      const active = (lang.readLength ?? 'medium') === val;
+                      return (
+                        <TouchableOpacity
+                          key={val}
+                          onPress={() => store.setLanguageReadLength(lang.code, val)}
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: active ? colors.inkDark : colors.borderMid,
+                            backgroundColor: active ? colors.inkDark : 'transparent',
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
             )}
           </View>
         )}
@@ -397,22 +427,6 @@ export function SettingsScreen() {
 
       {/* ── Briefing Preferences ── */}
       <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
-
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Article Depth</Text>
-      <SegmentedControl
-        options={[
-          { label: 'Concise',   value: 'short' },
-          { label: 'Balanced',  value: 'medium' },
-          { label: 'Long-form', value: 'longer' },
-        ]}
-        value={store.readLength}
-        onChange={(v) => store.setReadLength(v as ReadLength)}
-        colors={colors}
-        fontFamily={fontFamily}
-      />
-      <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: 4 }]}>
-        Beginner levels always receive Concise regardless of this setting.
-      </Text>
 
       <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
         <View style={{ flex: 1 }}>
@@ -562,18 +576,12 @@ export function SettingsScreen() {
                 if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
                 setIsForceRegenerating(true);
                 try {
-                  // A1 → 'medium'; A2 → 'short'; B1+ → 'medium' + 'longer'
+                  // Reload the selected length variant for each active language
                   const calls: Array<() => Promise<void>> = [];
                   for (const lang of active) {
                     const level = lang.level ?? 'B1';
-                    if (level === 'A1') {
-                      calls.push(() => loadBriefing(lang.code, level, 'medium' as ArticleLength, true));
-                    } else if (level === 'A2') {
-                      calls.push(() => loadBriefing(lang.code, level, 'short' as ArticleLength, true));
-                    } else {
-                      calls.push(() => loadBriefing(lang.code, level, 'medium' as ArticleLength, true));
-                      calls.push(() => loadBriefing(lang.code, level, 'longer' as ArticleLength, true));
-                    }
+                    const length = (lang.readLength ?? 'medium') as ArticleLength;
+                    calls.push(() => loadBriefing(lang.code, level, length, true));
                   }
                   await Promise.all(calls.map((fn) => fn()));
                   Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);

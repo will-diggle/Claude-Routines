@@ -40,9 +40,7 @@ const LANG_CITY: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function resolveLength(level: LanguageLevel, readLength: ArticleLength): ArticleLength {
-  if (level === 'A1') return 'medium';
-  if (level === 'A2') return 'short';
+function resolveLength(_level: LanguageLevel, readLength: ArticleLength): ArticleLength {
   return readLength;
 }
 
@@ -108,8 +106,7 @@ export function BriefingScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const activeLangKey =
-    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}`).join(',') +
-    `:${settings.readLength}`;
+    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
 
   const lastSyncRef = useRef<number>(0);
 
@@ -119,7 +116,7 @@ export function BriefingScreen() {
     await syncFromServer();
     await Promise.all(langs.map((lang) => {
       const level = lang.level ?? 'B1';
-      return loadBriefing(lang.code, level, resolveLength(level, settings.readLength), true);
+      return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength), true);
     }));
     await Promise.all(langs.map((lang) => loadWeather(lang.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,7 +236,7 @@ export function BriefingScreen() {
       {/* ── Language sections ──────────────────────────────────────────── */}
       {activeLanguages.map((lang, index) => {
         const level = lang.level ?? 'B1';
-        const length = resolveLength(level, settings.readLength);
+        const length = resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength);
         const stored = briefings[lang.code];
         const briefing = (stored?.level === level && stored?.length === length) ? stored : undefined;
         return (
