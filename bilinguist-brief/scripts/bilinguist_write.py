@@ -62,6 +62,70 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 MAX_RETRIES   = 3
 RETRY_DELAYS  = [30, 60, 120]   # seconds between retries
 
+# ── Response schemas ──────────────────────────────────────────────────────────
+# Passed as response_schema to GenerateContentConfig on write stages so the API
+# engine enforces output structure — replaces prompt-pressure JSON instructions.
+
+_SCHEMA_WRITING = {
+    "type": "object",
+    "properties": {
+        "articles": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "genre":    {"type": "string"},
+                    "headline": {"type": "string"},
+                    "body":     {"type": "string"},
+                },
+                "required": ["genre", "headline", "body"],
+            },
+        },
+    },
+    "required": ["articles"],
+}
+
+_SCHEMA_NATIVE = {
+    "type": "object",
+    "properties": {
+        "articles": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "genre":    {"type": "string"},
+                    "slug":     {"type": "string"},
+                    "headline": {"type": "string"},
+                    "body":     {"type": "string"},
+                },
+                "required": ["genre", "slug", "headline", "body"],
+            },
+        },
+    },
+    "required": ["articles"],
+}
+
+_SCHEMA_GRADING = {
+    "type": "object",
+    "properties": {
+        "assessments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "genre":     {"type": "string"},
+                    "slug":      {"type": "string"},
+                    "level":     {"type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"]},
+                    "length":    {"type": "string", "enum": ["short", "medium", "longer"]},
+                    "reasoning": {"type": "string"},
+                },
+                "required": ["genre", "slug", "level", "length", "reasoning"],
+            },
+        },
+    },
+    "required": ["assessments"],
+}
+
 
 # ── Token-usage tracking (thread-safe) ───────────────────────────────────────
 
@@ -203,7 +267,6 @@ def parse_llm_json(raw: str) -> Optional[dict]:
 # sentence and the level descriptions lives here.
 _PROMPT_SHARED_CORE = """\
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 {"articles":[{"genre":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
@@ -216,7 +279,6 @@ JSON SAFETY:
   English: "…"
   Swedish: "…"
   Turkish: "…"
-- Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -287,7 +349,6 @@ French → Le Monde. German → Der Spiegel. English → The Guardian (British E
 You receive a pre-gathered fact-base of today's news. Write every story as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
@@ -299,7 +360,6 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
-- Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
 - Write every story from the fact-base. Do not skip any.
@@ -332,9 +392,17 @@ For each article assess:
    medium: 100–180 words
    longer: over 180 words
 
-OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
+CALIBRATION EXAMPLES — anchor your grading against these two reference texts. Both are in French; the same complexity principles apply across all languages:
 
+B1 — Intermediate:
+"Les dirigeants du G7 se sont réunis pour parler de l'économie mondiale. Ils ont discuté de l'inflation et du commerce international. Les pays membres ont décidé de travailler ensemble pour trouver des solutions. Un porte-parole a dit que les discussions ont été positives."
+Why B1: Short subject-verb-object sentences. Common vocabulary. Simple past tense throughout. One fact per sentence. No subordinate clauses, no idiomatic language.
+
+C1 — Advanced:
+"Réunis en sommet extraordinaire pour la deuxième fois en six mois, les chefs d'État du G7 ont adopté, non sans heurts diplomatiques, une déclaration commune appelant à une coordination renforcée des politiques monétaires face à une inflation persistante qui continue d'éroder le pouvoir d'achat des ménages dans l'ensemble des économies avancées."
+Why C1: Participial opening clause, embedded relative clauses, abstract nominalisations (coordination renforcée, le pouvoir d'achat), journalistic hedging register (non sans heurts), dense multi-clause sentence architecture.
+
+OUTPUT FORMAT:
 {"assessments":[{
   "genre":"...",
   "slug":"...",
@@ -371,7 +439,7 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     prompt = prompt.replace("{SENTENCE_COUNT}", sentence_count)
     prompt = prompt.replace("{LENGTH_LABEL}", length_label)
 
-    factbase_json = json.dumps(factbase, ensure_ascii=False, indent=2)
+    factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"
     return prompt
 
@@ -380,7 +448,7 @@ def build_native_prompt(lang: str, factbase: list) -> str:
     """Build the native journalism prompt for one language."""
     lang_name = LANGUAGE_NAMES.get(lang, lang)
     prompt = PROMPT_3_HEADER.replace("{LANGUAGE}", lang_name)
-    factbase_json = json.dumps(factbase, ensure_ascii=False, indent=2)
+    factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"
     return prompt
 
@@ -399,6 +467,7 @@ def build_grading_prompt(lang: str, native_articles: list) -> str:
 def call_gemini(
     client: genai.Client, model: str, prompt: str, label: str,
     stage: Optional[str] = None,
+    schema: Optional[dict] = None,
 ) -> Optional[str]:
     """
     Call generate_content() directly with retry logic for transient errors.
@@ -415,6 +484,7 @@ def call_gemini(
                     config=types.GenerateContentConfig(
                         temperature=0.1,
                         response_mime_type="application/json",
+                        response_schema=schema,
                         service_tier="flex",
                     ),
                 )
@@ -539,20 +609,20 @@ def run_writing_concurrent(
     combos_2s, combos_2m = build_combinations()
     native_langs = list(LANGUAGE_LEVELS.keys())
 
-    # Build task list: (stage, lang, level, length, model, prompt)
-    tasks: list[tuple[str, str, Optional[str], Optional[str], str, str]] = []
+    # Build task list: (stage, lang, level, length, model, prompt, schema)
+    tasks: list[tuple[str, str, Optional[str], Optional[str], str, str, Optional[dict]]] = []
 
     for lang, level, length in combos_2s:
         prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
-        tasks.append(("2S", lang, level, length, MODEL_2S, prompt))
+        tasks.append(("2S", lang, level, length, MODEL_2S, prompt, _SCHEMA_WRITING))
 
     for lang, level, length in combos_2m:
         prompt = build_writing_prompt(PROMPT_2M_HEADER, lang, level, length, factbase)
-        tasks.append(("2M", lang, level, length, MODEL_2M, prompt))
+        tasks.append(("2M", lang, level, length, MODEL_2M, prompt, _SCHEMA_WRITING))
 
     for lang in native_langs:
         prompt = build_native_prompt(lang, factbase)
-        tasks.append(("3", lang, None, None, MODEL_3, prompt))
+        tasks.append(("3", lang, None, None, MODEL_3, prompt, _SCHEMA_NATIVE))
 
     print(f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)...")
 
@@ -561,8 +631,8 @@ def run_writing_concurrent(
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         future_to_meta = {
-            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}", stage): (stage, lang, level, length)
-            for stage, lang, level, length, model, prompt in tasks
+            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}", stage, schema): (stage, lang, level, length)
+            for stage, lang, level, length, model, prompt, schema in tasks
         }
 
         for future in as_completed(future_to_meta):
@@ -625,6 +695,7 @@ def run_grading(
                 build_grading_prompt(lang, native_journalism[lang]),
                 f"4/{lang}",
                 "4",
+                _SCHEMA_GRADING,
             ): lang
             for lang in langs_with_articles
         }
