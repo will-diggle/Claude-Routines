@@ -33,11 +33,8 @@ from google.genai import types
 # Priority list — first name found in the API's model list wins.
 # Google rotates preview model IDs frequently; this list auto-adapts.
 MODEL_CANDIDATES = [
-    "gemini-2.5-pro",                    # GA stable (available once out of preview)
-    "gemini-2.5-pro-preview",            # Latest preview alias (when live)
-    "gemini-2.5-pro-preview-06-05",      # June 5 preview drop
-    "gemini-2.5-pro-preview-05-06",      # May 6 preview drop
-    "gemini-2.5-flash",                  # Flash fallback — still capable for gathering
+    "gemini-2.5-pro",    # GA stable
+    "gemini-2.5-flash",  # Flash fallback — gather degrades gracefully rather than crashing
 ]
 
 PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
