@@ -204,6 +204,7 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
+  Turkish: "…"
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -272,6 +273,7 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
+  Turkish: "…"
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.

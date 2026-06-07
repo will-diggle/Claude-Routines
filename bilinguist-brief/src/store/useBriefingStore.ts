@@ -28,14 +28,17 @@ function todayString(): string {
 // Uses the modal (most frequent) level for day-to-day stability.
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
 type CefrLevel = typeof CEFR_ORDER[number];
-function modalCefr(langGrading: Record<string, { level: string }>): LanguageLevel {
+function modalCefr(assessments: Array<{ level: string }>, lang?: string): LanguageLevel {
   const counts: Record<string, number> = {};
-  for (const assessment of Object.values(langGrading)) {
+  for (const assessment of assessments) {
     if (CEFR_ORDER.includes(assessment.level as CefrLevel)) {
       counts[assessment.level] = (counts[assessment.level] ?? 0) + 1;
     }
   }
   const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!best) {
+    console.warn(`[grading] modalCefr${lang ? ` (${lang})` : ''}: no valid CEFR levels in assessments — falling back to C1`);
+  }
   return (best ?? 'C1') as LanguageLevel;
 }
 
@@ -189,8 +192,8 @@ export const useBriefingStore = create<BriefingStore>()(
           // Derive daily native CEFR grade per language from Prompt 4 results
           const gradeUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
           for (const [lang, langGrading] of Object.entries(bundle.grading ?? {})) {
-            if (Object.keys(langGrading).length > 0) {
-              gradeUpdates[lang as LanguageCode] = modalCefr(langGrading);
+            if (langGrading.length > 0) {
+              gradeUpdates[lang as LanguageCode] = modalCefr(langGrading, lang);
             }
           }
 

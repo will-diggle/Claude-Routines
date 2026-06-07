@@ -15,15 +15,16 @@ export interface DailyBundle {
       };
     };
   };
-  // Prompt 4 grading — keyed by language then genre.
+  // Prompt 4 grading — array of assessment objects per language.
+  // Python writes grading[lang] as an array: [{genre, slug, level, length, reasoning}, ...].
   grading: {
-    [language: string]: {
-      [genre: string]: {
-        level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-        length: 'short' | 'medium' | 'longer';
-        reasoning: string;
-      };
-    };
+    [language: string]: Array<{
+      genre: string;
+      slug: string;
+      level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+      length: 'short' | 'medium' | 'longer';
+      reasoning: string;
+    }>;
   };
 }
 

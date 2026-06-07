@@ -34,9 +34,11 @@ export const WORDS_PER_ARTICLE = WORDS_PER_ARTICLE_ADVANCED; // backward compat
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Fallback CEFR level used before Prompt 4 grading data is available.
+// DUAL PURPOSE — do not change without updating both:
+//   1. Prompt 3 writing instruction: "Write at C1 journalistic register" (Stage 3 in bilinguist_write.py).
+//   2. Display fallback: shown in the level selector before Prompt 4 grading data arrives.
 // Once the first bundle has been fetched, the live grade per language per day
-// is stored in useBriefingStore.nativeGradeByLang and used in place of this.
+// is stored in useBriefingStore.nativeGradeByLang and used in place of this fallback.
 export const NATIVE_WRITING_LEVEL = 'C1';
 
 // C1 = journalistic/native tier  |  C2 = distinct harder scholar tier (own prompt)
