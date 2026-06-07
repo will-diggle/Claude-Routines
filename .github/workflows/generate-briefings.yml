@@ -54,6 +54,10 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }}
 
+      - name: Check completeness
+        working-directory: bilinguist-brief/scripts
+        run: python bilinguist_check.py
+
       - name: Push bundle to data repo
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
@@ -81,13 +85,13 @@ jobs:
             git push
           fi
 
-      - name: Notify — success
+      - name: Notify — report
         if: success()
         run: |
           curl -s -X POST \
-            -H "Title: Bilinguist Brief — Ready ✅" \
-            -H "Tags: white_check_mark" \
-            -d "Today's briefings are live. Open the app to read." \
+            -H "Title: ${{ env.BRIEF_TITLE }}" \
+            -H "Tags: ${{ env.BRIEF_EMOJI }}" \
+            -d "${{ env.BRIEF_BODY }}" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
       - name: Notify — failure
