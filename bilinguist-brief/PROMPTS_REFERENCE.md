@@ -24,7 +24,24 @@ Prompt 1 (gather) substitutes `{DATE}` only.
 
 ---
 
-## Prompt 1 — Gather (Gemini 2.5 Pro · Flex tier · with Google Search)
+## Pipeline Summary
+
+| Stage | Prompt | Model | Tier | Schema enforced | Calls/day |
+|---|---|---|---|---|---|
+| 1 — Gather | Prompt 1 | Gemini 2.5 Pro | **Flex** | No (search grounding conflict) | 1 |
+| 2S — Write short | Prompt 2S | Gemini 2.5 Flash | **Flex** | Yes (`_SCHEMA_WRITING`) | ~20 |
+| 2M — Write medium/long | Prompt 2M | Gemini 2.5 Flash | **Flex** | Yes (`_SCHEMA_WRITING`) | ~40 |
+| 3 — Native journalism | Prompt 3 | Gemini 2.5 Flash | **Flex** | Yes (`_SCHEMA_NATIVE`) | 7 |
+| 4 — Grading | Prompt 4 | Gemini 2.5 Flash | **Flex** | Yes (`_SCHEMA_GRADING`) | 7 |
+
+**Note on Prompt 1**: Google disables `response_mime_type="application/json"` when
+search grounding tools are active. Prompt pressure ("no code fences") is the only
+available constraint at the gather stage — this is intentional and documented in
+`bilinguist_gather.py`.
+
+---
+
+## Prompt 1 — Gather (Gemini 2.5 Pro · Flex · Google Search grounding)
 
 > File: `scripts/gemini_prompt_brief.md`
 > Flex point: `{DATE}` → today's UTC date
@@ -162,16 +179,16 @@ FIELD RULES:
 
 ---
 
-## Prompt 2S — Writing: All Levels, Short (Gemini 2.5 Flash · Flex tier)
+## Prompt 2S — Writing: All Levels, Short (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × every level × `short` length
 > Flex points: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
+> Schema: `_SCHEMA_WRITING` — `{"articles":[{"genre","headline","body"}]}`
 
 ```
 You are the editorial writer for Bilinguist Brief, a language-learning news app. You receive a pre-gathered fact-base of today's news in British English and rewrite every story as an original news article in a target language, at the specified article length and reading level.
 
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 {"articles":[{"genre":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
@@ -184,7 +201,6 @@ JSON SAFETY:
   English: "…"
   Swedish: "…"
   Turkish: "…"
-- Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -231,17 +247,17 @@ C2 / Scholar: Long-form essayist register — cultural critic or intellectual co
 
 ---
 
-## Prompt 2M — Writing: B1+ Levels, Medium & Long (Gemini 2.5 Flash · Flex tier)
+## Prompt 2M — Writing: B1+ Levels, Medium & Long (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × B1 and above × `medium` and `longer` lengths
 > Flex points: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
-> Identical to 2S except the A1/A2 level descriptions are omitted (they never apply at medium/longer lengths).
+> Schema: `_SCHEMA_WRITING` — `{"articles":[{"genre","headline","body"}]}`
+> Identical to 2S except the A1/A2 level descriptions are omitted.
 
 ```
 You are the editorial writer for Bilinguist Brief, a language-learning news app. You receive a pre-gathered fact-base of today's news in British English and rewrite every story as an original news article in a target language, at the specified article length and reading level.
 
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 {"articles":[{"genre":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
@@ -254,7 +270,6 @@ JSON SAFETY:
   English: "…"
   Swedish: "…"
   Turkish: "…"
-- Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -297,10 +312,11 @@ C2 / Scholar: Long-form essayist register — cultural critic or intellectual co
 
 ---
 
-## Prompt 3 — Native Journalism (Gemini 2.5 Flash · Flex tier)
+## Prompt 3 — Native Journalism (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × Native level × one length (natural to the story)
 > Flex point: `{LANGUAGE}` only
+> Schema: `_SCHEMA_NATIVE` — `{"articles":[{"genre","slug","headline","body"}]}`
 
 ```
 You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
@@ -309,7 +325,6 @@ French → Le Monde. German → Der Spiegel. English → The Guardian (British E
 You receive a pre-gathered fact-base of today's news. Write every story as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
 OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
@@ -321,7 +336,6 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
-- Never use the straight double-quote character (") inside any field's text.
 
 WRITING RULES:
 - Write every story from the fact-base. Do not skip any.
@@ -342,10 +356,13 @@ WRITING RULES:
 
 ---
 
-## Prompt 4 — Grading (Gemini 2.5 Flash · Flex tier)
+## Prompt 4 — Grading (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language's native journalism output from Prompt 3
 > Flex point: `{LANGUAGE}` only
+> Schema: `_SCHEMA_GRADING` — `{"assessments":[{"genre","slug","level","length","reasoning"}]}`
+> Level enum constrained to: A1 / A2 / B1 / B2 / C1 / C2
+> Length enum constrained to: short / medium / longer
 
 ```
 You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE} by a native journalist. Assess each article and return a structured verdict.
@@ -361,9 +378,17 @@ For each article assess:
    medium: 100–180 words
    longer: over 180 words
 
-OUTPUT FORMAT:
-Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
+CALIBRATION EXAMPLES — anchor your grading against these two reference texts. Both are in French; the same complexity principles apply across all languages:
 
+B1 — Intermediate:
+"Les dirigeants du G7 se sont réunis pour parler de l'économie mondiale. Ils ont discuté de l'inflation et du commerce international. Les pays membres ont décidé de travailler ensemble pour trouver des solutions. Un porte-parole a dit que les discussions ont été positives."
+Why B1: Short subject-verb-object sentences. Common vocabulary. Simple past tense throughout. One fact per sentence. No subordinate clauses, no idiomatic language.
+
+C1 — Advanced:
+"Réunis en sommet extraordinaire pour la deuxième fois en six mois, les chefs d'État du G7 ont adopté, non sans heurts diplomatiques, une déclaration commune appelant à une coordination renforcée des politiques monétaires face à une inflation persistante qui continue d'éroder le pouvoir d'achat des ménages dans l'ensemble des économies avancées."
+Why C1: Participial opening clause, embedded relative clauses, abstract nominalisations (coordination renforcée, le pouvoir d'achat), journalistic hedging register (non sans heurts), dense multi-clause sentence architecture.
+
+OUTPUT FORMAT:
 {"assessments":[{
   "genre":"...",
   "slug":"...",
@@ -376,17 +401,3 @@ Be decisive. One level per article, one length band per article. The app uses th
 
 [NATIVE ARTICLES BELOW]
 ```
-
----
-
-## Pipeline Summary
-
-| Stage | Prompt | Model | Tier | Calls/day |
-|---|---|---|---|---|
-| 1 — Gather | Prompt 1 | Gemini 2.5 Pro | **Flex** | 1 |
-| 2S — Write short | Prompt 2S | Gemini 2.5 Flash | **Flex** | ~20 |
-| 2M — Write medium/long | Prompt 2M | Gemini 2.5 Flash | **Flex** | ~40 |
-| 3 — Native journalism | Prompt 3 | Gemini 2.5 Flash | **Flex** | 7 |
-| 4 — Grading | Prompt 4 | Gemini 2.5 Flash | **Flex** | 7 |
-
-Flex is confirmed active on Pro (Stage 1). Flash Flex SKUs will appear in billing after the next pipeline run if it is supported — check for "flex" in the SKU names at Google Cloud Console → Billing → Reports → Group by SKU.
