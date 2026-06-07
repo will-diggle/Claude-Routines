@@ -295,6 +295,8 @@ JSON SAFETY:
 - Use the target language's typographic quotation marks — never straight ASCII quotes:
   French: « … » with non-breaking spaces
   German: „…" (low curly opening U+201E, high curly closing U+201C)
+  Spanish: «…»
+  Italian: «…»
   English: "…"
   Swedish: "…"
 - Never use the straight double-quote character (") inside any field's text.
@@ -308,7 +310,7 @@ WRITING RULES:
 - GLOSSARY:
   * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
   * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
-- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. No loaded language.
+- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
 - Write to the natural length the story demands — aim for 150–250 words per article. Never pad, never cut mid-thought.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.

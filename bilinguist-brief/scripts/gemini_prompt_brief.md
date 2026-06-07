@@ -120,7 +120,7 @@ Schema:
 FIELD RULES:
 
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
-- "cross_reference_score" applies to GLOBAL NEWS stories only — omit it entirely for all other genres.
+- "cross_reference_score" is a GLOBAL NEWS-only field. Include it for GLOBAL NEWS stories; omit it entirely for all other genres. It is the sole exception to the "never omit a key" rule below.
 - "what_happened" must be in deliberate narrative order.
-- Keep each story tight — enough to write a 220-word article from, no more.
-- CRITICAL: Every field listed in the schema must be present in every story object, even if empty. Never omit a key. Use [] for empty arrays. A missing key will crash the downstream parser.
+- Keep each story tight — enough to write a 300-word article from, no more.
+- CRITICAL: Every array field listed in the schema must be present in every story object, even if empty. Use [] for empty arrays. Never omit an array key — a missing key will crash the downstream parser. (Exception: "cross_reference_score", as noted above.)
