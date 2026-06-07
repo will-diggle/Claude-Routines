@@ -20,7 +20,7 @@ Use the CROSS-REFERENCE SCORING METHOD below to identify them.
 ─────────────────────────────────────────────
 UK POLITICS — 2 stories
 Significant UK and international political developments, with particular attention to UK politics.
-Search primarily: Reuters, AP, BBC News, Politico, The Guardian, Le Monde, Der Spiegel
+Search primarily: Reuters, AP, BBC News, Financial Times, The Times, Politico, The Guardian, Le Monde, Der Spiegel
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
@@ -32,7 +32,7 @@ Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal
 ─────────────────────────────────────────────
 EUROPE — 2 stories
 Significant European political, economic, social, or institutional developments — EU policy, elections, intra-European disputes, major national stories with continental relevance.
-Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, The Guardian Europe, Financial Times Europe
+Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, Euractiv, Euronews, The Guardian Europe, Financial Times Europe
 ─────────────────────────────────────────────
 
 
@@ -45,6 +45,7 @@ HIGH WEIGHT — global wire services (strong significance signal):
 
 - Reuters
 - Associated Press (AP)
+- Agence France-Presse (AFP)
 
 STANDARD WEIGHT — English-language global:
 
@@ -80,6 +81,7 @@ NEUTRALITY RULES — apply to every story:
 - Use neutral descriptors. Prefer "killed", "fighters", "the military", "officials". Avoid loaded terms ("massacre", "terrorists", "regime") unless quoting a named party — then attribute explicitly.
 - Give parallel treatment to opposing parties: if you name casualties, an actor, or a motive for one side, do the same for the other where facts allow.
 - Be specific and confident about what is known. Neutrality means precise attribution, not vague hedging. State plainly what is verified.
+- Never record verbatim sentences or distinctive phrasing from any source. Convert every point into a plain factual statement in your own neutral wording. The only permitted verbatim strings are: numbers, proper nouns, and official titles. Direct quotations from named speakers may be recorded only as reported speech (who said what, paraphrased), never as quoted text.
 
 FACT ORDER — important for downstream processing:
 
@@ -120,7 +122,7 @@ Schema:
 FIELD RULES:
 
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
-- "cross_reference_score" is a GLOBAL NEWS-only field. Include it for GLOBAL NEWS stories; omit it entirely for all other genres. It is the sole exception to the "never omit a key" rule below.
+- "cross_reference_score" applies to GLOBAL NEWS stories only. For all other genres, include the key with an empty object {} as its value — never omit it, and never use null. A missing key crashes the downstream parser, and null breaks the Python .get() chain.
 - "what_happened" must be in deliberate narrative order.
 - Keep each story tight — enough to write a 300-word article from, no more.
-- CRITICAL: Every array field listed in the schema must be present in every story object, even if empty. Use [] for empty arrays. Never omit an array key — a missing key will crash the downstream parser. (Exception: "cross_reference_score", as noted above.)
+- CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty; cross_reference_score uses {} for non-Global News stories. Never omit a key. A missing key will crash the downstream parser.
