@@ -5,10 +5,13 @@ on:
   # 06:30 Europe/Vienna (CEST = UTC+2, so 04:30 UTC in summer).
   # Can also be run manually from the Actions tab.
   workflow_dispatch:
-  # Push trigger present so GitHub's required-check system sees a matching
-  # trigger and doesn't create an instant-failure run on every push.
-  # The generate job is gated to workflow_dispatch only — no pipeline runs on push.
+  # Push and pull_request triggers present so GitHub's required-check system
+  # sees a matching trigger and doesn't create instant-failure runs.
+  # The generate job is gated to workflow_dispatch only — no pipeline runs on push or PR.
   push:
+    branches:
+      - claude/build-app-from-brief-wNEna
+  pull_request:
     branches:
       - claude/build-app-from-brief-wNEna
 
