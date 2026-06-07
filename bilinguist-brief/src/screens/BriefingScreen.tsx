@@ -151,8 +151,7 @@ export function BriefingScreen() {
     setRefreshing(false);
   }, [runSync]);
 
-  const firstBriefing = Object.values(briefings)[0];
-  const publishedAt = firstBriefing?.generatedAt ?? bundleReceivedAt;
+  const publishedAt = bundleReceivedAt;
 
   // Masthead strings
   const locationStr = activeLanguages
