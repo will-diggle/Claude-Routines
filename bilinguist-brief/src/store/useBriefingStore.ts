@@ -101,8 +101,39 @@ export const useBriefingStore = create<BriefingStore>()(
       nativeGradeByLang: {},
 
       syncFromServer: async () => {
+        const today = todayString();
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
         try {
+          // If today's bundle is already cached, skip the network fetch and
+          // just read the current language/length selection from AsyncStorage.
+          // This makes readLength switching instant (no re-download needed).
+          if (get().lastBundleDate === today) {
+            set({ syncMessage: 'Loading from cache…' });
+            const settings = useSettingsStore.getState();
+            const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
+            const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
+            for (const lang of settings.languages.filter((l) => l.active)) {
+              const level = lang.level ?? 'B1';
+              const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
+              const key = cacheKey(today, lang.code as LanguageCode, level as LanguageLevel, length);
+              try {
+                const stored = await AsyncStorage.getItem(key);
+                if (stored) {
+                  updates[lang.code as LanguageCode] = JSON.parse(stored);
+                  clearedErrors[lang.code as LanguageCode] = undefined;
+                }
+              } catch { /* cache miss — leave existing content */ }
+            }
+            if (Object.keys(updates).length > 0) {
+              set((s) => ({
+                briefings: { ...s.briefings, ...updates },
+                generatingFor: s.generatingFor.filter((l) => !(l in updates)),
+                errorsFor: { ...s.errorsFor, ...clearedErrors },
+              }));
+            }
+            return;
+          }
+
           const result = await fetchTodayBundle();
           if (!result.ok) {
             // Store the fetch result so loadBriefing can surface the right error

@@ -127,14 +127,28 @@ LEVEL_LABELS: dict[str, str] = {
 }
 
 WORDS_PER_ARTICLE_BEGINNER: dict[str, int] = {  # A1 / A2
-    "short":  60,
-    "medium": 100,
-    "longer": 145,
+    "short":  55,
+    "medium": 110,
+    "longer": 190,
 }
 WORDS_PER_ARTICLE_ADVANCED: dict[str, int] = {  # B1+
-    "short":  90,
-    "medium": 145,
-    "longer": 220,
+    "short":  80,
+    "medium": 160,
+    "longer": 300,
+}
+
+# Sentence count targets per length.
+# A1 uses very short sentences so needs more of them to hit the word count.
+# These OVERRIDE the per-level sentence counts in the reading level descriptions.
+SENTENCES_PER_ARTICLE_A1: dict[str, str] = {
+    "short":  "6–8",
+    "medium": "12–16",
+    "longer": "20–26",
+}
+SENTENCES_PER_ARTICLE_STANDARD: dict[str, str] = {  # A2 and above
+    "short":  "3–4",
+    "medium": "6–8",
+    "longer": "11–15",
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.
@@ -218,9 +232,9 @@ WRITING RULES:
 
 NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. No loaded language.
 
-LENGTH: target approximately {WORD_COUNT} words per article. Write natively short — focused on the core. Never padded, never truncated mid-thought.
+ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. Target approximately {WORD_COUNT} words per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
 
-THE READING LEVEL IS THE MASTER CONSTRAINT. Level always wins over word count.
+THE READING LEVEL IS THE MASTER CONSTRAINT for vocabulary, grammar, and register. Level governs HOW you write each sentence. The article length above governs HOW MANY sentences you write.
 
 READING LEVEL — {LEVEL} ({LEVEL_LABEL}):
 
@@ -275,9 +289,9 @@ WRITING RULES:
 
 NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
 
-LENGTH: target approximately {WORD_COUNT} words per article. Write natively to this length. Never padded. Never truncated mid-thought.
+ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. Target approximately {WORD_COUNT} words per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
 
-THE READING LEVEL IS THE MASTER CONSTRAINT. Level always wins over word count. Write fewer words rather than break the level.
+THE READING LEVEL IS THE MASTER CONSTRAINT for vocabulary, grammar, and register. Level governs HOW you write each sentence. The article length above governs HOW MANY sentences you write.
 
 READING LEVEL — {LEVEL} ({LEVEL_LABEL}):
 
@@ -365,15 +379,23 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     """Build a complete prompt by injecting variables and appending the factbase."""
     level_display = NATIVE_WRITING_LEVEL if level == "Native" else level
     label = LEVEL_LABELS.get(level, level)
-    words_table = WORDS_PER_ARTICLE_BEGINNER if level in ("A1", "A2") else WORDS_PER_ARTICLE_ADVANCED
+    is_beginner = level in ("A1", "A2")
+    words_table = WORDS_PER_ARTICLE_BEGINNER if is_beginner else WORDS_PER_ARTICLE_ADVANCED
     word_count = words_table[length]
+    sentence_table = SENTENCES_PER_ARTICLE_A1 if level == "A1" else SENTENCES_PER_ARTICLE_STANDARD
+    sentence_count = sentence_table[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
+
+    length_labels = {"short": "Concise", "medium": "Balanced", "longer": "Long-form"}
+    length_label = length_labels.get(length, length)
 
     prompt = template
     prompt = prompt.replace("{LANGUAGE}", lang_name)
     prompt = prompt.replace("{LEVEL}", level_display)
     prompt = prompt.replace("{LEVEL_LABEL}", label)
     prompt = prompt.replace("{WORD_COUNT}", str(word_count))
+    prompt = prompt.replace("{SENTENCE_COUNT}", sentence_count)
+    prompt = prompt.replace("{LENGTH_LABEL}", length_label)
 
     factbase_json = json.dumps(factbase, ensure_ascii=False, indent=2)
     prompt += f"\n{factbase_json}"
