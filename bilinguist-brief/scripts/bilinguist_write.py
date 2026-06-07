@@ -415,6 +415,7 @@ def call_gemini(
                     config=types.GenerateContentConfig(
                         temperature=0.1,
                         response_mime_type="application/json",
+                        service_tier="flex",
                     ),
                 )
             # Accumulate token usage for cost tracking
