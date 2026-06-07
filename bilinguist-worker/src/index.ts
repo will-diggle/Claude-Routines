@@ -437,11 +437,17 @@ const REPO   = 'will-diggle/bilinguist-data';
 const BRANCH = 'main';
 
 async function handleBriefing(filePath: string, env: Env): Promise<Response> {
-  const upstream = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${filePath}`;
+  // Use the GitHub API contents endpoint instead of raw.githubusercontent.com.
+  // raw.githubusercontent.com is served via GitHub's CDN (Fastly) which can
+  // cache private-repo content for hours, causing the app to receive yesterday's
+  // bundle long after today's has been pushed. The API endpoint bypasses that CDN.
+  const upstream = `https://api.github.com/repos/${REPO}/contents/${filePath}`;
   const githubRes = await fetch(upstream, {
     headers: {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.raw+json',
       'User-Agent': 'Bilinguist-Brief-Worker/1.0',
+      'X-GitHub-Api-Version': '2022-11-28',
     },
     cf: { cacheEverything: false },
   } as RequestInit & { cf: { cacheEverything: boolean } });

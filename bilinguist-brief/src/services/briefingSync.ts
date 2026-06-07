@@ -63,9 +63,8 @@ export async function fetchTodayBundle(): Promise<BundleFetchResult> {
     }
     const bundle: DailyBundle = await res.json();
     if (bundle.date !== today) {
-      // Log the gap but still serve the bundle — the Published timestamp tells
-      // the reader when it's from, and showing something is better than nothing.
-      console.warn(`[bilinguist] fetchTodayBundle: serving bundle from ${bundle.date} (today is ${today})`);
+      console.warn(`[bilinguist] fetchTodayBundle: server returned bundle from ${bundle.date} (today is ${today}) — treating as not yet ready`);
+      return { ok: false, reason: 'http', status: 503 };
     }
     return { ok: true, bundle };
   } catch (err) {
