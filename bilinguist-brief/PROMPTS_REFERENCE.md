@@ -1,12 +1,16 @@
 # Bilinguist Brief — Prompt Reference
 
-Five prompts power the daily pipeline. Three are templates with **flex points** —
+Five prompts power the daily pipeline. Three are templates with **template variables** —
 placeholders substituted at call time to generate every language × level × length
 combination from a single source of truth.
 
+> **Naming note — "Flex" means two unrelated things here:**
+> - **Template variables** (`{LANGUAGE}`, `{LEVEL}`, etc.) — prompt placeholders filled at call time by `build_writing_prompt()`. Previously called "flex points" in this document.
+> - **Flex tier** (`service_tier="flex"`) — a Gemini billing mode that gives a 50 % discount on async workloads. Visible in the Tier column of the pipeline table below and in `GenerateContentConfig` in `bilinguist_write.py`.
+
 ---
 
-## Flex Points (Prompts 2S and 2M)
+## Template Variables (Prompts 2S and 2M)
 
 These six variables are injected by `build_writing_prompt()` before each API call:
 
@@ -44,7 +48,7 @@ available constraint at the gather stage — this is intentional and documented 
 ## Prompt 1 — Gather (Gemini 2.5 Pro · Flex · Google Search grounding)
 
 > File: `scripts/gemini_prompt_brief.md`
-> Flex point: `{DATE}` → today's UTC date
+> Template variable: `{DATE}` → today's UTC date
 
 ```
 You are the news desk for Bilinguist Brief, a language-learning news app. Your job is to gather today's most significant real news stories and produce a structured, neutral fact-base in English. Write the fact-base in British English throughout — spelling, vocabulary, and conventions.
@@ -182,7 +186,7 @@ FIELD RULES:
 ## Prompt 2S — Writing: All Levels, Short (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × every level × `short` length
-> Flex points: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
+> Template variables: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
 > Schema: `_SCHEMA_WRITING` — `{"articles":[{"genre","headline","body"}]}`
 
 ```
@@ -200,7 +204,6 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
-  Turkish: "…"
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -250,7 +253,7 @@ C2 / Scholar: Long-form essayist register — cultural critic or intellectual co
 ## Prompt 2M — Writing: B1+ Levels, Medium & Long (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × B1 and above × `medium` and `longer` lengths
-> Flex points: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
+> Template variables: `{LANGUAGE}` `{LEVEL}` `{LEVEL_LABEL}` `{LENGTH_LABEL}` `{SENTENCE_COUNT}` `{WORD_COUNT}`
 > Schema: `_SCHEMA_WRITING` — `{"articles":[{"genre","headline","body"}]}`
 > Identical to 2S except the A1/A2 level descriptions are omitted.
 
@@ -269,7 +272,6 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
-  Turkish: "…"
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -315,7 +317,7 @@ C2 / Scholar: Long-form essayist register — cultural critic or intellectual co
 ## Prompt 3 — Native Journalism (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language × Native level × one length (natural to the story)
-> Flex point: `{LANGUAGE}` only
+> Template variable: `{LANGUAGE}` only
 > Schema: `_SCHEMA_NATIVE` — `{"articles":[{"genre","slug","headline","body"}]}`
 
 ```
@@ -347,7 +349,7 @@ WRITING RULES:
   * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
   * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- Write to the natural length the story demands — aim for 150–250 words per article. Never pad, never cut mid-thought.
+- Write to the natural length the story demands — aim for 200–300 words per article. Never pad, never cut mid-thought.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
@@ -359,7 +361,7 @@ WRITING RULES:
 ## Prompt 4 — Grading (Gemini 2.5 Flash · Flex · schema enforced)
 
 > Serves: every language's native journalism output from Prompt 3
-> Flex point: `{LANGUAGE}` only
+> Template variable: `{LANGUAGE}` only
 > Schema: `_SCHEMA_GRADING` — `{"assessments":[{"genre","slug","level","length","reasoning"}]}`
 > Level enum constrained to: A1 / A2 / B1 / B2 / C1 / C2
 > Length enum constrained to: short / medium / longer

@@ -144,6 +144,20 @@ _stage_usage: dict[str, _StageUsage] = {
     "4":  _StageUsage(),
 }
 
+
+@dataclass
+class _WriteTask:
+    stage: str
+    lang: str
+    level: Optional[str]
+    length: Optional[str]
+    model: str
+    prompt: str
+    schema: Optional[dict]
+    max_output_tokens: Optional[int]
+    template: Optional[str]   # stored for MAX_TOKENS split-batch rebuild
+    factbase: Optional[list]  # stored for MAX_TOKENS split-batch rebuild
+
 # Gemini 2.5 Flash pricing (USD per 1M tokens) — verify at ai.google.dev/pricing
 FLASH_INPUT_USD_PER_M  = 0.30
 FLASH_OUTPUT_USD_PER_M = 2.50
@@ -278,7 +292,6 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
-  Turkish: "…"
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -371,13 +384,16 @@ WRITING RULES:
   * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
   * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- Write to the natural length the story demands — aim for 150–250 words per article. Never pad, never cut mid-thought.
+- Write to the natural length the story demands — aim for 200–300 words per article. Never pad, never cut mid-thought.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
 [FACTBASE BELOW]
 """
 
+# Prompt 4 length bands (short <100 / medium 100–180 / longer >180) are calibrated
+# explicitly for unconstrained Native journalism text lengths; do not map these bands
+# directly against learner text generation.
 PROMPT_4_HEADER = """\
 You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE} by a native journalist. Assess each article and return a structured verdict.
 
@@ -468,12 +484,14 @@ def call_gemini(
     client: genai.Client, model: str, prompt: str, label: str,
     stage: Optional[str] = None,
     schema: Optional[dict] = None,
-) -> Optional[str]:
+    max_output_tokens: Optional[int] = None,
+) -> tuple[Optional[str], Optional[str]]:
     """
     Call generate_content() directly with retry logic for transient errors.
     Uses a shared semaphore to cap concurrent inflight requests.
     Records token usage in _stage_usage[stage] when stage is provided.
-    Returns the raw text response or None on failure.
+    Returns (text, finish_reason). finish_reason is None on normal completion
+    or "MAX_TOKENS" when the response was truncated — callers must handle split-batch.
     """
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -486,6 +504,7 @@ def call_gemini(
                         response_mime_type="application/json",
                         response_schema=schema,
                         service_tier="flex",
+                        max_output_tokens=max_output_tokens,
                     ),
                 )
             # Accumulate token usage for cost tracking
@@ -501,7 +520,17 @@ def call_gemini(
                         u.input_tokens    += inp
                         u.output_tokens   += out
                         u.thinking_tokens += thi
-            return response.text
+            # Detect truncation — do NOT retry; caller handles split-batch
+            finish_reason = None
+            if response.candidates:
+                fr = response.candidates[0].finish_reason
+                if fr is not None:
+                    finish_reason = fr.name if hasattr(fr, "name") else str(fr)
+            if finish_reason == "MAX_TOKENS":
+                print(f"[ERROR] [{label}] MAX_TOKENS — response truncated; split-batch required",
+                      file=sys.stderr)
+                return response.text, "MAX_TOKENS"
+            return response.text, None
         except Exception as e:
             code = getattr(e, "code", None) or getattr(e, "status_code", None)
             if attempt < MAX_RETRIES:
@@ -510,9 +539,59 @@ def call_gemini(
                       file=sys.stderr)
                 time.sleep(delay)
             else:
-                print(f"[{label}] All {MAX_RETRIES + 1} attempts failed: {e}", file=sys.stderr)
-                return None
-    return None
+                print(f"[ERROR] [{label}] All {MAX_RETRIES + 1} attempts failed: {e}", file=sys.stderr)
+                return None, None
+    return None, None
+
+
+# ── Split-batch helpers (MAX_TOKENS recovery) ────────────────────────────────
+
+def _split_call_writing(task: _WriteTask, client: genai.Client) -> list[dict]:
+    """On MAX_TOKENS for stage 2S/2M: split factbase in half, call each, merge articles."""
+    if not task.factbase or len(task.factbase) < 2:
+        return []
+    mid = len(task.factbase) // 2
+    halves = [task.factbase[:mid], task.factbase[mid:]]
+    all_articles: list[dict] = []
+    for i, half_fb in enumerate(halves):
+        sub_prompt = build_writing_prompt(task.template, task.lang, task.level, task.length, half_fb)
+        sub_label = f"{task.stage}/{task.lang}-split{i + 1}"
+        text, reason = call_gemini(
+            client, task.model, sub_prompt, sub_label,
+            task.stage, task.schema, task.max_output_tokens,
+        )
+        if reason == "MAX_TOKENS":
+            print(f"[ERROR] [{sub_label}] MAX_TOKENS on split-batch half — skipping half", file=sys.stderr)
+            continue
+        if text:
+            parsed = parse_llm_json(text)
+            if parsed:
+                all_articles.extend(parsed.get("articles", []))
+    return all_articles
+
+
+def _split_call_native(task: _WriteTask, client: genai.Client) -> list[dict]:
+    """On MAX_TOKENS for stage 3: split factbase in half, call each, merge articles."""
+    if not task.factbase or len(task.factbase) < 2:
+        return []
+    mid = len(task.factbase) // 2
+    halves = [task.factbase[:mid], task.factbase[mid:]]
+    all_articles: list[dict] = []
+    for i, half_fb in enumerate(halves):
+        sub_prompt = build_native_prompt(task.lang, half_fb)
+        sub_label = f"3/{task.lang}-split{i + 1}"
+        text, reason = call_gemini(
+            client, task.model, sub_prompt, sub_label,
+            "3", task.schema, task.max_output_tokens,
+        )
+        if reason == "MAX_TOKENS":
+            print(f"[ERROR] [{sub_label}] MAX_TOKENS on split-batch half — skipping half", file=sys.stderr)
+            continue
+        if text:
+            parsed = parse_llm_json(text)
+            if parsed:
+                all_articles.extend(parsed.get("articles", []))
+    return all_articles
 
 
 # ── Cost report ───────────────────────────────────────────────────────────────
@@ -609,20 +688,32 @@ def run_writing_concurrent(
     combos_2s, combos_2m = build_combinations()
     native_langs = list(LANGUAGE_LEVELS.keys())
 
-    # Build task list: (stage, lang, level, length, model, prompt, schema)
-    tasks: list[tuple[str, str, Optional[str], Optional[str], str, str, Optional[dict]]] = []
+    # Build task list as _WriteTask instances (stores template + factbase for split-batch)
+    tasks: list[_WriteTask] = []
 
     for lang, level, length in combos_2s:
         prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
-        tasks.append(("2S", lang, level, length, MODEL_2S, prompt, _SCHEMA_WRITING))
+        tasks.append(_WriteTask(
+            stage="2S", lang=lang, level=level, length=length,
+            model=MODEL_2S, prompt=prompt, schema=_SCHEMA_WRITING,
+            max_output_tokens=8192, template=PROMPT_2S_HEADER, factbase=factbase,
+        ))
 
     for lang, level, length in combos_2m:
         prompt = build_writing_prompt(PROMPT_2M_HEADER, lang, level, length, factbase)
-        tasks.append(("2M", lang, level, length, MODEL_2M, prompt, _SCHEMA_WRITING))
+        tasks.append(_WriteTask(
+            stage="2M", lang=lang, level=level, length=length,
+            model=MODEL_2M, prompt=prompt, schema=_SCHEMA_WRITING,
+            max_output_tokens=8192, template=PROMPT_2M_HEADER, factbase=factbase,
+        ))
 
     for lang in native_langs:
         prompt = build_native_prompt(lang, factbase)
-        tasks.append(("3", lang, None, None, MODEL_3, prompt, _SCHEMA_NATIVE))
+        tasks.append(_WriteTask(
+            stage="3", lang=lang, level=None, length=None,
+            model=MODEL_3, prompt=prompt, schema=_SCHEMA_NATIVE,
+            max_output_tokens=8192, template=PROMPT_3_HEADER, factbase=factbase,
+        ))
 
     print(f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)...")
 
@@ -630,30 +721,48 @@ def run_writing_concurrent(
     native_journalism: dict = {}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_meta = {
-            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}", stage, schema): (stage, lang, level, length)
-            for stage, lang, level, length, model, prompt, schema in tasks
+        future_to_task = {
+            executor.submit(
+                call_gemini, client, t.model, t.prompt,
+                f"{t.stage}/{t.lang}", t.stage, t.schema, t.max_output_tokens,
+            ): t
+            for t in tasks
         }
 
-        for future in as_completed(future_to_meta):
-            stage, lang, level, length = future_to_meta[future]
+        for future in as_completed(future_to_task):
+            task = future_to_task[future]
+            stage, lang, level, length = task.stage, task.lang, task.level, task.length
             label = f"{stage}/{lang}-{level}-{length}" if level else f"{stage}/{lang}"
-            raw = future.result()
+            raw, finish_reason = future.result()
 
             if not raw:
-                print(f"[{stage}] SKIP {lang}-{level}-{length}: no response", file=sys.stderr)
+                print(f"[ERROR] [{stage}] {label}: no response — output incomplete", file=sys.stderr)
                 continue
 
-            parsed = parse_llm_json(raw)
-            if not parsed:
-                print(f"[{stage}] SKIP {lang}-{level}-{length}: JSON parse failed", file=sys.stderr)
+            articles: list[dict] = []
+
+            if finish_reason == "MAX_TOKENS":
+                print(f"[{stage}] {label}: MAX_TOKENS — running split-batch...", file=sys.stderr)
+                if stage in ("2S", "2M"):
+                    articles = _split_call_writing(task, client)
+                elif stage == "3":
+                    articles = _split_call_native(task, client)
+            else:
+                parsed = parse_llm_json(raw)
+                if not parsed:
+                    print(f"[ERROR] [{stage}] {label}: JSON parse failed — output incomplete", file=sys.stderr)
+                    continue
+                articles = parsed.get("articles", [])
+                if not articles:
+                    print(f"[ERROR] [{stage}] {label}: empty articles list — output incomplete", file=sys.stderr)
+                    continue
+
+            if not articles:
+                print(f"[ERROR] [{stage}] {label}: no articles after split-batch — output incomplete",
+                      file=sys.stderr)
                 continue
 
             if stage in ("2S", "2M"):
-                articles = parsed.get("articles", [])
-                if not articles:
-                    print(f"[{stage}] SKIP {lang}-{level}-{length}: empty articles list", file=sys.stderr)
-                    continue
                 briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
                     "articles": articles,
                     "date": date,
@@ -665,10 +774,6 @@ def run_writing_concurrent(
                 print(f"[{stage}] {lang}-{level}-{length}: {len(articles)} articles ✓")
 
             elif stage == "3":
-                articles = parsed.get("articles", [])
-                if not articles:
-                    print(f"[3] SKIP {lang}: empty native articles", file=sys.stderr)
-                    continue
                 native_journalism[lang] = articles
                 print(f"[3] {lang}: {len(articles)} native articles ✓")
 
@@ -702,13 +807,20 @@ def run_grading(
 
         for future in as_completed(future_to_lang):
             lang = future_to_lang[future]
-            raw = future.result()
+            raw, finish_reason = future.result()
             if not raw:
-                print(f"[4] SKIP {lang}: no response", file=sys.stderr)
+                print(f"[ERROR] [4] {lang}: no response — grading incomplete", file=sys.stderr)
+                grading[lang] = []
+                continue
+            if finish_reason == "MAX_TOKENS":
+                print(f"[ERROR] [4] {lang}: MAX_TOKENS on grading — grading incomplete", file=sys.stderr)
                 grading[lang] = []
                 continue
             parsed = parse_llm_json(raw)
             assessments = parsed.get("assessments", []) if parsed else []
+            if not assessments:
+                print(f"[ERROR] [4] {lang}: empty or unparseable assessments — grading incomplete",
+                      file=sys.stderr)
             grading[lang] = assessments
             print(f"[4] {lang}: {len(assessments)} assessments ✓")
 
