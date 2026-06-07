@@ -28,6 +28,34 @@ LENGTHS = ["short", "medium", "longer"]
 LANG_NAMES = {"fr": "French", "de": "German", "sv": "Swedish",
                "en": "English", "it": "Italian", "es": "Spanish", "tr": "Turkish"}
 
+_STAGE_LABELS: dict[str, str] = {
+    "1_gather": "Gather (Pro Flex)",
+    "2S":       "Stage 2S writing",
+    "2M":       "Stage 2M writing",
+    "3":        "Stage 3 native",
+    "4":        "Stage 4 grading",
+}
+
+
+def _cost_summary(output_dir: Path, date: str) -> str:
+    """Returns a compact cost breakdown string, or '' if the costs file is absent."""
+    costs_path = output_dir / f"costs_{date}.json"
+    if not costs_path.exists():
+        return ""
+    try:
+        with open(costs_path) as f:
+            costs = json.load(f)
+    except Exception:
+        return ""
+
+    lines = [f"\n💰 API Cost: ${costs['total_usd']:.2f} (£{costs['total_gbp']:.2f})"]
+    for sname in ["1_gather", "2S", "2M", "3", "4"]:
+        sdata = costs["stages"].get(sname)
+        if sdata and sdata.get("calls", 0) > 0:
+            label = _STAGE_LABELS.get(sname, sname)
+            lines.append(f"  {label} ({sdata['calls']} calls): ${sdata['cost_usd']:.3f}")
+    return "\n".join(lines)
+
 
 def check(bundle_path: Path) -> None:
     with open(bundle_path, encoding="utf-8") as f:
@@ -53,6 +81,9 @@ def check(bundle_path: Path) -> None:
 
     all_missing = missing
 
+    # ── Cost summary ───────────────────────────────────────────────────────────
+    cost_str = _cost_summary(bundle_path.parent, date)
+
     # ── Build report ───────────────────────────────────────────────────────────
     if all_missing:
         title  = f"Bilinguist Brief — {present}/{total} ⚠️"
@@ -60,11 +91,12 @@ def check(bundle_path: Path) -> None:
         body   = (
             f"{date}: {len(all_missing)} combination(s) missing:\n"
             + "\n".join(f"  ✗ {m}" for m in all_missing)
+            + cost_str
         )
     else:
         title  = f"Bilinguist Brief — {present}/{total} ✅"
         emoji  = "white_check_mark"
-        body   = f"{date}: All {total} article combinations generated successfully."
+        body   = f"{date}: All {total} article combinations generated successfully." + cost_str
 
     print(title)
     print(body)

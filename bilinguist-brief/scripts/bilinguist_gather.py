@@ -202,13 +202,29 @@ def main():
                 print(f"[gather] ERROR: Gemini request failed — {e}", file=sys.stderr)
                 sys.exit(1)
 
-    # 5. Extract raw text
+    # 5. Extract raw text and token usage
     raw_output = response.text
     if not raw_output:
         print("[gather] ERROR: Empty response from Gemini.", file=sys.stderr)
         sys.exit(1)
 
     print(f"[gather] Response received ({len(raw_output)} chars)")
+
+    usage_metadata: dict = {}
+    um = response.usage_metadata
+    if um:
+        usage_metadata = {
+            "prompt_token_count":          getattr(um, "prompt_token_count",          0) or 0,
+            "candidates_token_count":      getattr(um, "candidates_token_count",      0) or 0,
+            "thoughts_token_count":        getattr(um, "thoughts_token_count",        0) or 0,
+            "tool_use_prompt_token_count": getattr(um, "tool_use_prompt_token_count", 0) or 0,
+            "total_token_count":           getattr(um, "total_token_count",           0) or 0,
+        }
+        print(
+            f"[gather] Tokens — input: {usage_metadata['prompt_token_count']:,}, "
+            f"output: {usage_metadata['candidates_token_count']:,}, "
+            f"thinking: {usage_metadata['thoughts_token_count']:,}"
+        )
 
     # 6. Parse JSON
     parsed = parse_llm_json(raw_output)
@@ -243,7 +259,8 @@ def main():
         "model": MODEL,
         "service_tier": "flex",
         "story_count": len(factbase),
-        "factbase": factbase
+        "usage_metadata": usage_metadata,
+        "factbase": factbase,
     }
 
     with open(output_path, "w", encoding="utf-8") as f:

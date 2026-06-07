@@ -16,6 +16,7 @@ faster (no polling delay) while naturally handling rate limits via the semaphore
 Outputs:
   scripts/output/YYYY-MM-DD.json   — archived bundle
   scripts/output/latest.json       — overwritten daily (app fetches this)
+  scripts/output/costs_YYYY-MM-DD.json — per-stage token usage and GBP cost
 
 Bundle format (DailyBundle) is the contract with the React Native app.
 
@@ -34,6 +35,7 @@ import sys
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -59,6 +61,36 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 # Retry settings for transient API errors
 MAX_RETRIES   = 3
 RETRY_DELAYS  = [30, 60, 120]   # seconds between retries
+
+
+# ── Token-usage tracking (thread-safe) ───────────────────────────────────────
+
+@dataclass
+class _StageUsage:
+    calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    thinking_tokens: int = 0
+
+_usage_lock = threading.Lock()
+_stage_usage: dict[str, _StageUsage] = {
+    "2S": _StageUsage(),
+    "2M": _StageUsage(),
+    "3":  _StageUsage(),
+    "4":  _StageUsage(),
+}
+
+# Gemini 2.5 Flash pricing (USD per 1M tokens) — verify at ai.google.dev/pricing
+FLASH_INPUT_USD_PER_M  = 0.30
+FLASH_OUTPUT_USD_PER_M = 2.50
+FLASH_THINK_USD_PER_M  = 3.50
+
+# Gemini 2.5 Pro Flex pricing (50 % discount over standard Pro rates)
+PRO_FLEX_INPUT_USD_PER_M  = 0.625   # standard $1.25 × 0.5
+PRO_FLEX_OUTPUT_USD_PER_M = 5.00    # standard $10.00 × 0.5
+PRO_FLEX_THINK_USD_PER_M  = 1.75    # standard $3.50 × 0.5
+
+USD_TO_GBP = 0.79  # approximate — update as needed
 
 
 # ── Language / level matrix ───────────────────────────────────────────────────
@@ -368,10 +400,14 @@ def build_grading_prompt(lang: str, native_articles: list) -> str:
 
 # ── Direct API call helper ────────────────────────────────────────────────────
 
-def call_gemini(client: genai.Client, model: str, prompt: str, label: str) -> Optional[str]:
+def call_gemini(
+    client: genai.Client, model: str, prompt: str, label: str,
+    stage: Optional[str] = None,
+) -> Optional[str]:
     """
     Call generate_content() directly with retry logic for transient errors.
     Uses a shared semaphore to cap concurrent inflight requests.
+    Records token usage in _stage_usage[stage] when stage is provided.
     Returns the raw text response or None on failure.
     """
     for attempt in range(MAX_RETRIES + 1):
@@ -385,6 +421,19 @@ def call_gemini(client: genai.Client, model: str, prompt: str, label: str) -> Op
                         response_mime_type="application/json",
                     ),
                 )
+            # Accumulate token usage for cost tracking
+            if stage and stage in _stage_usage:
+                um = response.usage_metadata
+                if um:
+                    inp = getattr(um, "prompt_token_count",     0) or 0
+                    out = getattr(um, "candidates_token_count", 0) or 0
+                    thi = getattr(um, "thoughts_token_count",   0) or 0
+                    with _usage_lock:
+                        u = _stage_usage[stage]
+                        u.calls           += 1
+                        u.input_tokens    += inp
+                        u.output_tokens   += out
+                        u.thinking_tokens += thi
             return response.text
         except Exception as e:
             code = getattr(e, "code", None) or getattr(e, "status_code", None)
@@ -397,6 +446,85 @@ def call_gemini(client: genai.Client, model: str, prompt: str, label: str) -> Op
                 print(f"[{label}] All {MAX_RETRIES + 1} attempts failed: {e}", file=sys.stderr)
                 return None
     return None
+
+
+# ── Cost report ───────────────────────────────────────────────────────────────
+
+def write_costs_report(date: str, script_dir: str) -> dict:
+    """
+    Reads gather usage from factbase_<date>.json, combines with accumulated stage
+    costs, writes output/costs_<date>.json, and returns the cost dict.
+    """
+    gather_usage: dict = {}
+    gather_model = "gemini-2.5-pro"
+    factbase_path = os.path.join(script_dir, f"factbase_{date}.json")
+    if os.path.exists(factbase_path):
+        try:
+            with open(factbase_path, encoding="utf-8") as f:
+                fb = json.load(f)
+            gather_usage = fb.get("usage_metadata", {}) or {}
+            gather_model = fb.get("model", "gemini-2.5-pro")
+        except Exception:
+            pass
+
+    costs: dict = {"date": date, "stages": {}, "total_usd": 0.0, "total_gbp": 0.0}
+
+    # Gather stage (Pro Flex pricing)
+    if gather_usage:
+        g_in  = gather_usage.get("prompt_token_count",          0) or 0
+        g_out = gather_usage.get("candidates_token_count",      0) or 0
+        g_thi = gather_usage.get("thoughts_token_count",        0) or 0
+        g_usd = (
+            (g_in  / 1_000_000) * PRO_FLEX_INPUT_USD_PER_M
+            + (g_out / 1_000_000) * PRO_FLEX_OUTPUT_USD_PER_M
+            + (g_thi / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
+        )
+        costs["stages"]["1_gather"] = {
+            "model":          gather_model,
+            "calls":          1,
+            "input_tokens":   g_in,
+            "output_tokens":  g_out,
+            "thinking_tokens": g_thi,
+            "cost_usd":       round(g_usd, 4),
+            "cost_gbp":       round(g_usd * USD_TO_GBP, 4),
+        }
+        costs["total_usd"] += g_usd
+
+    # Write / grade stages (all Flash)
+    for sname, usage in _stage_usage.items():
+        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+        s_usd   = in_usd + out_usd + thi_usd
+        costs["stages"][sname] = {
+            "model":          "gemini-2.5-flash",
+            "calls":          usage.calls,
+            "input_tokens":   usage.input_tokens,
+            "output_tokens":  usage.output_tokens,
+            "thinking_tokens": usage.thinking_tokens,
+            "cost_usd":       round(s_usd, 4),
+            "cost_gbp":       round(s_usd * USD_TO_GBP, 4),
+        }
+        costs["total_usd"] += s_usd
+
+    costs["total_usd"] = round(costs["total_usd"], 4)
+    costs["total_gbp"] = round(costs["total_usd"] * USD_TO_GBP, 4)
+
+    output_dir = os.path.join(script_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    costs_path = os.path.join(output_dir, f"costs_{date}.json")
+    with open(costs_path, "w", encoding="utf-8") as f:
+        json.dump(costs, f, indent=2)
+
+    print(f"[costs] Total: ${costs['total_usd']:.4f} (£{costs['total_gbp']:.4f})")
+    for sname, sdata in costs["stages"].items():
+        print(
+            f"[costs]   {sname}: {sdata['calls']} calls, "
+            f"{sdata['input_tokens']:,} in + {sdata['output_tokens']:,} out"
+            f" = ${sdata['cost_usd']:.4f}"
+        )
+
+    return costs
 
 
 # ── Stage runners ─────────────────────────────────────────────────────────────
@@ -436,7 +564,7 @@ def run_writing_concurrent(
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         future_to_meta = {
-            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}"): (stage, lang, level, length)
+            executor.submit(call_gemini, client, model, prompt, f"{stage}/{lang}", stage): (stage, lang, level, length)
             for stage, lang, level, length, model, prompt in tasks
         }
 
@@ -498,7 +626,8 @@ def run_grading(
             executor.submit(
                 call_gemini, client, MODEL_4,
                 build_grading_prompt(lang, native_journalism[lang]),
-                f"4/{lang}"
+                f"4/{lang}",
+                "4",
             ): lang
             for lang in langs_with_articles
         }
@@ -573,6 +702,9 @@ def main():
 
     # ── Stage 4 — grading (depends on Stage 3 output) ────────────────────────
     grading = run_grading(client, native_journalism)
+
+    # ── Cost report ───────────────────────────────────────────────────────────
+    write_costs_report(date, script_dir)
 
     # ── Assemble DailyBundle ──────────────────────────────────────────────────
     bundle = {
