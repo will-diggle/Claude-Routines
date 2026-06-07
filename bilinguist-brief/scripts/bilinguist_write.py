@@ -232,7 +232,12 @@ WRITING RULES:
 
 NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. No loaded language.
 
-ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. Target approximately {WORD_COUNT} words per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
+ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
+
+FACTBASE DEPTH — use this proportion of the factbase per article:
+  Concise: The 1–2 most important "what_happened" facts only. Skip numbers, attribution, and contested claims unless the story is incomprehensible without them.
+  Balanced: All "what_happened" facts. Include the key number(s) and one main attribution if present.
+  Long-form: Everything — all "what_happened" facts, all numbers, all attributions, all verified and contested claims (with named sourcing). Reference relevant key_terms where they aid understanding. Write a complete, fully-sourced article, not a summary.
 
 THE READING LEVEL IS THE MASTER CONSTRAINT for vocabulary, grammar, and register. Level governs HOW you write each sentence. The article length above governs HOW MANY sentences you write.
 
@@ -289,7 +294,12 @@ WRITING RULES:
 
 NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
 
-ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. Target approximately {WORD_COUNT} words per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
+ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article. This sentence count is a HARD CONSTRAINT — it overrides any sentence count mentioned in the reading level description below. Never padded. Never truncated mid-thought.
+
+FACTBASE DEPTH — use this proportion of the factbase per article:
+  Concise: The 1–2 most important "what_happened" facts only. Skip numbers, attribution, and contested claims unless the story is incomprehensible without them.
+  Balanced: All "what_happened" facts. Include the key number(s) and one main attribution if present.
+  Long-form: Everything — all "what_happened" facts, all numbers, all attributions, all verified and contested claims (with named sourcing). Reference relevant key_terms where they aid understanding. Write a complete, fully-sourced article, not a summary.
 
 THE READING LEVEL IS THE MASTER CONSTRAINT for vocabulary, grammar, and register. Level governs HOW you write each sentence. The article length above governs HOW MANY sentences you write.
 

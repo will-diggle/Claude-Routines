@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
@@ -87,6 +87,7 @@ interface Props {
   isFirst: boolean;
   topics: Topics;
   weather?: WeatherData | null;
+  isTransitioning?: boolean;
   onRetry: () => void;
 }
 
@@ -128,6 +129,46 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
   return groups;
 }
 
+// Sweeping progress line — 2 px rule that slides left → right on loop while
+// a new level or length is loading. Mounts/unmounts with isTransitioning.
+function SweepRule({ color }: { color: string }) {
+  const { width } = useWindowDimensions();
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-width, width],
+  });
+
+  return (
+    <View style={{ height: 2, width, overflow: 'hidden' }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          height: 2,
+          width,
+          backgroundColor: color,
+          transform: [{ translateX }],
+        }}
+      />
+    </View>
+  );
+}
+
 function SectionHeader({
   label, accent, language, level,
 }: { label: string; accent: string; language: LanguageCode; level: LanguageLevel }) {
@@ -167,6 +208,7 @@ export function LanguageBriefingSection({
   isFirst,
   topics,
   weather,
+  isTransitioning = false,
   onRetry,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
@@ -195,6 +237,9 @@ export function LanguageBriefingSection({
           {nativeName.toUpperCase()} · {levelLabel(level, langCode, nativeGradeByLang[langCode])}
         </Text>
       </View>
+
+      {/* Sweep progress line — slides left→right while loading a new level/length */}
+      {isTransitioning && <SweepRule color={colors.inkDark} />}
 
       {/* Inline weather strip — centred, per-language */}
       {weather && (

@@ -8,6 +8,7 @@ import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength } from '../services/anthropic';
+import type { GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 
 // Pre-composed masthead lockups — one per background mode, colours baked in.
@@ -104,6 +105,10 @@ export function BriefingScreen() {
 
   const activeLanguages = settings.languages.filter((l) => l.active);
   const [refreshing, setRefreshing] = useState(false);
+  // Keeps the last successfully-matched briefing per language so we can show
+  // old content (+ sweep indicator) during level/length transitions instead
+  // of blanking the screen with a skeleton.
+  const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
 
   const activeLangKey =
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
@@ -237,19 +242,31 @@ export function BriefingScreen() {
         const level = lang.level ?? 'B1';
         const length = resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength);
         const stored = briefings[lang.code];
-        const briefing = (stored?.level === level && stored?.length === length) ? stored : undefined;
+        const today = new Date().toISOString().split('T')[0];
+        const briefingMatches = !!stored && stored.date === today && stored.level === level && stored.length === length;
+        // Update the "last known good" ref so we can show it during transitions
+        if (briefingMatches && stored) {
+          lastValidBriefingsRef.current[lang.code] = stored;
+        }
+        const displayBriefing = briefingMatches
+          ? stored
+          : (lastValidBriefingsRef.current[lang.code] ?? undefined);
+        // True while we're waiting for a new level/length to arrive — shows the
+        // sweep progress line over old content instead of blanking to a skeleton.
+        const isTransitioning = !briefingMatches && !!lastValidBriefingsRef.current[lang.code];
         return (
           <LanguageBriefingSection
             key={lang.code}
             langCode={lang.code}
             nativeName={lang.nativeName}
             level={level}
-            briefing={briefing}
+            briefing={displayBriefing}
             isGenerating={generatingFor.includes(lang.code)}
             error={errorsFor[lang.code]}
             isFirst={index === 0}
             topics={settings.topics}
             weather={weatherByLang[lang.code] ?? null}
+            isTransitioning={isTransitioning}
             onRetry={() => {
               clearError(lang.code);
               loadBriefing(lang.code, level, length, true);
