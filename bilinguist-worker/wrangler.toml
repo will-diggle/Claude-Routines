@@ -11,12 +11,11 @@ compatibility_date = "2024-09-23"
 # database_id   = "REPLACE_WITH_YOUR_D1_ID"
 
 # ── R2 audio cache ────────────────────────────────────────────────────────────
-# Create the bucket once with:
+# Uncomment once the bucket is created:
 #   wrangler r2 bucket create bilinguist-audio
-# No database_id needed for R2 — bucket name is enough.
-[[r2_buckets]]
-binding     = "AUDIO_BUCKET"
-bucket_name = "bilinguist-audio"
+# [[r2_buckets]]
+# binding     = "AUDIO_BUCKET"
+# bucket_name = "bilinguist-audio"
 
 # ── Secrets — never put values here ──────────────────────────────────────────
 # Set each with: wrangler secret put <NAME>
