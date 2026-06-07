@@ -24,7 +24,6 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
 }
 
 LENGTHS = ["short", "medium", "longer"]
-NATIVE_LANGS = [lang for lang, levels in LANGUAGE_LEVELS.items() if "Native" in levels]
 
 LANG_NAMES = {"fr": "French", "de": "German", "sv": "Swedish",
                "en": "English", "it": "Italian", "es": "Spanish", "tr": "Turkish"}
@@ -34,9 +33,8 @@ def check(bundle_path: Path) -> None:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
 
-    briefings       = bundle.get("briefings", {})
-    native_journal  = bundle.get("nativeJournalism", {})
-    date            = bundle.get("date", "unknown")
+    briefings = bundle.get("briefings", {})
+    date      = bundle.get("date", "unknown")
 
     # ── Check article combinations ─────────────────────────────────────────────
     missing: list[str] = []
@@ -53,13 +51,7 @@ def check(bundle_path: Path) -> None:
                 else:
                     missing.append(f"{LANG_NAMES.get(lang, lang)} {level}/{length}")
 
-    # ── Check native journalism ────────────────────────────────────────────────
-    native_missing: list[str] = []
-    for lang in NATIVE_LANGS:
-        if not native_journal.get(lang):
-            native_missing.append(f"{LANG_NAMES.get(lang, lang)} native journalism")
-
-    all_missing = missing + native_missing
+    all_missing = missing
 
     # ── Build report ───────────────────────────────────────────────────────────
     if all_missing:
