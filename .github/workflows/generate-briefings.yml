@@ -5,9 +5,16 @@ on:
   # 06:30 Europe/Vienna (CEST = UTC+2, so 04:30 UTC in summer).
   # Can also be run manually from the Actions tab.
   workflow_dispatch:
+  # Push trigger present so GitHub's required-check system sees a matching
+  # trigger and doesn't create an instant-failure run on every push.
+  # The generate job is gated to workflow_dispatch only — no pipeline runs on push.
+  push:
+    branches:
+      - claude/build-app-from-brief-wNEna
 
 jobs:
   generate:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
