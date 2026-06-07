@@ -3,13 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
 # ── D1 word dictionary ────────────────────────────────────────────────────────
-# Create the database once with:
+# Uncomment once the database is created:
 #   wrangler d1 create bilinguist-words
-# Then paste the returned database_id below.
-[[d1_databases]]
-binding  = "WORDS_DB"
-database_name = "bilinguist-words"
-database_id   = "REPLACE_WITH_YOUR_D1_ID"
+# [[d1_databases]]
+# binding  = "WORDS_DB"
+# database_name = "bilinguist-words"
+# database_id   = "REPLACE_WITH_YOUR_D1_ID"
 
 # ── R2 audio cache ────────────────────────────────────────────────────────────
 # Create the bucket once with:
