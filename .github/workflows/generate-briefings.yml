@@ -1,13 +1,7 @@
 name: Generate Daily Briefings
 
 on:
-  # Triggered daily by cron-job.org via the GitHub dispatches API at
-  # 06:30 Europe/Vienna (CEST = UTC+2, so 04:30 UTC in summer).
-  # Can also be run manually from the Actions tab.
   workflow_dispatch:
-  # Push and pull_request triggers present so GitHub's required-check system
-  # sees a matching trigger and doesn't create instant-failure runs.
-  # The generate job is gated to workflow_dispatch only — no pipeline runs on push or PR.
   push:
     branches:
       - claude/build-app-from-brief-wNEna
@@ -27,12 +21,12 @@ jobs:
         with:
           ref: claude/build-app-from-brief-wNEna
 
-      - name: Notify — started
+      - name: Notify started
         run: |
           curl -s -X POST \
-            -H "Title: Bilinguist Brief — Generating 🗞️" \
+            -H "Title: Bilinguist Brief - Generating" \
             -H "Tags: newspaper" \
-            -d "Daily briefing generation started for $(date -u +%Y-%m-%d). Usually ready in 20–30 minutes." \
+            -d "Daily briefing generation started for $(date -u +%Y-%m-%d). Usually ready in 20-30 minutes." \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
       - name: Set up Python
@@ -44,20 +38,18 @@ jobs:
         working-directory: bilinguist-brief/scripts
         run: pip install -r requirements.txt
 
-      # Set BRIEF_DATE once so all steps agree on the date even if the
-      # pipeline crosses midnight UTC (batch jobs can take 1–2 hours).
       - name: Set pipeline date
         run: |
           echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
 
-      - name: Stage 1 — Gather news (Gemini Flex + search)
+      - name: Stage 1 - Gather news
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_gather.py
 
-      - name: Stages 2–4 — Write and grade (Gemini Batch)
+      - name: Stages 2-4 - Write and grade
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -81,7 +73,6 @@ jobs:
           cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
 
-          # Append API cost row to costs.csv if the costs report was generated
           COSTS_JSON="bilinguist-brief/scripts/output/costs_${DATE}.json"
           if [ -f "$COSTS_JSON" ]; then
             python3 - "$COSTS_JSON" "/tmp/bilinguist-data/costs.csv" <<'PYEOF'
@@ -121,29 +112,27 @@ PYEOF
           git add latest.json briefings/${DATE}.json
           [ -f costs.csv ] && git add costs.csv || true
 
-          # Skip commit if nothing changed (handles duplicate trigger from
-          # both cron-job.org and the GitHub schedule fallback firing same day)
           if git diff --cached --quiet; then
-            echo "No changes to commit — briefing for ${DATE} already pushed."
+            echo "No changes to commit - briefing for ${DATE} already pushed."
           else
             git commit -m "Daily briefings: ${DATE}"
             git push
           fi
 
-      - name: Notify — report
+      - name: Notify success
         if: success()
         run: |
           curl -s -X POST \
-            -H "Title: ${{ env.BRIEF_TITLE }}" \
-            -H "Tags: ${{ env.BRIEF_EMOJI }}" \
-            -d "${{ env.BRIEF_BODY }}" \
+            -H "Title: Bilinguist Brief - Done" \
+            -H "Tags: white_check_mark" \
+            -d "Briefing for ${{ env.BRIEF_DATE }} is ready." \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
-      - name: Notify — failure
+      - name: Notify failure
         if: failure()
         run: |
           curl -s -X POST \
-            -H "Title: Bilinguist Brief — Failed ❌" \
+            -H "Title: Bilinguist Brief - Failed" \
             -H "Priority: high" \
             -H "Tags: rotating_light" \
             -d "Briefing generation failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
