@@ -1,4 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
+
+// Length picker labels localised to each target language
+const LENGTH_LABELS: Record<string, readonly [string, string, string]> = {
+  fr: ['Concis',   'Équilibré',  'Long'],
+  de: ['Kurz',     'Ausgewogen', 'Lang'],
+  sv: ['Kort',     'Balanserad', 'Lång'],
+  en: ['Concise',  'Balanced',   'Long'],
+  it: ['Conciso',  'Bilanciato', 'Lungo'],
+  es: ['Conciso',  'Equilibrado','Extenso'],
+  tr: ['Kısa',     'Dengeli',    'Uzun'],
+};
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
@@ -365,7 +376,8 @@ export function SettingsScreen() {
                     Length
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {([['short', 'Concise'], ['medium', 'Balanced'], ['longer', 'Long-form']] as const).map(([val, label]) => {
+                    {(['short', 'medium', 'longer'] as const).map((val, i) => {
+                      const label = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en)[i];
                       const active = (lang.readLength ?? 'medium') === val;
                       return (
                         <TouchableOpacity
