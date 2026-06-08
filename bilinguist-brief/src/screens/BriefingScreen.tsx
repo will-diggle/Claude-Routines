@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet, View, Text, Image, Dimensions } from 'react-native';
+import {
+  AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
+  View, Text, Image, Dimensions,
+  NativeScrollEvent, NativeSyntheticEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
@@ -7,11 +11,9 @@ import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
-import type { ArticleLength } from '../services/anthropic';
-import type { GeneratedBriefing } from '../services/anthropic';
+import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 
-// Pre-composed masthead lockups — one per background mode, colours baked in.
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-cream.png'),
   softGrey: require('../../assets/masthead-navy.png'),
@@ -20,44 +22,72 @@ const MASTHEADS: Record<string, ReturnType<typeof require>> = {
 };
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-
-// Masthead lockup dimensions — calculated from screen width so the full
-// crest + wordmark always fills the available width at the correct height.
-// The four masthead PNGs are all ~5.17:1 (3491×675 px baseline).
-const LOCKUP_PADDING = 12; // matches lockupWrap.paddingHorizontal
+const LOCKUP_PADDING = 12;
 const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
 const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 
-// ── Language → masthead city ──────────────────────────────────────────────────
-
-const LANG_CITY: Record<string, string> = {
+// City names in each language's native form
+const LANG_CITY_NATIVE: Record<string, string> = {
   en: 'London',
   fr: 'Paris',
   de: 'Berlin',
   es: 'Madrid',
-  it: 'Rome',
+  it: 'Roma',
   sv: 'Stockholm',
   tr: 'Ankara',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// BCP-47 locale for date/time formatting on each page
+const LANG_LOCALE: Record<string, string> = {
+  en: 'en-GB',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  es: 'es-ES',
+  it: 'it-IT',
+  sv: 'sv-SE',
+  tr: 'tr-TR',
+};
 
-function resolveLength(_level: LanguageLevel, readLength: ArticleLength): ArticleLength {
-  return readLength;
+// "Published" prefix in each language
+const PUBLISHED_PREFIX: Record<string, string> = {
+  en: 'Published',
+  fr: 'Publié le',
+  de: 'Veröffentlicht am',
+  es: 'Publicado el',
+  it: 'Pubblicato il',
+  sv: 'Publicerad',
+  tr: 'Yayınlandı',
+};
+
+// Taglines indexed by [mono=0, bi=1, tri=2, multi=3]
+const TAGLINES: Record<string, [string, string, string, string]> = {
+  en: ['Your daily brief',          'Your bilingual brief',        'Your trilingual brief',         'Your multilingual brief'],
+  fr: ['Votre brief quotidien',      'Votre brief bilingue',        'Votre brief trilingue',         'Votre brief multilingue'],
+  de: ['Ihr tägliches Briefing',     'Ihr zweisprachiges Briefing', 'Ihr dreisprachiges Briefing',   'Ihr mehrsprachiges Briefing'],
+  es: ['Su brief diario',            'Su brief bilingüe',           'Su brief trilingüe',            'Su brief multilingüe'],
+  it: ['Il tuo brief quotidiano',    'Il tuo brief bilingue',       'Il tuo brief trilingue',        'Il tuo brief multilingue'],
+  sv: ['Din dagliga brief',          'Din tvåspråkiga brief',       'Din trespråkiga brief',         'Din flerspråkiga brief'],
+  tr: ['Günlük brifinginiz',         'İki dilli brifinginiz',       'Üç dilli brifinginiz',          'Çok dilli brifinginiz'],
+};
+
+function getTagline(langCode: string, count: number): string {
+  const t = TAGLINES[langCode] ?? TAGLINES.en;
+  const idx = count <= 1 ? 0 : count === 2 ? 1 : count === 3 ? 2 : 3;
+  return t[idx];
 }
 
-// Returns "Published at Monday, 26 May 2026 · 05:47"
-function publishedDateStr(ts: number | null): string {
+function publishedDateStr(ts: number | null, langCode: string): string {
   const d = ts ? new Date(ts) : new Date();
-  const datePart = d.toLocaleDateString('en-GB', {
+  const locale = LANG_LOCALE[langCode] ?? 'en-GB';
+  const prefix = PUBLISHED_PREFIX[langCode] ?? 'Published';
+  const datePart = d.toLocaleDateString(locale, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
-  if (!ts) return datePart;
+  if (!ts) return `${prefix} ${datePart}`;
   const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `Published at ${datePart} · ${timePart}`;
+  return `${prefix} ${datePart} · ${timePart}`;
 }
 
-// Roman numeral helper for the Vol. display
 function toRoman(n: number): string {
   const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
   const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
@@ -68,34 +98,26 @@ function toRoman(n: number): string {
   return r;
 }
 
-// Brand chrome colour: each background has a matching ink for rules and the lockup tint.
-// cream→navy, softGrey(navy)→cream, white→inkDark, night→cream
 function chromeColor(background: string): string {
-  if (background === 'cream')     return Colors.navyBg;
-  if (background === 'softGrey')  return Colors.cream;
-  if (background === 'white')     return Colors.inkDark;
+  if (background === 'cream')    return Colors.navyBg;
+  if (background === 'softGrey') return Colors.cream;
+  if (background === 'white')    return Colors.inkDark;
   return Colors.cream; // night
 }
 
-// Hairline rule opacity — paired with the chrome so the double-rule reads as a unit
 function hairlineColor(background: string): string {
   if (background === 'cream')    return 'rgba(22,32,50,0.32)';
   if (background === 'softGrey') return 'rgba(245,240,232,0.40)';
   if (background === 'white')    return 'rgba(26,26,26,0.30)';
-  return 'rgba(245,240,232,0.40)'; // night
+  return 'rgba(245,240,232,0.40)';
 }
 
-function mastheadTagline(count: number): string {
-  if (count >= 4) return 'Your multilingual brief';
-  if (count === 3) return 'Your trilingual brief';
-  if (count === 2) return 'Your bilingual brief';
-  return 'Your monolingual brief';
+function resolveLength(_level: LanguageLevel, readLength: ArticleLength): ArticleLength {
+  return readLength;
 }
-
-// ── Screen ────────────────────────────────────────────────────────────────────
 
 export function BriefingScreen() {
-  const { colors, fontFamily, isDark, background } = useTheme();
+  const { colors, fontFamily, background } = useTheme();
   const insets = useSafeAreaInsets();
   const settings = useSettingsStore();
   const {
@@ -105,16 +127,16 @@ export function BriefingScreen() {
   } = useBriefingStore();
 
   const activeLanguages = settings.languages.filter((l) => l.active);
+  const langCount = activeLanguages.length;
+
   const [refreshing, setRefreshing] = useState(false);
-  // Keeps the last successfully-matched briefing per language so we can show
-  // old content (+ sweep indicator) during level/length transitions instead
-  // of blanking the screen with a skeleton.
+  const [currentPage, setCurrentPage] = useState(0);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
+  const lastSyncRef = useRef<number>(0);
+  const pagerRef = useRef<ScrollView>(null);
 
   const activeLangKey =
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
-
-  const lastSyncRef = useRef<number>(0);
 
   const runSync = useCallback(async (force = false) => {
     lastSyncRef.current = Date.now();
@@ -133,8 +155,15 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
-  // Re-check for a newer bundle whenever the app comes to foreground.
-  // 30-second debounce prevents back-to-back checks during rapid app switches.
+  // Clamp page index when active languages change (e.g. user removes current language)
+  useEffect(() => {
+    if (currentPage >= langCount) {
+      const next = Math.max(0, langCount - 1);
+      setCurrentPage(next);
+      pagerRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: false });
+    }
+  }, [langCount]);
+
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state !== 'active') return;
@@ -144,8 +173,6 @@ export function BriefingScreen() {
     return () => sub.remove();
   }, [runSync]);
 
-  // Also poll every 10 minutes while the screen is mounted so a reader who
-  // leaves the app open all day automatically picks up mid-day re-runs.
   useEffect(() => {
     const id = setInterval(() => runSync(), 10 * 60 * 1000);
     return () => clearInterval(id);
@@ -157,156 +184,169 @@ export function BriefingScreen() {
     setRefreshing(false);
   }, [runSync]);
 
-  const publishedAt = bundleReceivedAt;
+  const handlePageScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setCurrentPage(page);
+  }, []);
 
-  // Masthead strings
-  const locationStr = activeLanguages
-    .map((l) => LANG_CITY[l.code] ?? l.name)
-    .join(' · ');
-  const taglineText = mastheadTagline(activeLanguages.length);
-
-  // Brand pairing: each background has a chrome ink and a hairline tint
   const chrome   = chromeColor(background);
   const hairline = hairlineColor(background);
 
   return (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing || isSyncing}
-          onRefresh={onRefresh}
-          tintColor={colors.inkLight}
-        />
-      }
-    >
-      {/* ══ Masthead ══════════════════════════════════════════════════════
-           2px rule (chrome)
-           Cities (centred, 9px, tracked uppercase) — between outer and inner rule
-           1px hairline rule
-           Lockup PNG (full width)
-           [Published at date  ·  Vol. N]  (non-italic, same tracked style)
-           1px hairline rule
-           2px rule (chrome)
-           Tagline (italic, "Your … brief")
-          ═══════════════════════════════════════════════════════════════ */}
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <ScrollView
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onMomentumScrollEnd={handlePageScroll}
+        style={styles.pager}
+        overScrollMode="never"
+      >
+        {activeLanguages.map((lang) => {
+          const level = lang.level ?? 'B1';
+          const length = resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength);
+          const stored = briefings[lang.code];
+          const today = new Date().toISOString().split('T')[0];
+          const briefingMatches =
+            !!stored && stored.date === today && stored.level === level && stored.length === length;
+          if (briefingMatches && stored) {
+            lastValidBriefingsRef.current[lang.code] = stored;
+          }
+          const displayBriefing = briefingMatches
+            ? stored
+            : (lastValidBriefingsRef.current[lang.code] ?? undefined);
+          const isTransitioning = !briefingMatches && !!lastValidBriefingsRef.current[lang.code];
 
-      {/* Top outer rule */}
-      <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+          const city    = LANG_CITY_NATIVE[lang.code] ?? lang.name;
+          const tagline = getTagline(lang.code, langCount);
 
-      {/* Cities — between outer and inner rule */}
-      <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-        {locationStr}
-      </Text>
+          return (
+            <ScrollView
+              key={lang.code}
+              style={[styles.page, { backgroundColor: colors.bg }]}
+              contentContainerStyle={[
+                styles.pageContent,
+                { paddingTop: insets.top + 8, paddingBottom: FLOAT_TAB_INSET },
+              ]}
+              showsVerticalScrollIndicator={false}
+              directionalLockEnabled
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing || isSyncing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.inkLight}
+                />
+              }
+            >
+              {/* ── Masthead — unique per language page ─────────────────── */}
+              <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
 
-      {/* Top inner hairline rule */}
-      <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+              <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+                {city}
+              </Text>
 
-      {/* Lockup — pre-composed masthead PNG, colours baked in per theme */}
-      <View style={styles.lockupWrap}>
-        <Image
-          source={MASTHEADS[background] ?? MASTHEADS.cream}
-          style={styles.lockup}
-          resizeMode="contain"
-        />
-      </View>
+              <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
-      {/* Meta row: published date (left) · Vol. N (right), both non-italic */}
-      <View style={styles.metaRow}>
-        <Text
-          style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
-          numberOfLines={2}
-        >
-          {publishedDateStr(publishedAt)}
-        </Text>
-        <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {briefVolume > 0 ? `Vol. ${toRoman(briefVolume)}` : ''}
-        </Text>
-      </View>
+              <View style={styles.lockupWrap}>
+                <Image
+                  source={MASTHEADS[background] ?? MASTHEADS.cream}
+                  style={styles.lockup}
+                  resizeMode="contain"
+                />
+              </View>
 
-      {/* Bottom hairline rule */}
-      <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+              <View style={styles.metaRow}>
+                <Text
+                  style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
+                  numberOfLines={2}
+                >
+                  {publishedDateStr(bundleReceivedAt, lang.code)}
+                </Text>
+                <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                  {briefVolume > 0 ? `Vol. ${toRoman(briefVolume)}` : ''}
+                </Text>
+              </View>
 
-      {/* Tagline — italic, personalised to language count */}
-      <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-        {taglineText}
-      </Text>
+              <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
-      <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
+              <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                {tagline}
+              </Text>
 
-      {/* ── Sync progress ─────────────────────────────────────────────── */}
+              {/* Page dots — only rendered when there are multiple languages */}
+              {langCount > 1 && (
+                <View style={styles.dotsRow}>
+                  {activeLanguages.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        {
+                          backgroundColor: i === currentPage ? colors.inkMid : colors.borderMid,
+                          width: i === currentPage ? 16 : 5,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
 
-      {/* ── Language sections ──────────────────────────────────────────── */}
-      {activeLanguages.map((lang, index) => {
-        const level = lang.level ?? 'B1';
-        const length = resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength);
-        const stored = briefings[lang.code];
-        const today = new Date().toISOString().split('T')[0];
-        const briefingMatches = !!stored && stored.date === today && stored.level === level && stored.length === length;
-        // Update the "last known good" ref so we can show it during transitions
-        if (briefingMatches && stored) {
-          lastValidBriefingsRef.current[lang.code] = stored;
-        }
-        const displayBriefing = briefingMatches
-          ? stored
-          : (lastValidBriefingsRef.current[lang.code] ?? undefined);
-        // True while we're waiting for a new level/length to arrive — shows the
-        // sweep progress line over old content instead of blanking to a skeleton.
-        const isTransitioning = !briefingMatches && !!lastValidBriefingsRef.current[lang.code];
-        return (
-          <LanguageBriefingSection
-            key={lang.code}
-            langCode={lang.code}
-            nativeName={lang.nativeName}
-            level={level}
-            briefing={displayBriefing}
-            isGenerating={generatingFor.includes(lang.code)}
-            error={errorsFor[lang.code]}
-            isFirst={index === 0}
-            topics={settings.topics}
-            weather={weatherByLang[lang.code] ?? null}
-            isTransitioning={isTransitioning}
-            onRetry={() => {
-              clearError(lang.code);
-              loadBriefing(lang.code, level, length, true);
-            }}
-          />
-        );
-      })}
+              <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
 
-      {/* ── Article footer — once at the very end ─────────────────────── */}
-      {activeLanguages.some((l) => briefings[l.code]) && (
-        <View style={[styles.articleFooter, { borderTopColor: colors.borderLight }]}>
-          <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
-          <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
-          <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {publishedDateStr(publishedAt)}
-          </Text>
-          <Text style={[styles.footerMessage, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {'Tune in tomorrow for your next daily briefing.\nTo read more today, add a language or open a topic in preferences.'}
-          </Text>
-          <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
-          <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
-        </View>
-      )}
-    </ScrollView>
+              {/* ── Language content ────────────────────────────────────── */}
+              <LanguageBriefingSection
+                langCode={lang.code}
+                nativeName={lang.nativeName}
+                level={level}
+                briefing={displayBriefing}
+                isGenerating={generatingFor.includes(lang.code)}
+                error={errorsFor[lang.code]}
+                isFirst
+                topics={settings.topics}
+                weather={weatherByLang[lang.code] ?? null}
+                isTransitioning={isTransitioning}
+                onRetry={() => {
+                  clearError(lang.code);
+                  loadBriefing(lang.code, level, length, true);
+                }}
+              />
+
+              {/* ── Page footer ─────────────────────────────────────────── */}
+              {displayBriefing && (
+                <View style={styles.articleFooter}>
+                  <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+                  <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+                  <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                    {publishedDateStr(bundleReceivedAt, lang.code)}
+                  </Text>
+                  <Text style={[styles.footerMessage, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                    {'Tune in tomorrow for your next daily briefing.\nTo read more today, add a language or open a topic in preferences.'}
+                  </Text>
+                  <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+                  <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+                </View>
+              )}
+            </ScrollView>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
-  content: { paddingBottom: FLOAT_TAB_INSET },
+  container: { flex: 1 },
+  pager:     { flex: 1 },
 
-  // ── Rules ──────────────────────────────────────────────────────────
+  page:        { width: SCREEN_WIDTH },
+  pageContent: {},
+
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
 
-  // ── Masthead ───────────────────────────────────────────────────────
-  // Cities line — centred, 9px, tracked uppercase, sits between outer and inner rule
   cities: {
     width: SCREEN_WIDTH,
     textAlign: 'center',
@@ -315,24 +355,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingVertical: 6,
   },
-
-  // Lockup image wrapper — padded to match LOCKUP_PADDING constant above
   lockupWrap: {
     width: SCREEN_WIDTH,
     paddingHorizontal: LOCKUP_PADDING,
     paddingTop: 4,
     paddingBottom: 2,
   },
-  // Explicit pixel dimensions — avoids React Native quirks with percentage
-  // widths + aspectRatio on Image components. Height is pre-computed from
-  // the masthead PNG's 5.17:1 ratio so the full crest + wordmark fills the
-  // available width at exactly the right height on every screen size.
   lockup: {
     width: LOCKUP_W,
     height: LOCKUP_H,
   },
-
-  // Meta row: [Published italic date …  |  Vol. II]
   metaRow: {
     width: SCREEN_WIDTH,
     flexDirection: 'row',
@@ -353,18 +385,26 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
   },
-
-  // Tagline — italic, centred, below the bottom rule
   tagline: {
     width: SCREEN_WIDTH,
     fontSize: 14,
-    fontStyle: 'italic',
     textAlign: 'center',
     paddingTop: 8,
     paddingBottom: 6,
   },
 
-  // ── Sync banner ────────────────────────────────────────────────────
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+  },
+  dot: {
+    height: 5,
+    borderRadius: 3,
+  },
+
   articleFooter: {
     marginTop: 32,
     paddingHorizontal: 18,
@@ -385,12 +425,4 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     paddingBottom: 10,
   },
-
-  syncBanner: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  syncText: { fontSize: 12, letterSpacing: 0.3 },
 });
