@@ -6,6 +6,7 @@ import { MultipleChoiceScreen } from '../screens/MultipleChoiceScreen';
 import { FillBlankScreen } from '../screens/FillBlankScreen';
 import { TranslationScreen } from '../screens/TranslationScreen';
 import { WordBankListScreen } from '../screens/WordBankListScreen';
+import { MatchingScreen } from '../screens/MatchingScreen';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { Pile } from '../store/useWordBankStore';
 
@@ -16,6 +17,7 @@ export type PracticeStackParamList = {
   MultipleChoice: { language?: LanguageCode | 'all' };
   FillBlank: { language?: LanguageCode | 'all' };
   Translation: { language?: LanguageCode | 'all' };
+  Matching: { language?: LanguageCode | 'all' };
 };
 
 const Stack = createNativeStackNavigator<PracticeStackParamList>();
@@ -29,6 +31,7 @@ export function PracticeNavigator() {
       <Stack.Screen name="MultipleChoice" component={MultipleChoiceScreen} />
       <Stack.Screen name="FillBlank" component={FillBlankScreen} />
       <Stack.Screen name="Translation" component={TranslationScreen} />
+      <Stack.Screen name="Matching" component={MatchingScreen} />
     </Stack.Navigator>
   );
 }

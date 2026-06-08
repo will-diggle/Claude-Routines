@@ -1,5 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Platform } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import {
+  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  Animated, PanResponder, Dimensions,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,26 +18,26 @@ import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
+const { width: SW, height: SH } = Dimensions.get('window');
 const MAX_CARDS = 20;
+const CARD_W = SW - 48;
+const CARD_H = Math.min(Math.round(CARD_W * 1.42), Math.round(SH * 0.60));
+const SWIPE_THRESHOLD = 80;
+const STACK_OFFSET = 7;
+const STACK_SCALE = 0.04;
 
-const LANG_NAMES: Record<LanguageCode, string> = {
-  fr: 'FRANÇAIS', de: 'DEUTSCH', sv: 'SVENSKA',
-  es: 'ESPAÑOL', it: 'ITALIANO', en: 'ENGLISH', tr: 'TÜRKÇE',
-};
+function levelColor(level?: string | null): string {
+  if (!level) return '#888';
+  if (level === 'A1' || level === 'A2') return '#2E7D32';
+  if (level === 'B1' || level === 'B2') return '#E65100';
+  return '#6A1B9A';
+}
 
 function getSessionWords(words: SavedWord[]): SavedWord[] {
   const revisit = words.filter((w) => w.pile === 'revisit');
-  const newW = words.filter((w) => w.pile === 'new');
+  const newW    = words.filter((w) => w.pile === 'new');
   const learning = words.filter((w) => w.pile === 'learning');
   return [...revisit, ...newW, ...learning].slice(0, MAX_CARDS);
-}
-
-type Mark = 'got' | 'nearly' | 'no';
-
-interface SessionResult {
-  correct: number;
-  nearly: number;
-  missed: number;
 }
 
 export function FlashcardsScreen() {
@@ -48,23 +51,109 @@ export function FlashcardsScreen() {
   const { activeLanguages } = useSettingsStore();
   const activeCodes = new Set(activeLanguages().map((l) => l.code));
 
-  const sessionWords = useMemo(
-    () => {
-      const pool = words.filter((w) =>
-        langFilter && langFilter !== 'all' ? w.language === langFilter : activeCodes.has(w.language)
-      );
-      return getSessionWords(pool);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  const sessionWords = useMemo(() => {
+    const pool = words.filter((w) =>
+      langFilter && langFilter !== 'all'
+        ? w.language === langFilter
+        : activeCodes.has(w.language),
+    );
+    return getSessionWords(pool);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const [index, setIndex] = useState(0);
-  const [revealed, setRevealed] = useState(false);
-  const [results, setResults] = useState<SessionResult | null>(null);
-  const [tally, setTally] = useState({ correct: 0, nearly: 0, missed: 0 });
+  const [index, setIndex]   = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [done, setDone]     = useState<{ correct: number; missed: number } | null>(null);
+  const [tally, setTally]   = useState({ correct: 0, missed: 0 });
 
-  const card = sessionWords[index];
+  const flipAnim    = useRef(new Animated.Value(0)).current;
+  const pan         = useRef(new Animated.ValueXY()).current;
+  const flippedRef  = useRef(false);
+  const lockRef     = useRef(false); // prevents double-triggers during animation
+
+  function resetCard() {
+    flipAnim.setValue(0);
+    pan.setValue({ x: 0, y: 0 });
+    flippedRef.current = false;
+    lockRef.current    = false;
+    setFlipped(false);
+  }
+
+  function handleFlip() {
+    if (flippedRef.current || lockRef.current) return;
+    lockRef.current = true;
+    Animated.spring(flipAnim, {
+      toValue: 180,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 40,
+    }).start(() => {
+      flippedRef.current = true;
+      lockRef.current    = false;
+      setFlipped(true);
+    });
+  }
+
+  function handleMark(mark: 'got' | 'no') {
+    const card = sessionWords[index];
+    if (!card) return;
+    const newTally = {
+      correct: tally.correct + (mark === 'got' ? 1 : 0),
+      missed:  tally.missed  + (mark === 'no'  ? 1 : 0),
+    };
+    if (mark === 'got') recordPractice(card.id, true);
+    if (mark === 'no')  recordPractice(card.id, false);
+    if (index + 1 >= sessionWords.length) {
+      recordSession();
+      setDone(newTally);
+    } else {
+      setTally(newTally);
+      setIndex((i) => i + 1);
+      resetCard();
+    }
+  }
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gs) =>
+        flippedRef.current && !lockRef.current && Math.abs(gs.dx) > 8,
+      onPanResponderMove: (_, gs) => {
+        pan.setValue({ x: gs.dx, y: gs.dy * 0.15 });
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (Math.abs(gs.dx) > SWIPE_THRESHOLD) {
+          lockRef.current = true;
+          const dir = gs.dx > 0 ? 1 : -1;
+          Animated.timing(pan, {
+            toValue: { x: dir * (SW + 100), y: gs.dy },
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            handleMark(dir > 0 ? 'got' : 'no');
+            pan.setValue({ x: 0, y: 0 });
+            flipAnim.setValue(0);
+          });
+        } else {
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
+  // Flip transforms
+  const frontRotate = flipAnim.interpolate({ inputRange: [0, 180], outputRange: ['0deg', '180deg'] });
+  const backRotate  = flipAnim.interpolate({ inputRange: [0, 180], outputRange: ['180deg', '360deg'] });
+
+  // Swipe tints
+  const rightTint = pan.x.interpolate({ inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 0.28], extrapolate: 'clamp' });
+  const leftTint  = pan.x.interpolate({ inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [0.28, 0], extrapolate: 'clamp' });
+  const cardRot   = pan.x.interpolate({ inputRange: [-SW, SW], outputRange: ['-12deg', '12deg'] });
+
+  // ── Empty state ───────────────────────────────────────────────────────────────
 
   if (sessionWords.length === 0) {
     return (
@@ -79,168 +168,316 @@ export function FlashcardsScreen() {
     );
   }
 
-  if (results) {
+  // ── Done screen ───────────────────────────────────────────────────────────────
+
+  if (done) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} />
-
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             Session complete
           </Text>
-
           <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <StatRow iconName="checkmark-circle-outline" iconColor="#43A047" label="Got it" value={results.correct} colors={colors} fontFamily={fontFamily} />
-            <StatRow iconName="refresh-outline" iconColor={colors.inkFaint} label="Nearly" value={results.nearly} colors={colors} fontFamily={fontFamily} />
-            <StatRow iconName="close-circle-outline" iconColor="#E53935" label="No idea" value={results.missed} colors={colors} fontFamily={fontFamily} />
+            <StatRow label="Got it"  icon="checkmark-circle-outline" tint="#43A047" value={done.correct} colors={colors} fontFamily={fontFamily} />
+            <StatRow label="No idea" icon="close-circle-outline"     tint="#E53935" value={done.missed}  colors={colors} fontFamily={fontFamily} />
           </View>
-
           <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
-
-          <TouchableOpacity
-            style={[styles.doneButton, { backgroundColor: colors.accentGold }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+          <TouchableOpacity style={[styles.doneBtn, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  function handleMark(mark: Mark) {
-    if (!card) return;
+  // ── Game ──────────────────────────────────────────────────────────────────────
 
-    const newTally = {
-      correct: tally.correct + (mark === 'got' ? 1 : 0),
-      nearly: tally.nearly + (mark === 'nearly' ? 1 : 0),
-      missed: tally.missed + (mark === 'no' ? 1 : 0),
-    };
-
-    if (mark === 'got') recordPractice(card.id, true);
-    if (mark === 'no') recordPractice(card.id, false);
-
-    if (index + 1 >= sessionWords.length) {
-      recordSession();
-      setResults(newTally);
-    } else {
-      setTally(newTally);
-      setIndex(index + 1);
-      setRevealed(false);
-    }
-  }
+  const card = sessionWords[index];
+  const remaining = sessionWords.length - index;
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
       <GameHeader title="Flashcards" current={index + 1} total={sessionWords.length} />
 
-      <ScrollView contentContainerStyle={[styles.cardArea, { paddingBottom: insets.bottom + 100 }]}>
-        {/* Newspaper headline card */}
-        <View style={[styles.card, { borderTopColor: colors.inkDark, borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+      <View style={styles.deckArea}>
+        {/* Background stack cards */}
+        {Array.from({ length: Math.min(2, remaining - 1) }, (_, i) => {
+          const depth = i + 1;
+          return (
+            <View
+              key={`stack-${index + depth}`}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.borderLight,
+                  position: 'absolute',
+                  zIndex: 10 - depth,
+                  transform: [
+                    { scale: 1 - depth * STACK_SCALE },
+                    { translateY: -(depth * STACK_OFFSET) },
+                  ],
+                },
+              ]}
+            />
+          );
+        })}
 
-          {/* Section row: language label + pile badge */}
-          <View style={[styles.cardHeader, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[styles.cardSection, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-              {LANG_NAMES[card.language as LanguageCode] ?? card.language.toUpperCase()}
-            </Text>
-            <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
-              <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                {card.pile}
-              </Text>
-            </View>
-          </View>
-
-          {/* Headline word + audio */}
-          <View style={styles.cardWordRow}>
-            <Text style={[styles.cardWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 1.3, flex: 1 }]}>
-              {card.word}
-            </Text>
-            <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />
-          </View>
-
-          {!revealed ? (
-            <TouchableOpacity
-              style={[styles.revealButton, { borderColor: colors.borderMid, borderTopColor: colors.borderLight }]}
-              onPress={() => setRevealed(true)}
-            >
-              <Text style={[styles.revealText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                Show answer
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.answer, { borderTopColor: colors.borderLight }]}>
-              {card.translation ? (
-                <Text style={[styles.translation, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
-                  {card.translation}
+        {/* Active card — flip + swipe container */}
+        <Animated.View
+          style={[
+            styles.cardContainer,
+            {
+              transform: [
+                { translateX: pan.x },
+                { translateY: pan.y },
+                { rotate: cardRot },
+              ],
+              zIndex: 20,
+            },
+          ]}
+          {...panResponder.panHandlers}
+        >
+          {/* ── Front face ──────────────────────────────────────────────── */}
+          <Animated.View
+            style={[
+              styles.card,
+              styles.face,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.borderLight,
+                transform: [{ perspective: 1200 }, { rotateY: frontRotate }],
+              },
+            ]}
+            pointerEvents={flipped ? 'none' : 'auto'}
+          >
+            <TouchableOpacity style={styles.faceTouchable} onPress={handleFlip} activeOpacity={0.95}>
+              <View style={[styles.cardMeta, { borderBottomColor: colors.borderLight }]}>
+                <Text style={[styles.cardLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                  {card.language.toUpperCase()}
                 </Text>
-              ) : null}
+                <View style={[styles.pileBadge, { borderColor: colors.borderMid }]}>
+                  <Text style={[styles.pileBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {card.pile}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.frontBody}>
+                <Text style={[styles.frontWord, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  {card.word}
+                </Text>
+                <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />
+              </View>
+
+              <View style={[styles.tapHint, { borderTopColor: colors.borderLight }]}>
+                <Text style={[styles.tapHintText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Tap to reveal
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <Animated.View style={[styles.tintOverlay, { backgroundColor: '#43A047', opacity: rightTint }]} />
+            <Animated.View style={[styles.tintOverlay, { backgroundColor: '#E53935', opacity: leftTint }]} />
+          </Animated.View>
+
+          {/* ── Back face ───────────────────────────────────────────────── */}
+          <Animated.View
+            style={[
+              styles.card,
+              styles.face,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.borderLight,
+                transform: [{ perspective: 1200 }, { rotateY: backRotate }],
+              },
+            ]}
+            pointerEvents={flipped ? 'auto' : 'none'}
+          >
+            <ScrollView
+              contentContainerStyle={styles.backContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Translation */}
+              <Text style={[styles.backTranslation, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
+                {card.translation || '—'}
+              </Text>
+
+              {/* Badges */}
+              <View style={styles.badgeRow}>
+                {card.wordType ? (
+                  <View style={[styles.badge, { backgroundColor: colors.borderLight }]}>
+                    <Text style={[styles.badgeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                      {card.wordType}
+                    </Text>
+                  </View>
+                ) : null}
+                {card.level ? (
+                  <View style={[styles.badge, { backgroundColor: levelColor(card.level) + '22' }]}>
+                    <Text style={[styles.badgeText, { color: levelColor(card.level), fontFamily: fontFamily.bold }]}>
+                      {card.level}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
               {card.explanation ? (
-                <Text style={[styles.explanation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                <Text style={[styles.backExplanation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                   {card.explanation}
                 </Text>
               ) : null}
+
+              {card.pronunciation ? (
+                <Text style={[styles.pronunciation, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  /{card.pronunciation}/
+                </Text>
+              ) : null}
+
+              {card.verbTable ? (
+                <VerbTable title="Present" table={card.verbTable} colors={colors} fontFamily={fontFamily} />
+              ) : null}
+              {card.verbTablePast ? (
+                <VerbTable title="Past" table={card.verbTablePast} colors={colors} fontFamily={fontFamily} />
+              ) : null}
+
+              {card.forms ? (
+                <FormsView forms={card.forms} colors={colors} fontFamily={fontFamily} />
+              ) : null}
+
               {card.exampleSentence ? (
-                <Text style={[styles.example, { color: colors.inkLight, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
+                <Text style={[styles.backExample, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                   "{card.exampleSentence}"
                 </Text>
               ) : null}
-              {card.originalSentence ? (
-                <Text style={[styles.original, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  From: {card.originalSentence.slice(0, 120)}{card.originalSentence.length > 120 ? '…' : ''}
-                </Text>
-              ) : null}
-            </View>
-          )}
-        </View>
-      </ScrollView>
 
-      {/* Mark buttons */}
-      {revealed && (
-        <View style={[styles.markRow, { paddingBottom: insets.bottom + FLOAT_TAB_INSET, borderTopColor: colors.borderLight, backgroundColor: colors.bg }]}>
-          <MarkButton label="No idea" iconName="close-circle-outline" onPress={() => handleMark('no')} colors={colors} fontFamily={fontFamily} tint="#E53935" />
-          <MarkButton label="Nearly" iconName="refresh-outline" onPress={() => handleMark('nearly')} colors={colors} fontFamily={fontFamily} tint={colors.inkFaint} />
-          <MarkButton label="Got it!" iconName="checkmark-circle-outline" onPress={() => handleMark('got')} colors={colors} fontFamily={fontFamily} tint="#43A047" />
-        </View>
-      )}
+              {card.tip ? (
+                <View style={[styles.tipBox, { backgroundColor: colors.accentGold + '15', borderColor: colors.accentGold + '44' }]}>
+                  <Ionicons name="bulb-outline" size={13} color={colors.accentGold} />
+                  <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                    {card.tip}
+                  </Text>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            {/* Swipe hints */}
+            <View style={[styles.swipeHints, { borderTopColor: colors.borderLight, backgroundColor: colors.card }]}>
+              <View style={styles.swipeHintSide}>
+                <Ionicons name="close-circle" size={18} color="#E53935" />
+                <Text style={[styles.swipeHintText, { color: '#E53935', fontFamily: fontFamily.regular }]}>No idea</Text>
+              </View>
+              <Text style={[styles.swipeHintMiddle, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                swipe
+              </Text>
+              <View style={styles.swipeHintSide}>
+                <Text style={[styles.swipeHintText, { color: '#43A047', fontFamily: fontFamily.regular }]}>Got it</Text>
+                <Ionicons name="checkmark-circle" size={18} color="#43A047" />
+              </View>
+            </View>
+
+            <Animated.View style={[styles.tintOverlay, { backgroundColor: '#43A047', opacity: rightTint }]} />
+            <Animated.View style={[styles.tintOverlay, { backgroundColor: '#E53935', opacity: leftTint }]} />
+          </Animated.View>
+        </Animated.View>
+      </View>
+
+      {/* Remaining pill */}
+      <View style={[styles.remainingRow, { paddingBottom: insets.bottom + FLOAT_TAB_INSET }]}>
+        <Text style={[styles.remainingText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+          {remaining} {remaining === 1 ? 'card' : 'cards'} remaining
+        </Text>
+      </View>
     </View>
   );
 }
 
-function MarkButton({ label, iconName, onPress, colors, fontFamily, tint }: any) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function VerbTable({ title, table, colors, fontFamily }: { title: string; table: Record<string, string>; colors: any; fontFamily: any }) {
   return (
-    <TouchableOpacity style={[styles.markButton, { borderColor: tint + '55' }]} onPress={onPress}>
-      <Ionicons name={iconName} size={22} color={tint} />
-      <Text style={[styles.markLabel, { color: tint, fontFamily: fontFamily.regular }]}>{label}</Text>
-    </TouchableOpacity>
+    <View style={vStyles.wrap}>
+      <Text style={[vStyles.title, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{title}</Text>
+      {Object.entries(table).map(([pronoun, form]) => (
+        <View key={pronoun} style={[vStyles.row, { borderBottomColor: colors.borderLight }]}>
+          <Text style={[vStyles.pronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{pronoun}</Text>
+          <Text style={[vStyles.form, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{form}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
-function StatRow({ iconName, iconColor, label, value, colors, fontFamily }: any) {
+function FormsView({ forms, colors, fontFamily }: { forms: Record<string, string>; colors: any; fontFamily: any }) {
+  return (
+    <View style={vStyles.wrap}>
+      {Object.entries(forms).map(([key, val]) => (
+        <View key={key} style={[vStyles.row, { borderBottomColor: colors.borderLight }]}>
+          <Text style={[vStyles.pronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{key}</Text>
+          <Text style={[vStyles.form, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{val}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function StatRow({ label, icon, tint, value, colors, fontFamily }: any) {
   return (
     <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-      <Ionicons name={iconName} size={20} color={iconColor} style={{ width: 28 }} />
+      <Ionicons name={icon} size={20} color={tint} style={{ width: 28 }} />
       <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
       <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  fill: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
-  emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
-  cardArea: { padding: Spacing.lg, alignItems: 'stretch' },
+// ── Styles ────────────────────────────────────────────────────────────────────
 
-  // Newspaper headline card
-  card: {
-    borderTopWidth: 3,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 0,
+const styles = StyleSheet.create({
+  fill:    { flex: 1 },
+  center:  { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
+  emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
+
+  deckArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: STACK_OFFSET * 3,
   },
-  cardHeader: {
+
+  cardContainer: {
+    width: CARD_W,
+    height: CARD_H,
+  },
+
+  card: {
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+
+  face: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: CARD_W,
+    height: CARD_H,
+    backfaceVisibility: 'hidden',
+  },
+
+  faceTouchable: { flex: 1 },
+
+  cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -249,85 +486,84 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cardSection: {
-    fontSize: 11,
-    letterSpacing: 1.5,
-  },
-  pileBadge: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
+  cardLang: { fontSize: 11, letterSpacing: 1.5 },
+  pileBadge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   pileBadgeText: { fontSize: 10, letterSpacing: 0.5 },
-  cardWordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    minHeight: 180,
-    gap: Spacing.sm,
-  },
-  cardWord: {
-    lineHeight: 52,
-    textAlignVertical: 'center',
-  },
-  revealButton: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  revealText: { fontSize: 15 },
-  answer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  translation: { lineHeight: 26 },
-  explanation: { lineHeight: 22, opacity: 0.85 },
-  example: { lineHeight: 22 },
-  original: { fontSize: 12, lineHeight: 18, marginTop: Spacing.xs },
-  markRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.sm,
-  },
-  markButton: {
+
+  frontBody: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
-  },
-  markLabel: { fontSize: 12 },
-  doneTitle: { textAlign: 'center' },
-  statsBox: {
-    width: '100%',
-    borderRadius: 10,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing.md,
   },
+  frontWord: {
+    fontSize: 30,
+    textAlign: 'center',
+    lineHeight: 38,
+  },
+
+  tapHint: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  tapHintText: { fontSize: 11, letterSpacing: 0.8 },
+
+  // Back face content
+  backContent: {
+    padding: Spacing.md,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
+    flexGrow: 1,
+  },
+  backTranslation: { textAlign: 'center', marginBottom: 2 },
+  badgeRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center', flexWrap: 'wrap' },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { fontSize: 11, letterSpacing: 0.5 },
+  backExplanation: { lineHeight: 22, textAlign: 'center' },
+  pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7 },
+  backExample: { fontSize: 12, lineHeight: 19, textAlign: 'center' },
+  tipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start' },
+  tipText: { flex: 1, fontSize: 11, lineHeight: 17 },
+
+  swipeHints: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  swipeHintSide: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  swipeHintText: { fontSize: 12 },
+  swipeHintMiddle: { fontSize: 10, letterSpacing: 0.5, opacity: 0.5 },
+
+  tintOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 16,
+    pointerEvents: 'none',
+  },
+
+  remainingRow: { alignItems: 'center', paddingTop: Spacing.sm },
+  remainingText: { fontSize: 11, letterSpacing: 0.5 },
+
+  // Done screen
+  doneTitle: { textAlign: 'center' },
+  statsBox: { width: '100%', borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
+  statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
   statLabel: { flex: 1, fontSize: 15 },
   statValue: { fontSize: 20 },
   streakText: { fontSize: 20 },
-  doneButton: {
-    borderRadius: 8,
-    paddingHorizontal: Spacing.xxl,
-    paddingVertical: 14,
-  },
-  doneButtonText: { color: '#FFF', fontSize: 16 },
+  doneBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneBtnText: { color: '#FFF', fontSize: 16 },
+});
+
+const vStyles = StyleSheet.create({
+  wrap: { marginTop: Spacing.xs },
+  title: { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: StyleSheet.hairlineWidth },
+  pronoun: { fontSize: 12 },
+  form: { fontSize: 12 },
 });
