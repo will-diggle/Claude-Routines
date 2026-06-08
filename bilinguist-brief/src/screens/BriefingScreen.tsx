@@ -133,22 +133,22 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
+  // Re-check for a newer bundle whenever the app comes to foreground.
+  // 30-second debounce prevents back-to-back checks during rapid app switches.
   useEffect(() => {
-    const MIN_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state !== 'active') return;
-      const today = new Date().toISOString().split('T')[0];
-      // Always sync immediately if today's bundle isn't in the cache yet —
-      // this ensures the morning brief appears the moment the app is opened,
-      // regardless of how long the app was in the background.
-      const contentIsStale = useBriefingStore.getState().lastBundleDate !== today;
-      const intervalElapsed = Date.now() - lastSyncRef.current > MIN_SYNC_INTERVAL;
-      if (contentIsStale || intervalElapsed) {
-        lastSyncRef.current = Date.now();
-        runSync();
-      }
+      if (Date.now() - lastSyncRef.current < 30_000) return;
+      runSync();
     });
     return () => sub.remove();
+  }, [runSync]);
+
+  // Also poll every 10 minutes while the screen is mounted so a reader who
+  // leaves the app open all day automatically picks up mid-day re-runs.
+  useEffect(() => {
+    const id = setInterval(() => runSync(), 10 * 60 * 1000);
+    return () => clearInterval(id);
   }, [runSync]);
 
   const onRefresh = useCallback(async () => {

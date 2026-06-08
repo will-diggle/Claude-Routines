@@ -3,6 +3,7 @@
  *
  * Routes:
  *   GET  /latest                        → latest.json briefing bundle
+ *   GET  /latest/meta                   → { date, generatedAt } only (~50 bytes)
  *   GET  /briefings/YYYY-MM-DD          → archived briefing bundle
  *   GET  /word?w={word}&lang={lang}     → word lookup (D1 cache → Claude + translate)
  *   POST /word                          → admin: bulk-insert a word (requires X-Admin-Key)
@@ -508,6 +509,27 @@ async function handleAudioStream(key: string, env: Env): Promise<Response> {
 const REPO   = 'will-diggle/bilinguist-data';
 const BRANCH = 'main';
 
+async function handleBriefingMeta(env: Env): Promise<Response> {
+  const upstream = `https://api.github.com/repos/${REPO}/contents/latest.json`;
+  const githubRes = await fetch(upstream, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.raw+json',
+      'User-Agent': 'Bilinguist-Brief-Worker/1.0',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    cf: { cacheEverything: false },
+  } as RequestInit & { cf: { cacheEverything: boolean } });
+
+  if (!githubRes.ok) {
+    const status = githubRes.status === 404 ? 404 : 502;
+    return new Response(status === 404 ? 'Not found' : 'Upstream error', { status });
+  }
+
+  const bundle = await githubRes.json() as { date?: string; generatedAt?: number };
+  return json({ date: bundle.date ?? null, generatedAt: bundle.generatedAt ?? null });
+}
+
 async function handleBriefing(filePath: string, env: Env): Promise<Response> {
   // Use the GitHub API contents endpoint instead of raw.githubusercontent.com.
   // raw.githubusercontent.com is served via GitHub's CDN (Fastly) which can
@@ -567,6 +589,7 @@ export default {
     const audioStream = pathname.match(/^\/audio\/(.+)$/);
     if (audioStream) return handleAudioStream(audioStream[1], env);
 
+    if (pathname === '/latest/meta') return handleBriefingMeta(env);
     if (pathname === '/latest')   return handleBriefing('latest.json', env);
 
     const archive = pathname.match(/^\/briefings\/(\d{4}-\d{2}-\d{2})$/);

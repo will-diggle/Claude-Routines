@@ -46,6 +46,32 @@ const BUNDLE_URL = process.env.EXPO_PUBLIC_DATA_URL
   ? `${DATA_BASE}/latest`
   : `${DATA_BASE}/latest.json`;
 
+// ─── Meta ─────────────────────────────────────────────────────────────────────
+
+export interface BundleMeta {
+  date: string;
+  generatedAt: number;
+}
+
+// Lightweight endpoint that returns only { date, generatedAt } — ~50 bytes.
+// Only available when using the Cloudflare Worker (EXPO_PUBLIC_DATA_URL set).
+const META_URL = process.env.EXPO_PUBLIC_DATA_URL
+  ? `${DATA_BASE}/latest/meta`
+  : null;
+
+export async function fetchBundleMeta(): Promise<BundleMeta | null> {
+  if (!META_URL) return null;
+  try {
+    const res = await fetch(`${META_URL}?t=${Date.now()}`);
+    if (!res.ok) return null;
+    const data = await res.json() as { date?: string; generatedAt?: number };
+    if (!data.date || data.generatedAt == null) return null;
+    return { date: data.date, generatedAt: data.generatedAt };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Fetch result ─────────────────────────────────────────────────────────────
 
 export type BundleFetchResult =

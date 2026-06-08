@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
 import { getMockBriefing } from '../data/mockBriefings';
-import { fetchTodayBundle, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
+import { fetchTodayBundle, fetchBundleMeta, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
 
@@ -107,36 +107,47 @@ export const useBriefingStore = create<BriefingStore>()(
         const today = todayString();
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
         try {
-          // If today's bundle is already cached, skip the network fetch and
-          // just read the current language/length selection from AsyncStorage.
-          // This makes readLength switching instant (no re-download needed).
-          // force=true (pull-to-refresh) bypasses this so same-day pipeline
-          // re-runs are picked up immediately.
-          if (!force && get().lastBundleDate === today) {
-            set({ syncMessage: 'Loading from cache…' });
-            const settings = useSettingsStore.getState();
-            const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
-            const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
-            for (const lang of settings.languages.filter((l) => l.active)) {
-              const level = lang.level ?? 'B1';
-              const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
-              const key = cacheKey(today, lang.code as LanguageCode, level as LanguageLevel, length);
-              try {
-                const stored = await AsyncStorage.getItem(key);
-                if (stored) {
-                  updates[lang.code as LanguageCode] = JSON.parse(stored);
-                  clearedErrors[lang.code as LanguageCode] = undefined;
-                }
-              } catch { /* cache miss — leave existing content */ }
+          // Compare the server's generatedAt timestamp against what we already
+          // have. If our copy is current (or the meta endpoint is unreachable),
+          // skip the full bundle download and just read from AsyncStorage.
+          // force=true (pull-to-refresh) bypasses this entirely.
+          if (!force) {
+            const meta = await fetchBundleMeta();
+            const serverTs = meta?.generatedAt != null
+              ? (meta.generatedAt < 1e12 ? meta.generatedAt * 1000 : meta.generatedAt)
+              : null;
+            const ourTs = get().bundleReceivedAt;
+            const alreadyCurrent =
+              serverTs != null && ourTs != null && serverTs <= ourTs && meta?.date === today;
+            const noMetaFallback = meta == null && get().lastBundleDate === today;
+
+            if (alreadyCurrent || noMetaFallback) {
+              set({ syncMessage: 'Loading from cache…' });
+              const settings = useSettingsStore.getState();
+              const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
+              const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
+              for (const lang of settings.languages.filter((l) => l.active)) {
+                const level = lang.level ?? 'B1';
+                const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
+                const key = cacheKey(today, lang.code as LanguageCode, level as LanguageLevel, length);
+                try {
+                  const stored = await AsyncStorage.getItem(key);
+                  if (stored) {
+                    updates[lang.code as LanguageCode] = JSON.parse(stored);
+                    clearedErrors[lang.code as LanguageCode] = undefined;
+                  }
+                } catch { /* cache miss — leave existing content */ }
+              }
+              if (Object.keys(updates).length > 0) {
+                set((s) => ({
+                  briefings: { ...s.briefings, ...updates },
+                  generatingFor: s.generatingFor.filter((l) => !(l in updates)),
+                  errorsFor: { ...s.errorsFor, ...clearedErrors },
+                }));
+              }
+              return;
             }
-            if (Object.keys(updates).length > 0) {
-              set((s) => ({
-                briefings: { ...s.briefings, ...updates },
-                generatingFor: s.generatingFor.filter((l) => !(l in updates)),
-                errorsFor: { ...s.errorsFor, ...clearedErrors },
-              }));
-            }
-            return;
+            // Server has a newer bundle — fall through to full fetch below
           }
 
           const result = await fetchTodayBundle();
