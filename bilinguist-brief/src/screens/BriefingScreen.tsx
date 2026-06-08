@@ -115,10 +115,10 @@ export function BriefingScreen() {
 
   const lastSyncRef = useRef<number>(0);
 
-  const runSync = useCallback(async () => {
+  const runSync = useCallback(async (force = false) => {
     lastSyncRef.current = Date.now();
     const langs = settings.languages.filter((l) => l.active);
-    await syncFromServer();
+    await syncFromServer(force);
     await Promise.all(langs.map((lang) => {
       const level = lang.level ?? 'B1';
       return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength), true);
@@ -152,7 +152,7 @@ export function BriefingScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await runSync();
+    await runSync(true);
     setRefreshing(false);
   }, [runSync]);
 

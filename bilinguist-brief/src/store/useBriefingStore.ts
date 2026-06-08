@@ -74,7 +74,7 @@ interface BriefingStore {
   // Used to position the 'Native' slot in the level picker dynamically.
   nativeGradeByLang: Partial<Record<LanguageCode, LanguageLevel>>;
 
-  syncFromServer: () => Promise<void>;
+  syncFromServer: (force?: boolean) => Promise<void>;
   loadBriefing: (
     language: LanguageCode,
     level: LanguageLevel,
@@ -103,14 +103,16 @@ export const useBriefingStore = create<BriefingStore>()(
       lastBundleDate: null,
       nativeGradeByLang: {},
 
-      syncFromServer: async () => {
+      syncFromServer: async (force = false) => {
         const today = todayString();
         set({ isSyncing: true, syncMessage: "Fetching today's brief…" });
         try {
           // If today's bundle is already cached, skip the network fetch and
           // just read the current language/length selection from AsyncStorage.
           // This makes readLength switching instant (no re-download needed).
-          if (get().lastBundleDate === today) {
+          // force=true (pull-to-refresh) bypasses this so same-day pipeline
+          // re-runs are picked up immediately.
+          if (!force && get().lastBundleDate === today) {
             set({ syncMessage: 'Loading from cache…' });
             const settings = useSettingsStore.getState();
             const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
