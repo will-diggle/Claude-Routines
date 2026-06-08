@@ -908,19 +908,30 @@ def main():
     write_costs_report(date, script_dir)
 
     # ── Assemble DailyBundle ──────────────────────────────────────────────────
+    output_dir = os.path.join(script_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Persistent volume counter — increments once per successful daily run.
+    # Stored as output/volume.json so it's committed alongside the bundle and
+    # survives across pipeline runs. Every device reads the same number.
+    volume_path = os.path.join(output_dir, "volume.json")
+    try:
+        with open(volume_path, "r", encoding="utf-8") as f:
+            prev_volume = json.load(f).get("volume", 0)
+    except (FileNotFoundError, ValueError):
+        prev_volume = 0
+    current_volume = prev_volume + 1
+
     bundle = {
         "date": date,
         "generatedAt": generated_at,
+        "volume": current_volume,
         "factbase": factbase,
         "gatherSource": "gemini",
         "briefings": briefings,
         "nativeJournalism": native_journalism,
         "grading": grading,
     }
-
-    # ── Write output files ────────────────────────────────────────────────────
-    output_dir = os.path.join(script_dir, "output")
-    os.makedirs(output_dir, exist_ok=True)
 
     bundle_json = json.dumps(bundle, ensure_ascii=False, indent=2)
     dated_path  = os.path.join(output_dir, f"{date}.json")
@@ -931,8 +942,12 @@ def main():
     with open(latest_path, "w", encoding="utf-8") as f:
         f.write(bundle_json)
 
+    # Write volume counter so the next run can increment from here
+    with open(volume_path, "w", encoding="utf-8") as f:
+        json.dump({"volume": current_volume}, f)
+
     approx_kb = len(bundle_json.encode("utf-8")) // 1024
-    print(f"[write] Done — output/{date}.json ({approx_kb} KB)")
+    print(f"[write] Done — output/{date}.json ({approx_kb} KB) | Vol. {current_volume}")
     print(f"[write] Briefings: {total_briefings} | Native: {sum(len(v) for v in native_journalism.values())} | Gradings: {sum(len(v) for v in grading.values())}")
 
 
