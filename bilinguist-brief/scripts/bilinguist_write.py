@@ -1,17 +1,21 @@
 """
 bilinguist_write.py
 ===================
-Stages 2S, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
+Stages 2S, 2B, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
 
 Reads the factbase produced by bilinguist_gather.py and:
-  2S — Short writing    : gemini-2.5-flash  Concurrent  all levels short
-  2M — Medium/long      : gemini-2.5-flash  Concurrent  all levels medium + longer
-  3  — Native journalism : gemini-2.5-flash  Concurrent  one per language
-  4  — Grading           : gemini-2.5-flash  Sequential  grades Stage 3 output
+  2S — Short writing (B1+)  : gemini-2.5-flash  Concurrent  B1+/Native short
+  2B — Beginner writing     : gemini-2.0-flash  Concurrent  A1/A2 all lengths (cheaper, no thinking)
+  2M — Medium/long (B1+)    : gemini-2.5-flash  Concurrent  B1+/Native medium (2 batches) + longer (3 batches)
+  3  — Native journalism    : gemini-2.5-flash  Concurrent  one per language (2 proactive batches)
+  4  — Grading              : gemini-2.5-flash  Sequential  grades Stage 3 output
 
-All stages use direct generate_content() calls with a thread pool (max 5 concurrent)
-rather than the Gemini Batch API. This avoids batch quota requirements and is
-faster (no polling delay) while naturally handling rate limits via the semaphore.
+Proactive splitting (2M and 3): medium→2 batches, longer→3 batches, native→2 batches.
+This eliminates MAX_TOKENS cascades by keeping each output stream well within 8192 tokens.
+
+A1/A2 tasks run on gemini-2.0-flash: output token rate is $0.40/M vs $2.50/M on Flash,
+and there are no thinking tokens. Article output for beginner levels is small enough
+(~110–190 words × 10 stories) that proactive splitting is not needed.
 
 Outputs:
   scripts/output/YYYY-MM-DD.json   — archived bundle
@@ -45,11 +49,9 @@ from google.genai import types
 
 # ── Models ───────────────────────────────────────────────────────────────────
 
-# All stages use Flash — it's the only model reliably available for concurrent
-# direct calls. Flash-lite saved cost via the Batch API (50% discount) but the
-# Batch API doesn't support flash-lite and returns empty inlined_responses.
-MODEL_2S = "gemini-2.5-flash"               # A1/A2 + all short lengths
-MODEL_2M = "gemini-2.5-flash"               # B1+ medium and long
+MODEL_BEGINNER = "gemini-2.0-flash"          # A1/A2: no thinking, cheaper output rate
+MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
+MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
 MODEL_4  = "gemini-2.5-flash"               # Grading of native journalism
 
@@ -139,6 +141,7 @@ class _StageUsage:
 _usage_lock = threading.Lock()
 _stage_usage: dict[str, _StageUsage] = {
     "2S": _StageUsage(),
+    "2B": _StageUsage(),  # A1/A2 on gemini-2.0-flash
     "2M": _StageUsage(),
     "3":  _StageUsage(),
     "4":  _StageUsage(),
@@ -155,13 +158,18 @@ class _WriteTask:
     prompt: str
     schema: Optional[dict]
     max_output_tokens: Optional[int]
-    template: Optional[str]   # stored for MAX_TOKENS split-batch rebuild
-    factbase: Optional[list]  # stored for MAX_TOKENS split-batch rebuild
+    template: Optional[str]   # stored for proactive split-batch prompt building
+    factbase: Optional[list]  # stored for proactive split-batch prompt building
+    n_splits: int = 1         # 1 = single call; >1 = proactive split into N batches
 
 # Gemini 2.5 Flash pricing (USD per 1M tokens) — verify at ai.google.dev/pricing
 FLASH_INPUT_USD_PER_M  = 0.30
 FLASH_OUTPUT_USD_PER_M = 2.50
 FLASH_THINK_USD_PER_M  = 3.50
+
+# Gemini 2.0 Flash pricing (no thinking tokens) — verify at ai.google.dev/pricing
+FLASH2_INPUT_USD_PER_M  = 0.10
+FLASH2_OUTPUT_USD_PER_M = 0.40
 
 # Gemini 2.5 Pro Flex pricing (50 % discount over standard Pro rates)
 PRO_FLEX_INPUT_USD_PER_M  = 0.625   # standard $1.25 × 0.5
@@ -236,15 +244,13 @@ ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 
 
 # ── Combination matrix ────────────────────────────────────────────────────────
-# A1/A2 → short only (fixed; TODO: length-per-level policy — revisit for beginner choice)
-# B1+   → short (via 2S flash-lite) + medium + longer (via 2M flash)
 
 def build_combinations() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """
     Returns (combos_2s, combos_2m).
-    combos_2s → MODEL_2S: all levels short
-    combos_2m → MODEL_2M: all levels medium + longer
-    Every level now gets all 3 length variants; users choose per language in-app.
+    combos_2s → short length for all levels
+    combos_2m → medium + longer for all levels
+    Every level gets all 3 length variants; users choose per language in-app.
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
@@ -350,10 +356,10 @@ _PROMPT_INTRO = (
     "article length and reading level.\n\n"
 )
 
-# 2S: serves all levels (A1/A2 + B1+), all three lengths
+# Used for both 2S (B1+ short) and 2B (A1/A2 all lengths) — contains all level descriptions
 PROMPT_2S_HEADER = _PROMPT_INTRO + _PROMPT_SHARED_CORE + _LEVELS_BEGINNER + _LEVELS_B1_PLUS + "[FACTBASE BELOW]\n"
 
-# 2M: serves B1+ only, medium and longer lengths
+# 2M: B1+/Native medium and longer only
 PROMPT_2M_HEADER = _PROMPT_INTRO + _PROMPT_SHARED_CORE + _LEVELS_B1_PLUS + "[FACTBASE BELOW]\n"
 
 PROMPT_3_HEADER = """\
@@ -492,7 +498,7 @@ def call_gemini(
     Uses a shared semaphore to cap concurrent inflight requests.
     Records token usage in _stage_usage[stage] when stage is provided.
     Returns (text, finish_reason). finish_reason is None on normal completion
-    or "MAX_TOKENS" when the response was truncated — callers must handle split-batch.
+    or "MAX_TOKENS" when the response was truncated.
     """
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -520,14 +526,14 @@ def call_gemini(
                         u.input_tokens    += inp
                         u.output_tokens   += out
                         u.thinking_tokens += thi
-            # Detect truncation — do NOT retry; caller handles split-batch
+            # Detect truncation
             finish_reason = None
             if response.candidates:
                 fr = response.candidates[0].finish_reason
                 if fr is not None:
                     finish_reason = fr.name if hasattr(fr, "name") else str(fr)
             if finish_reason == "MAX_TOKENS":
-                print(f"[ERROR] [{label}] MAX_TOKENS — response truncated; split-batch required",
+                print(f"[ERROR] [{label}] MAX_TOKENS — response truncated",
                       file=sys.stderr)
                 return response.text, "MAX_TOKENS"
             return response.text, None
@@ -544,53 +550,69 @@ def call_gemini(
     return None, None
 
 
-# ── Split-batch helpers (MAX_TOKENS recovery) ────────────────────────────────
+# ── Task executor (handles proactive splitting) ───────────────────────────────
 
-def _split_call_writing(task: _WriteTask, client: genai.Client) -> list[dict]:
-    """On MAX_TOKENS for stage 2S/2M: split factbase in half, call each, merge articles."""
-    if not task.factbase or len(task.factbase) < 2:
-        return []
-    mid = len(task.factbase) // 2
-    halves = [task.factbase[:mid], task.factbase[mid:]]
+def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
+    """
+    Execute a write task. If n_splits == 1, makes a single API call.
+    If n_splits > 1, slices the factbase into N parts, calls each, and merges.
+    Returns the merged articles list (empty on total failure).
+    """
+    label = (f"{task.stage}/{task.lang}-{task.level}-{task.length}"
+             if task.level else f"{task.stage}/{task.lang}")
+
+    if task.n_splits == 1:
+        raw, finish_reason = call_gemini(
+            client, task.model, task.prompt, label,
+            task.stage, task.schema, task.max_output_tokens,
+        )
+        if not raw:
+            print(f"[ERROR] [{task.stage}] {label}: no response — output incomplete", file=sys.stderr)
+            return []
+        if finish_reason == "MAX_TOKENS":
+            print(f"[ERROR] [{label}] MAX_TOKENS on single call — output incomplete", file=sys.stderr)
+            return []
+        parsed = parse_llm_json(raw)
+        if not parsed:
+            print(f"[ERROR] [{task.stage}] {label}: JSON parse failed — output incomplete", file=sys.stderr)
+            return []
+        articles = parsed.get("articles", [])
+        if not articles:
+            print(f"[ERROR] [{task.stage}] {label}: empty articles list — output incomplete", file=sys.stderr)
+        return articles
+
+    # Proactive split: divide factbase into n_splits slices
+    factbase = task.factbase or []
+    n = task.n_splits
+    size = max(1, len(factbase) // n)
+    slices = [factbase[i * size:(i + 1) * size] for i in range(n - 1)]
+    slices.append(factbase[(n - 1) * size:])
+    slices = [s for s in slices if s]  # drop empty tail slices
+
     all_articles: list[dict] = []
-    for i, half_fb in enumerate(halves):
-        sub_prompt = build_writing_prompt(task.template, task.lang, task.level, task.length, half_fb)
-        sub_label = f"{task.stage}/{task.lang}-split{i + 1}"
+    for i, fb_slice in enumerate(slices):
+        if task.stage in ("2S", "2B", "2M"):
+            sub_prompt = build_writing_prompt(
+                task.template, task.lang, task.level, task.length, fb_slice
+            )
+        else:  # stage "3"
+            sub_prompt = build_native_prompt(task.lang, fb_slice)
+        sub_label = f"{label}-p{i + 1}"
         text, reason = call_gemini(
             client, task.model, sub_prompt, sub_label,
             task.stage, task.schema, task.max_output_tokens,
         )
         if reason == "MAX_TOKENS":
-            print(f"[ERROR] [{sub_label}] MAX_TOKENS on split-batch half — skipping half", file=sys.stderr)
+            print(f"[ERROR] [{sub_label}] MAX_TOKENS on proactive split part — skipping",
+                  file=sys.stderr)
             continue
         if text:
             parsed = parse_llm_json(text)
             if parsed:
                 all_articles.extend(parsed.get("articles", []))
-    return all_articles
 
-
-def _split_call_native(task: _WriteTask, client: genai.Client) -> list[dict]:
-    """On MAX_TOKENS for stage 3: split factbase in half, call each, merge articles."""
-    if not task.factbase or len(task.factbase) < 2:
-        return []
-    mid = len(task.factbase) // 2
-    halves = [task.factbase[:mid], task.factbase[mid:]]
-    all_articles: list[dict] = []
-    for i, half_fb in enumerate(halves):
-        sub_prompt = build_native_prompt(task.lang, half_fb)
-        sub_label = f"3/{task.lang}-split{i + 1}"
-        text, reason = call_gemini(
-            client, task.model, sub_prompt, sub_label,
-            "3", task.schema, task.max_output_tokens,
-        )
-        if reason == "MAX_TOKENS":
-            print(f"[ERROR] [{sub_label}] MAX_TOKENS on split-batch half — skipping half", file=sys.stderr)
-            continue
-        if text:
-            parsed = parse_llm_json(text)
-            if parsed:
-                all_articles.extend(parsed.get("articles", []))
+    if not all_articles:
+        print(f"[ERROR] [{label}] no articles after {n}-way proactive split", file=sys.stderr)
     return all_articles
 
 
@@ -626,30 +648,37 @@ def write_costs_report(date: str, script_dir: str) -> dict:
             + (g_thi / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
         )
         costs["stages"]["1_gather"] = {
-            "model":          gather_model,
-            "calls":          1,
-            "input_tokens":   g_in,
-            "output_tokens":  g_out,
+            "model":           gather_model,
+            "calls":           1,
+            "input_tokens":    g_in,
+            "output_tokens":   g_out,
             "thinking_tokens": g_thi,
-            "cost_usd":       round(g_usd, 4),
-            "cost_gbp":       round(g_usd * USD_TO_GBP, 4),
+            "cost_usd":        round(g_usd, 4),
+            "cost_gbp":        round(g_usd * USD_TO_GBP, 4),
         }
         costs["total_usd"] += g_usd
 
-    # Write / grade stages (all Flash)
+    # Write / grade stages — 2B uses 2.0 Flash pricing, all others use 2.5 Flash
     for sname, usage in _stage_usage.items():
-        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-        s_usd   = in_usd + out_usd + thi_usd
+        if sname == "2B":
+            in_usd  = (usage.input_tokens  / 1_000_000) * FLASH2_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens / 1_000_000) * FLASH2_OUTPUT_USD_PER_M
+            thi_usd = 0.0
+            model_name = MODEL_BEGINNER
+        else:
+            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+            model_name = "gemini-2.5-flash"
+        s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
-            "model":          "gemini-2.5-flash",
-            "calls":          usage.calls,
-            "input_tokens":   usage.input_tokens,
-            "output_tokens":  usage.output_tokens,
+            "model":           model_name,
+            "calls":           usage.calls,
+            "input_tokens":    usage.input_tokens,
+            "output_tokens":   usage.output_tokens,
             "thinking_tokens": usage.thinking_tokens,
-            "cost_usd":       round(s_usd, 4),
-            "cost_gbp":       round(s_usd * USD_TO_GBP, 4),
+            "cost_usd":        round(s_usd, 4),
+            "cost_gbp":        round(s_usd * USD_TO_GBP, 4),
         }
         costs["total_usd"] += s_usd
 
@@ -665,7 +694,7 @@ def write_costs_report(date: str, script_dir: str) -> dict:
     print(f"[costs] Total: ${costs['total_usd']:.4f} (£{costs['total_gbp']:.4f})")
     for sname, sdata in costs["stages"].items():
         print(
-            f"[costs]   {sname}: {sdata['calls']} calls, "
+            f"[costs]   {sname} ({sdata['model']}): {sdata['calls']} calls, "
             f"{sdata['input_tokens']:,} in + {sdata['output_tokens']:,} out"
             f" = ${sdata['cost_usd']:.4f}"
         )
@@ -682,50 +711,67 @@ def run_writing_concurrent(
     date: str,
 ) -> tuple[dict, dict]:
     """
-    Run stages 2S, 2M, and 3 concurrently using direct generate_content() calls.
+    Run stages 2S, 2B, 2M, and 3 concurrently using direct generate_content() calls.
     Returns (briefings, native_journalism).
     """
     combos_2s, combos_2m = build_combinations()
     native_langs = list(LANGUAGE_LEVELS.keys())
 
-    # Build task list as _WriteTask instances (stores template + factbase for split-batch)
     tasks: list[_WriteTask] = []
 
+    # Short combos — A1/A2 → 2B (2.0 Flash), B1+/Native → 2S (2.5 Flash)
     for lang, level, length in combos_2s:
+        is_beginner = level in ("A1", "A2")
+        stage = "2B" if is_beginner else "2S"
+        model = MODEL_BEGINNER if is_beginner else MODEL_2S
         prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
         tasks.append(_WriteTask(
-            stage="2S", lang=lang, level=level, length=length,
-            model=MODEL_2S, prompt=prompt, schema=_SCHEMA_WRITING,
+            stage=stage, lang=lang, level=level, length=length,
+            model=model, prompt=prompt, schema=_SCHEMA_WRITING,
             max_output_tokens=8192, template=PROMPT_2S_HEADER, factbase=factbase,
+            n_splits=1,
         ))
 
+    # Medium/longer combos — A1/A2 → 2B (no split needed; short output),
+    # B1+/Native → 2M with proactive splitting (medium=2, longer=3)
     for lang, level, length in combos_2m:
-        prompt = build_writing_prompt(PROMPT_2M_HEADER, lang, level, length, factbase)
+        is_beginner = level in ("A1", "A2")
+        stage = "2B" if is_beginner else "2M"
+        model = MODEL_BEGINNER if is_beginner else MODEL_2M
+        template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
+        # Beginner articles are small enough (~110–190 words × stories) to fit in a
+        # single call; only B1+ output approaches the 8192-token output boundary.
+        n_splits = 1 if is_beginner else (2 if length == "medium" else 3)
+        prompt = build_writing_prompt(template, lang, level, length, factbase)
         tasks.append(_WriteTask(
-            stage="2M", lang=lang, level=level, length=length,
-            model=MODEL_2M, prompt=prompt, schema=_SCHEMA_WRITING,
-            max_output_tokens=8192, template=PROMPT_2M_HEADER, factbase=factbase,
+            stage=stage, lang=lang, level=level, length=length,
+            model=model, prompt=prompt, schema=_SCHEMA_WRITING,
+            max_output_tokens=8192, template=template, factbase=factbase,
+            n_splits=n_splits,
         ))
 
+    # Stage 3 native journalism — 2 proactive batches to stay under output limit
     for lang in native_langs:
         prompt = build_native_prompt(lang, factbase)
         tasks.append(_WriteTask(
             stage="3", lang=lang, level=None, length=None,
             model=MODEL_3, prompt=prompt, schema=_SCHEMA_NATIVE,
             max_output_tokens=8192, template=PROMPT_3_HEADER, factbase=factbase,
+            n_splits=2,
         ))
 
-    print(f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)...")
+    beginner_count = sum(1 for t in tasks if t.stage == "2B")
+    print(
+        f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)... "
+        f"({beginner_count} beginner on 2.0-flash, {len(tasks) - beginner_count} on 2.5-flash)"
+    )
 
     briefings: dict = {}
     native_journalism: dict = {}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         future_to_task = {
-            executor.submit(
-                call_gemini, client, t.model, t.prompt,
-                f"{t.stage}/{t.lang}", t.stage, t.schema, t.max_output_tokens,
-            ): t
+            executor.submit(_execute_task, client, t): t
             for t in tasks
         }
 
@@ -733,36 +779,12 @@ def run_writing_concurrent(
             task = future_to_task[future]
             stage, lang, level, length = task.stage, task.lang, task.level, task.length
             label = f"{stage}/{lang}-{level}-{length}" if level else f"{stage}/{lang}"
-            raw, finish_reason = future.result()
-
-            if not raw:
-                print(f"[ERROR] [{stage}] {label}: no response — output incomplete", file=sys.stderr)
-                continue
-
-            articles: list[dict] = []
-
-            if finish_reason == "MAX_TOKENS":
-                print(f"[{stage}] {label}: MAX_TOKENS — running split-batch...", file=sys.stderr)
-                if stage in ("2S", "2M"):
-                    articles = _split_call_writing(task, client)
-                elif stage == "3":
-                    articles = _split_call_native(task, client)
-            else:
-                parsed = parse_llm_json(raw)
-                if not parsed:
-                    print(f"[ERROR] [{stage}] {label}: JSON parse failed — output incomplete", file=sys.stderr)
-                    continue
-                articles = parsed.get("articles", [])
-                if not articles:
-                    print(f"[ERROR] [{stage}] {label}: empty articles list — output incomplete", file=sys.stderr)
-                    continue
+            articles = future.result()
 
             if not articles:
-                print(f"[ERROR] [{stage}] {label}: no articles after split-batch — output incomplete",
-                      file=sys.stderr)
                 continue
 
-            if stage in ("2S", "2M"):
+            if stage in ("2S", "2B", "2M"):
                 briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
                     "articles": articles,
                     "date": date,
@@ -853,7 +875,7 @@ def main():
     print(f"[write] Loaded {len(factbase)} stories from factbase (source: {gather_source})")
 
     combos_2s, combos_2m = build_combinations()
-    print(f"[write] Matrix: {len(combos_2s)} 2S requests + {len(combos_2m)} 2M requests + {len(ACTIVE_LANGUAGES)} native + {len(ACTIVE_LANGUAGES)} grading")
+    print(f"[write] Matrix: {len(combos_2s)} short + {len(combos_2m)} medium/longer + {len(ACTIVE_LANGUAGES)} native + {len(ACTIVE_LANGUAGES)} grading")
     for lang in ACTIVE_LANGUAGES:
         print(f"[write]   {lang}: {', '.join(LANGUAGE_LEVELS[lang])}")
 
@@ -861,11 +883,10 @@ def main():
     client = genai.Client()
     print("[write] Gemini client initialised")
 
-    # ── Stages 2S + 2M + 3 — run concurrently ────────────────────────────────
+    # ── Stages 2S + 2B + 2M + 3 — run concurrently ───────────────────────────
     briefings, native_journalism = run_writing_concurrent(client, factbase, 0, date)
-    # Stamp generatedAt AFTER writing completes so "Published at" shows when
-    # articles finished, not when the pipeline launched (which can be minutes
-    # earlier when Gemini is returning 503s and retrying).
+    # Stamp generatedAt AFTER writing completes so "Published at" reflects when
+    # articles finished, not when the pipeline launched.
     generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     for _ld in briefings.values():
         for _lvl in _ld.values():
