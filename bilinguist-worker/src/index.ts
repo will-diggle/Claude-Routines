@@ -42,6 +42,7 @@ interface Env {
   ANTHROPIC_API_KEY: string;
   ELEVENLABS_API_KEY: string;
   WORKER_ADMIN_KEY: string;
+  NTFY_TOPIC?: string;
   WORDS_DB: D1Database;
   AUDIO_BUCKET: R2Bucket;
 }
@@ -109,6 +110,45 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     meta:          row.meta         ? JSON.parse(row.meta)         : null,
     fromCache,
   };
+}
+
+// ── Retry helper ─────────────────────────────────────────────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T | null>,
+  maxAttempts: number,
+  delayMs = 400,
+): Promise<{ result: T | null; allFailed: boolean }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await fn();
+    if (result !== null) return { result, allFailed: false };
+    if (attempt < maxAttempts - 1) {
+      await new Promise<void>((r) => setTimeout(r, delayMs * (attempt + 1)));
+    }
+  }
+  return { result: null, allFailed: true };
+}
+
+// ── Failure notification ──────────────────────────────────────────────────────
+
+function notifyWordFailure(
+  topic: string,
+  word: string,
+  lang: string,
+  translateAlsoFailed: boolean,
+): void {
+  const services = translateAlsoFailed ? 'Claude + Google Translate' : 'Claude';
+  // Fire-and-forget — don't delay the response waiting on ntfy
+  fetch(`https://ntfy.sh/${topic}`, {
+    method: 'POST',
+    headers: {
+      'Title': 'Bilinguist — Word Lookup Failed',
+      'Priority': 'high',
+      'Tags': 'rotating_light',
+      'Content-Type': 'text/plain',
+    },
+    body: `${services} failed for "${word}" (${lang}) after all retries. User saw partial or empty word data.`,
+  }).catch(() => { /* non-fatal */ });
 }
 
 // ── Translation via Google Translate (no key required) ────────────────────────
@@ -231,10 +271,19 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   }
 
   // ── Step 2: cache miss — call translation + Claude (gets lemma too) ───────────
-  const [translation, generated] = await Promise.all([
-    translateWord(word, lang),
-    generateWordData(word, lang, level, env.ANTHROPIC_API_KEY),
+  // Google Translate: up to 2 attempts. Claude: up to 3 attempts with backoff.
+  const [translationResult, generatedResult] = await Promise.all([
+    withRetry(() => translateWord(word, lang), 2),
+    withRetry(() => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY), 3),
   ]);
+
+  const translation = translationResult.result;
+  const generated   = generatedResult.result;
+
+  // Notify if Claude failed after all retries — it provides the rich learning data
+  if (generatedResult.allFailed && env.NTFY_TOPIC) {
+    notifyWordFailure(env.NTFY_TOPIC, word, lang, translationResult.allFailed);
+  }
 
   const lemma = generated?.lemma ?? word;
 

@@ -25,3 +25,4 @@ compatibility_date = "2024-09-23"
 #   ANTHROPIC_API_KEY  — for generating word explanations on cache miss
 #   WORKER_ADMIN_KEY   — random string used by populate script (set to anything strong)
 #   ELEVENLABS_API_KEY — for synthesising article audio on first play (cached to R2 after)
+#   NTFY_TOPIC         — ntfy.sh topic for failure alerts (same value as GitHub Actions secret)
