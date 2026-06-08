@@ -405,9 +405,11 @@ export function SettingsScreen() {
               {item.label}
             </Text>
             {item.comingSoon ? (
-              <Text style={[styles.comingSoonBadge, { color: colors.inkFaint, borderColor: colors.borderMid }]}>
-                Coming Soon
-              </Text>
+              <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Coming Soon
+                </Text>
+              </View>
             ) : (
               <Switch
                 value={store.topics[item.key]}
@@ -791,8 +793,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  comingSoonText: { fontSize: 11 },
+  comingSoonText: { fontSize: 11, letterSpacing: 0.3, opacity: 0.7 },
   levelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -835,15 +839,6 @@ const styles = StyleSheet.create({
   },
   fontSample: { fontSize: 17 },
   fontPreview: { fontSize: 13, marginTop: 2 },
-  comingSoonBadge: {
-    fontSize: 11,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    letterSpacing: 0.3,
-    opacity: 0.7,
-  },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },

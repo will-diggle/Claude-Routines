@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, Component } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -20,6 +20,44 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
+
+// ── Error boundary ────────────────────────────────────────────────────────────
+// Catches any JS render errors so the app shows a meaningful screen
+// instead of a blank cream page.
+
+interface EBState { error: Error | null }
+
+class AppErrorBoundary extends Component<{ children: React.ReactNode; bg: string }, EBState> {
+  state: EBState = { error: null };
+
+  static getDerivedStateFromError(error: Error): EBState {
+    return { error };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    const ink = this.props.bg === 'softGrey' || this.props.bg === 'night' ? '#F5F0E8' : '#162032';
+    return (
+      <View style={[errStyles.container, { backgroundColor: this.props.bg === 'cream' ? '#F5F0E8' : this.props.bg === 'white' ? '#FFF' : this.props.bg === 'softGrey' ? '#162032' : '#141414' }]}>
+        <Text style={[errStyles.title, { color: ink }]}>Something went wrong</Text>
+        <Text style={[errStyles.message, { color: ink }]}>{this.state.error.message}</Text>
+        <TouchableOpacity onPress={() => this.setState({ error: null })} style={errStyles.button}>
+          <Text style={[errStyles.buttonText, { color: ink }]}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+}
+
+const errStyles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
+  message: { fontSize: 13, opacity: 0.7, textAlign: 'center', marginBottom: 24 },
+  button: { borderWidth: 1, borderColor: 'rgba(128,128,128,0.4)', borderRadius: 8, paddingHorizontal: 24, paddingVertical: 10 },
+  buttonText: { fontSize: 14 },
+});
+
+// ── Main content ──────────────────────────────────────────────────────────────
 
 function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages } = useSettingsStore();
@@ -56,7 +94,9 @@ function AppContent() {
   return (
     <>
       <StatusBar style={isNight ? 'light' : 'dark'} />
-      <AppNavigator />
+      <AppErrorBoundary bg={background}>
+        <AppNavigator />
+      </AppErrorBoundary>
       {showSplash && <SplashOverlay onDone={() => setShowSplash(false)} />}
     </>
   );

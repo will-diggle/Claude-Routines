@@ -260,11 +260,13 @@ function RevealMasthead({ t, background }: RevealProps) {
 export async function shouldShowSplash(): Promise<boolean> {
   try {
     const val = await AsyncStorage.getItem(LAUNCHED_KEY);
-    if (!val) await AsyncStorage.setItem(LAUNCHED_KEY, '1');
-    // Always show — theme-aware splash runs on every launch
-    return true;
+    if (!val) {
+      await AsyncStorage.setItem(LAUNCHED_KEY, '1');
+      return true; // first install — show splash once
+    }
+    return false; // returning user — skip splash, go straight to app
   } catch {
-    return true;
+    return false;
   }
 }
 
