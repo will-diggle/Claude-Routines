@@ -5,7 +5,7 @@ Stages 2S, 2B, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
 
 Reads the factbase produced by bilinguist_gather.py and:
   2S — Short writing (B1+)  : gemini-2.5-flash  Concurrent  B1+/Native short
-  2B — Beginner writing     : gemini-2.0-flash  Concurrent  A1/A2 all lengths (cheaper, no thinking)
+  2B — Beginner writing     : gemini-2.5-flash  Concurrent  A1/A2 all lengths
   2M — Medium/long (B1+)    : gemini-2.5-flash  Concurrent  B1+/Native medium (2 batches) + longer (3 batches)
   3  — Native journalism    : gemini-2.5-flash  Concurrent  one per language (2 proactive batches)
   4  — Grading              : gemini-2.5-flash  Sequential  grades Stage 3 output
@@ -13,9 +13,8 @@ Reads the factbase produced by bilinguist_gather.py and:
 Proactive splitting (2M and 3): medium→2 batches, longer→3 batches, native→2 batches.
 This eliminates MAX_TOKENS cascades by keeping each output stream well within 8192 tokens.
 
-A1/A2 tasks run on gemini-2.0-flash: output token rate is $0.40/M vs $2.50/M on Flash,
-and there are no thinking tokens. Article output for beginner levels is small enough
-(~110–190 words × 10 stories) that proactive splitting is not needed.
+A1/A2 tasks run on gemini-2.5-flash (same model as B1+). Article output for beginner
+levels is small enough (~110–190 words × 10 stories) that proactive splitting is not needed.
 
 Outputs:
   scripts/output/YYYY-MM-DD.json   — archived bundle
@@ -49,7 +48,7 @@ from google.genai import types
 
 # ── Models ───────────────────────────────────────────────────────────────────
 
-MODEL_BEGINNER = "gemini-2.0-flash"          # A1/A2: no thinking, cheaper output rate
+MODEL_BEGINNER = "gemini-2.5-flash"          # A1/A2: same model as B1+ for reliability
 MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
@@ -141,7 +140,7 @@ class _StageUsage:
 _usage_lock = threading.Lock()
 _stage_usage: dict[str, _StageUsage] = {
     "2S": _StageUsage(),
-    "2B": _StageUsage(),  # A1/A2 on gemini-2.0-flash
+    "2B": _StageUsage(),  # A1/A2 on gemini-2.5-flash
     "2M": _StageUsage(),
     "3":  _StageUsage(),
     "4":  _StageUsage(),
@@ -183,10 +182,10 @@ USD_TO_GBP = 0.79  # approximate — update as needed
 # Testing phase matrix — add languages/levels here as pipeline is validated.
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A1", "A2", "B1", "B2", "C1", "C2"],
+    "fr": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "de": ["A1", "A2", "Native"],
     "sv": ["B2", "Native"],
-    "en": ["B2", "C1", "C2", "Native"],
+    "en": ["B2", "C1", "Native"],
     "it": ["A1", "Native"],
     "es": ["A2"],
     "tr": ["A1"],
@@ -342,10 +341,6 @@ B1 — Intermediate: Mixed tenses. Moderate vocabulary. One or two topic words e
 B2 — Upper Intermediate: Full range of tenses. Varied sentence structure. Some idiomatic language. Proper attribution of contested claims. Vocabulary of a well-read adult. Clear, confident, purposeful.
 
 C1 — Advanced: Precision and authority of a senior journalist at a prestige outlet. Complex syntax, rich vocabulary, full journalistic register. Always clear and purposeful — never obscure for its own sake.
-
-C2 — Challenge: Dense, demanding educated native prose — complex subordination, abstract nominalisations, layered sentence structures. Difficulty through sophistication, not obscurity.
-
-C2 / Scholar: Long-form essayist register — cultural critic or intellectual commentator. Multi-clause architecture with embedded subordination and apposition. Deliberate rhetorical devices: inversion, ellipsis, parallelism, antithesis. Precise elevated vocabulary. Analytical meta-commentary contextualising the story within broader political, economic, or cultural currents.
 
 """
 

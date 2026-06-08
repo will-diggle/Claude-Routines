@@ -49,8 +49,8 @@ import {
 
 // Full list of levels available per language. 'Native' = Prompt 3 journalism track.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['B2', 'C1', 'C2', 'Native'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+  en: ['B2', 'C1', 'Native'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
   de: ['A1', 'A2', 'Native'],
   sv: ['B2', 'Native'],
   it: ['A1', 'Native'],
