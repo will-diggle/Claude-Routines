@@ -504,7 +504,6 @@ def call_gemini(
                         temperature=0.1,
                         response_mime_type="application/json",
                         response_schema=schema,
-                        service_tier="flex",
                         max_output_tokens=max_output_tokens,
                     ),
                 )
