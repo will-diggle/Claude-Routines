@@ -137,17 +137,40 @@ function notifyWordFailure(
   lang: string,
   translateAlsoFailed: boolean,
 ): void {
-  const services = translateAlsoFailed ? 'Claude + Google Translate' : 'Claude';
+  const langName  = LANGUAGE_NAMES[lang] ?? lang.toUpperCase();
+  const timestamp = new Date().toUTCString().replace(' GMT', ' UTC');
+
+  // What broke and what the user actually saw
+  const whatFailed = translateAlsoFailed
+    ? 'Claude (explanations) + Google Translate (translation)'
+    : 'Claude (explanations)';
+  const userSaw = translateAlsoFailed
+    ? '"Translation unavailable" — blank popup'
+    : 'Translation only — no verb tables, IPA, or explanation';
+
+  const title = translateAlsoFailed
+    ? 'Bilinguist — Full word lookup failure'
+    : 'Bilinguist — Claude word explanation failure';
+
+  const body = [
+    `WHAT FAILED:  ${whatFailed}`,
+    `WORD:         "${word}" · ${langName} (${lang})`,
+    `USER SAW:     ${userSaw}`,
+    `RETRIES:      ${translateAlsoFailed ? '2+3' : '3'} attempts exhausted`,
+    `TIME:         ${timestamp}`,
+    `ACTION:       Check Cloudflare Worker logs + Anthropic API status`,
+  ].join('\n');
+
   // Fire-and-forget — don't delay the response waiting on ntfy
   fetch(`https://ntfy.sh/${topic}`, {
     method: 'POST',
     headers: {
-      'Title': 'Bilinguist — Word Lookup Failed',
-      'Priority': 'high',
-      'Tags': 'rotating_light',
+      'Title': title,
+      'Priority': 'urgent',
+      'Tags': 'rotating_light,no_entry_sign',
       'Content-Type': 'text/plain',
     },
-    body: `${services} failed for "${word}" (${lang}) after all retries. User saw partial or empty word data.`,
+    body,
   }).catch(() => { /* non-fatal */ });
 }
 
