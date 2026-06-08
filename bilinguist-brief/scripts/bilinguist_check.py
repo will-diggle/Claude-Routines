@@ -48,12 +48,21 @@ def _cost_summary(output_dir: Path, date: str) -> str:
     except Exception:
         return ""
 
-    lines = [f"\n💰 API Cost: ${costs['total_usd']:.2f} (£{costs['total_gbp']:.2f})"]
+    lines = [f"\n💰 API Cost: £{costs['total_gbp']:.3f} (${costs['total_usd']:.3f})"]
     for sname in ["1_gather", "2S", "2M", "3", "4"]:
         sdata = costs["stages"].get(sname)
-        if sdata and sdata.get("calls", 0) > 0:
-            label = _STAGE_LABELS.get(sname, sname)
-            lines.append(f"  {label} ({sdata['calls']} calls): ${sdata['cost_usd']:.3f}")
+        if not sdata or sdata.get("calls", 0) == 0:
+            continue
+        label = _STAGE_LABELS.get(sname, sname)
+        tok_in  = sdata.get("input_tokens", 0)
+        tok_out = sdata.get("output_tokens", 0)
+        tok_thi = sdata.get("thinking_tokens", 0)
+        tok_str = f"{tok_in:,}in+{tok_out:,}out"
+        if tok_thi:
+            tok_str += f"+{tok_thi:,}think"
+        lines.append(
+            f"  {label} ({sdata['calls']}×): {tok_str} → £{sdata['cost_gbp']:.3f}"
+        )
     return "\n".join(lines)
 
 

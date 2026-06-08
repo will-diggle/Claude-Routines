@@ -94,10 +94,16 @@ jobs:
       - name: Notify success
         if: success()
         run: |
+          TITLE="${{ env.BRIEF_TITLE }}"
+          BODY="${{ env.BRIEF_BODY }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="Bilinguist Brief - Done"
+            BODY="Briefing for ${{ env.BRIEF_DATE }} is ready."
+          fi
           curl -s -X POST \
-            -H "Title: Bilinguist Brief - Done" \
-            -H "Tags: white_check_mark" \
-            -d "Briefing for ${{ env.BRIEF_DATE }} is ready." \
+            -H "Title: ${TITLE}" \
+            -H "Tags: ${{ env.BRIEF_EMOJI }}" \
+            --data-binary "${BODY}" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
       - name: Notify failure
