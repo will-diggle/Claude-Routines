@@ -17,6 +17,7 @@ export interface WordEntry {
   forms: Record<string, string> | null;
   tip: string | null;
   meta: WordMeta | null;
+  level: string | null;
   fromCache: boolean;
 }
 

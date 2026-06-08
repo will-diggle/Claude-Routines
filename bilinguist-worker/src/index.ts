@@ -62,6 +62,7 @@ interface WordRow {
   forms: string | null;
   tip: string | null;
   meta: string | null;
+  level: string | null;
   lookup_count: number;
 }
 
@@ -79,6 +80,7 @@ interface WordData {
   forms: Record<string, string> | null;
   tip: string | null;
   meta: Record<string, unknown> | null;
+  level: string | null;
   fromCache: boolean;
 }
 
@@ -109,6 +111,7 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     forms:         row.forms        ? JSON.parse(row.forms)        : null,
     tip:           row.tip,
     meta:          row.meta         ? JSON.parse(row.meta)         : null,
+    level:         row.level,
     fromCache,
   };
 }
@@ -215,7 +218,8 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "verbTablePast": if verb, ${pastName} of the INFINITIVE FORM {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
   "forms": if noun {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article"} — if adjective {"feminine": "feminine form", "comparative": "comparative", "superlative": "superlative"} — otherwise null,
   "tip": a short memorable tip about this word — etymology, common learner mistake, or memory hook — or null,
-  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb for compound tenses e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "-are"/"-ere" for Italian, "Group 1"/"Group 2" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for all other languages)} — otherwise null
+  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb for compound tenses e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "-are"/"-ere" for Italian, "Group 1"/"Group 2" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for all other languages)} — otherwise null,
+  "level": the CEFR difficulty level of this specific word: "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
 }`;
 
   try {
@@ -251,6 +255,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       forms?: Record<string, string> | null;
       tip?: string | null;
       meta?: Record<string, unknown> | null;
+      level?: string | null;
     };
 
     return {
@@ -264,6 +269,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       forms:         parsed.forms         ? JSON.stringify(parsed.forms)         : null,
       tip:           parsed.tip           ?? null,
       meta:          parsed.meta          ? JSON.stringify(parsed.meta)          : null,
+      level:         parsed.level         ?? null,
     };
   } catch {
     return null;
@@ -323,15 +329,15 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
       await env.WORDS_DB.prepare(`
         INSERT OR IGNORE INTO words
           (word, language, translation, lemma, word_type, explanation, example, pronunciation,
-           verb_present, verb_past, forms, tip, meta)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+           verb_present, verb_past, forms, tip, meta, level)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
       `).bind(
         word, lang,
         translation ?? lemmaHit.translation,
         lemma,
         lemmaHit.word_type, lemmaHit.explanation, lemmaHit.example,
         lemmaHit.pronunciation, lemmaHit.verb_present, lemmaHit.verb_past,
-        lemmaHit.forms, lemmaHit.tip, lemmaHit.meta,
+        lemmaHit.forms, lemmaHit.tip, lemmaHit.meta, lemmaHit.level,
       ).run();
 
       return json(rowToWordData(
@@ -347,14 +353,14 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   await env.WORDS_DB.prepare(`
     INSERT OR IGNORE INTO words
       (word, language, translation, lemma, word_type, explanation, example, pronunciation,
-       verb_present, verb_past, forms, tip, meta)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+       verb_present, verb_past, forms, tip, meta, level)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
   `).bind(
     row.word, row.language,
     row.translation ?? null, row.lemma ?? null,
     row.word_type ?? null, row.explanation ?? null, row.example ?? null,
     row.pronunciation ?? null, row.verb_present ?? null, row.verb_past ?? null,
-    row.forms ?? null, row.tip ?? null, row.meta ?? null,
+    row.forms ?? null, row.tip ?? null, row.meta ?? null, row.level ?? null,
   ).run();
 
   return json(rowToWordData(row as WordRow, false));

@@ -225,9 +225,8 @@ export function BriefingScreen() {
         </Text>
       </View>
 
-      {/* Bottom double rules */}
+      {/* Bottom hairline rule */}
       <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
-      <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
 
       {/* Tagline — italic, personalised to language count */}
       <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>

@@ -27,6 +27,7 @@ export interface SavedWord {
   wordType?: string | null;
   tip?: string | null;
   meta?: WordMeta | null;
+  level?: string | null;
 }
 
 interface WordBankStore {

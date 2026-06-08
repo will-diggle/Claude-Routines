@@ -210,6 +210,12 @@ export const useBriefingStore = create<BriefingStore>()(
             }
           }
 
+          // Volume comes from the bundle (consistent across all devices). Fall back
+          // to local increment for bundles published before the field was added.
+          const nextVolume = bundle.volume != null
+            ? bundle.volume
+            : (isNewDate ? get().briefVolume + 1 : get().briefVolume);
+
           set((s) => ({
             briefings: { ...s.briefings, ...updates },
             // Clear spinner and error for any language that now has content
@@ -217,7 +223,7 @@ export const useBriefingStore = create<BriefingStore>()(
             errorsFor: { ...s.errorsFor, ...clearedErrors },
             bundleReceivedAt: receivedAt,
             lastBundleDate: bundle.date,
-            briefVolume: isNewDate ? s.briefVolume + 1 : s.briefVolume,
+            briefVolume: nextVolume,
             nativeGradeByLang: { ...s.nativeGradeByLang, ...gradeUpdates },
           }));
         } finally {

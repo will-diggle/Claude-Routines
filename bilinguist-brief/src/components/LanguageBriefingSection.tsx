@@ -227,12 +227,8 @@ export function LanguageBriefingSection({
 
   return (
     <View>
-      {!isFirst && <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />}
-
-      {/* Edition header — double rule then edition text below */}
+      {/* Edition header */}
       <View style={[styles.mastHead, { marginHorizontal: Spacing.md, marginTop: Spacing.sm }]}>
-        <View style={[styles.mastLineThick, { backgroundColor: colors.inkDark }]} />
-        <View style={[styles.mastLineThin,  { backgroundColor: colors.inkDark }]} />
         <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
           {nativeName.toUpperCase()} · {levelLabel(level, langCode, nativeGradeByLang[langCode])}
         </Text>

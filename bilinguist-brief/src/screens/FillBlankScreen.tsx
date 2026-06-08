@@ -54,6 +54,7 @@ export function FillBlankScreen() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
 
   if (eligible.length === 0) {
     return (
@@ -106,6 +107,7 @@ export function FillBlankScreen() {
       setIndex(index + 1);
       setInput('');
       setChecked(false);
+      setHintVisible(false);
     }
   }
 
@@ -134,9 +136,16 @@ export function FillBlankScreen() {
         </View>
 
         {card.translation ? (
-          <Text style={[styles.hint, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            Hint: "{card.translation}"
-          </Text>
+          <TouchableOpacity
+            style={[styles.hintButton, { borderColor: colors.borderMid }]}
+            onPress={() => setHintVisible((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="bulb-outline" size={14} color={colors.inkFaint} />
+            <Text style={[styles.hint, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              {hintVisible ? `"${card.translation}"` : 'Hint'}
+            </Text>
+          </TouchableOpacity>
         ) : null}
 
         {!checked ? (
@@ -197,7 +206,18 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: 1,
   },
-  hint: { fontSize: 13, textAlign: 'center', fontStyle: 'italic' },
+  hintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignSelf: 'center',
+  },
+  hint: { fontSize: 13, fontStyle: 'italic' },
   input: {
     borderWidth: 1,
     borderRadius: 8,

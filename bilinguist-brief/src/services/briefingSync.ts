@@ -7,6 +7,7 @@ import type { FactbaseStory } from './factbase';
 export interface DailyBundle {
   date: string;
   generatedAt: number;
+  volume?: number;
   factbase: FactbaseStory[];
   briefings: {
     [lang: string]: {
