@@ -37,6 +37,7 @@ const LANG_CITY: Record<string, string> = {
   es: 'Madrid',
   it: 'Rome',
   sv: 'Stockholm',
+  tr: 'Ankara',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
