@@ -7,6 +7,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
@@ -129,11 +130,14 @@ export function BriefingScreen() {
   const activeLanguages = settings.languages.filter((l) => l.active);
   const langCount = activeLanguages.length;
 
+  const { briefPageIndex, setBriefPageIndex } = useNavPillStore();
+
   const [refreshing, setRefreshing] = useState(false);
-  const [currentPage, setCurrentPage] = useState(0);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
   const lastSyncRef = useRef<number>(0);
   const pagerRef = useRef<ScrollView>(null);
+  // Prevents the pill→pager scroll from bouncing back as a user-swipe event
+  const programmaticScrollRef = useRef(false);
 
   const activeLangKey =
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
@@ -155,12 +159,19 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
-  // Clamp page index when active languages change (e.g. user removes current language)
+  // When pill taps a language tab, scroll the pager to match
   useEffect(() => {
-    if (currentPage >= langCount) {
-      const next = Math.max(0, langCount - 1);
-      setCurrentPage(next);
-      pagerRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: false });
+    const clamped = Math.min(briefPageIndex, Math.max(0, langCount - 1));
+    programmaticScrollRef.current = true;
+    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: true });
+    const t = setTimeout(() => { programmaticScrollRef.current = false; }, 500);
+    return () => clearTimeout(t);
+  }, [briefPageIndex, langCount]);
+
+  // Clamp briefPageIndex when active languages are removed
+  useEffect(() => {
+    if (briefPageIndex >= langCount) {
+      setBriefPageIndex(Math.max(0, langCount - 1));
     }
   }, [langCount]);
 
@@ -185,9 +196,10 @@ export function BriefingScreen() {
   }, [runSync]);
 
   const handlePageScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (programmaticScrollRef.current) return;
     const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setCurrentPage(page);
-  }, []);
+    if (page !== briefPageIndex) setBriefPageIndex(page);
+  }, [briefPageIndex, setBriefPageIndex]);
 
   const chrome   = chromeColor(background);
   const hairline = hairlineColor(background);
@@ -284,8 +296,8 @@ export function BriefingScreen() {
                       style={[
                         styles.dot,
                         {
-                          backgroundColor: i === currentPage ? colors.inkMid : colors.borderMid,
-                          width: i === currentPage ? 16 : 5,
+                          backgroundColor: i === briefPageIndex ? colors.inkMid : colors.borderMid,
+                          width: i === briefPageIndex ? 16 : 5,
                         },
                       ]}
                     />

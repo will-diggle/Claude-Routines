@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
-import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
+import type { LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -49,14 +50,10 @@ export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const navigation = useNavigation<PracticeNav>();
   const { words } = useWordBankStore();
-  const { activeLanguages } = useSettingsStore();
   const { streak } = useStreakStore();
+  const { practiceLang: selectedLang } = useNavPillStore();
 
-  const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>('all');
   const [gameModalVisible, setGameModalVisible] = useState(false);
-
-  const activeLangs = activeLanguages();
-  const showLangTabs = activeLangs.length > 1 || words.some((w) => activeLangs.every((l) => l.code !== w.language));
 
   const filteredWords = selectedLang === 'all' ? words : words.filter((w) => w.language === selectedLang);
   const totalWords = filteredWords.length;
@@ -69,8 +66,6 @@ export function PracticeScreen() {
     revisit: filteredWords.filter((w) => w.pile === 'revisit').length,
   };
 
-  // Derive unique languages present in word bank
-  const presentLangs = Array.from(new Set(words.map((w) => w.language))) as LanguageCode[];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -84,49 +79,6 @@ export function PracticeScreen() {
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
 
-      {/* Language tabs */}
-      {presentLangs.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.tabsScroll}
-          contentContainerStyle={styles.tabsContent}
-        >
-          <TouchableOpacity
-            onPress={() => setSelectedLang('all')}
-            style={[
-              styles.langTab,
-              { borderColor: colors.borderMid },
-              selectedLang === 'all' && { backgroundColor: colors.inkDark, borderColor: colors.inkDark },
-            ]}
-          >
-            <Text style={[
-              styles.langTabText,
-              { color: selectedLang === 'all' ? (colors.isNight ? colors.inkDark : '#FFF') : colors.inkMid, fontFamily: fontFamily.regular },
-            ]}>
-              All
-            </Text>
-          </TouchableOpacity>
-          {presentLangs.map((code) => (
-            <TouchableOpacity
-              key={code}
-              onPress={() => setSelectedLang(code)}
-              style={[
-                styles.langTab,
-                { borderColor: colors.borderMid },
-                selectedLang === code && { backgroundColor: colors.inkDark, borderColor: colors.inkDark },
-              ]}
-            >
-              <Text style={[
-                styles.langTabText,
-                { color: selectedLang === code ? (colors.isNight ? colors.inkDark : '#FFF') : colors.inkMid, fontFamily: fontFamily.regular },
-              ]}>
-                {LANG_NATIVE[code] ?? code.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
 
       {/* Empty state */}
       {!hasWords && (
@@ -326,23 +278,6 @@ const styles = StyleSheet.create({
   },
   streakNumber: { fontSize: 28, lineHeight: 34 },
   streakLabel: { fontSize: 12, letterSpacing: 0.5 },
-  tabsScroll: {
-    marginBottom: Spacing.lg,
-  },
-  tabsContent: {
-    gap: Spacing.sm,
-    paddingRight: Spacing.md,
-  },
-  langTab: {
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  langTabText: {
-    fontSize: 13,
-    letterSpacing: 0.3,
-  },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',

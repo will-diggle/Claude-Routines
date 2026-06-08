@@ -31,6 +31,7 @@ import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
@@ -256,7 +257,7 @@ export function SettingsScreen() {
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
-  const [activeTab, setActiveTab] = useState<'reading' | 'display'>('reading');
+  const { settingsSection: activeTab } = useNavPillStore();
   const [isDragging, setIsDragging] = useState(false);
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
@@ -308,24 +309,6 @@ export function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       scrollEnabled={!isDragging}
     >
-      {/* ── Tab switcher ── */}
-      <View style={[tabStyles.container, { borderBottomColor: colors.borderMid }]}>
-        {(['reading', 'display'] as const).map((tab) => {
-          const selected = activeTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[tabStyles.tab, selected && { borderBottomColor: colors.inkDark }]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[tabStyles.label, { fontFamily: selected ? fontFamily.bold : fontFamily.regular, color: selected ? colors.inkDark : colors.inkFaint }]}>
-                {tab === 'reading' ? 'Reading' : 'Display'}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
       {/* ── Reading tab ── */}
       {activeTab === 'reading' && (
         <>
@@ -554,6 +537,78 @@ export function SettingsScreen() {
         </>
       )}
 
+      {/* ── Account tab ── */}
+      {activeTab === 'account' && (
+        <>
+          <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
+
+          <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                Daily Briefing Time
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
+            </View>
+            <TimeInput
+              value={store.briefingNotificationTime}
+              onChange={store.setBriefingNotificationTime}
+              onCommit={() => {
+                const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
+                scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+              }}
+              colors={colors}
+              fontFamily={fontFamily}
+            />
+          </View>
+
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                Daily Practice Reminder
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
+            </View>
+            <TimeInput
+              value={store.practiceNotificationTime}
+              onChange={store.setPracticeNotificationTime}
+              onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
+              colors={colors}
+              fontFamily={fontFamily}
+            />
+          </View>
+
+          <SectionHeader title="Premium" colors={colors} fontFamily={fontFamily} />
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                Bilinguist Premium
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
+            </View>
+            <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+              <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                Coming soon
+              </Text>
+            </View>
+          </View>
+
+          <SectionHeader title="About" colors={colors} fontFamily={fontFamily} />
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              Bilinguist Brief
+            </Text>
+            <Text style={[styles.rowSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Version 1.0
+            </Text>
+          </View>
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.rowLabel, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              Powered by Claude AI
+            </Text>
+          </View>
+        </>
+      )}
+
       {/* ── Developer ── */}
       <View style={styles.devSection}>
         <TouchableOpacity onPress={handleDevTap} style={styles.devTap}>
@@ -731,6 +786,13 @@ const styles = StyleSheet.create({
   },
   rowLabel: { flex: 1 },
   rowSub: { fontSize: 12, marginTop: 2 },
+  comingSoonBadge: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  comingSoonText: { fontSize: 11 },
   levelRow: {
     flexDirection: 'row',
     alignItems: 'center',
