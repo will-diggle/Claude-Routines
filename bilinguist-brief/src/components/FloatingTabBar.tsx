@@ -14,14 +14,14 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
 const TABS = [
-  { route: 'Preferences', label: 'Preferences', miniLabel: 'Settings', icon: 'options' as const,   iconOff: 'options-outline' as const   },
-  { route: 'Briefing',    label: 'The Brief',   miniLabel: 'Brief',    icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
-  { route: 'Practice',   label: 'Practice',    miniLabel: 'Practice', icon: 'school' as const,    iconOff: 'school-outline' as const    },
+  { route: 'Preferences', label: 'Settings', miniLabel: 'Settings', icon: 'options' as const,   iconOff: 'options-outline' as const   },
+  { route: 'Briefing',    label: 'Brief',    miniLabel: 'Brief',    icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
+  { route: 'Practice',   label: 'Practice', miniLabel: 'Practice', icon: 'school' as const,    iconOff: 'school-outline' as const    },
 ];
 
 // ── Shared geometry ────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H      = 58;
+export const FLOAT_TAB_H      = 50;
 export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
@@ -56,12 +56,21 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const [navOpen, setNavOpen] = useState(false);
   const navAnim = useRef(new Animated.Value(0)).current;
 
-  const isNavy   = background === 'softGrey';
-  const pillBg   = isNavy ? 'rgba(30,45,66,0.93)' : (isDark ? 'rgba(22,22,22,0.92)' : 'rgba(255,255,255,0.92)');
-  const pillBorder = isNavy ? 'rgba(255,255,255,0.10)' : (isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)');
+  const isNavy  = background === 'softGrey';
+  const isCream = background === 'cream';
+  const pillBg = isNavy  ? 'rgba(30,45,66,0.93)'
+               : isDark  ? 'rgba(22,22,22,0.92)'
+               : isCream ? 'rgba(245,240,232,0.95)'
+               : 'rgba(255,255,255,0.92)';
+  const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
+                   : isDark  ? 'rgba(255,255,255,0.09)'
+                   : isCream ? 'rgba(22,32,50,0.10)'
+                   : 'rgba(0,0,0,0.07)';
   const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
   const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
-  const activeItemBg  = isNavy ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
+  const activeItemBg  = isNavy  ? 'rgba(255,255,255,0.14)'
+                      : isCream ? 'rgba(22,32,50,0.07)'
+                      : 'rgba(0,0,0,0.08)';
 
   // Width animation
   const leftW = navAnim.interpolate({ inputRange: [0, 1], outputRange: [LEFT_MAX_W, LEFT_MINI_W] });
@@ -119,7 +128,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     // Preferences (index 0): section switcher
     if (currentRouteIndex === 0) {
       return (
-        <View style={styles.contextRow}>
+        <View style={[styles.contextRow, { flex: 1 }]}>
           {(['reading', 'display', 'account'] as SettingsSection[]).map((sec) => (
             <TouchableOpacity
               key={sec}
