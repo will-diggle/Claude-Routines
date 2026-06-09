@@ -11,7 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 
-// ── Tab definitions (display order: The Brief → Practice → Settings) ──────────
+// ── Tab definitions ────────────────────────────────────────────────────────────
 
 const TABS = [
   { route: 'Briefing',    label: 'The Brief', miniLabel: 'The Brief', icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
@@ -19,23 +19,23 @@ const TABS = [
   { route: 'Preferences', label: 'Settings',  miniLabel: 'Settings',  icon: 'options' as const,   iconOff: 'options-outline' as const   },
 ];
 
-// ── Shared geometry ────────────────────────────────────────────────────────────
+// ── Geometry ───────────────────────────────────────────────────────────────────
 
 export const FLOAT_TAB_H      = 60;
 export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
 const SW           = Dimensions.get('window').width;
-const LEFT_MINI_W  = FLOAT_TAB_H; // perfect circle when closed
-const RIGHT_MINI_W = 68;
-const RIGHT_MAX_W  = 240;
+const LEFT_MINI_W  = FLOAT_TAB_H;       // perfect circle
+const RIGHT_MINI_W = 72;                // oval mini pill
+const RIGHT_MAX_W  = 248;               // expanded nav
 const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - 12; // full bar minus right mini + gap
 
-// Matches actual contextRow styles — used for content-fit width calculation
-const CHAR_W   = 6.5; // px per glyph at fontSize:11
+// Content-fit width helpers — matches actual contextRow styles
+const CHAR_W   = 8;   // px per glyph at fontSize:11 (deliberately generous for breathing room)
 const CHIP_PAD = 20;  // paddingHorizontal:10 × 2
 const CHIP_GAP = 2;   // gap between chips
-const ROW_PAD  = 12;  // paddingHorizontal:6 × 2
+const ROW_PAD  = 20;  // paddingHorizontal:6×2 + extra breathing room
 
 function pillContentW(labels: string[]): number {
   const n = labels.length;
@@ -68,12 +68,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
-  const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
-  const rightWidthAnim = useRef(new Animated.Value(RIGHT_MINI_W)).current;
-  const leftIconOp     = useRef(new Animated.Value(1)).current;
-  const leftContextOp  = useRef(new Animated.Value(0)).current;
-  const rightMiniOp    = useRef(new Animated.Value(1)).current;
-  const rightFullOp    = useRef(new Animated.Value(0)).current;
+  const leftWidthAnim      = useRef(new Animated.Value(LEFT_MINI_W)).current;
+  const rightWidthAnim     = useRef(new Animated.Value(RIGHT_MINI_W)).current;
+  const leftIconOp         = useRef(new Animated.Value(1)).current;
+  const leftContextOp      = useRef(new Animated.Value(0)).current;
+  const rightMiniOp        = useRef(new Animated.Value(1)).current;
+  const rightFullOp        = useRef(new Animated.Value(0)).current;
+  // Fades right mini label out when left pill is open (icon-only circle)
+  const rightMiniLabelOp   = useRef(new Animated.Value(1)).current;
 
   // ── Theming ────────────────────────────────────────────────────────────────
   const isNavy  = background === 'softGrey';
@@ -100,44 +102,49 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function animOpenLeft(targetW: number) {
     setLeftOpen(true);
-    Animated.timing(leftWidthAnim,  { toValue: targetW, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(leftIconOp,     { toValue: 0, duration: 80, useNativeDriver: true }).start();
-    Animated.timing(leftContextOp,  { toValue: 1, duration: 150, delay: 80, useNativeDriver: true }).start();
+    Animated.timing(leftWidthAnim,    { toValue: targetW,  duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,       { toValue: 0,        duration: 80,  useNativeDriver: true }).start();
+    Animated.timing(leftContextOp,    { toValue: 1,        duration: 160, delay: 80, useNativeDriver: true }).start();
+    // Right pill: drop label so it looks like a clean icon circle
+    Animated.timing(rightMiniLabelOp, { toValue: 0,        duration: 100, useNativeDriver: true }).start();
   }
 
   function animCloseLeft() {
     setLeftOpen(false);
-    Animated.timing(leftWidthAnim,  { toValue: LEFT_MINI_W, duration: 160, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(leftIconOp,     { toValue: 1, duration: 160, useNativeDriver: true }).start();
-    Animated.timing(leftContextOp,  { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+    Animated.timing(leftWidthAnim,    { toValue: LEFT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,       { toValue: 1,           duration: 180, useNativeDriver: true }).start();
+    Animated.timing(leftContextOp,    { toValue: 0,           duration: 80,  useNativeDriver: true }).start();
+    // Restore right mini label
+    Animated.timing(rightMiniLabelOp, { toValue: 1,           duration: 180, useNativeDriver: true }).start();
   }
 
   function animOpenRight() {
     setRightOpen(true);
-    Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(rightMiniOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
-    Animated.timing(rightFullOp,    { toValue: 1, duration: 150, delay: 80, useNativeDriver: true }).start();
+    Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W,  duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(rightMiniOp,    { toValue: 0,            duration: 80,  useNativeDriver: true }).start();
+    Animated.timing(rightFullOp,    { toValue: 1,            duration: 160, delay: 80, useNativeDriver: true }).start();
   }
 
   function animCloseRight() {
     setRightOpen(false);
-    Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 160, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(rightMiniOp,    { toValue: 1, duration: 160, useNativeDriver: true }).start();
-    Animated.timing(rightFullOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+    Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(rightMiniOp,    { toValue: 1,            duration: 180, useNativeDriver: true }).start();
+    Animated.timing(rightFullOp,    { toValue: 0,            duration: 80,  useNativeDriver: true }).start();
   }
 
   // ── Content-fit left expanded width ──────────────────────────────────────
 
   function computeLeftExpandedW(): number {
     if (currentRouteIndex === 0) {
-      // ≤4 languages → full native names; 5+ → abbreviated codes
+      // Brief — ≤4 full native names, 5+ codes
       const labels = activeLanguages.length <= 4
         ? activeLanguages.map((l) => l.nativeName)
         : activeLanguages.map((l) => l.code.toUpperCase());
       return pillContentW(labels);
     }
     if (currentRouteIndex === 2) {
-      return Math.max(pillContentW(['Languages', 'Genres', 'Display', 'Account']), 260);
+      // Settings — give full available space so all 4 chips fit comfortably
+      return LEFT_MAX_W;
     }
     // Practice — ALL + language codes
     return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
@@ -149,7 +156,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (leftOpen) {
       animCloseLeft();
     } else {
-      if (rightOpen) animCloseRight(); // close right before opening left
+      if (rightOpen) {
+        // Close right nav (fade only, don't restore right mini label — animOpenLeft owns it)
+        setRightOpen(false);
+        Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+        Animated.timing(rightMiniOp,    { toValue: 1, duration: 100, useNativeDriver: true }).start();
+        Animated.timing(rightFullOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+      }
       animOpenLeft(computeLeftExpandedW());
     }
   }
@@ -157,22 +170,27 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function toggleRight() {
     if (rightOpen) {
       animCloseRight();
-      // On Settings tab, re-open left pill when right closes
+      // On Settings: re-open left pill when right closes
       if (currentRouteIndex === 2) animOpenLeft(computeLeftExpandedW());
     } else {
-      if (leftOpen) animCloseLeft(); // close left before opening right
+      if (leftOpen) {
+        // Close left without restoring right label (animOpenRight will take over)
+        setLeftOpen(false);
+        Animated.timing(leftWidthAnim,  { toValue: LEFT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+        Animated.timing(leftIconOp,     { toValue: 1, duration: 180, useNativeDriver: true }).start();
+        Animated.timing(leftContextOp,  { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+        Animated.timing(rightMiniLabelOp, { toValue: 1, duration: 100, useNativeDriver: true }).start();
+      }
       animOpenRight();
     }
   }
 
-  // ── Auto-open left on Settings; close both when switching tabs ───────────
+  // ── Auto-open left on Settings; reset on tab change ───────────────────────
 
   useEffect(() => {
     animCloseRight();
     if (currentRouteIndex === 2) {
-      // Settings: left pill opens automatically
-      const targetW = Math.max(pillContentW(['Languages', 'Genres', 'Display', 'Account']), 260);
-      animOpenLeft(targetW);
+      animOpenLeft(LEFT_MAX_W);
     } else {
       animCloseLeft();
     }
@@ -194,7 +212,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               activeOpacity={0.7}
             >
               <Text style={[styles.contextLabel, {
-                color: briefPageIndex === i ? activeColor : inactiveColor,
+                color:      briefPageIndex === i ? activeColor : inactiveColor,
                 fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular,
               }]}>
                 {showFull ? lang.nativeName : lang.code.toUpperCase()}
@@ -205,26 +223,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Preferences — section switcher
+    // Preferences — section switcher (ScrollView so chips are natural width, no wrapping)
     if (currentRouteIndex === 2) {
       return (
-        <View style={[styles.contextRow, { flex: 1 }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
           {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
             <TouchableOpacity
               key={sec}
-              style={[styles.contextItem, { flex: 1 }, settingsSection === sec && { backgroundColor: activeItemBg }]}
+              style={[styles.contextItem, settingsSection === sec && { backgroundColor: activeItemBg }]}
               onPress={() => setSettingsSection(sec)}
               activeOpacity={0.7}
             >
               <Text style={[styles.contextLabel, {
-                color: settingsSection === sec ? activeColor : inactiveColor,
+                color:      settingsSection === sec ? activeColor : inactiveColor,
                 fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular,
               }]}>
                 {SECTION_LABELS[sec]}
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       );
     }
 
@@ -237,7 +255,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           activeOpacity={0.7}
         >
           <Text style={[styles.contextLabel, {
-            color: practiceLang === 'all' ? activeColor : inactiveColor,
+            color:      practiceLang === 'all' ? activeColor : inactiveColor,
             fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular,
           }]}>
             ALL
@@ -251,7 +269,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             activeOpacity={0.7}
           >
             <Text style={[styles.contextLabel, {
-              color: practiceLang === lang.code ? activeColor : inactiveColor,
+              color:      practiceLang === lang.code ? activeColor : inactiveColor,
               fontFamily: practiceLang === lang.code ? fontFamily.bold : fontFamily.regular,
             }]}>
               {lang.code.toUpperCase()}
@@ -267,10 +285,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function renderMiniNav() {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
-        <Ionicons name={currentTab.icon} size={17} color={activeColor} />
-        <Text style={[styles.miniNavLabel, { color: activeColor, fontFamily: fontFamily.regular }]} numberOfLines={1}>
-          {currentTab.miniLabel}
-        </Text>
+        <Ionicons name={currentTab.icon} size={18} color={activeColor} />
+        {/* Label fades out when left pill is open */}
+        <Animated.View style={{ opacity: rightMiniLabelOp }}>
+          <Text style={[styles.miniNavLabel, { color: activeColor, fontFamily: fontFamily.regular }]} numberOfLines={1}>
+            {currentTab.miniLabel}
+          </Text>
+        </Animated.View>
       </TouchableOpacity>
     );
   }
@@ -298,7 +319,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={17} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={18} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>
                 {tab.label}
               </Text>
@@ -321,7 +342,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     elevation: 16,
   };
 
-  // Left pill closed-state icon: menu on Settings tab, layers elsewhere
   const leftClosedIcon = currentRouteIndex === 2 ? 'menu-outline' : 'layers-outline';
 
   return (
@@ -329,9 +349,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
     >
-      {/* ── Left context pill — anchored left ────────────────────────────── */}
+      {/* ── Left pill — anchored left ─────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillLeft, { width: leftWidthAnim }]}>
-        {/* Icon — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftIconOp }]}
           pointerEvents={leftOpen ? 'none' : 'auto'}
@@ -341,7 +360,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Context tabs — visible when open */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftContextOp }]}
           pointerEvents={leftOpen ? 'auto' : 'none'}
@@ -350,9 +368,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         </Animated.View>
       </Animated.View>
 
-      {/* ── Right nav pill — anchored right ──────────────────────────────── */}
+      {/* ── Right pill — anchored right ───────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillRight, { width: rightWidthAnim }]}>
-        {/* Mini — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightMiniOp }]}
           pointerEvents={rightOpen ? 'none' : 'auto'}
@@ -360,7 +377,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           {renderMiniNav()}
         </Animated.View>
 
-        {/* Full nav — visible when open */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightFullOp }]}
           pointerEvents={rightOpen ? 'auto' : 'none'}
@@ -405,14 +421,14 @@ const styles = StyleSheet.create({
   contextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     gap: 2,
     height: FLOAT_TAB_H,
   },
   contextItem: {
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingVertical: 11,   // taller chips fill the 60px pill better
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -427,13 +443,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── Right mini — icon stacked above label ───────────────────────────────
+  // ── Right mini ──────────────────────────────────────────────────────────
   miniNavButton: {
     flex: 1,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 3,
   },
   miniNavLabel: {
     fontSize: 9,
@@ -450,7 +466,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
+    gap: 2,
     paddingTop: 2,
   },
   navDot: {
