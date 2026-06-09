@@ -11,12 +11,12 @@ import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 
-// ── Tab definitions (display order: Brief → Practice → Settings) ──────────────
+// ── Tab definitions (display order: The Brief → Practice → Settings) ──────────
 
 const TABS = [
-  { route: 'Briefing',    label: 'Brief',    miniLabel: 'The Brief', icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
-  { route: 'Practice',   label: 'Practice', miniLabel: 'Practice',  icon: 'school' as const,    iconOff: 'school-outline' as const    },
-  { route: 'Preferences', label: 'Settings', miniLabel: 'Settings',  icon: 'options' as const,   iconOff: 'options-outline' as const   },
+  { route: 'Briefing',    label: 'The Brief', miniLabel: 'The Brief', icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
+  { route: 'Practice',   label: 'Practice',  miniLabel: 'Practice',  icon: 'school' as const,    iconOff: 'school-outline' as const    },
+  { route: 'Preferences', label: 'Settings',  miniLabel: 'Settings',  icon: 'options' as const,   iconOff: 'options-outline' as const   },
 ];
 
 // ── Shared geometry ────────────────────────────────────────────────────────────
@@ -26,18 +26,16 @@ export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
 const SW           = Dimensions.get('window').width;
-const PILL_GAP     = 12;
 const LEFT_MINI_W  = FLOAT_TAB_H; // perfect circle when closed
-const RIGHT_MINI_W = 68;          // compact oval — icon stacked above label
-const RIGHT_MAX_W  = 240;         // content-fit for 3 nav tabs
-// Max left pill width: full bar minus right mini pill and gap
-const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - PILL_GAP;
+const RIGHT_MINI_W = 68;
+const RIGHT_MAX_W  = 240;
+const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - 12; // full bar minus right mini + gap
 
 // Matches actual contextRow styles — used for content-fit width calculation
-const CHAR_W   = 6.5;  // px per glyph at fontSize:11, letterSpacing:0.5
-const CHIP_PAD = 20;   // contextItem paddingHorizontal:10 × 2
-const CHIP_GAP = 2;    // contextRow gap between chips
-const ROW_PAD  = 12;   // contextRow paddingHorizontal:6 × 2
+const CHAR_W   = 6.5; // px per glyph at fontSize:11
+const CHIP_PAD = 20;  // paddingHorizontal:10 × 2
+const CHIP_GAP = 2;   // gap between chips
+const ROW_PAD  = 12;  // paddingHorizontal:6 × 2
 
 function pillContentW(labels: string[]): number {
   const n = labels.length;
@@ -54,34 +52,6 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   account: 'Account',
 };
 
-// ── StackedSquares — N stacked 2-D square outlines ───────────────────────────
-
-function StackedSquares({ count, size, color }: { count: number; size: number; color: string }) {
-  const n      = Math.min(Math.max(count, 1), 5);
-  const sq     = Math.round(size * 0.68);
-  const step   = n > 1 ? Math.min(Math.floor((size - sq) / (n - 1)), 4) : 0;
-  const bounds = n > 1 ? sq + step * (n - 1) : sq;
-  return (
-    <View style={{ width: bounds, height: bounds }}>
-      {Array.from({ length: n }).map((_, i) => (
-        <View
-          key={i}
-          style={{
-            position: 'absolute',
-            width: sq,
-            height: sq,
-            borderWidth: 1.5,
-            borderColor: color,
-            borderRadius: 2,
-            top:  step * (n - 1 - i),
-            left: step * i,
-          }}
-        />
-      ))}
-    </View>
-  );
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
@@ -94,19 +64,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     practiceLang, setPracticeLang,
   } = useNavPillStore();
 
-  // ── Two independent open states ───────────────────────────────────────────
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
-  // Direct width animated values — targets computed at toggle time
   const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
   const rightWidthAnim = useRef(new Animated.Value(RIGHT_MINI_W)).current;
-
-  // Per-pill opacity layers
-  const leftIconOp    = useRef(new Animated.Value(1)).current;
-  const leftContextOp = useRef(new Animated.Value(0)).current;
-  const rightMiniOp   = useRef(new Animated.Value(1)).current;
-  const rightFullOp   = useRef(new Animated.Value(0)).current;
+  const leftIconOp     = useRef(new Animated.Value(1)).current;
+  const leftContextOp  = useRef(new Animated.Value(0)).current;
+  const rightMiniOp    = useRef(new Animated.Value(1)).current;
+  const rightFullOp    = useRef(new Animated.Value(0)).current;
 
   // ── Theming ────────────────────────────────────────────────────────────────
   const isNavy  = background === 'softGrey';
@@ -129,51 +95,95 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const currentRoute      = state.routes[currentRouteIndex];
   const currentTab        = TABS.find((t) => t.route === currentRoute.name) ?? TABS[0];
 
-  // ── Close left pill when switching tabs (context content changes) ─────────
-  useEffect(() => {
-    setLeftOpen(false);
-    Animated.timing(leftWidthAnim,  { toValue: LEFT_MINI_W, duration: 150, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(leftIconOp,     { toValue: 1, duration: 150, useNativeDriver: true }).start();
-    Animated.timing(leftContextOp,  { toValue: 0, duration: 80,  useNativeDriver: true }).start();
-  }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Animation helpers ─────────────────────────────────────────────────────
 
-  // ── Content-fit left expanded width ───────────────────────────────────────
+  function animOpenLeft(targetW: number) {
+    setLeftOpen(true);
+    Animated.timing(leftWidthAnim,  { toValue: targetW, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,     { toValue: 0, duration: 80, useNativeDriver: true }).start();
+    Animated.timing(leftContextOp,  { toValue: 1, duration: 150, delay: 80, useNativeDriver: true }).start();
+  }
+
+  function animCloseLeft() {
+    setLeftOpen(false);
+    Animated.timing(leftWidthAnim,  { toValue: LEFT_MINI_W, duration: 160, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,     { toValue: 1, duration: 160, useNativeDriver: true }).start();
+    Animated.timing(leftContextOp,  { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+  }
+
+  function animOpenRight() {
+    setRightOpen(true);
+    Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(rightMiniOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+    Animated.timing(rightFullOp,    { toValue: 1, duration: 150, delay: 80, useNativeDriver: true }).start();
+  }
+
+  function animCloseRight() {
+    setRightOpen(false);
+    Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 160, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(rightMiniOp,    { toValue: 1, duration: 160, useNativeDriver: true }).start();
+    Animated.timing(rightFullOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+  }
+
+  // ── Content-fit left expanded width ──────────────────────────────────────
+
   function computeLeftExpandedW(): number {
     if (currentRouteIndex === 0) {
-      return pillContentW(activeLanguages.map((l) => l.nativeName));
+      // ≤4 languages → full native names; 5+ → abbreviated codes
+      const labels = activeLanguages.length <= 4
+        ? activeLanguages.map((l) => l.nativeName)
+        : activeLanguages.map((l) => l.code.toUpperCase());
+      return pillContentW(labels);
     }
     if (currentRouteIndex === 2) {
-      return pillContentW(['Reading', 'Display', 'Account']);
+      // Ensure "Reading" never wraps — minimum 244px
+      return Math.max(pillContentW(['Reading', 'Display', 'Account']), 244);
     }
     // Practice — ALL + language codes
     return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
   }
 
-  // ── Toggle handlers ────────────────────────────────────────────────────────
-  function toggleLeft() {
-    const toOpen  = !leftOpen;
-    setLeftOpen(toOpen);
-    const targetW = toOpen ? computeLeftExpandedW() : LEFT_MINI_W;
+  // ── Toggle handlers — mutually exclusive ─────────────────────────────────
 
-    Animated.timing(leftWidthAnim, { toValue: targetW, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(leftIconOp,    { toValue: toOpen ? 0 : 1, duration: toOpen ? 80 : 180, useNativeDriver: true }).start();
-    Animated.timing(leftContextOp, { toValue: toOpen ? 1 : 0, duration: toOpen ? 150 : 80, delay: toOpen ? 80 : 0, useNativeDriver: true }).start();
+  function toggleLeft() {
+    if (leftOpen) {
+      animCloseLeft();
+    } else {
+      if (rightOpen) animCloseRight(); // close right before opening left
+      animOpenLeft(computeLeftExpandedW());
+    }
   }
 
   function toggleRight() {
-    const toOpen = !rightOpen;
-    setRightOpen(toOpen);
-
-    Animated.timing(rightWidthAnim, { toValue: toOpen ? RIGHT_MAX_W : RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-    Animated.timing(rightMiniOp,    { toValue: toOpen ? 0 : 1, duration: toOpen ? 80 : 180, useNativeDriver: true }).start();
-    Animated.timing(rightFullOp,    { toValue: toOpen ? 1 : 0, duration: toOpen ? 150 : 80, delay: toOpen ? 80 : 0, useNativeDriver: true }).start();
+    if (rightOpen) {
+      animCloseRight();
+      // On Settings tab, re-open left pill when right closes
+      if (currentRouteIndex === 2) animOpenLeft(computeLeftExpandedW());
+    } else {
+      if (leftOpen) animCloseLeft(); // close left before opening right
+      animOpenRight();
+    }
   }
 
-  // ── Left context content ───────────────────────────────────────────────────
+  // ── Auto-open left on Settings; close both when switching tabs ───────────
+
+  useEffect(() => {
+    animCloseRight();
+    if (currentRouteIndex === 2) {
+      // Settings: left pill opens automatically
+      const targetW = Math.max(pillContentW(['Reading', 'Display', 'Account']), 244);
+      animOpenLeft(targetW);
+    } else {
+      animCloseLeft();
+    }
+  }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Left context content ──────────────────────────────────────────────────
 
   function renderLeftContext() {
     // Brief — language page tabs
     if (currentRouteIndex === 0) {
+      const showFull = activeLanguages.length <= 4;
       return (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
           {activeLanguages.map((lang, i) => (
@@ -187,7 +197,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 color: briefPageIndex === i ? activeColor : inactiveColor,
                 fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular,
               }]}>
-                {lang.nativeName}
+                {showFull ? lang.nativeName : lang.code.toUpperCase()}
               </Text>
             </TouchableOpacity>
           ))}
@@ -252,7 +262,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     );
   }
 
-  // ── Right nav content ──────────────────────────────────────────────────────
+  // ── Right nav content ─────────────────────────────────────────────────────
 
   function renderMiniNav() {
     return (
@@ -266,7 +276,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function renderFullNav() {
-    // Render in TABS order: Brief → Practice → Settings
     return (
       <View style={styles.fullNavRow}>
         {TABS.map((tab) => {
@@ -300,7 +309,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   const pillStyle = {
     backgroundColor: pillBg,
@@ -312,20 +321,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     elevation: 16,
   };
 
+  // Left pill closed-state icon: menu on Settings tab, layers elsewhere
+  const leftClosedIcon = currentRouteIndex === 2 ? 'menu-outline' : 'layers-outline';
+
   return (
     <View
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
     >
-      {/* ── Left context pill — anchored left, expands rightward ─────────── */}
+      {/* ── Left context pill — anchored left ────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillLeft, { width: leftWidthAnim }]}>
-        {/* StackedSquares icon — visible when closed */}
+        {/* Icon — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftIconOp }]}
           pointerEvents={leftOpen ? 'none' : 'auto'}
         >
           <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
-            <StackedSquares count={activeLanguages.length} size={22} color={activeColor} />
+            <Ionicons name={leftClosedIcon} size={20} color={activeColor} />
           </TouchableOpacity>
         </Animated.View>
 
@@ -338,9 +350,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         </Animated.View>
       </Animated.View>
 
-      {/* ── Right nav pill — anchored right, expands leftward ───────────────── */}
+      {/* ── Right nav pill — anchored right ──────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillRight, { width: rightWidthAnim }]}>
-        {/* Mini (icon above label) — visible when closed */}
+        {/* Mini — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightMiniOp }]}
           pointerEvents={rightOpen ? 'none' : 'auto'}
@@ -380,15 +392,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Left pill: anchored to left edge, expands rightward
-  pillLeft: {
-    left: 0,
-  },
-
-  // Right pill: anchored to right edge, expands leftward
-  pillRight: {
-    right: 0,
-  },
+  pillLeft:  { left: 0 },
+  pillRight: { right: 0 },
 
   absoluteFill: {
     ...StyleSheet.absoluteFillObject,
@@ -416,7 +421,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ── Left collapsed ──────────────────────────────────────────────────────
   centerFill: {
     flex: 1,
     alignItems: 'center',
