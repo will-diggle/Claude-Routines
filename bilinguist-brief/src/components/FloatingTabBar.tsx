@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  Platform, Dimensions, Animated,
+  Platform, Dimensions, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,24 +72,25 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                       : isCream ? 'rgba(22,32,50,0.07)'
                       : 'rgba(0,0,0,0.08)';
 
-  // Width animation
-  const leftW = navAnim.interpolate({ inputRange: [0, 1], outputRange: [LEFT_MAX_W, LEFT_MINI_W] });
+  // Width animation — left starts as circle (MINI), expands to context when nav opens
+  const leftW  = navAnim.interpolate({ inputRange: [0, 1], outputRange: [LEFT_MINI_W, LEFT_MAX_W] });
   const rightW = navAnim.interpolate({ inputRange: [0, 1], outputRange: [RIGHT_MINI_W, RIGHT_MAX_W] });
 
   // Content opacity cross-fades
-  const leftContextOp = navAnim.interpolate({ inputRange: [0, 0.35], outputRange: [1, 0], extrapolate: 'clamp' });
-  const leftIconOp    = navAnim.interpolate({ inputRange: [0.65, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  // Left: icon visible when closed (0), context visible when open (1)
+  const leftIconOp    = navAnim.interpolate({ inputRange: [0, 0.35], outputRange: [1, 0], extrapolate: 'clamp' });
+  const leftContextOp = navAnim.interpolate({ inputRange: [0.65, 1], outputRange: [0, 1], extrapolate: 'clamp' });
   const rightMiniOp   = navAnim.interpolate({ inputRange: [0, 0.35], outputRange: [1, 0], extrapolate: 'clamp' });
   const rightFullOp   = navAnim.interpolate({ inputRange: [0.65, 1], outputRange: [0, 1], extrapolate: 'clamp' });
 
   function toggleNav() {
     const toOpen = !navOpen;
     setNavOpen(toOpen);
-    Animated.spring(navAnim, {
+    Animated.timing(navAnim, {
       toValue: toOpen ? 1 : 0,
+      duration: 200,
       useNativeDriver: false,
-      tension: 80,
-      friction: 14,
+      easing: Easing.out(Easing.cubic),
     }).start();
   }
 
@@ -100,8 +101,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Left context content ───────────────────────────────────────────────────
 
   function renderLeftContext() {
-    // Brief (index 1): language page tabs
-    if (currentRouteIndex === 1) {
+    // Brief (index 0): language page tabs
+    if (currentRouteIndex === 0) {
       return (
         <ScrollView
           horizontal
@@ -125,8 +126,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Preferences (index 0): section switcher
-    if (currentRouteIndex === 0) {
+    // Preferences (index 2): section switcher
+    if (currentRouteIndex === 2) {
       return (
         <View style={[styles.contextRow, { flex: 1 }]}>
           {(['reading', 'display', 'account'] as SettingsSection[]).map((sec) => (
@@ -240,21 +241,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     >
       {/* ── Left context pill ──────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { width: leftW }]}>
-        {/* Context tabs — visible when nav is closed */}
-        <Animated.View
-          style={[styles.absoluteFill, { opacity: leftContextOp }]}
-          pointerEvents={navOpen ? 'none' : 'auto'}
-        >
-          {renderLeftContext()}
-        </Animated.View>
-
-        {/* Stacked-layers icon — visible when nav is open */}
+        {/* Layers icon — visible when nav is closed (circle state) */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftIconOp }]}
-          pointerEvents={navOpen ? 'auto' : 'none'}
+          pointerEvents={navOpen ? 'none' : 'auto'}
         >
           <TouchableOpacity style={styles.centerFill} onPress={toggleNav} activeOpacity={0.7}>
-            <Ionicons name="layers-outline" size={22} color={activeColor} />
+            <Ionicons name="layers-outline" size={20} color={activeColor} />
             {activeLanguages.length > 1 && (
               <View style={[styles.badge, { backgroundColor: isNavy ? '#F5F0E8' : colors.inkDark }]}>
                 <Text style={[styles.badgeText, { color: isNavy ? colors.inkDark : '#FFF' }]}>
@@ -263,6 +256,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               </View>
             )}
           </TouchableOpacity>
+        </Animated.View>
+
+        {/* Context tabs — visible when nav is open */}
+        <Animated.View
+          style={[styles.absoluteFill, { opacity: leftContextOp }]}
+          pointerEvents={navOpen ? 'auto' : 'none'}
+        >
+          {renderLeftContext()}
         </Animated.View>
       </Animated.View>
 

@@ -29,9 +29,9 @@ export function AppNavigator() {
           headerShown: false,
         }}
       >
-        <Tab.Screen name="Preferences" component={SettingsScreen} />
         <Tab.Screen name="Briefing"    component={BriefingScreen} />
         <Tab.Screen name="Practice"    component={PracticeNavigator} />
+        <Tab.Screen name="Preferences" component={SettingsScreen} />
       </Tab.Navigator>
 
       {/* Audio playback pill — floats above the nav pill, visible when playing */}

@@ -27,15 +27,22 @@ const LOCKUP_PADDING = 12;
 const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
 const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 
-// City names in each language's native form
+// City names in each language's native form (fallback)
 const LANG_CITY_NATIVE: Record<string, string> = {
-  en: 'London',
-  fr: 'Paris',
-  de: 'Berlin',
-  es: 'Madrid',
-  it: 'Roma',
-  sv: 'Stockholm',
-  tr: 'Ankara',
+  en: 'London', fr: 'Paris',  de: 'Berlin', es: 'Madrid',
+  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara',
+};
+
+// Each language's capital city translated into every display language.
+// Row = the language whose city it is; column = the language to display it in.
+const CITY_IN_LANG: Record<string, Partial<Record<string, string>>> = {
+  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra'    },
+  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris'     },
+  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin'    },
+  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid'    },
+  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma'      },
+  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm'  },
+  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara'    },
 };
 
 // BCP-47 locale for date/time formatting on each page
@@ -163,7 +170,7 @@ export function BriefingScreen() {
   useEffect(() => {
     const clamped = Math.min(briefPageIndex, Math.max(0, langCount - 1));
     programmaticScrollRef.current = true;
-    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: true });
+    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: false });
     const t = setTimeout(() => { programmaticScrollRef.current = false; }, 500);
     return () => clearTimeout(t);
   }, [briefPageIndex, langCount]);
@@ -231,7 +238,10 @@ export function BriefingScreen() {
             : (lastValidBriefingsRef.current[lang.code] ?? undefined);
           const isTransitioning = !briefingMatches && !!lastValidBriefingsRef.current[lang.code];
 
-          const city    = LANG_CITY_NATIVE[lang.code] ?? lang.name;
+          // All active cities, each translated into this page's language
+          const cityLine = activeLanguages
+            .map(l => CITY_IN_LANG[l.code]?.[lang.code] ?? LANG_CITY_NATIVE[l.code] ?? l.name)
+            .join(' · ');
           const tagline = getTagline(lang.code, langCount);
 
           return (
@@ -256,7 +266,7 @@ export function BriefingScreen() {
               <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
 
               <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-                {city}
+                {cityLine}
               </Text>
 
               <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
