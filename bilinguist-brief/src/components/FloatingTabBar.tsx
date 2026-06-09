@@ -34,8 +34,8 @@ const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - 12; // full bar minus right circle
 // Content-fit width — ROW_PAD = contextRow paddingHorizontal×2 keeps L/R margins symmetric.
 // charW differs between ALL-CAPS codes (wider glyphs) and mixed-case words (narrower avg).
 const CHIP_PAD = 20;  // paddingHorizontal:10 × 2
-const CHIP_GAP = 2;   // gap between chips
-const ROW_PAD  = 16;  // paddingHorizontal:8 × 2
+const CHIP_GAP = 4;   // gap between chips
+const ROW_PAD  = 12;  // paddingHorizontal:6 × 2
 
 function pillContentW(labels: string[]): number {
   const n = labels.length;
@@ -408,8 +408,10 @@ const styles = StyleSheet.create({
   contextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    gap: 2,
+    justifyContent: 'center',
+    flexGrow: 1,
+    paddingHorizontal: 6,
+    gap: 4,
     height: FLOAT_TAB_H,
   },
   contextItem: {
