@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
@@ -44,7 +45,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
-  const activeLanguages = useSettingsStore((s) => s.languages.filter((l) => l.active));
+  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
   const {
     briefPageIndex, setBriefPageIndex,
     settingsSection, setSettingsSection,
