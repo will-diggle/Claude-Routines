@@ -256,7 +256,7 @@ export function BriefingScreen() {
               directionalLockEnabled
               refreshControl={
                 <RefreshControl
-                  refreshing={refreshing || isSyncing}
+                  refreshing={refreshing}
                   onRefresh={onRefresh}
                   tintColor={colors.inkLight}
                 />

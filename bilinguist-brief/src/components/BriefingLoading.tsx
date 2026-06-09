@@ -1,7 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Animated, ActivityIndicator, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
+
+const GENERATING_PHRASES = [
+  'Generating your brief',     // English
+  'Génération en cours',       // French
+  'Brief wird erstellt',       // German
+  'Genererar nyhetsbrevet',    // Swedish
+  'Generazione in corso',      // Italian
+  'Generando tu briefing',     // Spanish
+  'Bülteniniz hazırlanıyor',   // Turkish
+];
 
 function SkeletonLine({ width, height = 16 }: { width: string | number; height?: number }) {
   const { colors } = useTheme();
@@ -54,8 +64,47 @@ function ArticleSkeleton() {
 }
 
 export function BriefingLoading() {
+  const { colors, fontFamily } = useTheme();
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const textOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let index = 0;
+    const cycle = () => {
+      // Fade out
+      Animated.timing(textOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        // Swap text, then fade back in
+        index = (index + 1) % GENERATING_PHRASES.length;
+        setPhraseIndex(index);
+        Animated.timing(textOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }).start();
+      });
+    };
+
+    const timer = setInterval(cycle, 450);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <View style={styles.container}>
+      <View style={styles.spinnerBlock}>
+        <ActivityIndicator size="large" color={colors.inkLight} />
+        <Animated.Text
+          style={[
+            styles.phraseText,
+            { color: colors.inkLight, fontFamily: fontFamily.italic, opacity: textOpacity },
+          ]}
+        >
+          {GENERATING_PHRASES[phraseIndex]}
+        </Animated.Text>
+      </View>
       <ArticleSkeleton />
       <ArticleSkeleton />
       <ArticleSkeleton />
@@ -64,7 +113,16 @@ export function BriefingLoading() {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingTop: Spacing.md },
+  container: { paddingTop: Spacing.xl },
+  spinnerBlock: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    gap: Spacing.md,
+  },
+  phraseText: {
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
   article: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.lg,
