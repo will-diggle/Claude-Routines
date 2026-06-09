@@ -1,10 +1,24 @@
-import React, { useRef, useState } from 'react';
-import { TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import { synthesizeWord } from '../services/elevenlabs';
+import * as Speech from 'expo-speech';
 import { useTheme } from '../hooks/useTheme';
 import type { LanguageCode } from '../store/useSettingsStore';
+
+// ── Demo mode: device TTS instead of ElevenLabs ───────────────────────────────
+// Swap DEMO_MODE to false and restore the ElevenLabs import when credits are live
+
+const DEMO_MODE = true;
+
+const LANG_LOCALE: Record<LanguageCode, string> = {
+  fr: 'fr-FR',
+  de: 'de-DE',
+  sv: 'sv-SE',
+  en: 'en-GB',
+  it: 'it-IT',
+  es: 'es-ES',
+  tr: 'tr-TR',
+};
 
 interface Props {
   word: string;
@@ -14,40 +28,26 @@ interface Props {
 
 export function WordAudioButton({ word, language, size = 'md' }: Props) {
   const { colors } = useTheme();
-  const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const [playing, setPlaying] = useState(false);
 
-  async function handlePress() {
-    if (state === 'loading') return;
-
-    if (state === 'playing') {
-      try { await soundRef.current?.stopAsync(); } catch { /* ignore */ }
-      setState('idle');
+  function handlePress() {
+    if (playing) {
+      Speech.stop();
+      setPlaying(false);
       return;
     }
-
-    setState('loading');
-    const result = await synthesizeWord(word, language);
-    if (!result.ok) { setState('idle'); return; }
-
-    try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-      const { sound } = await Audio.Sound.createAsync({ uri: result.audioUri }, { shouldPlay: true });
-      soundRef.current = sound;
-      setState('playing');
-      sound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && s.didJustFinish) {
-          setState('idle');
-          soundRef.current = null;
-        }
-      });
-    } catch {
-      setState('idle');
-    }
+    setPlaying(true);
+    Speech.speak(word, {
+      language: LANG_LOCALE[language] ?? 'en-GB',
+      rate: 0.82,
+      onDone:    () => setPlaying(false),
+      onStopped: () => setPlaying(false),
+      onError:   () => setPlaying(false),
+    });
   }
 
   const iconSize = size === 'sm' ? 13 : 17;
-  const btnSize = size === 'sm' ? 26 : 34;
+  const btnSize  = size === 'sm' ? 26 : 34;
 
   return (
     <TouchableOpacity
@@ -56,15 +56,11 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={[styles.btn, { width: btnSize, height: btnSize, borderRadius: btnSize / 2, borderColor: colors.borderMid }]}
     >
-      {state === 'loading' ? (
-        <ActivityIndicator size="small" color={colors.inkFaint} />
-      ) : (
-        <Ionicons
-          name={state === 'playing' ? 'stop' : 'volume-high-outline'}
-          size={iconSize}
-          color={colors.inkMid}
-        />
-      )}
+      <Ionicons
+        name={playing ? 'stop' : 'volume-high-outline'}
+        size={iconSize}
+        color={colors.inkMid}
+      />
     </TouchableOpacity>
   );
 }

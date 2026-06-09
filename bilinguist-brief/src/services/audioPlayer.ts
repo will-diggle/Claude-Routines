@@ -1,9 +1,30 @@
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import { synthesizeWord } from './elevenlabs';
 import { useAudioStore } from '../store/useAudioStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 
+// Flip to false when ElevenLabs credits are live
+const DEMO_MODE = true;
+
 const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? '';
+
+const LANG_LOCALE: Record<string, string> = {
+  fr: 'fr-FR', de: 'de-DE', sv: 'sv-SE', en: 'en-GB',
+  it: 'it-IT', es: 'es-ES', tr: 'tr-TR',
+};
+
+function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
+  const { setPlaying, setIdle } = useAudioStore.getState();
+  setPlaying();
+  Speech.speak(text, {
+    language: LANG_LOCALE[language] ?? 'en-GB',
+    rate: 0.88,
+    onDone:    setIdle,
+    onStopped: setIdle,
+    onError:   setIdle,
+  });
+}
 
 // ─── Module-level sound instance ─────────────────────────────────────────────
 // Kept outside Zustand so it's never serialised. The store only holds the
@@ -22,6 +43,8 @@ export async function playAudioHeadline(
   language: LanguageCode,
   trackingKey?: string,
 ): Promise<void> {
+  if (DEMO_MODE) { speakDemo(text, language, trackingKey ?? text); return; }
+
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
 
   // Stop and release any existing sound
@@ -72,6 +95,7 @@ export async function playAudioHeadline(
  * Pause currently playing audio (keeps it loaded for resumption).
  */
 export async function pauseAudio(): Promise<void> {
+  if (DEMO_MODE) { Speech.stop(); useAudioStore.getState().setIdle(); return; }
   if (!_sound) return;
   try {
     await _sound.pauseAsync();
@@ -100,6 +124,8 @@ export async function playArticleAudio(
   trackingKey: string,
   audioKey: string,
 ): Promise<void> {
+  if (DEMO_MODE) { speakDemo(text, language, trackingKey); return; }
+
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
 
   if (_sound) {
@@ -143,6 +169,7 @@ export async function playArticleAudio(
 
 /** Stop and fully release the current sound. */
 export async function stopAudio(): Promise<void> {
+  if (DEMO_MODE) { Speech.stop(); useAudioStore.getState().setIdle(); return; }
   if (!_sound) return;
   try {
     await _sound.stopAsync();
