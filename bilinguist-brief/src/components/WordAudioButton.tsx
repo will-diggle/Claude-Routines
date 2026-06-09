@@ -1,24 +1,22 @@
-import React, { useState } from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 import { useTheme } from '../hooks/useTheme';
 import type { LanguageCode } from '../store/useSettingsStore';
 
-// ── Demo mode: device TTS instead of ElevenLabs ───────────────────────────────
-// Swap DEMO_MODE to false and restore the ElevenLabs import when credits are live
+// Uses Google Translate's unofficial TTS endpoint — free for short words.
+// No API key required.
 
-const DEMO_MODE = true;
-
-const LANG_LOCALE: Record<LanguageCode, string> = {
-  fr: 'fr-FR',
-  de: 'de-DE',
-  sv: 'sv-SE',
-  en: 'en-GB',
-  it: 'it-IT',
-  es: 'es-ES',
-  tr: 'tr-TR',
-};
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
 
 interface Props {
   word: string;
@@ -28,22 +26,49 @@ interface Props {
 
 export function WordAudioButton({ word, language, size = 'md' }: Props) {
   const { colors } = useTheme();
-  const [playing, setPlaying] = useState(false);
+  const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const soundRef = useRef<Audio.Sound | null>(null);
 
-  function handlePress() {
-    if (playing) {
-      Speech.stop();
-      setPlaying(false);
+  async function handlePress() {
+    if (state === 'loading') return;
+
+    if (state === 'playing') {
+      try { await soundRef.current?.stopAsync(); } catch { /* ignore */ }
+      soundRef.current = null;
+      setState('idle');
       return;
     }
-    setPlaying(true);
-    Speech.speak(word, {
-      language: LANG_LOCALE[language] ?? 'en-GB',
-      rate: 0.82,
-      onDone:    () => setPlaying(false),
-      onStopped: () => setPlaying(false),
-      onError:   () => setPlaying(false),
-    });
+
+    setState('loading');
+
+    try {
+      const url =
+        `https://translate.google.com/translate_tts` +
+        `?ie=UTF-8&q=${encodeURIComponent(word)}&tl=${language}&client=tw-ob`;
+
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      if (!res.ok) { setState('idle'); return; }
+
+      const buffer = await res.arrayBuffer();
+      const base64 = arrayBufferToBase64(buffer);
+      const audioUri = `data:audio/mpeg;base64,${base64}`;
+
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+      const { sound } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
+      soundRef.current = sound;
+      setState('playing');
+
+      sound.setOnPlaybackStatusUpdate((s) => {
+        if (s.isLoaded && s.didJustFinish) {
+          setState('idle');
+          soundRef.current = null;
+        }
+      });
+    } catch {
+      setState('idle');
+    }
   }
 
   const iconSize = size === 'sm' ? 13 : 17;
@@ -56,11 +81,15 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={[styles.btn, { width: btnSize, height: btnSize, borderRadius: btnSize / 2, borderColor: colors.borderMid }]}
     >
-      <Ionicons
-        name={playing ? 'stop' : 'volume-high-outline'}
-        size={iconSize}
-        color={colors.inkMid}
-      />
+      {state === 'loading' ? (
+        <ActivityIndicator size="small" color={colors.inkFaint} />
+      ) : (
+        <Ionicons
+          name={state === 'playing' ? 'stop' : 'volume-high-outline'}
+          size={iconSize}
+          color={colors.inkMid}
+        />
+      )}
     </TouchableOpacity>
   );
 }

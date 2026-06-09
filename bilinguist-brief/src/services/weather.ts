@@ -108,6 +108,38 @@ export const WEATHER_IN: Partial<Record<LanguageCode, string>> = {
   en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en',
 };
 
+// Cache localized city names for the session to avoid repeated Nominatim calls
+const _cityCache: Partial<Record<string, string>> = {};
+
+async function getCityInLanguage(
+  lat: number,
+  lon: number,
+  lang: LanguageCode,
+): Promise<string> {
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)},${lang}`;
+  if (_cityCache[key]) return _cityCache[key]!;
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=${lang}&zoom=10`,
+      { headers: { 'User-Agent': 'BilinguistBriefApp/1.0' } },
+    );
+    if (!res.ok) return 'My Location';
+    const data = await res.json();
+    const name: string =
+      data.address?.city ??
+      data.address?.town ??
+      data.address?.village ??
+      data.address?.municipality ??
+      data.name ??
+      'My Location';
+    _cityCache[key] = name;
+    return name;
+  } catch {
+    return 'My Location';
+  }
+}
+
 function timeOfDay(): 'morning' | 'afternoon' | 'evening' {
   const h = new Date().getHours();
   if (h < 12) return 'morning';
@@ -126,7 +158,7 @@ export async function fetchWeather(
 
     if (userCoords) {
       ({ latitude, longitude } = userCoords);
-      city = userCoords.cityName ?? 'My Location';
+      city = await getCityInLanguage(latitude, longitude, language);
     } else {
       const cityData = LANG_CITIES[language] ?? FALLBACK_CITY;
       latitude = cityData.latitude;
