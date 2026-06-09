@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 
 // Length picker labels localised to each target language
 const LENGTH_LABELS: Record<string, readonly [string, string, string]> = {
@@ -23,6 +23,9 @@ import {
   Alert,
   StyleSheet,
   Platform,
+  Dimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
@@ -31,7 +34,7 @@ import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
-import { useNavPillStore } from '../store/useNavPillStore';
+import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
@@ -46,6 +49,13 @@ import {
   type FontFamilyKey,
   type FontSizeKey,
 } from '../theme';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
+const SECTION_TO_INDEX: Record<SettingsSection, number> = {
+  languages: 0, genres: 1, display: 2, account: 3,
+};
 
 // Full list of levels available per language. 'Native' = Prompt 3 journalism track.
 const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
@@ -257,7 +267,7 @@ export function SettingsScreen() {
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
-  const { settingsSection: activeTab } = useNavPillStore();
+  const { settingsSection: activeTab, setSettingsSection } = useNavPillStore();
   const [isDragging, setIsDragging] = useState(false);
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
@@ -265,11 +275,30 @@ export function SettingsScreen() {
   const [usageLabel, setUsageLabel] = useState('');
   const [isForceRegenerating, setIsForceRegenerating] = useState(false);
 
+  const pagerRef = useRef<ScrollView>(null);
+  const programmaticScrollRef = useRef(false);
+
   useEffect(() => {
     if (store.developerMode) {
       getDailyUsage().then(({ used, limit }) => setUsageLabel(`${used}/${limit} briefings today`));
     }
   }, [store.developerMode]);
+
+  // Sync pager position when pill chip is tapped
+  useEffect(() => {
+    const idx = SECTION_TO_INDEX[activeTab] ?? 0;
+    programmaticScrollRef.current = true;
+    pagerRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
+    const t = setTimeout(() => { programmaticScrollRef.current = false; }, 500);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
+  const handlePageScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (programmaticScrollRef.current) return;
+    const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const section = SECTIONS[page];
+    if (section && section !== activeTab) setSettingsSection(section);
+  }, [activeTab, setSettingsSection]);
 
   function handleDevTap() {
     if (store.developerMode) {
@@ -303,249 +332,268 @@ export function SettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      scrollEnabled={!isDragging}
-    >
-      {/* ── Languages tab ── */}
-      {activeTab === 'languages' && (
-        <>
-      {/* ── Language Preferences ── */}
-      <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
+      {/* Horizontal pager */}
+      <ScrollView
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onMomentumScrollEnd={handlePageScroll}
+        style={{ flex: 1 }}
+        overScrollMode="never"
+        scrollEnabled={!isDragging}
+      >
+        {/* ── Page 0: Languages ── */}
+        <ScrollView
+          style={[styles.pageScroll, { backgroundColor: colors.bg }]}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!isDragging}
+          directionalLockEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
-      <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        Toggle languages on to include them in your briefing.
-      </Text>
+          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            Toggle languages on to include them in your briefing.
+          </Text>
 
-      <DraggableList
-        items={store.languages}
-        keyExtractor={(lang) => lang.code}
-        itemHeight={56}
-        onReorder={store.reorderLanguages}
-        onDragStateChange={setIsDragging}
-        renderItem={(lang, index, isAnyDragging) => (
-          <View>
-            <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-              <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {lang.nativeName}
-              </Text>
-              <Switch
-                value={lang.active}
-                onValueChange={() => store.toggleLanguage(lang.code)}
-                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-                thumbColor="#FFF"
-              />
-            </View>
-            {/* Hide level/length rows during drag to keep all items the same height */}
-            {lang.active && !isAnyDragging && (
-              <>
-                <TouchableOpacity
-                  style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
-                  onPress={() => setLevelModalLang(lang.code)}
-                >
-                  <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                    Level
+          <DraggableList
+            items={store.languages}
+            keyExtractor={(lang) => lang.code}
+            itemHeight={56}
+            onReorder={store.reorderLanguages}
+            onDragStateChange={setIsDragging}
+            renderItem={(lang, index, isAnyDragging) => (
+              <View>
+                <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                  <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    {lang.nativeName}
                   </Text>
-                  <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                    {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                </TouchableOpacity>
-                <View style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}>
-                  <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                    Length
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {(['short', 'medium', 'longer'] as const).map((val, i) => {
-                      const label = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en)[i];
-                      const active = (lang.readLength ?? 'medium') === val;
-                      return (
-                        <TouchableOpacity
-                          key={val}
-                          onPress={() => store.setLanguageReadLength(lang.code, val)}
-                          style={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: 12,
-                            borderWidth: 1,
-                            borderColor: active ? colors.inkDark : colors.borderMid,
-                            backgroundColor: active ? colors.inkDark : 'transparent',
-                          }}
-                        >
-                          <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
-                            {label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                  <Switch
+                    value={lang.active}
+                    onValueChange={() => store.toggleLanguage(lang.code)}
+                    trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                    thumbColor="#FFF"
+                  />
                 </View>
-              </>
-            )}
-          </View>
-        )}
-      />
-
-      {/* ── Briefing Preferences ── */}
-      <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
-
-      <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-            Daily Briefing Time
-          </Text>
-          <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
-        </View>
-        <TimeInput
-          value={store.briefingNotificationTime}
-          onChange={store.setBriefingNotificationTime}
-          onCommit={() => {
-            const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
-            scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
-          }}
-          colors={colors}
-          fontFamily={fontFamily}
-        />
-      </View>
-
-      <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-            Daily Practice Reminder
-          </Text>
-          <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
-        </View>
-        <TimeInput
-          value={store.practiceNotificationTime}
-          onChange={store.setPracticeNotificationTime}
-          onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
-          colors={colors}
-          fontFamily={fontFamily}
-        />
-      </View>
-
-        </>
-      )}
-
-      {/* ── Genres tab ── */}
-      {activeTab === 'genres' && (
-        <>
-      <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
-
-      <DraggableList
-        items={topicItems}
-        keyExtractor={(item) => item.key}
-        itemHeight={56}
-        onReorder={store.reorderTopics}
-        onDragStateChange={setIsDragging}
-        renderItem={(item) => (
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-            <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              {item.label}
-            </Text>
-            {item.comingSoon ? (
-              <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
-                <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  Coming Soon
-                </Text>
+                {lang.active && !isAnyDragging && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
+                      onPress={() => setLevelModalLang(lang.code)}
+                    >
+                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                        Level
+                      </Text>
+                      <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                        {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                    </TouchableOpacity>
+                    <View style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}>
+                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                        Length
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {(['short', 'medium', 'longer'] as const).map((val, i) => {
+                          const label = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en)[i];
+                          const active = (lang.readLength ?? 'medium') === val;
+                          return (
+                            <TouchableOpacity
+                              key={val}
+                              onPress={() => store.setLanguageReadLength(lang.code, val)}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: active ? colors.inkDark : colors.borderMid,
+                                backgroundColor: active ? colors.inkDark : 'transparent',
+                              }}
+                            >
+                              <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
+                                {label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  </>
+                )}
               </View>
-            ) : (
-              <Switch
-                value={store.topics[item.key]}
-                onValueChange={() => store.toggleTopic(item.key)}
-                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-                thumbColor="#FFF"
-              />
             )}
-          </View>
-        )}
-      />
-        </>
-      )}
+          />
 
-      {/* ── Display tab ── */}
-      {activeTab === 'display' && (
-        <>
-      <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
+          <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
 
-      <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
-
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Background</Text>
-      <View style={[styles.bgContainer, { borderColor: colors.borderMid }]}>
-        {BACKGROUNDS.map((bg, i) => {
-          const selected = store.background === bg.key;
-          return (
-            <TouchableOpacity
-              key={bg.key}
-              style={[
-                styles.bgSegment,
-                { backgroundColor: bg.color },
-                i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
-              ]}
-              onPress={() => store.setBackground(bg.key)}
-            >
-              <Text style={[styles.bgSegmentLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>
-                {bg.label}
-              </Text>
-              {/* Inset highlight border on selected segment */}
-              {selected && (
-                <View
-                  pointerEvents="none"
-                  style={[StyleSheet.absoluteFillObject, { borderWidth: 1.5, borderColor: bg.ink }]}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
-      {(['playfair', 'garamond', 'times', 'georgia'] as FontFamilyKey[]).map((key) => {
-        const fam = FontFamilies[key];
-        const selected = store.fontFamily === key;
-        return (
-          <TouchableOpacity
-            key={key}
-            style={[styles.fontRow, { borderBottomColor: colors.borderLight }]}
-            onPress={() => store.setFontFamily(key)}
-          >
+          <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>
-                {fam.label}
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                Daily Briefing Time
               </Text>
-              <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>
-                The quick brown fox
-              </Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
             </View>
-            {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
-          </TouchableOpacity>
-        );
-      })}
+            <TimeInput
+              value={store.briefingNotificationTime}
+              onChange={store.setBriefingNotificationTime}
+              onCommit={() => {
+                const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
+                scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+              }}
+              colors={colors}
+              fontFamily={fontFamily}
+            />
+          </View>
 
-      <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
-      <SegmentedControl
-        options={[
-          { label: 'A', value: 'small',      optionFontSize: 11 },
-          { label: 'A', value: 'medium',     optionFontSize: 14 },
-          { label: 'A', value: 'large',      optionFontSize: 17 },
-          { label: 'A', value: 'extraLarge', optionFontSize: 20 },
-        ]}
-        value={store.fontSize}
-        onChange={(v) => store.setFontSize(v as FontSizeKey)}
-        colors={colors}
-        fontFamily={fontFamily}
-      />
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                Daily Practice Reminder
+              </Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
+            </View>
+            <TimeInput
+              value={store.practiceNotificationTime}
+              onChange={store.setPracticeNotificationTime}
+              onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
+              colors={colors}
+              fontFamily={fontFamily}
+            />
+          </View>
+        </ScrollView>
 
-        </>
-      )}
+        {/* ── Page 1: Genres ── */}
+        <ScrollView
+          style={[styles.pageScroll, { backgroundColor: colors.bg }]}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!isDragging}
+          directionalLockEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
 
-      {/* ── Account tab ── */}
-      {activeTab === 'account' && (
-        <>
+          <DraggableList
+            items={topicItems}
+            keyExtractor={(item) => item.key}
+            itemHeight={56}
+            onReorder={store.reorderTopics}
+            onDragStateChange={setIsDragging}
+            renderItem={(item) => (
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+                <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  {item.label}
+                </Text>
+                {item.comingSoon ? (
+                  <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                    <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      Coming Soon
+                    </Text>
+                  </View>
+                ) : (
+                  <Switch
+                    value={store.topics[item.key]}
+                    onValueChange={() => store.toggleTopic(item.key)}
+                    trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                    thumbColor="#FFF"
+                  />
+                )}
+              </View>
+            )}
+          />
+        </ScrollView>
+
+        {/* ── Page 2: Display ── */}
+        <ScrollView
+          style={[styles.pageScroll, { backgroundColor: colors.bg }]}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          directionalLockEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
+
+          <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
+
+          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Background</Text>
+          <View style={[styles.bgContainer, { borderColor: colors.borderMid }]}>
+            {BACKGROUNDS.map((bg, i) => {
+              const selected = store.background === bg.key;
+              return (
+                <TouchableOpacity
+                  key={bg.key}
+                  style={[
+                    styles.bgSegment,
+                    { backgroundColor: bg.color },
+                    i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
+                  ]}
+                  onPress={() => store.setBackground(bg.key)}
+                >
+                  <Text style={[styles.bgSegmentLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>
+                    {bg.label}
+                  </Text>
+                  {selected && (
+                    <View
+                      pointerEvents="none"
+                      style={[StyleSheet.absoluteFillObject, { borderWidth: 1.5, borderColor: bg.ink }]}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
+          {(['playfair', 'garamond', 'times', 'georgia'] as FontFamilyKey[]).map((key) => {
+            const fam = FontFamilies[key];
+            const selected = store.fontFamily === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.fontRow, { borderBottomColor: colors.borderLight }]}
+                onPress={() => store.setFontFamily(key)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>
+                    {fam.label}
+                  </Text>
+                  <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>
+                    The quick brown fox
+                  </Text>
+                </View>
+                {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
+              </TouchableOpacity>
+            );
+          })}
+
+          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
+          <SegmentedControl
+            options={[
+              { label: 'A', value: 'small',      optionFontSize: 11 },
+              { label: 'A', value: 'medium',     optionFontSize: 14 },
+              { label: 'A', value: 'large',      optionFontSize: 17 },
+              { label: 'A', value: 'extraLarge', optionFontSize: 20 },
+            ]}
+            value={store.fontSize}
+            onChange={(v) => store.setFontSize(v as FontSizeKey)}
+            colors={colors}
+            fontFamily={fontFamily}
+          />
+        </ScrollView>
+
+        {/* ── Page 3: Account ── */}
+        <ScrollView
+          style={[styles.pageScroll, { backgroundColor: colors.bg }]}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          directionalLockEnabled
+          showsVerticalScrollIndicator={false}
+        >
           <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
 
           <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
@@ -612,78 +660,77 @@ export function SettingsScreen() {
               Powered by Claude AI
             </Text>
           </View>
-        </>
-      )}
 
-      {/* ── Developer ── */}
-      <View style={styles.devSection}>
-        <TouchableOpacity onPress={handleDevTap} style={styles.devTap}>
-          <Text style={[styles.devText, { color: colors.inkFaint }]}>
-            {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
-          </Text>
-        </TouchableOpacity>
-        {store.developerMode && (
-          <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <Text style={[styles.devText, { color: colors.inkFaint }]}>
-              {usageLabel} · Access: {status}
-            </Text>
-            <TouchableOpacity
-              onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
-              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-            >
-              <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                const result = applyPromoCode('FOUNDER');
-                Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
-              }}
-              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-            >
-              <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              disabled={isForceRegenerating}
-              onPress={async () => {
-                const active = store.languages.filter((l) => l.active);
-                if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
-                setIsForceRegenerating(true);
-                try {
-                  // Reload the selected length variant for each active language
-                  const calls: Array<() => Promise<void>> = [];
-                  for (const lang of active) {
-                    const level = lang.level ?? 'B1';
-                    const length = (lang.readLength ?? 'medium') as ArticleLength;
-                    calls.push(() => loadBriefing(lang.code, level, length, true));
-                  }
-                  await Promise.all(calls.map((fn) => fn()));
-                  Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
-                } catch {
-                  Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
-                } finally {
-                  setIsForceRegenerating(false);
-                }
-              }}
-              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
-            >
-              <Text style={[styles.devText, { color: colors.accentRed }]}>
-                {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
+          {/* ── Developer ── */}
+          <View style={styles.devSection}>
+            <TouchableOpacity onPress={handleDevTap} style={styles.devTap}>
+              <Text style={[styles.devText, { color: colors.inkFaint }]}>
+                {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={async () => {
-                const fb = await getTodayFactbase();
-                if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
-                const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
-                Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
-              }}
-              style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-            >
-              <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
-            </TouchableOpacity>
+            {store.developerMode && (
+              <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Text style={[styles.devText, { color: colors.inkFaint }]}>
+                  {usageLabel} · Access: {status}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
+                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                >
+                  <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    const result = applyPromoCode('FOUNDER');
+                    Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
+                  }}
+                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                >
+                  <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={isForceRegenerating}
+                  onPress={async () => {
+                    const active = store.languages.filter((l) => l.active);
+                    if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
+                    setIsForceRegenerating(true);
+                    try {
+                      const calls: Array<() => Promise<void>> = [];
+                      for (const lang of active) {
+                        const level = lang.level ?? 'B1';
+                        const length = (lang.readLength ?? 'medium') as ArticleLength;
+                        calls.push(() => loadBriefing(lang.code, level, length, true));
+                      }
+                      await Promise.all(calls.map((fn) => fn()));
+                      Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
+                    } catch {
+                      Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
+                    } finally {
+                      setIsForceRegenerating(false);
+                    }
+                  }}
+                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
+                >
+                  <Text style={[styles.devText, { color: colors.accentRed }]}>
+                    {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={async () => {
+                    const fb = await getTodayFactbase();
+                    if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
+                    const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
+                    Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
+                  }}
+                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                >
+                  <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-        )}
-      </View>
+        </ScrollView>
+      </ScrollView>
 
       {/* Level picker modal */}
       <Modal
@@ -771,7 +818,6 @@ export function SettingsScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
     </SafeAreaView>
   );
 }
@@ -779,7 +825,7 @@ export function SettingsScreen() {
 // ── Styles ──
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1 },
+  pageScroll: { width: SCREEN_WIDTH },
   content: { paddingBottom: FLOAT_TAB_INSET },
   helper: { fontSize: 13, marginHorizontal: Spacing.md, marginTop: Spacing.xs, marginBottom: Spacing.sm },
   row: {
@@ -846,25 +892,6 @@ const styles = StyleSheet.create({
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },
-});
-
-const tabStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingBottom: 9,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
-    marginBottom: -StyleSheet.hairlineWidth,
-  },
-  label: { fontSize: 14 },
 });
 
 const sectionStyles = StyleSheet.create({
