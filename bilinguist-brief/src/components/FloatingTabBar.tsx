@@ -30,6 +30,8 @@ const PILL_GAP     = 12;
 const LEFT_MINI_W  = FLOAT_TAB_H; // perfect circle when closed
 const RIGHT_MINI_W = 68;          // compact oval — icon stacked above label
 const RIGHT_MAX_W  = 240;         // content-fit for 3 nav tabs
+// Max left pill width: full bar minus right mini pill and gap
+const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - PILL_GAP;
 
 // ── Context labels ─────────────────────────────────────────────────────────────
 
@@ -125,17 +127,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Content-fit left expanded width ───────────────────────────────────────
   function computeLeftExpandedW(): number {
     if (currentRouteIndex === 0) {
-      // Brief — language tabs
+      // Brief — always full native names
       if (activeLanguages.length === 0) return LEFT_MINI_W;
-      if (activeLanguages.length <= 3) {
-        const totalChars = activeLanguages.reduce((s, l) => s + l.nativeName.length, 0);
-        return Math.min(totalChars * 7.5 + activeLanguages.length * 22 + 16, SW * 0.62);
-      }
-      return Math.min(activeLanguages.length * 44 + 16, SW * 0.62);
+      const totalChars = activeLanguages.reduce((s, l) => s + l.nativeName.length, 0);
+      return Math.min(totalChars * 7.5 + activeLanguages.length * 22 + 16, LEFT_MAX_W);
     }
     if (currentRouteIndex === 2) return 228; // Reading + Display + Account
     // Practice — ALL + N language codes
-    return Math.min((activeLanguages.length + 1) * 44 + 16, SW * 0.62);
+    return Math.min((activeLanguages.length + 1) * 44 + 16, LEFT_MAX_W);
   }
 
   // ── Toggle handlers ────────────────────────────────────────────────────────
@@ -176,7 +175,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 color: briefPageIndex === i ? activeColor : inactiveColor,
                 fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular,
               }]}>
-                {activeLanguages.length <= 3 ? lang.nativeName : lang.code.toUpperCase()}
+                {lang.nativeName}
               </Text>
             </TouchableOpacity>
           ))}
@@ -306,8 +305,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
     >
-      {/* ── Left context pill — always circle when closed ────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { width: leftWidthAnim }]}>
+      {/* ── Left context pill — anchored left, expands rightward ─────────── */}
+      <Animated.View style={[styles.pill, pillStyle, styles.pillLeft, { width: leftWidthAnim }]}>
         {/* StackedSquares icon — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftIconOp }]}
@@ -327,8 +326,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         </Animated.View>
       </Animated.View>
 
-      {/* ── Right nav pill ─────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { width: rightWidthAnim }]}>
+      {/* ── Right nav pill — anchored right, expands leftward ───────────────── */}
+      <Animated.View style={[styles.pill, pillStyle, styles.pillRight, { width: rightWidthAnim }]}>
         {/* Mini (icon above label) — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightMiniOp }]}
@@ -356,18 +355,27 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 8,
     right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: PILL_GAP,
+    height: FLOAT_TAB_H,
   },
 
   pill: {
+    position: 'absolute',
     height: FLOAT_TAB_H,
     borderRadius: FLOAT_TAB_H / 2,
     borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Left pill: anchored to left edge, expands rightward
+  pillLeft: {
+    left: 0,
+  },
+
+  // Right pill: anchored to right edge, expands leftward
+  pillRight: {
+    right: 0,
   },
 
   absoluteFill: {
