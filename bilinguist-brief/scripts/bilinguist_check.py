@@ -14,10 +14,10 @@ import sys
 from pathlib import Path
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A1", "A2", "B1", "B2", "C1", "C2"],
+    "fr": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "de": ["A1", "A2", "Native"],
     "sv": ["B2", "Native"],
-    "en": ["B2", "C1", "C2", "Native"],
+    "en": ["B2", "C1", "Native"],
     "it": ["A1", "Native"],
     "es": ["A2"],
     "tr": ["A1"],
@@ -31,6 +31,7 @@ LANG_NAMES = {"fr": "French", "de": "German", "sv": "Swedish",
 _STAGE_LABELS: dict[str, str] = {
     "1_gather": "Gather (Pro Flex)",
     "2S":       "Stage 2S writing",
+    "2B":       "Stage 2B beginner",
     "2M":       "Stage 2M writing",
     "3":        "Stage 3 native",
     "4":        "Stage 4 grading",

@@ -734,9 +734,13 @@ def run_writing_concurrent(
         stage = "2B" if is_beginner else "2M"
         model = MODEL_BEGINNER if is_beginner else MODEL_2M
         template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
-        # Beginner articles are small enough (~110–190 words × stories) to fit in a
-        # single call; only B1+ output approaches the 8192-token output boundary.
-        n_splits = 1 if is_beginner else (2 if length == "medium" else 3)
+        # A1/longer (190 words × many stories) has caused concurrent rate-limit failures
+        # when all four A1 languages fire simultaneously. Split it like B1+ medium.
+        # A1/medium and A2 remain single-call (output is small enough).
+        if is_beginner:
+            n_splits = 2 if (level == "A1" and length == "longer") else 1
+        else:
+            n_splits = 2 if length == "medium" else 3
         prompt = build_writing_prompt(template, lang, level, length, factbase)
         tasks.append(_WriteTask(
             stage=stage, lang=lang, level=level, length=length,
