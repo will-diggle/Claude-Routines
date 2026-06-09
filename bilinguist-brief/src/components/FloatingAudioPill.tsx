@@ -17,9 +17,9 @@ import { FLOAT_TAB_H, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
-const PILL_H        = 50;
+const PILL_H        = 38;
 const NUM_BARS      = 4;
-const BAR_MAX       = 16;
+const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 10;
 const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
 
@@ -186,9 +186,9 @@ export function FloatingAudioPill() {
           <View style={[styles.playCircle, { backgroundColor: accent + '22', borderColor: accent }]}>
             <Ionicons
               name={isPlaying ? 'pause' : 'play'}
-              size={14}
+              size={12}
               color={accent}
-              style={!isPlaying ? { marginLeft: 1.5 } : undefined}
+              style={!isPlaying ? { marginLeft: 1 } : undefined}
             />
           </View>
         </TouchableOpacity>
@@ -244,9 +244,8 @@ export function FloatingAudioPill() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 80,
-    right: 80,
-    alignItems: 'center',
+    left: 8,
+    right: 8,
   },
 
   pill: {
@@ -255,8 +254,8 @@ const styles = StyleSheet.create({
     borderRadius: PILL_H / 2,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 12,
+    gap: 10,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -267,9 +266,9 @@ const styles = StyleSheet.create({
   },
 
   playCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -278,10 +277,10 @@ const styles = StyleSheet.create({
 
   // Fixed-width waveform — no longer flex:1
   waveform: {
-    width: 36,
+    width: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     height: BAR_MAX,
     flexShrink: 0,
   },
@@ -297,6 +296,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     height: PILL_H,
     justifyContent: 'center',
+    alignItems: 'flex-start',
   },
 
   // Two copies side-by-side inside the animated wrapper.
