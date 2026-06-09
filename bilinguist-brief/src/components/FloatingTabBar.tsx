@@ -64,7 +64,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     briefPageIndex, setBriefPageIndex,
     settingsSection, setSettingsSection,
     practiceLang, setPracticeLang,
+    gameActive,
   } = useNavPillStore();
+
+  if (gameActive) return null;
 
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);

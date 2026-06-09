@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -10,11 +10,12 @@ import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
+import { useNavPillStore } from '../store/useNavPillStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const MIN_WORDS = 4;
-const MAX_QUESTIONS = 15;
+const MAX_QUESTIONS = 10;
 
 interface Question {
   word: SavedWord;
@@ -53,6 +54,11 @@ export function MultipleChoiceScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const setGameActive = useNavPillStore((s) => s.setGameActive);
+  useFocusEffect(useCallback(() => {
+    setGameActive(true);
+    return () => setGameActive(false);
+  }, [setGameActive]));
   const route = useRoute<RouteProp<PracticeStackParamList, 'MultipleChoice'>>();
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();

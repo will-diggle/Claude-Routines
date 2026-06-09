@@ -100,7 +100,7 @@ const DEFAULT_SETTINGS: Settings = {
   practiceNotificationTime: '18:00',
   fontSize: 'medium',
   background: 'white',
-  fontFamily: 'playfair',
+  fontFamily: 'garamond',
   developerMode: false,
 };
 

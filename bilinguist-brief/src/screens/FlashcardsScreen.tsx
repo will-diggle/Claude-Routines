@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Animated, PanResponder, Dimensions,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,11 +15,12 @@ import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { useNavPillStore } from '../store/useNavPillStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const { width: SW, height: SH } = Dimensions.get('window');
-const MAX_CARDS = 20;
+const MAX_CARDS = 15;
 const CARD_W = SW - 48;
 const CARD_H = Math.min(Math.round(CARD_W * 1.42), Math.round(SH * 0.60));
 const SWIPE_THRESHOLD = 80;
@@ -44,6 +45,11 @@ export function FlashcardsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const setGameActive = useNavPillStore((s) => s.setGameActive);
+  useFocusEffect(useCallback(() => {
+    setGameActive(true);
+    return () => setGameActive(false);
+  }, [setGameActive]));
   const route = useRoute<RouteProp<PracticeStackParamList, 'Flashcards'>>();
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
@@ -210,7 +216,7 @@ export function FlashcardsScreen() {
 
       <View style={styles.deckArea}>
         {/* Background stack cards */}
-        {Array.from({ length: Math.min(2, remaining - 1) }, (_, i) => {
+        {Array.from({ length: Math.min(3, remaining - 1) }, (_, i) => {
           const depth = i + 1;
           return (
             <View

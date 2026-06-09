@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,32 +12,18 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
-import type { LanguageCode } from '../store/useSettingsStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
-const ROUND_DURATIONS = [60, 45, 30]; // seconds per round
+const TIME_LIMIT = 30;
 const PAIRS_PER_SCREEN = 6;
-const TOTAL_ROUNDS = 3;
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Tile {
-  id: string;          // unique per tile
-  pairId: string;      // shared between the two tiles in a pair
+  id: string;
+  pairId: string;
   text: string;
-  isNative: boolean;   // true = word in target language, false = translation
+  isNative: boolean;
 }
-
-interface RoundSummary {
-  round: number;
-  matched: number;
-  time: number; // seconds used
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -55,8 +41,6 @@ function makeTiles(words: SavedWord[]): Tile[] {
   ]);
 }
 
-// ── Screen ────────────────────────────────────────────────────────────────────
-
 export function MatchingScreen() {
   const { colors, fontFamily } = useTheme();
   const insets = useSafeAreaInsets();
@@ -66,6 +50,13 @@ export function MatchingScreen() {
   const { words } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const { activeLanguages } = useSettingsStore();
+  const setGameActive = useNavPillStore((s) => s.setGameActive);
+
+  useFocusEffect(useCallback(() => {
+    setGameActive(true);
+    return () => setGameActive(false);
+  }, [setGameActive]));
+
   const activeCodes = new Set(activeLanguages().map((l) => l.code));
 
   const eligibleWords = useMemo(() => {
@@ -78,45 +69,36 @@ export function MatchingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [round, setRound] = useState(0);         // 0-indexed
-  const [timeLeft, setTimeLeft] = useState(ROUND_DURATIONS[0]);
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [wordPool, setWordPool] = useState<SavedWord[]>([]);
-  const [matched, setMatched] = useState<Set<string>>(new Set()); // pairIds
-  const [selected, setSelected] = useState<string | null>(null);   // tile id
-  const [wrong, setWrong] = useState<[string, string] | null>(null); // wrong pair
-  const [roundSummaries, setRoundSummaries] = useState<RoundSummary[]>([]);
-  const [roundMatched, setRoundMatched] = useState(0); // matched this round
-  const [phase, setPhase] = useState<'playing' | 'roundDone' | 'allDone'>('playing');
+  const [matched, setMatched] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<string | null>(null);
+  const [wrong, setWrong] = useState<[string, string] | null>(null);
+  const [score, setScore] = useState(0);
+  const [phase, setPhase] = useState<'playing' | 'done'>('playing');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeUsedRef = useRef(0);
-
-  // Flash animation for wrong pairs
   const wrongAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Initialise round ──────────────────────────────────────────────────────
-
-  const initRound = useCallback((roundIndex: number, pool: SavedWord[]) => {
-    const next = pool.slice(0, PAIRS_PER_SCREEN);
-    setTiles(shuffle(makeTiles(next)));
+  const initGame = useCallback((pool: SavedWord[]) => {
+    const first = pool.slice(0, PAIRS_PER_SCREEN);
+    setTiles(shuffle(makeTiles(first)));
     setWordPool(pool.slice(PAIRS_PER_SCREEN));
     setMatched(new Set());
     setSelected(null);
     setWrong(null);
-    setRoundMatched(0);
-    setTimeLeft(ROUND_DURATIONS[roundIndex] ?? 30);
-    timeUsedRef.current = 0;
+    setScore(0);
+    setTimeLeft(TIME_LIMIT);
+    setPhase('playing');
   }, []);
 
   useEffect(() => {
     if (eligibleWords.length >= 2) {
-      initRound(0, eligibleWords);
+      initGame(eligibleWords);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── Timer ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -124,102 +106,57 @@ export function MatchingScreen() {
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(timerRef.current!);
-          finishRound();
+          recordSession();
+          setPhase('done');
           return 0;
         }
-        timeUsedRef.current += 1;
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current!);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, round]);
-
-  // ── Replace matched pairs with new words from pool ────────────────────────
+  }, [phase]);
 
   function replacePairs(pairId: string) {
     setTiles((prev) => {
-      // Check if there are new words in the pool to replace with
       setWordPool((pool) => {
         if (pool.length < 1) return pool;
         const [next, ...rest] = pool;
         const newTiles = makeTiles([next]);
         const withoutMatched = prev.filter((t) => t.pairId !== pairId);
-        const shuffled = shuffle([...withoutMatched, ...newTiles]);
-        setTiles(shuffled);
+        setTiles(shuffle([...withoutMatched, ...newTiles]));
         return rest;
       });
-      return prev; // will be overwritten above
+      return prev;
     });
   }
 
-  function finishRound() {
-    clearInterval(timerRef.current!);
-    const summary: RoundSummary = {
-      round: round + 1,
-      matched: roundMatched,
-      time: timeUsedRef.current,
-    };
-    setRoundSummaries((s) => [...s, summary]);
-    if (round + 1 >= TOTAL_ROUNDS) {
-      recordSession();
-      setPhase('allDone');
-    } else {
-      setPhase('roundDone');
-    }
-  }
-
-  function startNextRound() {
-    const nextRound = round + 1;
-    setRound(nextRound);
-    setPhase('playing');
-    initRound(nextRound, wordPool.length >= PAIRS_PER_SCREEN ? wordPool : shuffle([...eligibleWords, ...wordPool]));
-  }
-
-  // ── Tile tap ─────────────────────────────────────────────────────────────
-
   function handleTile(tile: Tile) {
     if (matched.has(tile.pairId)) return;
-    if (wrong) return; // locked while showing wrong flash
-    if (selected === tile.id) {
-      setSelected(null);
-      return;
-    }
+    if (wrong) return;
+    if (selected === tile.id) { setSelected(null); return; }
 
-    if (!selected) {
-      setSelected(tile.id);
-      return;
-    }
+    if (!selected) { setSelected(tile.id); return; }
 
-    // Second tap — check for match
     const first = tiles.find((t) => t.id === selected);
     if (!first) { setSelected(tile.id); return; }
 
     if (first.pairId === tile.pairId && first.id !== tile.id) {
-      // Correct match
       const newMatched = new Set(matched).add(tile.pairId);
       setMatched(newMatched);
       setSelected(null);
-      setRoundMatched((n) => n + 1);
-
-      // Replace after short delay
+      setScore((n) => n + 1);
       setTimeout(() => replacePairs(tile.pairId), 400);
     } else {
-      // Wrong — flash red briefly
       setWrong([selected, tile.id]);
       Animated.sequence([
         Animated.timing(wrongAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
         Animated.timing(wrongAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
         Animated.timing(wrongAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
         Animated.timing(wrongAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-      ]).start(() => {
-        setWrong(null);
-        setSelected(null);
-      });
+      ]).start(() => { setWrong(null); setSelected(null); });
     }
   }
-
-  // ── Empty state ───────────────────────────────────────────────────────────
 
   if (eligibleWords.length < 2) {
     return (
@@ -234,117 +171,62 @@ export function MatchingScreen() {
     );
   }
 
-  // ── Round done screen ─────────────────────────────────────────────────────
-
-  if (phase === 'roundDone') {
-    const lastSummary = roundSummaries[roundSummaries.length - 1];
+  if (phase === 'done') {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Match" current={round} total={TOTAL_ROUNDS} />
-        <View style={styles.center}>
-          <Text style={[styles.roundDoneLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            ROUND {lastSummary?.round}
-          </Text>
-          <Text style={[styles.roundDoneScore, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            {lastSummary?.matched} matched
-          </Text>
-          <Text style={[styles.roundDoneNext, { color: colors.accentGold, fontFamily: fontFamily.italic }]}>
-            Round {round + 1} — {ROUND_DURATIONS[round]}s
-          </Text>
-          <TouchableOpacity
-            style={[styles.doneBtn, { backgroundColor: colors.accentGold }]}
-            onPress={startNextRound}
-          >
-            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>
-              Start Round {round + 1}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ── All done screen ───────────────────────────────────────────────────────
-
-  if (phase === 'allDone') {
-    const total = roundSummaries.reduce((sum, s) => sum + s.matched, 0);
-    return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Match" current={TOTAL_ROUNDS} total={TOTAL_ROUNDS} />
+        <GameHeader title="Match" current={TIME_LIMIT} total={TIME_LIMIT} />
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            Game complete
+          <Text style={[styles.doneLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            YOUR SCORE
           </Text>
-          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            {roundSummaries.map((s) => (
-              <View key={s.round} style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-                <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                  Round {s.round}  ({ROUND_DURATIONS[s.round - 1]}s)
-                </Text>
-                <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {s.matched}
-                </Text>
-              </View>
-            ))}
-            <View style={[styles.statRow, { borderBottomColor: 'transparent' }]}>
-              <Text style={[styles.statLabel, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                Total matched
-              </Text>
-              <Text style={[styles.statValue, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-                {total}
-              </Text>
-            </View>
-          </View>
+          <Text style={[styles.doneScore, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+            {score}
+          </Text>
+          <Text style={[styles.doneSub, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            pairs matched in 30 seconds
+          </Text>
           <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
           <TouchableOpacity
             style={[styles.doneBtn, { backgroundColor: colors.accentGold }]}
+            onPress={() => initGame(shuffle([...eligibleWords]))}
+          >
+            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Play again</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.backBtn, { borderColor: colors.borderMid }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+            <Text style={[styles.backBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  // ── Playing ───────────────────────────────────────────────────────────────
-
-  // Timer colour: green → amber → red as time runs out
-  const duration = ROUND_DURATIONS[round] ?? 60;
-  const timerFrac = timeLeft / duration;
+  const timerFrac = timeLeft / TIME_LIMIT;
   const timerColor = timerFrac > 0.5 ? '#43A047' : timerFrac > 0.25 ? '#E65100' : '#E53935';
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Match" current={round + 1} total={TOTAL_ROUNDS} />
+      <GameHeader title="Match" current={0} total={0} />
 
-      {/* Timer bar */}
       <View style={[styles.timerTrack, { backgroundColor: colors.borderLight }]}>
-        <View
-          style={[
-            styles.timerFill,
-            {
-              backgroundColor: timerColor,
-              width: `${timerFrac * 100}%` as any,
-            },
-          ]}
-        />
+        <View style={[styles.timerFill, { backgroundColor: timerColor, width: `${timerFrac * 100}%` as any }]} />
       </View>
 
-      <View style={[styles.timerRow]}>
+      <View style={styles.timerRow}>
         <Text style={[styles.timerText, { color: timerColor, fontFamily: fontFamily.bold }]}>
           {timeLeft}s
         </Text>
         <Text style={[styles.timerLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-          Round {round + 1} · {roundMatched} matched
+          {score} matched
         </Text>
       </View>
 
-      {/* Grid */}
-      <View style={[styles.grid, { paddingBottom: insets.bottom + FLOAT_TAB_INSET }]}>
+      <View style={[styles.grid, { paddingBottom: insets.bottom + Spacing.md }]}>
         {tiles.map((tile) => {
           const isMatched  = matched.has(tile.pairId);
           const isSelected = selected === tile.id;
@@ -369,14 +251,7 @@ export function MatchingScreen() {
           return (
             <TouchableOpacity
               key={tile.id}
-              style={[
-                styles.tile,
-                {
-                  backgroundColor: bgColor,
-                  borderColor,
-                  opacity: isMatched ? 0.5 : 1,
-                },
-              ]}
+              style={[styles.tile, { backgroundColor: bgColor, borderColor, opacity: isMatched ? 0.5 : 1 }]}
               onPress={() => !isMatched && handleTile(tile)}
               activeOpacity={0.7}
               disabled={isMatched}
@@ -440,18 +315,12 @@ const styles = StyleSheet.create({
   },
   tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
-  // Round done
-  roundDoneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
-  roundDoneScore: { fontSize: 40 },
-  roundDoneNext: { fontSize: 15 },
-
-  // All done
-  doneTitle: { fontSize: 22, textAlign: 'center' },
-  statsBox: { width: '100%', borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
-  statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
-  statLabel: { flex: 1, fontSize: 14 },
-  statValue: { fontSize: 20 },
+  doneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
+  doneScore: { fontSize: 64 },
+  doneSub: { fontSize: 14 },
   streakText: { fontSize: 20 },
   doneBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneBtnText: { color: '#FFF', fontSize: 16 },
+  backBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 12, borderWidth: 1 },
+  backBtnText: { fontSize: 15 },
 });

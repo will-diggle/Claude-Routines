@@ -15,6 +15,10 @@ interface NavPillStore {
   // Practice language filter
   practiceLang: LanguageCode | 'all';
   setPracticeLang: (lang: LanguageCode | 'all') => void;
+
+  // Hides the floating tab bar while inside a game screen
+  gameActive: boolean;
+  setGameActive: (active: boolean) => void;
 }
 
 export const useNavPillStore = create<NavPillStore>((set) => ({
@@ -26,4 +30,7 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
 
   practiceLang: 'all',
   setPracticeLang: (lang) => set({ practiceLang: lang }),
+
+  gameActive: false,
+  setGameActive: (active) => set({ gameActive: active }),
 }));

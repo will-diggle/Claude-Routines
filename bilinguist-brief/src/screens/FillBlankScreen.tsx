@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
@@ -9,6 +9,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
+import { useNavPillStore } from '../store/useNavPillStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 function shuffle<T>(arr: T[]): T[] {
@@ -41,11 +42,16 @@ export function FillBlankScreen() {
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
+  const setGameActive = useNavPillStore((s) => s.setGameActive);
+  useFocusEffect(useCallback(() => {
+    setGameActive(true);
+    return () => setGameActive(false);
+  }, [setGameActive]));
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const eligible = useMemo(() => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
-    return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase())));
+    return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase()))).slice(0, 10);
   }, []);
 
   const [index, setIndex] = useState(0);
