@@ -26,11 +26,12 @@ export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
 const SW = Dimensions.get('window').width;
-// Total pill area: screen - left(8) - right(8) - gap(8) = SW - 24
+// Total pill area: screen - left(8) - right(8) - gap(12) = SW - 28
+const PILL_GAP     = 12;
 const RIGHT_MINI_W = 86;
-const LEFT_MINI_W  = 46;
-const LEFT_MAX_W   = SW - 24 - RIGHT_MINI_W;
-const RIGHT_MAX_W  = SW - 24 - LEFT_MINI_W;
+const LEFT_MINI_W  = FLOAT_TAB_H; // equals height → perfect circle when collapsed
+const LEFT_MAX_W   = SW - 28 - RIGHT_MINI_W;
+const RIGHT_MAX_W  = SW - 28 - LEFT_MINI_W;
 
 // ── Context labels ─────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               activeOpacity={0.7}
             >
               <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular }]}>
-                {lang.code.toUpperCase()}
+                {activeLanguages.length <= 3 ? lang.nativeName : lang.code.toUpperCase()}
               </Text>
             </TouchableOpacity>
           ))}
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: PILL_GAP,
   },
 
   pill: {
