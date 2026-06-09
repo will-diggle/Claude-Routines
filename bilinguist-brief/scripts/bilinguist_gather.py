@@ -158,8 +158,8 @@ def main():
     )
     print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s / {TIMEOUT_MS}ms)")
 
-    # 2b. Resolve the best available model
-    MODEL = resolve_model(client)
+    # 2b. Print model priority order (selection is now done in the retry loop below)
+    print(f"[gather] Model priority: {' → '.join(MODEL_CANDIDATES)}")
 
     # 3. Build the generation config
     #    - google_search tool: enables live web search grounding
@@ -172,32 +172,48 @@ def main():
         service_tier="flex",
     )
 
-    # 4. Fire the request — retry on transient 503/429 with exponential back-off
-    print(f"[gather] Sending request to {MODEL} via Flex tier (may take 1–15 min)...")
+    # 4. Fire the request — try each model in priority order, retrying on 503/429.
+    #    When a model exhausts all retries (e.g. Pro is overloaded), fall through to
+    #    the next candidate (Flash) rather than failing the whole pipeline.
     response = None
-    for attempt in range(1, MAX_RETRIES + 2):   # up to MAX_RETRIES+1 total attempts
-        try:
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=prompt,
-                config=config,
-            )
-            break  # success
-        except Exception as e:
-            err_str = str(e)
-            # Extract HTTP status code if present in the error message
-            is_retryable = any(str(code) in err_str for code in RETRYABLE_CODES)
-            if is_retryable and attempt <= MAX_RETRIES:
-                delay = RETRY_DELAYS[attempt - 1]
-                print(
-                    f"[gather] Attempt {attempt} failed ({e}). "
-                    f"Retrying in {delay}s...",
-                    file=sys.stderr,
+    for model in MODEL_CANDIDATES:
+        print(f"[gather] Sending request via {model} (Flex tier)...")
+        for attempt in range(1, MAX_RETRIES + 2):   # up to MAX_RETRIES+1 total attempts
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
                 )
-                time.sleep(delay)
-            else:
-                print(f"[gather] ERROR: Gemini request failed — {e}", file=sys.stderr)
-                sys.exit(1)
+                break  # success
+            except Exception as e:
+                err_str = str(e)
+                is_retryable = any(str(code) in err_str for code in RETRYABLE_CODES)
+                if is_retryable and attempt <= MAX_RETRIES:
+                    delay = RETRY_DELAYS[attempt - 1]
+                    print(
+                        f"[gather] Attempt {attempt} failed ({e}). "
+                        f"Retrying in {delay}s...",
+                        file=sys.stderr,
+                    )
+                    time.sleep(delay)
+                elif is_retryable:
+                    # Retries exhausted on this model — fall through to next
+                    print(
+                        f"[gather] {model} exhausted after {MAX_RETRIES + 1} attempts — trying fallback",
+                        file=sys.stderr,
+                    )
+                    break
+                else:
+                    # Non-retryable error (auth, bad request, etc.) — fail immediately
+                    print(f"[gather] ERROR: non-retryable failure on {model} — {e}", file=sys.stderr)
+                    sys.exit(1)
+        if response:
+            break  # success — no need to try remaining models
+
+    if not response:
+        print("[gather] ERROR: all models exhausted without a successful response", file=sys.stderr)
+        sys.exit(1)
 
     # 5. Extract raw text and token usage
     raw_output = response.text
