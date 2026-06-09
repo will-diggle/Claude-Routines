@@ -8,7 +8,9 @@ const CREAM_INK_LIGHT = '#2E5FA3'; // medium blue
 const CREAM_INK_FAINT = '#4A6FA5'; // lighter blue
 
 export function useTheme() {
-  const { background, fontFamily: fontFamilyKey, fontSize: fontSizeKey } = useSettingsStore();
+  const background    = useSettingsStore((s) => s.background);
+  const fontFamilyKey = useSettingsStore((s) => s.fontFamily);
+  const fontSizeKey   = useSettingsStore((s) => s.fontSize);
 
   const isNight = background === 'night';
   const isNavy  = background === 'softGrey';

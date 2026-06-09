@@ -103,17 +103,15 @@ export function FloatingAudioPill() {
     }
   }, [isPlaying]);
 
-  // Layout callbacks: update refs and bump trigger only when value is new.
-  // The `> 1` threshold ignores sub-pixel font-metric fluctuations.
+  // Always return early when measurement hasn't changed — old-arch re-renders
+  // with new inline style objects can trigger onLayout without any real change.
   function onContainerLayout(w: number) {
-    const changed = Math.abs(w - containerWRef.current) > 1;
-    if (!changed && marqLoopRef.current) return;
+    if (Math.abs(w - containerWRef.current) <= 1) return;
     containerWRef.current = w;
     if (textWidthRef.current > 0) setAnimTrigger((t) => t + 1);
   }
   function onTextLayout(w: number) {
-    const changed = Math.abs(w - textWidthRef.current) > 1;
-    if (!changed && marqLoopRef.current) return;
+    if (Math.abs(w - textWidthRef.current) <= 1) return;
     textWidthRef.current = w;
     if (containerWRef.current > 0) setAnimTrigger((t) => t + 1);
   }

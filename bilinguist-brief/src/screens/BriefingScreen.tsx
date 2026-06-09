@@ -144,7 +144,7 @@ export function BriefingScreen() {
 
   const runSync = useCallback(async (force = false) => {
     lastSyncRef.current = Date.now();
-    const langs = settings.languages.filter((l) => l.active);
+    const langs = useSettingsStore.getState().languages.filter((l) => l.active);
     await syncFromServer(force);
     await Promise.all(langs.map((lang) => {
       const level = lang.level ?? 'B1';
