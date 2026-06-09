@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Platform, Dimensions, Animated, Easing,
@@ -11,12 +11,12 @@ import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 
-// ── Tab definitions ───────────────────────────────────────────────────────────
+// ── Tab definitions (display order: Brief → Practice → Settings) ──────────────
 
 const TABS = [
-  { route: 'Preferences', label: 'Settings', miniLabel: 'Settings', icon: 'options' as const,   iconOff: 'options-outline' as const   },
-  { route: 'Briefing',    label: 'Brief',    miniLabel: 'Brief',    icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
-  { route: 'Practice',   label: 'Practice', miniLabel: 'Practice', icon: 'school' as const,    iconOff: 'school-outline' as const    },
+  { route: 'Briefing',    label: 'Brief',    miniLabel: 'The Brief', icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
+  { route: 'Practice',   label: 'Practice', miniLabel: 'Practice',  icon: 'school' as const,    iconOff: 'school-outline' as const    },
+  { route: 'Preferences', label: 'Settings', miniLabel: 'Settings',  icon: 'options' as const,   iconOff: 'options-outline' as const   },
 ];
 
 // ── Shared geometry ────────────────────────────────────────────────────────────
@@ -25,13 +25,11 @@ export const FLOAT_TAB_H      = 50;
 export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
-const SW = Dimensions.get('window').width;
-// Total pill area: screen - left(8) - right(8) - gap(12) = SW - 28
+const SW           = Dimensions.get('window').width;
 const PILL_GAP     = 12;
-const RIGHT_MINI_W = 86;
-const LEFT_MINI_W  = FLOAT_TAB_H; // equals height → perfect circle when collapsed
-const LEFT_MAX_W   = SW - 28 - RIGHT_MINI_W;
-const RIGHT_MAX_W  = SW - 28 - LEFT_MINI_W;
+const LEFT_MINI_W  = FLOAT_TAB_H; // perfect circle when closed
+const RIGHT_MINI_W = 68;          // compact oval — icon stacked above label
+const RIGHT_MAX_W  = 240;         // content-fit for 3 nav tabs
 
 // ── Context labels ─────────────────────────────────────────────────────────────
 
@@ -40,6 +38,34 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   display: 'Display',
   account: 'Account',
 };
+
+// ── StackedSquares — N stacked 2-D square outlines ───────────────────────────
+
+function StackedSquares({ count, size, color }: { count: number; size: number; color: string }) {
+  const n      = Math.min(Math.max(count, 1), 5);
+  const sq     = Math.round(size * 0.68);
+  const step   = n > 1 ? Math.min(Math.floor((size - sq) / (n - 1)), 4) : 0;
+  const bounds = n > 1 ? sq + step * (n - 1) : sq;
+  return (
+    <View style={{ width: bounds, height: bounds }}>
+      {Array.from({ length: n }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            width: sq,
+            height: sq,
+            borderWidth: 1.5,
+            borderColor: color,
+            borderRadius: 2,
+            top:  step * (n - 1 - i),
+            left: step * i,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -53,9 +79,21 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     practiceLang, setPracticeLang,
   } = useNavPillStore();
 
-  const [navOpen, setNavOpen] = useState(false);
-  const navAnim = useRef(new Animated.Value(0)).current;
+  // ── Two independent open states ───────────────────────────────────────────
+  const [leftOpen,  setLeftOpen]  = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
 
+  // Direct width animated values — targets computed at toggle time
+  const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
+  const rightWidthAnim = useRef(new Animated.Value(RIGHT_MINI_W)).current;
+
+  // Per-pill opacity layers
+  const leftIconOp    = useRef(new Animated.Value(1)).current;
+  const leftContextOp = useRef(new Animated.Value(0)).current;
+  const rightMiniOp   = useRef(new Animated.Value(1)).current;
+  const rightFullOp   = useRef(new Animated.Value(0)).current;
+
+  // ── Theming ────────────────────────────────────────────────────────────────
   const isNavy  = background === 'softGrey';
   const isCream = background === 'cream';
   const pillBg = isNavy  ? 'rgba(30,45,66,0.93)'
@@ -72,44 +110,61 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                       : isCream ? 'rgba(22,32,50,0.07)'
                       : 'rgba(0,0,0,0.08)';
 
-  // Width animation — left starts as circle (MINI), expands to context when nav opens
-  const leftW  = navAnim.interpolate({ inputRange: [0, 1], outputRange: [LEFT_MINI_W, LEFT_MAX_W] });
-  const rightW = navAnim.interpolate({ inputRange: [0, 1], outputRange: [RIGHT_MINI_W, RIGHT_MAX_W] });
+  const currentRouteIndex = state.index;
+  const currentRoute      = state.routes[currentRouteIndex];
+  const currentTab        = TABS.find((t) => t.route === currentRoute.name) ?? TABS[0];
 
-  // Content opacity cross-fades
-  // Left: icon visible when closed (0), context visible when open (1)
-  const leftIconOp    = navAnim.interpolate({ inputRange: [0, 0.35], outputRange: [1, 0], extrapolate: 'clamp' });
-  const leftContextOp = navAnim.interpolate({ inputRange: [0.65, 1], outputRange: [0, 1], extrapolate: 'clamp' });
-  const rightMiniOp   = navAnim.interpolate({ inputRange: [0, 0.35], outputRange: [1, 0], extrapolate: 'clamp' });
-  const rightFullOp   = navAnim.interpolate({ inputRange: [0.65, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  // ── Close left pill when switching tabs (context content changes) ─────────
+  useEffect(() => {
+    setLeftOpen(false);
+    Animated.timing(leftWidthAnim,  { toValue: LEFT_MINI_W, duration: 150, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,     { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    Animated.timing(leftContextOp,  { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+  }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function toggleNav() {
-    const toOpen = !navOpen;
-    setNavOpen(toOpen);
-    Animated.timing(navAnim, {
-      toValue: toOpen ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-      easing: Easing.out(Easing.cubic),
-    }).start();
+  // ── Content-fit left expanded width ───────────────────────────────────────
+  function computeLeftExpandedW(): number {
+    if (currentRouteIndex === 0) {
+      // Brief — language tabs
+      if (activeLanguages.length === 0) return LEFT_MINI_W;
+      if (activeLanguages.length <= 3) {
+        const totalChars = activeLanguages.reduce((s, l) => s + l.nativeName.length, 0);
+        return Math.min(totalChars * 7.5 + activeLanguages.length * 22 + 16, SW * 0.62);
+      }
+      return Math.min(activeLanguages.length * 44 + 16, SW * 0.62);
+    }
+    if (currentRouteIndex === 2) return 228; // Reading + Display + Account
+    // Practice — ALL + N language codes
+    return Math.min((activeLanguages.length + 1) * 44 + 16, SW * 0.62);
   }
 
-  const currentRouteIndex = state.index;
-  const currentRoute = state.routes[currentRouteIndex];
-  const currentTab = TABS.find((t) => t.route === currentRoute.name) ?? TABS[1];
+  // ── Toggle handlers ────────────────────────────────────────────────────────
+  function toggleLeft() {
+    const toOpen  = !leftOpen;
+    setLeftOpen(toOpen);
+    const targetW = toOpen ? computeLeftExpandedW() : LEFT_MINI_W;
+
+    Animated.timing(leftWidthAnim, { toValue: targetW, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(leftIconOp,    { toValue: toOpen ? 0 : 1, duration: toOpen ? 80 : 180, useNativeDriver: true }).start();
+    Animated.timing(leftContextOp, { toValue: toOpen ? 1 : 0, duration: toOpen ? 150 : 80, delay: toOpen ? 80 : 0, useNativeDriver: true }).start();
+  }
+
+  function toggleRight() {
+    const toOpen = !rightOpen;
+    setRightOpen(toOpen);
+
+    Animated.timing(rightWidthAnim, { toValue: toOpen ? RIGHT_MAX_W : RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+    Animated.timing(rightMiniOp,    { toValue: toOpen ? 0 : 1, duration: toOpen ? 80 : 180, useNativeDriver: true }).start();
+    Animated.timing(rightFullOp,    { toValue: toOpen ? 1 : 0, duration: toOpen ? 150 : 80, delay: toOpen ? 80 : 0, useNativeDriver: true }).start();
+  }
 
   // ── Left context content ───────────────────────────────────────────────────
 
   function renderLeftContext() {
-    // Brief (index 0): language page tabs
+    // Brief — language page tabs
     if (currentRouteIndex === 0) {
       return (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.contextRow}
-          bounces={false}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
           {activeLanguages.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
@@ -117,7 +172,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               onPress={() => setBriefPageIndex(i)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular }]}>
+              <Text style={[styles.contextLabel, {
+                color: briefPageIndex === i ? activeColor : inactiveColor,
+                fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular,
+              }]}>
                 {activeLanguages.length <= 3 ? lang.nativeName : lang.code.toUpperCase()}
               </Text>
             </TouchableOpacity>
@@ -126,7 +184,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Preferences (index 2): section switcher
+    // Preferences — section switcher
     if (currentRouteIndex === 2) {
       return (
         <View style={[styles.contextRow, { flex: 1 }]}>
@@ -137,7 +195,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               onPress={() => setSettingsSection(sec)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.contextLabel, { color: settingsSection === sec ? activeColor : inactiveColor, fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular }]}>
+              <Text style={[styles.contextLabel, {
+                color: settingsSection === sec ? activeColor : inactiveColor,
+                fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular,
+              }]}>
                 {SECTION_LABELS[sec]}
               </Text>
             </TouchableOpacity>
@@ -146,20 +207,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Practice (index 2): language filter
+    // Practice — language filter
     return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.contextRow}
-        bounces={false}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
         <TouchableOpacity
           style={[styles.contextItem, practiceLang === 'all' && { backgroundColor: activeItemBg }]}
           onPress={() => setPracticeLang('all')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>
+          <Text style={[styles.contextLabel, {
+            color: practiceLang === 'all' ? activeColor : inactiveColor,
+            fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular,
+          }]}>
             ALL
           </Text>
         </TouchableOpacity>
@@ -170,7 +229,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             onPress={() => setPracticeLang(lang.code as any)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.contextLabel, { color: practiceLang === lang.code ? activeColor : inactiveColor, fontFamily: practiceLang === lang.code ? fontFamily.bold : fontFamily.regular }]}>
+            <Text style={[styles.contextLabel, {
+              color: practiceLang === lang.code ? activeColor : inactiveColor,
+              fontFamily: practiceLang === lang.code ? fontFamily.bold : fontFamily.regular,
+            }]}>
               {lang.code.toUpperCase()}
             </Text>
           </TouchableOpacity>
@@ -183,8 +245,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function renderMiniNav() {
     return (
-      <TouchableOpacity style={styles.miniNavButton} onPress={toggleNav} activeOpacity={0.7}>
-        <Ionicons name={currentTab.icon} size={20} color={activeColor} />
+      <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
+        <Ionicons name={currentTab.icon} size={17} color={activeColor} />
         <Text style={[styles.miniNavLabel, { color: activeColor, fontFamily: fontFamily.regular }]} numberOfLines={1}>
           {currentTab.miniLabel}
         </Text>
@@ -193,12 +255,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function renderFullNav() {
+    // Render in TABS order: Brief → Practice → Settings
     return (
       <View style={styles.fullNavRow}>
-        {state.routes.map((route, index) => {
+        {TABS.map((tab) => {
+          const route = state.routes.find((r) => r.name === tab.route);
+          if (!route) return null;
+          const index     = state.routes.indexOf(route);
           const isFocused = state.index === index;
-          const tab = TABS.find((t) => t.route === route.name) ?? TABS[1];
-          const tint = isFocused ? activeColor : inactiveColor;
+          const tint      = isFocused ? activeColor : inactiveColor;
 
           return (
             <TouchableOpacity
@@ -209,11 +274,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               onPress={() => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-                toggleNav();
+                toggleRight();
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={20} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={17} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>
                 {tab.label}
               </Text>
@@ -223,6 +288,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       </View>
     );
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const pillStyle = {
     backgroundColor: pillBg,
@@ -239,48 +306,41 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
     >
-      {/* ── Left context pill ──────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { width: leftW }]}>
-        {/* Layers icon — visible when nav is closed (circle state) */}
+      {/* ── Left context pill — always circle when closed ────────────────── */}
+      <Animated.View style={[styles.pill, pillStyle, { width: leftWidthAnim }]}>
+        {/* StackedSquares icon — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftIconOp }]}
-          pointerEvents={navOpen ? 'none' : 'auto'}
+          pointerEvents={leftOpen ? 'none' : 'auto'}
         >
-          <TouchableOpacity style={styles.centerFill} onPress={toggleNav} activeOpacity={0.7}>
-            <Ionicons name="layers-outline" size={20} color={activeColor} />
-            {activeLanguages.length > 1 && (
-              <View style={[styles.badge, { backgroundColor: isNavy ? '#F5F0E8' : colors.inkDark }]}>
-                <Text style={[styles.badgeText, { color: isNavy ? colors.inkDark : '#FFF' }]}>
-                  {activeLanguages.length}
-                </Text>
-              </View>
-            )}
+          <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
+            <StackedSquares count={activeLanguages.length} size={22} color={activeColor} />
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Context tabs — visible when nav is open */}
+        {/* Context tabs — visible when open */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftContextOp }]}
-          pointerEvents={navOpen ? 'auto' : 'none'}
+          pointerEvents={leftOpen ? 'auto' : 'none'}
         >
           {renderLeftContext()}
         </Animated.View>
       </Animated.View>
 
-      {/* ── Right nav pill ─────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { width: rightW }]}>
-        {/* Mini (icon + label) — visible when nav is closed */}
+      {/* ── Right nav pill ─────────────────────────────────────────────────── */}
+      <Animated.View style={[styles.pill, pillStyle, { width: rightWidthAnim }]}>
+        {/* Mini (icon above label) — visible when closed */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightMiniOp }]}
-          pointerEvents={navOpen ? 'none' : 'auto'}
+          pointerEvents={rightOpen ? 'none' : 'auto'}
         >
           {renderMiniNav()}
         </Animated.View>
 
-        {/* Full nav — visible when nav is open */}
+        {/* Full nav — visible when open */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightFullOp }]}
-          pointerEvents={navOpen ? 'auto' : 'none'}
+          pointerEvents={rightOpen ? 'auto' : 'none'}
         >
           {renderFullNav()}
         </Animated.View>
@@ -310,7 +370,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Shared fill helpers
   absoluteFill: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
@@ -343,32 +402,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badge: {
-    position: 'absolute',
-    top: 10,
-    right: 8,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
 
-  // ── Right mini nav ──────────────────────────────────────────────────────
+  // ── Right mini — icon stacked above label ───────────────────────────────
   miniNavButton: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 12,
+    gap: 2,
   },
   miniNavLabel: {
-    fontSize: 11,
+    fontSize: 9,
     letterSpacing: 0.3,
   },
 
@@ -382,17 +426,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 1,
     paddingTop: 2,
   },
   navDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 0.3,
   },
 });
