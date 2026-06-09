@@ -7,7 +7,7 @@ import type { LanguageCode } from '../store/useSettingsStore';
 // Flip to false when ElevenLabs credits are live
 const DEMO_MODE = true;
 
-const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? '';
+const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? 'https://bilinguist-brief.williamdiggz.workers.dev';
 
 const LANG_LOCALE: Record<string, string> = {
   fr: 'fr-FR', de: 'de-DE', sv: 'sv-SE', en: 'en-GB',

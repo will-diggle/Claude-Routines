@@ -1,7 +1,7 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordType, WordMeta } from './wordLookup';
 
-const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? '';
+const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? 'https://bilinguist-brief.williamdiggz.workers.dev';
 
 export interface WordEntry {
   word: string;
