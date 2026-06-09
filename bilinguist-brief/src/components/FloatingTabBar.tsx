@@ -31,17 +31,18 @@ const RIGHT_MINI_W = FLOAT_TAB_H;       // perfect circle
 const RIGHT_MAX_W  = 248;               // expanded nav
 const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - 12; // full bar minus right circle + gap
 
-// Content-fit width — ROW_PAD matches contextRow paddingHorizontal×2 for symmetric end margins
-const CHAR_W   = 7;   // px per glyph at fontSize:11
+// Content-fit width — ROW_PAD = contextRow paddingHorizontal×2 keeps L/R margins symmetric.
+// charW differs between ALL-CAPS codes (wider glyphs) and mixed-case words (narrower avg).
 const CHIP_PAD = 20;  // paddingHorizontal:10 × 2
 const CHIP_GAP = 2;   // gap between chips
-const ROW_PAD  = 16;  // paddingHorizontal:8 × 2 — keeps left/right pill margins equal
+const ROW_PAD  = 16;  // paddingHorizontal:8 × 2
 
 function pillContentW(labels: string[]): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
+  const charW = labels.every(l => l === l.toUpperCase()) ? 7 : 6.5;
   const chars = labels.reduce((s, l) => s + l.length, 0);
-  return Math.min(chars * CHAR_W + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+  return Math.min(chars * charW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
 }
 
 // ── Context labels ─────────────────────────────────────────────────────────────
@@ -137,8 +138,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       return pillContentW(labels);
     }
     if (currentRouteIndex === 2) {
-      // Settings — give full available space so all 4 chips fit comfortably
-      return LEFT_MAX_W;
+      return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
     // Practice — ALL + language codes
     return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
@@ -163,7 +163,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function toggleRight() {
     if (rightOpen) {
       animCloseRight();
-      if (currentRouteIndex === 2) animOpenLeft(computeLeftExpandedW());
+      animOpenLeft(computeLeftExpandedW()); // re-open left on all tabs when right closes
     } else {
       if (leftOpen) {
         setLeftOpen(false);
@@ -175,15 +175,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }
 
-  // ── Auto-open left on Settings; reset on tab change ───────────────────────
+  // ── Auto-open left pill on every tab change ───────────────────────────────
 
   useEffect(() => {
     animCloseRight();
-    if (currentRouteIndex === 2) {
-      animOpenLeft(LEFT_MAX_W);
-    } else {
-      animCloseLeft();
-    }
+    animOpenLeft(computeLeftExpandedW());
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Left context content ──────────────────────────────────────────────────
