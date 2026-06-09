@@ -14,9 +14,9 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
 const TABS = [
-  { route: 'Briefing',    label: 'The Brief', miniLabel: 'The Brief', icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
-  { route: 'Practice',   label: 'Practice',  miniLabel: 'Practice',  icon: 'school' as const,    iconOff: 'school-outline' as const    },
-  { route: 'Preferences', label: 'Settings',  miniLabel: 'Settings',  icon: 'options' as const,   iconOff: 'options-outline' as const   },
+  { route: 'Preferences', label: 'Preferences', miniLabel: 'Preferences', icon: 'options' as const,   iconOff: 'options-outline' as const   },
+  { route: 'Practice',    label: 'Practice',    miniLabel: 'Practice',    icon: 'school' as const,    iconOff: 'school-outline' as const    },
+  { route: 'Briefing',    label: 'The Brief',   miniLabel: 'The Brief',   icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
 ];
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
