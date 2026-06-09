@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
   Platform, Dimensions, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -199,7 +199,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex === 0) {
       const showFull = activeLanguages.length <= 4;
       return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
+        <View style={styles.contextRow}>
           {activeLanguages.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
@@ -215,14 +215,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       );
     }
 
-    // Preferences — section switcher (ScrollView so chips are natural width, no wrapping)
+    // Preferences — section switcher
     if (currentRouteIndex === 2) {
       return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
+        <View style={styles.contextRow}>
           {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
             <TouchableOpacity
               key={sec}
@@ -238,13 +238,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       );
     }
 
     // Practice — language filter
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
+      <View style={styles.contextRow}>
         <TouchableOpacity
           style={[styles.contextItem, practiceLang === 'all' && activeChipStyle]}
           onPress={() => setPracticeLang('all')}
@@ -272,7 +272,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
     );
   }
 
@@ -425,8 +425,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   contextLabel: {
-    fontSize: 11,
-    letterSpacing: 0.5,
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
 
   centerFill: {
