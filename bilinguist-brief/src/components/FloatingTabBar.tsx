@@ -29,7 +29,7 @@ const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;       // perfect circle
 const RIGHT_MINI_W = FLOAT_TAB_H;       // perfect circle
 const RIGHT_MAX_W  = 248;               // expanded nav
-const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - 12; // full bar minus right circle + gap
+const LEFT_MAX_W   = SW - 32 - RIGHT_MINI_W - 12; // full bar minus right circle + gap (16px inset each side)
 
 // Content-fit width — ROW_PAD = contextRow paddingHorizontal×2 keeps L/R margins symmetric.
 // charW differs between ALL-CAPS codes (wider glyphs) and mixed-case words (narrower avg).
@@ -380,8 +380,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 8,
-    right: 8,
+    left: 16,
+    right: 16,
     height: FLOAT_TAB_H,
   },
 
