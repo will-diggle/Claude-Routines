@@ -21,7 +21,7 @@ const TABS = [
 
 // ── Shared geometry ────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H      = 50;
+export const FLOAT_TAB_H      = 60;
 export const FLOAT_TAB_BOTTOM = 16;
 export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
 
