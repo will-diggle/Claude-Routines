@@ -113,6 +113,11 @@ export function FlashcardsScreen() {
     }
   }
 
+  // Keep a live ref so the panResponder (created once via useRef) always calls
+  // the latest handleMark and sees current index/tally rather than stale closure values.
+  const handleMarkRef = useRef(handleMark);
+  handleMarkRef.current = handleMark;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
@@ -130,7 +135,7 @@ export function FlashcardsScreen() {
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            handleMark(dir > 0 ? 'got' : 'no');
+            handleMarkRef.current(dir > 0 ? 'got' : 'no');
             pan.setValue({ x: 0, y: 0 });
             flipAnim.setValue(0);
           });
