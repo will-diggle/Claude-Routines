@@ -89,9 +89,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                    : 'rgba(0,0,0,0.07)';
   const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
   const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
-  const activeItemBg  = isNavy  ? 'rgba(255,255,255,0.14)'
-                      : isCream ? 'rgba(22,32,50,0.07)'
-                      : 'rgba(0,0,0,0.08)';
+  // Glass chip: white raised card on light themes, frosted bright on dark — no bg on inactive
+  const activeChipStyle = (isNavy || isDark) ? {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.28)',
+  } : {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(0,0,0,0.07)',
+  };
 
   const currentRouteIndex = state.index;
   const currentRoute      = state.routes[currentRouteIndex];
@@ -193,7 +200,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           {activeLanguages.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
-              style={[styles.contextItem, briefPageIndex === i && { backgroundColor: activeItemBg }]}
+              style={[styles.contextItem, briefPageIndex === i && activeChipStyle]}
               onPress={() => setBriefPageIndex(i)}
               activeOpacity={0.7}
             >
@@ -216,7 +223,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
             <TouchableOpacity
               key={sec}
-              style={[styles.contextItem, settingsSection === sec && { backgroundColor: activeItemBg }]}
+              style={[styles.contextItem, settingsSection === sec && activeChipStyle]}
               onPress={() => setSettingsSection(sec)}
               activeOpacity={0.7}
             >
@@ -236,7 +243,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow} bounces={false}>
         <TouchableOpacity
-          style={[styles.contextItem, practiceLang === 'all' && { backgroundColor: activeItemBg }]}
+          style={[styles.contextItem, practiceLang === 'all' && activeChipStyle]}
           onPress={() => setPracticeLang('all')}
           activeOpacity={0.7}
         >
@@ -250,7 +257,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         {activeLanguages.map((lang) => (
           <TouchableOpacity
             key={lang.code}
-            style={[styles.contextItem, practiceLang === lang.code && { backgroundColor: activeItemBg }]}
+            style={[styles.contextItem, practiceLang === lang.code && activeChipStyle]}
             onPress={() => setPracticeLang(lang.code as any)}
             activeOpacity={0.7}
           >
