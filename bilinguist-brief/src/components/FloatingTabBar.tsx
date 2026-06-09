@@ -33,6 +33,19 @@ const RIGHT_MAX_W  = 240;         // content-fit for 3 nav tabs
 // Max left pill width: full bar minus right mini pill and gap
 const LEFT_MAX_W   = SW - 16 - RIGHT_MINI_W - PILL_GAP;
 
+// Matches actual contextRow styles — used for content-fit width calculation
+const CHAR_W   = 6.5;  // px per glyph at fontSize:11, letterSpacing:0.5
+const CHIP_PAD = 20;   // contextItem paddingHorizontal:10 × 2
+const CHIP_GAP = 2;    // contextRow gap between chips
+const ROW_PAD  = 12;   // contextRow paddingHorizontal:6 × 2
+
+function pillContentW(labels: string[]): number {
+  const n = labels.length;
+  if (n === 0) return LEFT_MINI_W;
+  const chars = labels.reduce((s, l) => s + l.length, 0);
+  return Math.min(chars * CHAR_W + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+}
+
 // ── Context labels ─────────────────────────────────────────────────────────────
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -127,14 +140,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Content-fit left expanded width ───────────────────────────────────────
   function computeLeftExpandedW(): number {
     if (currentRouteIndex === 0) {
-      // Brief — always full native names
-      if (activeLanguages.length === 0) return LEFT_MINI_W;
-      const totalChars = activeLanguages.reduce((s, l) => s + l.nativeName.length, 0);
-      return Math.min(totalChars * 7.5 + activeLanguages.length * 22 + 16, LEFT_MAX_W);
+      return pillContentW(activeLanguages.map((l) => l.nativeName));
     }
-    if (currentRouteIndex === 2) return 228; // Reading + Display + Account
-    // Practice — ALL + N language codes
-    return Math.min((activeLanguages.length + 1) * 44 + 16, LEFT_MAX_W);
+    if (currentRouteIndex === 2) {
+      return pillContentW(['Reading', 'Display', 'Account']);
+    }
+    // Practice — ALL + language codes
+    return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
   }
 
   // ── Toggle handlers ────────────────────────────────────────────────────────
