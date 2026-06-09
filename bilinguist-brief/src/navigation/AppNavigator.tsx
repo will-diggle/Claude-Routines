@@ -6,6 +6,7 @@ import { PracticeNavigator } from './PracticeNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { FloatingTabBar } from '../components/FloatingTabBar';
 import { FloatingAudioPill } from '../components/FloatingAudioPill';
+import { useTheme } from '../hooks/useTheme';
 
 export type RootTabParamList = {
   Briefing: undefined;
@@ -16,8 +17,9 @@ export type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export function AppNavigator() {
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Tab.Navigator
         initialRouteName="Briefing"
         tabBar={(props) => <FloatingTabBar {...props} />}

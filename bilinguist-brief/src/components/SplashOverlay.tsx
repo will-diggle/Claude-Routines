@@ -121,6 +121,9 @@ export function SplashOverlay({ onDone }: Props) {
       easing: (n: number) => number,
     ) => Animated.timing(v, { toValue: to, duration: dur, delay, easing, useNativeDriver: true });
 
+    let done = false;
+    const safeDone = () => { if (!done) { done = true; onDone(); } };
+
     // Rules, tagline, edition, dive, and reveal run immediately.
     // Crest is triggered separately via startCrestAnim once the image loads.
     Animated.parallel([
@@ -139,7 +142,10 @@ export function SplashOverlay({ onDone }: Props) {
       anim(diveOpacity,    0,  1200, 2100, dive),
       // Brief masthead reveals
       anim(revealOpacity,  1,   550, 3100, eOut),
-    ]).start(() => onDone());
+    ]).start(() => safeDone());
+
+    // Hard-cap: dismiss after 5 s even if the animation callback stalls.
+    const hardCap = setTimeout(safeDone, 5000);
 
     // Fallback: if image hasn't loaded within 300 ms, start the crest
     // animation anyway so it doesn't silently skip on slow decoders.
@@ -148,7 +154,7 @@ export function SplashOverlay({ onDone }: Props) {
       startCrestAnim();
     }, 300);
 
-    return () => clearTimeout(fallback);
+    return () => { clearTimeout(fallback); clearTimeout(hardCap); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

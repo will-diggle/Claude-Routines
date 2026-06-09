@@ -218,10 +218,10 @@ export const useSettingsStore = create<SettingsStore>()(
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         // Validate levels without resetting the user's custom drag order
         const VALID_LEVELS: Record<string, string[]> = {
-          fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+          fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
           de: ['A1', 'A2', 'Native'],
           sv: ['B2', 'Native'],
-          en: ['B2', 'C1', 'C2', 'Native'],
+          en: ['B2', 'C1', 'Native'],
           it: ['A1', 'Native'],
           es: ['A2'],
           tr: ['A1'],

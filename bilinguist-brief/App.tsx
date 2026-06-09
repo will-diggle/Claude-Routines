@@ -64,32 +64,43 @@ function AppContent() {
   const isNight = background === 'night';
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
-  // Wait for Zustand to rehydrate from AsyncStorage before showing the splash,
-  // otherwise the splash renders with the default theme instead of the user's saved one.
-  const [storeHydrated, setStoreHydrated] = useState(
-    () => useSettingsStore.persist.hasHydrated(),
-  );
 
   useEffect(() => {
-    if (storeHydrated) return;
-    const unsub = useSettingsStore.persist.onFinishHydration(() => setStoreHydrated(true));
-    return unsub;
-  }, [storeHydrated]);
+    // Check synchronously first — if the store was already hydrated before this
+    // effect ran (a common race on fast devices), we'd miss the callback otherwise.
+    if (useSettingsStore.persist.hasHydrated()) {
+      shouldShowSplash().then((show) => {
+        setShowSplash(show);
+        setSplashChecked(true);
+      });
+      const topLanguage = activeLanguages()[0]?.code ?? 'en';
+      scheduleBriefingNotification(briefingNotificationTime, topLanguage);
+      schedulePracticeNotification(practiceNotificationTime);
+      return;
+    }
 
-  useEffect(() => {
-    if (!storeHydrated) return;
-    shouldShowSplash().then((show) => {
-      setShowSplash(show);
-      setSplashChecked(true);
+    const unsub = useSettingsStore.persist.onFinishHydration(() => {
+      shouldShowSplash().then((show) => {
+        setShowSplash(show);
+        setSplashChecked(true);
+      });
+      const topLanguage = activeLanguages()[0]?.code ?? 'en';
+      scheduleBriefingNotification(briefingNotificationTime, topLanguage);
+      schedulePracticeNotification(practiceNotificationTime);
     });
-    // Schedule notifications using the user's saved times and top active language.
-    // Runs on every launch so language changes take effect without needing a settings visit.
-    const topLanguage = activeLanguages()[0]?.code ?? 'en';
-    scheduleBriefingNotification(briefingNotificationTime, topLanguage);
-    schedulePracticeNotification(practiceNotificationTime);
-  }, [storeHydrated]);
 
-  if (!splashChecked) return null;
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fallback: if hydration never fires (corrupted storage, slow device), show
+  // the app after 3 s rather than leaving a permanent blank screen.
+  useEffect(() => {
+    const t = setTimeout(() => setSplashChecked(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!splashChecked) return <View style={{ flex: 1, backgroundColor: BG_COLORS[background] ?? '#F5F0E8' }} />;
 
   return (
     <>
