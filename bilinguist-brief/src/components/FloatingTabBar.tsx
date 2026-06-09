@@ -47,9 +47,10 @@ function pillContentW(labels: string[]): number {
 // ── Context labels ─────────────────────────────────────────────────────────────
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
-  reading: 'Reading',
-  display: 'Display',
-  account: 'Account',
+  languages: 'Languages',
+  genres:    'Genres',
+  display:   'Display',
+  account:   'Account',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -136,8 +137,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       return pillContentW(labels);
     }
     if (currentRouteIndex === 2) {
-      // Ensure "Reading" never wraps — minimum 244px
-      return Math.max(pillContentW(['Reading', 'Display', 'Account']), 244);
+      return Math.max(pillContentW(['Languages', 'Genres', 'Display', 'Account']), 260);
     }
     // Practice — ALL + language codes
     return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
@@ -171,7 +171,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     animCloseRight();
     if (currentRouteIndex === 2) {
       // Settings: left pill opens automatically
-      const targetW = Math.max(pillContentW(['Reading', 'Display', 'Account']), 244);
+      const targetW = Math.max(pillContentW(['Languages', 'Genres', 'Display', 'Account']), 260);
       animOpenLeft(targetW);
     } else {
       animCloseLeft();
@@ -209,7 +209,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex === 2) {
       return (
         <View style={[styles.contextRow, { flex: 1 }]}>
-          {(['reading', 'display', 'account'] as SettingsSection[]).map((sec) => (
+          {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
             <TouchableOpacity
               key={sec}
               style={[styles.contextItem, { flex: 1 }, settingsSection === sec && { backgroundColor: activeItemBg }]}

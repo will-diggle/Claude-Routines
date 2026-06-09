@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { LanguageCode } from './useSettingsStore';
 
-export type SettingsSection = 'reading' | 'display' | 'account';
+export type SettingsSection = 'languages' | 'genres' | 'display' | 'account';
 
 interface NavPillStore {
   // Brief horizontal pager — which language page is showing
@@ -21,7 +21,7 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
   briefPageIndex: 0,
   setBriefPageIndex: (index) => set({ briefPageIndex: index }),
 
-  settingsSection: 'reading',
+  settingsSection: 'languages',
   setSettingsSection: (section) => set({ settingsSection: section }),
 
   practiceLang: 'all',

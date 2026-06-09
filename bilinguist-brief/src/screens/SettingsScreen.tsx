@@ -309,8 +309,8 @@ export function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       scrollEnabled={!isDragging}
     >
-      {/* ── Reading tab ── */}
-      {activeTab === 'reading' && (
+      {/* ── Languages tab ── */}
+      {activeTab === 'languages' && (
         <>
       {/* ── Language Preferences ── */}
       <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
@@ -389,39 +389,6 @@ export function SettingsScreen() {
         )}
       />
 
-      {/* ── Topics ── */}
-      <SectionHeader title="Topics" colors={colors} fontFamily={fontFamily} />
-
-      <DraggableList
-        items={topicItems}
-        keyExtractor={(item) => item.key}
-        itemHeight={56}
-        onReorder={store.reorderTopics}
-        onDragStateChange={setIsDragging}
-        renderItem={(item) => (
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-            <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              {item.label}
-            </Text>
-            {item.comingSoon ? (
-              <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
-                <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  Coming Soon
-                </Text>
-              </View>
-            ) : (
-              <Switch
-                value={store.topics[item.key]}
-                onValueChange={() => store.toggleTopic(item.key)}
-                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-                thumbColor="#FFF"
-              />
-            )}
-          </View>
-        )}
-      />
-
       {/* ── Briefing Preferences ── */}
       <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
 
@@ -460,6 +427,43 @@ export function SettingsScreen() {
         />
       </View>
 
+        </>
+      )}
+
+      {/* ── Genres tab ── */}
+      {activeTab === 'genres' && (
+        <>
+      <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
+
+      <DraggableList
+        items={topicItems}
+        keyExtractor={(item) => item.key}
+        itemHeight={56}
+        onReorder={store.reorderTopics}
+        onDragStateChange={setIsDragging}
+        renderItem={(item) => (
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+            <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              {item.label}
+            </Text>
+            {item.comingSoon ? (
+              <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Coming Soon
+                </Text>
+              </View>
+            ) : (
+              <Switch
+                value={store.topics[item.key]}
+                onValueChange={() => store.toggleTopic(item.key)}
+                trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                thumbColor="#FFF"
+              />
+            )}
+          </View>
+        )}
+      />
         </>
       )}
 
