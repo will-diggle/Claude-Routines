@@ -43,7 +43,7 @@ interface Props {
 export function WordPopup({ word, sentence, language, level, genre, onClose }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
-  const { saveWord, isWordSaved } = useWordBankStore();
+  const { saveWord, isWordSaved, backfillWord } = useWordBankStore();
   const { isFullAccess } = useSubscriptionStore();
   const fullAccess = isFullAccess();
 
@@ -64,6 +64,26 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
     lookupWord(word, language, level).then((result) => {
       setEntry(result);
       setIsLoading(false);
+      // Backfill any word saved before the lookup completed
+      if (result) {
+        const stored = useWordBankStore.getState().words.find(
+          w => w.word.toLowerCase() === word.toLowerCase() && w.language === language
+        );
+        if (stored && (!stored.translation || !stored.explanation)) {
+          backfillWord(word, language, {
+            translation: result.translation ?? undefined,
+            explanation: result.explanation ?? undefined,
+            lemma: result.lemma,
+            pronunciation: result.pronunciation,
+            verbTable: result.verbTable,
+            verbTablePast: result.verbTablePast,
+            forms: result.forms,
+            wordType: result.wordType,
+            tip: result.tip,
+            meta: result.meta,
+          });
+        }
+      }
     });
   }, [word, language]);
 
@@ -285,11 +305,12 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
           style={[
             styles.saveButton,
             {
-              backgroundColor: isSaved ? colors.borderLight : colors.accentGold,
+              backgroundColor: isSaved ? colors.borderLight : isLoading ? colors.borderLight : colors.accentGold,
+              opacity: isLoading && !isSaved ? 0.5 : 1,
             },
           ]}
           onPress={handleSave}
-          disabled={isSaved}
+          disabled={isSaved || isLoading}
         >
           <Ionicons
             name={isSaved ? 'checkmark-circle' : 'bookmark-outline'}

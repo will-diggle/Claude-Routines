@@ -18,8 +18,11 @@ import {
 } from '@expo-google-fonts/eb-garamond';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
+import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
+import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
+import { lookupWord } from './src/services/wordService';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -108,6 +111,44 @@ function AppContent() {
     const t = setTimeout(() => setSplashChecked(true), 3000);
     return () => clearTimeout(t);
   }, []);
+
+  // Background backfill: find any words saved before their lookup completed
+  // (translation/explanation empty) and silently re-fetch them.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      // Wait for word bank to hydrate before reading words
+      if (!useWordBankStore.persist.hasHydrated()) {
+        await new Promise<void>(resolve => {
+          const unsub = useWordBankStore.persist.onFinishHydration(() => { unsub(); resolve(); });
+        });
+      }
+      const { words, backfillWord } = useWordBankStore.getState();
+      const stale = words.filter(w => (!w.translation || !w.explanation) && w.word && w.language);
+      for (const w of stale) {
+        if (cancelled) break;
+        const entry = await lookupWord(w.word, w.language as LanguageCode, (w.level as LanguageLevel) ?? 'intermediate');
+        if (entry?.translation && !cancelled) {
+          backfillWord(w.word, w.language, {
+            translation: entry.translation ?? undefined,
+            explanation: entry.explanation ?? undefined,
+            lemma: entry.lemma,
+            pronunciation: entry.pronunciation,
+            verbTable: entry.verbTable,
+            verbTablePast: entry.verbTablePast,
+            forms: entry.forms,
+            wordType: entry.wordType,
+            tip: entry.tip,
+            meta: entry.meta,
+          });
+        }
+        // Small delay to avoid hammering the worker
+        await new Promise(r => setTimeout(r, 500));
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!splashChecked) return <View style={{ flex: 1, backgroundColor: BG_COLORS[background] ?? '#F5F0E8' }} />;
 

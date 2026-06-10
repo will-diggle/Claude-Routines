@@ -30,6 +30,11 @@ export interface SavedWord {
   level?: string | null;
 }
 
+export type BackfillData = Partial<Pick<SavedWord,
+  'translation' | 'explanation' | 'lemma' | 'pronunciation' |
+  'verbTable' | 'verbTablePast' | 'forms' | 'wordType' | 'tip' | 'meta'
+>>;
+
 interface WordBankStore {
   words: SavedWord[];
   saveWord: (word: Omit<SavedWord, 'id' | 'pile' | 'correctStreak' | 'lastPracticed' | 'dateSaved'>) => void;
@@ -38,6 +43,8 @@ interface WordBankStore {
   recordPractice: (id: string, correct: boolean) => void;
   wordsByPile: (pile: Pile) => SavedWord[];
   counts: () => Record<Pile, number>;
+  /** Fill in missing translation/explanation/rich-data for a word saved before lookup completed. */
+  backfillWord: (word: string, language: LanguageCode, data: BackfillData) => void;
 }
 
 
@@ -89,6 +96,26 @@ export const useWordBankStore = create<WordBankStore>()(
       },
 
       wordsByPile: (pile) => get().words.filter((w) => w.pile === pile),
+
+      backfillWord: (word, language, data) =>
+        set({
+          words: get().words.map((w) => {
+            if (w.word.toLowerCase() !== word.toLowerCase() || w.language !== language) return w;
+            return {
+              ...w,
+              translation:   w.translation   || data.translation   || w.translation,
+              explanation:   w.explanation   || data.explanation   || w.explanation,
+              lemma:         w.lemma         ?? data.lemma,
+              pronunciation: w.pronunciation ?? data.pronunciation,
+              verbTable:     w.verbTable     ?? data.verbTable,
+              verbTablePast: w.verbTablePast ?? data.verbTablePast,
+              forms:         w.forms         ?? data.forms,
+              wordType:      w.wordType      ?? data.wordType,
+              tip:           w.tip           ?? data.tip,
+              meta:          w.meta          ?? data.meta,
+            };
+          }),
+        }),
 
       counts: () => {
         const words = get().words;

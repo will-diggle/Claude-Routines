@@ -23,7 +23,7 @@ import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabB
 const PILL_H        = FLOAT_TAB_H_SMALL; // 52px — matches nav pill height
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
-const GAP_ABOVE_TAB = 4;
+const GAP_ABOVE_TAB = 12;
 const MARQUEE_SPEED = 38;
 const FADE_WIDTH    = 24;
 
@@ -31,7 +31,7 @@ const SIDE_NORMAL = 16;
 
 // When docked the pill drops down by exactly FLOAT_TAB_H + GAP_ABOVE_TAB.
 // Insets cancel out so this is a compile-time constant — safe on native driver.
-const DOCK_OFFSET = FLOAT_TAB_H + GAP_ABOVE_TAB; // 56px
+const DOCK_OFFSET = FLOAT_TAB_H + GAP_ABOVE_TAB; // 64px
 
 // Horizontal margin added each side when docked — pushes pill to sit between
 // the two mini nav pills (each 52px wide + 8px gap).

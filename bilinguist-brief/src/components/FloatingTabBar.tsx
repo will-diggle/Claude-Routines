@@ -25,7 +25,7 @@ const TABS = [
 
 export const FLOAT_TAB_H       = 52;
 export const FLOAT_TAB_H_LARGE = 60;
-export const FLOAT_TAB_H_SMALL = 52;
+export const FLOAT_TAB_H_SMALL = 48;
 export const FLOAT_TAB_BOTTOM  = 16;
 export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
@@ -97,6 +97,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+
+  // Always-current refs — read in effects that omit these from deps to avoid stale closures
+  const leftOpenRef  = useRef(false);
+  leftOpenRef.current = leftOpen;
+  const prevLeftOpenRef = useRef(false); // left state snapshot taken when audio docks
 
   // Tracks the last measured natural chip-group width so the pill can snap
   // to the true content size regardless of which font is selected.
@@ -271,11 +276,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When audio pill docks, close both nav pills so it can slot in between
+  // When audio pill docks, close nav pills. When it undocks, restore previous open state.
   useEffect(() => {
     if (isAudioDocked) {
+      prevLeftOpenRef.current = leftOpenRef.current;
       animCloseLeft();
       animCloseRight();
+    } else if (prevLeftOpenRef.current) {
+      prevLeftOpenRef.current = false;
+      animToLeftOpen(computeLeftExpandedW());
     }
   }, [isAudioDocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -398,7 +407,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     elevation: 16,
   };
 
-  const leftClosedIcon = currentRouteIndex === 2 ? 'menu-outline' : 'layers-outline';
+  const leftClosedIcon = 'funnel-outline' as const;
 
   if (gameActive) return null;
 

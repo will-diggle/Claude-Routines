@@ -27,11 +27,15 @@ export async function lookupWord(
   level: LanguageLevel,
 ): Promise<WordEntry | null> {
   const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     return await res.json() as WordEntry;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
