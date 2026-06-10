@@ -27,20 +27,11 @@ export async function lookupWord(
   level: LanguageLevel,
 ): Promise<WordEntry | null> {
   const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`;
-  console.log('[wordService] fetching', url);
   try {
     const res = await fetch(url);
-    console.log('[wordService] status', res.status);
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.error('[wordService] error body', body);
-      return null;
-    }
-    const data = await res.json() as WordEntry;
-    console.log('[wordService] translation', data.translation);
-    return data;
-  } catch (e) {
-    console.error('[wordService] fetch failed', e);
+    if (!res.ok) return null;
+    return await res.json() as WordEntry;
+  } catch {
     return null;
   }
 }
