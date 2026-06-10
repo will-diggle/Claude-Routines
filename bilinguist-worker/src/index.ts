@@ -292,7 +292,8 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     .bind(word, lang)
     .first<WordRow>();
 
-  if (hit) {
+  // Only trust the cache if translation is populated — null means saved during an outage
+  if (hit && hit.translation !== null) {
     await env.WORDS_DB
       .prepare('UPDATE words SET lookup_count = lookup_count + 1 WHERE word = ?1 AND language = ?2')
       .bind(word, lang)
@@ -327,10 +328,17 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     if (lemmaHit) {
       // Lemma cached — store this inflected form pointing to lemma's rich data
       await env.WORDS_DB.prepare(`
-        INSERT OR IGNORE INTO words
+        INSERT INTO words
           (word, language, translation, lemma, word_type, explanation, example, pronunciation,
            verb_present, verb_past, forms, tip, meta, level)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+        ON CONFLICT(word, language) DO UPDATE SET
+          translation=excluded.translation, lemma=excluded.lemma,
+          word_type=excluded.word_type, explanation=excluded.explanation,
+          example=excluded.example, pronunciation=excluded.pronunciation,
+          verb_present=excluded.verb_present, verb_past=excluded.verb_past,
+          forms=excluded.forms, tip=excluded.tip, meta=excluded.meta, level=excluded.level
+        WHERE words.translation IS NULL
       `).bind(
         word, lang,
         translation ?? lemmaHit.translation,
@@ -351,10 +359,17 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   const row: Partial<WordRow> = { word, language: lang, translation, lemma, ...generated };
 
   await env.WORDS_DB.prepare(`
-    INSERT OR IGNORE INTO words
+    INSERT INTO words
       (word, language, translation, lemma, word_type, explanation, example, pronunciation,
        verb_present, verb_past, forms, tip, meta, level)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+    ON CONFLICT(word, language) DO UPDATE SET
+      translation=excluded.translation, lemma=excluded.lemma,
+      word_type=excluded.word_type, explanation=excluded.explanation,
+      example=excluded.example, pronunciation=excluded.pronunciation,
+      verb_present=excluded.verb_present, verb_past=excluded.verb_past,
+      forms=excluded.forms, tip=excluded.tip, meta=excluded.meta, level=excluded.level
+    WHERE words.translation IS NULL
   `).bind(
     row.word, row.language,
     row.translation ?? null, row.lemma ?? null,
