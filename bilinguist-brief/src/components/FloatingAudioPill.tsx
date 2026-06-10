@@ -20,7 +20,7 @@ import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabB
 const PILL_H        = FLOAT_TAB_H_SMALL; // matches left pill height when open (44px)
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
-const GAP_ABOVE_TAB = 10;
+const GAP_ABOVE_TAB = 4;
 const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -281,12 +281,14 @@ const styles = StyleSheet.create({
   },
 
   // Two copies side-by-side inside the animated wrapper.
-  // flexShrink:0 prevents the track being squeezed to container width,
-  // which would make textWidth === containerW and block the animation.
+  // minWidth ensures each Text renders at natural single-line width — React Native
+  // ignores flexShrink:0 for word-wrap, so without an explicit wide parent the
+  // texts wrap to the container width and onLayout returns the wrong measurement.
   marqueeTrack: {
     flexDirection: 'row',
     alignItems: 'center',
     flexShrink: 0,
+    minWidth: 3000,
   },
 
   marqueeText: {
