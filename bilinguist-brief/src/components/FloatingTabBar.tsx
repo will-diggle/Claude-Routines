@@ -41,7 +41,7 @@ const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;  // ≈ 1.154
 
 const CHIP_PAD = 20;
 const CHIP_GAP = 4;
-const ROW_PAD  = 12;
+const ROW_PAD  = 20;
 
 function pillContentW(labels: string[]): number {
   const n = labels.length;
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexGrow: 1,
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
     gap: 4,
   },
   contextItem: {
