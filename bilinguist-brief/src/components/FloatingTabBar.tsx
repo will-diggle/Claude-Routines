@@ -114,11 +114,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function onChipGroupLayout(chipGroupW: number) {
     const target = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
+    // Only adjust while open — closed pill uses a fixed target
+    if (!leftOpen) return;
     // Threshold of 10px filters out bold↔regular font weight jitter on chip selection
     if (Math.abs(target - chipGroupMeasuredW.current) < 10) return;
     chipGroupMeasuredW.current = target;
-    // Only adjust while open — closed pill uses animCloseLeft's fixed target
-    if (!leftOpen) return;
     Animated.spring(leftWidthAnim, {
       toValue: target,
       useNativeDriver: false,
@@ -227,12 +227,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(false);
     setLeftOpen(true);
     rightFullOp.setValue(0);
+    leftContextOp.setValue(1); // immediate — prevents empty-pill flash while opacity animates
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
       Animated.timing(leftWidthAnim,   { toValue: openW,              duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftContextOp,   { toValue: 1,                  duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
       Animated.timing(iconScaleAnim,   { toValue: SCALE_SMALL,        duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
     ]).start();
   }
