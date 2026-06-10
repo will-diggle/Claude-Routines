@@ -20,7 +20,7 @@ import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabB
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
-const PILL_H        = FLOAT_TAB_H_SMALL; // 44px
+const PILL_H        = FLOAT_TAB_H_SMALL; // 52px — matches nav pill height
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 4;

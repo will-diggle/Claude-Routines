@@ -25,7 +25,7 @@ const TABS = [
 
 export const FLOAT_TAB_H       = 52;
 export const FLOAT_TAB_H_LARGE = 60;
-export const FLOAT_TAB_H_SMALL = 44;
+export const FLOAT_TAB_H_SMALL = 52;
 export const FLOAT_TAB_BOTTOM  = 16;
 export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
@@ -160,22 +160,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const DUR_CLOSE = 180;
   const EASE      = Easing.out(Easing.cubic);
 
-  function animOpenLeft(targetW: number) {
-    // Prefer the last measured width — it's exact for the current font.
-    // Fall back to the estimate only on first open (before chips have ever laid out).
-    const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
-    setLeftOpen(true);
-    Animated.parallel([
-      // JS driver — layout
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: openW,             duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      // Native driver — opacity + transform
-      Animated.timing(leftContextOp,  { toValue: 1, duration: DUR_OPEN, useNativeDriver: true, easing: EASE }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_SMALL,  duration: DUR_OPEN,       useNativeDriver: true, easing: EASE }),
-    ]).start();
-  }
-
   function animCloseLeft() {
     setLeftOpen(false);
     leftContextOp.setValue(0);
@@ -209,6 +193,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     ]).start();
   }
 
+  // Single animation that transitions from any state → left open.
+  // Replaces the old pattern of calling animCloseRight() + animOpenLeft() back-to-back,
+  // which caused conflicts because both functions animated the same values simultaneously.
+  function animToLeftOpen(targetW: number) {
+    const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
+    setRightOpen(false);
+    setLeftOpen(true);
+    rightFullOp.setValue(0);
+    Animated.parallel([
+      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,  { toValue: openW,              duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftContextOp,  { toValue: 1,                  duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
+      Animated.timing(iconScaleAnim,  { toValue: SCALE_SMALL,        duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
+    ]).start();
+  }
+
   // ── Content-fit left expanded width ──────────────────────────────────────
 
   function computeLeftExpandedW(): number {
@@ -238,12 +239,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (leftOpen) {
       animCloseLeft();
     } else {
-      if (rightOpen) {
-        setRightOpen(false);
-        rightFullOp.setValue(0);
-        Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }).start();
-      }
-      animOpenLeft(computeLeftExpandedW());
+      animToLeftOpen(computeLeftExpandedW());
     }
   }
 
@@ -251,8 +247,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     // If audio pill is slotted between the pills, send it back up first
     if (isAudioDocked) { setAudioPillForcedUp(true); }
     if (rightOpen) {
-      animCloseRight();
-      if (!isAudioDocked) animOpenLeft(computeLeftExpandedW());
+      if (isAudioDocked) {
+        animCloseRight();
+      } else {
+        animToLeftOpen(computeLeftExpandedW());
+      }
     } else {
       if (leftOpen) {
         setLeftOpen(false);
@@ -265,8 +264,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   useEffect(() => {
     chipGroupMeasuredW.current = 0;
-    animCloseRight();
-    animOpenLeft(computeLeftExpandedW());
+    if (isAudioDocked) {
+      animCloseRight();
+    } else {
+      animToLeftOpen(computeLeftExpandedW());
+    }
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When audio pill docks, close both nav pills so it can slot in between
