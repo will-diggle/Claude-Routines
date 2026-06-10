@@ -237,7 +237,8 @@ export function BriefingScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={32}
+        scrollEventThrottle={16}
+        onScroll={handlePageScroll}
         onMomentumScrollEnd={handlePageScroll}
         style={styles.pager}
         overScrollMode="never"
