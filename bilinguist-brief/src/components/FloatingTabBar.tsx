@@ -82,6 +82,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
+  // Tracks the last measured natural chip-group width so the pill can snap
+  // to the true content size regardless of which font is selected.
+  const chipGroupMeasuredW = useRef(0);
+
+  function onChipGroupLayout(chipGroupW: number) {
+    // chipGroupW = packed chips only; add row padding (10px each side) for full pill target
+    const target = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
+    if (Math.abs(target - chipGroupMeasuredW.current) < 2) return;
+    chipGroupMeasuredW.current = target;
+    Animated.spring(leftWidthAnim, {
+      toValue: target,
+      useNativeDriver: false,
+      bounciness: 2,
+      speed: 20,
+    }).start();
+  }
+
   // JS-driver: layout properties (width, height) cannot use native driver
   const pillHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H)).current;
   const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
@@ -226,6 +243,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   useEffect(() => {
+    chipGroupMeasuredW.current = 0;
     animCloseRight();
     animOpenLeft(computeLeftExpandedW());
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -245,13 +263,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       const showFull = activeLanguages.length <= 4;
       return (
         <View style={styles.contextRow}>
-          {activeLanguages.map((lang, i) => (
-            <TouchableOpacity key={lang.code} style={[styles.contextItem, briefPageIndex === i && activeChipStyle]} onPress={() => setBriefPageIndex(i)} activeOpacity={0.7}>
-              <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular }]}>
-                {showFull ? lang.nativeName : lang.code.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+            {activeLanguages.map((lang, i) => (
+              <TouchableOpacity key={lang.code} style={[styles.contextItem, briefPageIndex === i && activeChipStyle]} onPress={() => setBriefPageIndex(i)} activeOpacity={0.7}>
+                <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular }]}>
+                  {showFull ? lang.nativeName : lang.code.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       );
     }
@@ -259,13 +279,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex === 2) {
       return (
         <View style={styles.contextRow}>
-          {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
-            <TouchableOpacity key={sec} style={[styles.contextItem, settingsSection === sec && activeChipStyle]} onPress={() => setSettingsSection(sec)} activeOpacity={0.7}>
-              <Text style={[styles.contextLabel, { color: settingsSection === sec ? activeColor : inactiveColor, fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular }]}>
-                {SECTION_LABELS[sec]}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+            {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
+              <TouchableOpacity key={sec} style={[styles.contextItem, settingsSection === sec && activeChipStyle]} onPress={() => setSettingsSection(sec)} activeOpacity={0.7}>
+                <Text style={[styles.contextLabel, { color: settingsSection === sec ? activeColor : inactiveColor, fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular }]}>
+                  {SECTION_LABELS[sec]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       );
     }
@@ -278,21 +300,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       showFull ? (activeLanguages.find(l => l.code === code)?.nativeName ?? code.toUpperCase()) : code.toUpperCase();
     return (
       <View style={styles.contextRow}>
-        <TouchableOpacity style={[styles.contextItem, practiceLang === 'all' && activeChipStyle]} onPress={() => setPracticeLang('all')} activeOpacity={0.7}>
-          <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>ALL</Text>
-        </TouchableOpacity>
-        {visibleLangs.map((code) => (
-          <TouchableOpacity key={code} style={[styles.contextItem, practiceLang === code && activeChipStyle]} onPress={() => setPracticeLang(code as any)} activeOpacity={0.7}>
-            <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular }]}>
-              {langLabel(code)}
-            </Text>
+        <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+          <TouchableOpacity style={[styles.contextItem, practiceLang === 'all' && activeChipStyle]} onPress={() => setPracticeLang('all')} activeOpacity={0.7}>
+            <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>ALL</Text>
           </TouchableOpacity>
-        ))}
-        {overflow > 0 && (
-          <View style={styles.contextItem}>
-            <Text style={[styles.contextLabel, { color: inactiveColor, fontFamily: fontFamily.regular }]}>+{overflow}</Text>
-          </View>
-        )}
+          {visibleLangs.map((code) => (
+            <TouchableOpacity key={code} style={[styles.contextItem, practiceLang === code && activeChipStyle]} onPress={() => setPracticeLang(code as any)} activeOpacity={0.7}>
+              <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular }]}>
+                {langLabel(code)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {overflow > 0 && (
+            <View style={styles.contextItem}>
+              <Text style={[styles.contextLabel, { color: inactiveColor, fontFamily: fontFamily.regular }]}>+{overflow}</Text>
+            </View>
+          )}
+        </View>
       </View>
     );
   }
@@ -434,7 +458,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingLeft: 10,
     paddingRight: 10,
+  },
+  // Inner group — sizes to content, reports true width via onLayout
+  chipGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
   },
   contextItem: {
     paddingHorizontal: 6,
