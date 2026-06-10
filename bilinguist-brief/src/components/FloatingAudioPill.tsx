@@ -13,8 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import { pauseAudio, resumeAudio } from '../services/audioPlayer';
-import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
@@ -23,16 +23,15 @@ const PILL_H        = FLOAT_TAB_H_SMALL; // 44px
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 4;
-const MARQUEE_SPEED = 38; // ms per pixel
+const MARQUEE_SPEED = 38;
 const FADE_WIDTH    = 24;
 
-// Docked: sits between the two 52px mini nav pills
 const SIDE_NORMAL = 16;
-const SIDE_DOCKED = 16 + FLOAT_TAB_H + 8; // 76
 
-// Scroll range over which docking completes
-const DOCK_START = 40;
-const DOCK_END   = 160;
+// When docked the pill drops down by exactly FLOAT_TAB_H + GAP_ABOVE_TAB.
+// The insets cancel (both normal and docked include insets.bottom), so this
+// is a compile-time constant — safe to use on the native driver.
+const DOCK_OFFSET = FLOAT_TAB_H + GAP_ABOVE_TAB; // 56px
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -40,6 +39,7 @@ export function FloatingAudioPill() {
   const { colors, isDark, background, fontFamily } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
+  const briefingScrolled = useNavPillStore(s => s.briefingScrolled);
   const isVisible = isPlaying || isLoading;
 
   // ── Entrance / exit spring (native driver) ───────────────────────────────
@@ -54,34 +54,19 @@ export function FloatingAudioPill() {
     }).start();
   }, [isVisible]);
 
-  // ── Dock position (JS driver, stable refs) ───────────────────────────────
-  // Stable Animated.Values that never change identity — no re-subscription risk.
-  const bottomValue = useRef(new Animated.Value(0)).current;
-  const sideValue   = useRef(new Animated.Value(SIDE_NORMAL)).current;
+  // ── Dock animation — translateY, native driver ───────────────────────────
+  // translateY:  0 → floating   |  DOCK_OFFSET → docked between nav pills
+  // Native driver is unconditionally reliable; layout property animation is not.
+  const dockAnim = useRef(new Animated.Value(0)).current;
 
-  // Position targets derived from safe-area insets
-  const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
-  const dockedBottom = insets.bottom + FLOAT_TAB_BOTTOM;
-
-  // Initialise once insets are known
-  const posReady = useRef(false);
   useEffect(() => {
-    if (posReady.current) return;
-    posReady.current = true;
-    bottomValue.setValue(normalBottom);
-  }, [normalBottom]);
-
-  // Drive position directly from scroll — addListener fires every time
-  // briefingScrollY.setValue() is called, with no Animated.event or React
-  // re-render in the loop.
-  useEffect(() => {
-    const id = briefingScrollY.addListener(({ value }) => {
-      const t = Math.max(0, Math.min(1, (value - DOCK_START) / (DOCK_END - DOCK_START)));
-      bottomValue.setValue(normalBottom + t * (dockedBottom - normalBottom));
-      sideValue.setValue(SIDE_NORMAL + t * (SIDE_DOCKED - SIDE_NORMAL));
-    });
-    return () => briefingScrollY.removeListener(id);
-  }, [normalBottom, dockedBottom]);
+    Animated.spring(dockAnim, {
+      toValue: (briefingScrolled && isVisible) ? DOCK_OFFSET : 0,
+      useNativeDriver: true,
+      bounciness: 4,
+      speed: 12,
+    }).start();
+  }, [briefingScrolled, isVisible]);
 
   // ── Waveform bars ────────────────────────────────────────────────────────
   const barAnims = useRef(
@@ -174,7 +159,9 @@ export function FloatingAudioPill() {
     pillBg,
   ];
 
-  // ── Play / Pause ─────────────────────────────────────────────────────────
+  // ── Static position — re-calculates only when insets change ─────────────
+  const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
+
   async function handlePlayPause() {
     if (isLoading) return;
     if (isPlaying) { await pauseAudio(); } else { await resumeAudio(); }
@@ -183,18 +170,21 @@ export function FloatingAudioPill() {
   const marqueeText = headline ? `${headline}   ·   ` : '';
 
   return (
-    // Outer: JS driver — moves bottom / left / right as user scrolls
-    <Animated.View
+    // Outer: plain View with static position — no animated layout properties
+    <View
       pointerEvents={isVisible ? 'auto' : 'none'}
-      style={[styles.wrapper, { bottom: bottomValue, left: sideValue, right: sideValue }]}
+      style={[styles.wrapper, { bottom: normalBottom, left: SIDE_NORMAL, right: SIDE_NORMAL }]}
     >
-      {/* Inner: native driver — entrance / exit opacity + scale */}
+      {/* Inner: native driver — entrance + dock (both translateY) + scale + opacity */}
       <Animated.View
         style={{
           opacity: showAnim,
           transform: [
+            // Entrance: slides up from below on appear
             { translateY: showAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
             { scale:      showAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
+            // Dock: drops pill down to sit level with the nav pills
+            { translateY: dockAnim },
           ],
         }}
       >
@@ -266,7 +256,7 @@ export function FloatingAudioPill() {
 
         </View>
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
 

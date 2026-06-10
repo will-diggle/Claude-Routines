@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   compactLockup: {
     width: '100%',
-    height: 32,
+    height: 48,
   },
   // Layers 2–4 stack absolutely on top of layer 1 (which sets the row height)
   compactLockupAbsolute: {

@@ -138,7 +138,9 @@ export function BriefingScreen() {
   const activeLanguages = settings.languages.filter((l) => l.active);
   const langCount = activeLanguages.length;
 
-  const { briefPageIndex, setBriefPageIndex } = useNavPillStore();
+  const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore();
+  // Track scroll threshold without spamming Zustand on every frame
+  const scrolledFlagRef = useRef(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
@@ -183,9 +185,11 @@ export function BriefingScreen() {
     }
   }, [langCount]);
 
-  // Reset scroll tracking when the user swipes to a new language page
+  // Reset dock state when user swipes to a new language page
   useEffect(() => {
     briefingScrollY.setValue(0);
+    scrolledFlagRef.current = false;
+    setBriefingScrolled(false);
   }, [briefPageIndex]);
 
   useEffect(() => {
@@ -261,7 +265,15 @@ export function BriefingScreen() {
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
               scrollEventThrottle={16}
-              onScroll={e => briefingScrollY.setValue(e.nativeEvent.contentOffset.y)}
+              onScroll={e => {
+                const y = e.nativeEvent.contentOffset.y;
+                briefingScrollY.setValue(y);
+                const nowScrolled = y > 80;
+                if (nowScrolled !== scrolledFlagRef.current) {
+                  scrolledFlagRef.current = nowScrolled;
+                  setBriefingScrolled(nowScrolled);
+                }
+              }}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
