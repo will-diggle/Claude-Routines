@@ -263,13 +263,9 @@ export function BriefingScreen() {
               }
             >
               {/* ── Masthead — unique per language page ─────────────────── */}
-              <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
-
               <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
                 {cityLine}
               </Text>
-
-              <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
 
               <View style={styles.lockupWrap}>
                 <Image
@@ -278,6 +274,9 @@ export function BriefingScreen() {
                   resizeMode="contain"
                 />
               </View>
+
+              {/* Thin rule above date/vol — inset from edges */}
+              <View style={[styles.ruleInset, { backgroundColor: hairline }]} />
 
               <View style={styles.metaRow}>
                 <Text
@@ -291,7 +290,8 @@ export function BriefingScreen() {
                 </Text>
               </View>
 
-              <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+              {/* Thick rule below date/vol — inset from edges */}
+              <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
               <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
                 {tagline}
@@ -368,6 +368,8 @@ const styles = StyleSheet.create({
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
+  ruleInset:      { height: 1, marginHorizontal: 20, marginVertical: 3 },
+  ruleOuterInset: { height: 2, marginHorizontal: 20 },
 
   cities: {
     width: SCREEN_WIDTH,
