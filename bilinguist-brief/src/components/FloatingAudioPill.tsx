@@ -68,7 +68,7 @@ export function FloatingAudioPill() {
         barAnims.forEach((a) => a.setValue(0.25));
       };
     } else {
-      // Freeze bars in their current position — no reset to 0.25
+      // Freeze bars in their current position — no snap to mid-height
       waveRef.current?.stop();
       waveRef.current = null;
     }
@@ -126,9 +126,11 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  // Solid chrome fill — inverted from the canvas background
-  const pillBg  = colors.chrome;
-  const onChrome = colors.bg; // contrast color for text and icons on the chrome pill
+  // Pill matches the canvas background; chrome is used for text and bars.
+  // The play circle is solid chrome with a contrasting icon inside.
+  const pillBg    = colors.bg;     // cream / white / navy — matches page background
+  const onPill    = colors.chrome; // text + bars — dark on light, light on dark
+  const circleIcon = colors.bg;    // icon inside the solid chrome circle
 
   // ── Position ─────────────────────────────────────────────────────────────
   const bottomOffset = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
@@ -159,7 +161,7 @@ export function FloatingAudioPill() {
     >
       <View style={[styles.pill, { backgroundColor: pillBg }]}>
 
-        {/* ── Waveform (fixed width, LEFT) ── */}
+        {/* ── Waveform (LEFT) ── */}
         <View style={styles.waveform}>
           {barAnims.map((anim, i) => (
             <Animated.View
@@ -167,9 +169,9 @@ export function FloatingAudioPill() {
               style={[
                 styles.bar,
                 {
-                  backgroundColor: onChrome,
+                  backgroundColor: onPill,
                   height:  anim.interpolate({ inputRange: [0, 1], outputRange: [3, BAR_MAX] }),
-                  opacity: isPlaying ? 0.9 : 0.45,
+                  opacity: isPlaying ? 0.9 : 0.4,
                 },
               ]}
             />
@@ -187,13 +189,13 @@ export function FloatingAudioPill() {
           >
             {/* No numberOfLines — must measure the natural (unconstrained) text width */}
             <Text
-              style={[styles.marqueeText, { color: onChrome, fontFamily: fontFamily.regular }]}
+              style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
               onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
             >
               {marqueeText}
             </Text>
             <Text
-              style={[styles.marqueeText, { color: onChrome, fontFamily: fontFamily.regular }]}
+              style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
             >
               {marqueeText}
             </Text>
@@ -206,11 +208,11 @@ export function FloatingAudioPill() {
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <View style={[styles.playCircle, { backgroundColor: onChrome + '22', borderColor: onChrome }]}>
+          <View style={[styles.playCircle, { backgroundColor: onPill }]}>
             <Ionicons
               name={isPlaying ? 'pause' : 'play'}
               size={12}
-              color={onChrome}
+              color={circleIcon}
               style={!isPlaying ? { marginLeft: 1 } : undefined}
             />
           </View>
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.18 : 0,
+    shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0,
     shadowRadius: 14,
     elevation: 10,
     overflow: 'hidden', // clips the marquee at pill edges
@@ -289,7 +291,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
