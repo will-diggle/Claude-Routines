@@ -198,6 +198,19 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     ]).start();
   }
 
+  function animCloseBoth() {
+    setLeftOpen(false);
+    setRightOpen(false);
+    leftContextOp.setValue(0);
+    rightFullOp.setValue(0);
+    Animated.parallel([
+      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(iconScaleAnim,  { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
+    ]).start();
+  }
+
   // Single animation that transitions from any state → left open.
   // Replaces the old pattern of calling animCloseRight() + animOpenLeft() back-to-back,
   // which caused conflicts because both functions animated the same values simultaneously.
@@ -218,15 +231,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Content-fit left expanded width ──────────────────────────────────────
 
   function computeLeftExpandedW(): number {
-    if (currentRouteIndex === 0) {
+    if (currentRouteIndex === 1) {
+      // Briefing — brief language switcher
       const labels = activeLanguages.length <= 4
         ? activeLanguages.map((l) => l.nativeName)
         : activeLanguages.map((l) => l.code.toUpperCase());
       return pillContentW(labels);
     }
-    if (currentRouteIndex === 2) {
+    if (currentRouteIndex === 0) {
+      // Preferences — settings section shortcuts
       return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
+    // Practice — word-bank language filter
     const plCodes  = savedLangCodes;
     const plFull   = plCodes.length <= 4;
     const plOver   = plCodes.length - 4;
@@ -276,12 +292,21 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-open the left pill when store data hydrates — on cold start the
+  // pill opens before AsyncStorage finishes loading, so activeLanguages
+  // and savedLangCodes are empty. This effect fires once they populate.
+  useEffect(() => {
+    if (leftOpen && !isAudioDocked) {
+      chipGroupMeasuredW.current = 0;
+      animToLeftOpen(computeLeftExpandedW());
+    }
+  }, [activeLanguages, savedLangCodes]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When audio pill docks, close nav pills. When it undocks, restore previous open state.
   useEffect(() => {
     if (isAudioDocked) {
       prevLeftOpenRef.current = leftOpenRef.current;
-      animCloseLeft();
-      animCloseRight();
+      animCloseBoth();
     } else if (prevLeftOpenRef.current) {
       prevLeftOpenRef.current = false;
       animToLeftOpen(computeLeftExpandedW());
@@ -291,7 +316,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Left context content ──────────────────────────────────────────────────
 
   function renderLeftContext() {
-    if (currentRouteIndex === 0) {
+    // Brief — language switcher for briefPageIndex
+    if (currentRouteIndex === 1) {
       const showFull = activeLanguages.length <= 4;
       return (
         <View style={styles.contextRow}>
@@ -308,7 +334,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    if (currentRouteIndex === 2) {
+    // Preferences — settings section shortcuts
+    if (currentRouteIndex === 0) {
       return (
         <View style={styles.contextRow}>
           <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
@@ -324,6 +351,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
+    // Practice — word-bank language filter
     const showFull     = savedLangCodes.length <= 4;
     const visibleLangs = savedLangCodes.slice(0, 4);
     const overflow     = savedLangCodes.length - 4;
@@ -407,7 +435,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     elevation: 16,
   };
 
-  const leftClosedIcon = 'funnel-outline' as const;
+  const leftClosedIcon = 'settings-outline' as const;
 
   if (gameActive) return null;
 

@@ -459,6 +459,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 13,
     fontStyle: 'italic',
+    paddingRight: 4,
   },
 
   dotsRow: {
