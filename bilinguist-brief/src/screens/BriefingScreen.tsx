@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
-  View, Text, Image, Dimensions,
+  View, Text, Image, Dimensions, Animated,
   NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
+import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
@@ -137,7 +138,7 @@ export function BriefingScreen() {
   const activeLanguages = settings.languages.filter((l) => l.active);
   const langCount = activeLanguages.length;
 
-  const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore();
+  const { briefPageIndex, setBriefPageIndex } = useNavPillStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
@@ -181,6 +182,11 @@ export function BriefingScreen() {
       setBriefPageIndex(Math.max(0, langCount - 1));
     }
   }, [langCount]);
+
+  // Reset scroll tracking when the user swipes to a new language page
+  useEffect(() => {
+    briefingScrollY.setValue(0);
+  }, [briefPageIndex]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
@@ -255,10 +261,10 @@ export function BriefingScreen() {
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
               scrollEventThrottle={16}
-              onScroll={e => {
-                const y = e.nativeEvent.contentOffset.y;
-                setBriefingScrolled(y > 60);
-              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: briefingScrollY } } }],
+                { useNativeDriver: false },
+              )}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}

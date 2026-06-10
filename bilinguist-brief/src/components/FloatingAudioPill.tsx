@@ -13,8 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
-import { useNavPillStore } from '../store/useNavPillStore';
 import { pauseAudio, resumeAudio } from '../services/audioPlayer';
+import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
@@ -24,11 +24,15 @@ const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 4;
 const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
-const FADE_WIDTH    = 24; // px of right-edge fade on marquee text
+const FADE_WIDTH    = 24;
 
-// When docked: pill sits between the two 52px mini nav pills
+// Docked: pill sits between the two 52px mini nav pills (left: 16 + 52 + 8 = 76)
 const SIDE_NORMAL = 16;
-const SIDE_DOCKED = 16 + FLOAT_TAB_H + 8; // 16 + 52 + 8 = 76
+const SIDE_DOCKED = 16 + FLOAT_TAB_H + 8; // 76
+
+// Scroll range over which docking completes (px)
+const DOCK_START = 40;
+const DOCK_END   = 160;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -36,7 +40,6 @@ export function FloatingAudioPill() {
   const { colors, isDark, background, fontFamily } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
-  const { briefingScrolled } = useNavPillStore();
   const isVisible = isPlaying || isLoading;
 
   // ── Entrance / exit spring ───────────────────────────────────────────────
@@ -52,25 +55,21 @@ export function FloatingAudioPill() {
     }).start();
   }, [isVisible]);
 
-  // ── Dock animation ───────────────────────────────────────────────────────
-  // JS driver: bottom, left, right are layout properties
-  const dockAnim = useRef(new Animated.Value(0)).current;
-  const shouldDock = briefingScrolled && isVisible;
-
-  useEffect(() => {
-    Animated.spring(dockAnim, {
-      toValue: shouldDock ? 1 : 0,
-      useNativeDriver: false,
-      bounciness: 6,
-      speed: 14,
-    }).start();
-  }, [shouldDock]);
-
+  // ── Dock position (JS driver) ────────────────────────────────────────────
+  // Derived directly from briefingScrollY so there's no Zustand round-trip.
   const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
   const dockedBottom = insets.bottom + FLOAT_TAB_BOTTOM;
 
-  const bottomAnim = dockAnim.interpolate({ inputRange: [0, 1], outputRange: [normalBottom, dockedBottom] });
-  const sideAnim   = dockAnim.interpolate({ inputRange: [0, 1], outputRange: [SIDE_NORMAL, SIDE_DOCKED] });
+  const bottomAnim = briefingScrollY.interpolate({
+    inputRange:  [DOCK_START, DOCK_END],
+    outputRange: [normalBottom, dockedBottom],
+    extrapolate: 'clamp',
+  });
+  const sideAnim = briefingScrollY.interpolate({
+    inputRange:  [DOCK_START, DOCK_END],
+    outputRange: [SIDE_NORMAL, SIDE_DOCKED],
+    extrapolate: 'clamp',
+  });
 
   // ── Waveform bars ────────────────────────────────────────────────────────
   const barAnims = useRef(
@@ -158,9 +157,8 @@ export function FloatingAudioPill() {
   const onPill    = colors.chrome;
   const circleIcon = colors.bg;
 
-  // Fade overlay: transparent → pillBg (left to right) at the right edge
   const fadeColors: [string, string] = [
-    pillBg.replace(/[\d.]+\)$/, '0)'), // same hue but alpha=0
+    pillBg.replace(/[\d.]+\)$/, '0)'),
     pillBg,
   ];
 
@@ -173,15 +171,12 @@ export function FloatingAudioPill() {
   const marqueeText = headline ? `${headline}   ·   ` : '';
 
   return (
-    // Outer: JS driver for position (bottom/left/right are layout properties)
+    // Outer View: JS driver animates bottom / left / right
     <Animated.View
       pointerEvents={isVisible ? 'auto' : 'none'}
-      style={[
-        styles.wrapper,
-        { bottom: bottomAnim, left: sideAnim, right: sideAnim },
-      ]}
+      style={[styles.wrapper, { bottom: bottomAnim, left: sideAnim, right: sideAnim }]}
     >
-      {/* Inner: native driver for entrance / exit opacity + scale */}
+      {/* Inner View: native driver for entrance / exit */}
       <Animated.View
         style={{
           opacity: showAnim,
@@ -231,7 +226,7 @@ export function FloatingAudioPill() {
               </Text>
             </Animated.View>
 
-            {/* Right-edge fade overlay — sits above the scrolling text */}
+            {/* Right-edge fade */}
             <LinearGradient
               colors={fadeColors}
               start={{ x: 0, y: 0.5 }}
