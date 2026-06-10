@@ -87,15 +87,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const chipGroupMeasuredW = useRef(0);
 
   function onChipGroupLayout(chipGroupW: number) {
-    // chipGroupW = packed chips only; add row padding (10px each side) for full pill target
     const target = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
-    if (Math.abs(target - chipGroupMeasuredW.current) < 2) return;
+    // Threshold of 10px filters out bold↔regular font weight jitter on chip selection
+    if (Math.abs(target - chipGroupMeasuredW.current) < 10) return;
     chipGroupMeasuredW.current = target;
+    // Only adjust while open — closed pill uses animCloseLeft's fixed target
+    if (!leftOpen) return;
     Animated.spring(leftWidthAnim, {
       toValue: target,
       useNativeDriver: false,
-      bounciness: 2,
-      speed: 20,
+      bounciness: 0,
+      speed: 30,
     }).start();
   }
 
@@ -143,14 +145,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const EASE      = Easing.out(Easing.cubic);
 
   function animOpenLeft(targetW: number) {
+    // Prefer the last measured width — it's exact for the current font.
+    // Fall back to the estimate only on first open (before chips have ever laid out).
+    const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
     setLeftOpen(true);
     Animated.parallel([
       // JS driver — layout
       Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: targetW,           duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,  { toValue: openW,             duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
       Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
       // Native driver — opacity + transform
-      Animated.timing(leftContextOp,  { toValue: 1,           duration: 160, delay: 60, useNativeDriver: true }),
+      Animated.timing(leftContextOp,  { toValue: 1, duration: DUR_OPEN, useNativeDriver: true, easing: EASE }),
       Animated.timing(iconScaleAnim,  { toValue: SCALE_SMALL,  duration: DUR_OPEN,       useNativeDriver: true, easing: EASE }),
     ]).start();
   }
