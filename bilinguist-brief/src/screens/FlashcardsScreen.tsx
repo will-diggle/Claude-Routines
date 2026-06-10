@@ -14,7 +14,6 @@ import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import { useNavPillStore } from '../store/useNavPillStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -397,7 +396,7 @@ export function FlashcardsScreen() {
       </View>
 
       {/* Remaining pill */}
-      <View style={[styles.remainingRow, { paddingBottom: insets.bottom + FLOAT_TAB_INSET }]}>
+      <View style={[styles.remainingRow, { paddingBottom: insets.bottom + Spacing.md }]}>
         <Text style={[styles.remainingText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           {remaining} {remaining === 1 ? 'card' : 'cards'} remaining
         </Text>
