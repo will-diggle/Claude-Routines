@@ -8,15 +8,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
-import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
-const TIME_LIMIT = 30;
-const PAIRS_PER_SCREEN = 6;
+const TIME_LIMIT      = 30;
+const GRID_COLS       = 3;
+const GRID_ROWS       = 2;
+const PAIRS_PER_SCREEN = GRID_COLS; // 3 pairs × 2 tiles = 2 rows of 3
 
 interface Tile {
   id: string;
@@ -49,7 +50,6 @@ export function MatchingScreen() {
   const langFilter = route.params?.language;
   const { words } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
-  const { activeLanguages } = useSettingsStore();
   const setGameActive = useNavPillStore((s) => s.setGameActive);
 
   useFocusEffect(useCallback(() => {
@@ -57,13 +57,10 @@ export function MatchingScreen() {
     return () => setGameActive(false);
   }, [setGameActive]));
 
-  const activeCodes = new Set(activeLanguages().map((l) => l.code));
-
   const eligibleWords = useMemo(() => {
     const pool = words.filter((w) =>
-      (langFilter && langFilter !== 'all'
-        ? w.language === langFilter
-        : activeCodes.has(w.language)) && !!w.translation,
+      (langFilter && langFilter !== 'all' ? w.language === langFilter : true)
+      && !!w.translation,
     );
     return shuffle(pool);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -227,51 +224,55 @@ export function MatchingScreen() {
       </View>
 
       <View style={[styles.grid, { paddingBottom: insets.bottom + Spacing.md }]}>
-        {tiles.map((tile) => {
-          const isMatched  = matched.has(tile.pairId);
-          const isSelected = selected === tile.id;
-          const isWrong    = wrong?.includes(tile.id);
+        {Array.from({ length: GRID_ROWS }).map((_, rowIdx) => (
+          <View key={rowIdx} style={styles.gridRow}>
+            {tiles.slice(rowIdx * GRID_COLS, (rowIdx + 1) * GRID_COLS).map((tile) => {
+              const isMatched  = matched.has(tile.pairId);
+              const isSelected = selected === tile.id;
+              const isWrong    = wrong?.includes(tile.id);
 
-          const bgColor = isMatched
-            ? '#43A04722'
-            : isWrong
-              ? '#E5393522'
-              : isSelected
-                ? colors.inkDark + '14'
-                : colors.card;
+              const bgColor = isMatched
+                ? '#43A04722'
+                : isWrong
+                  ? '#E5393522'
+                  : isSelected
+                    ? colors.inkDark + '14'
+                    : colors.card;
 
-          const borderColor = isMatched
-            ? '#43A047'
-            : isWrong
-              ? '#E53935'
-              : isSelected
-                ? colors.inkDark
-                : colors.borderLight;
+              const borderColor = isMatched
+                ? '#43A047'
+                : isWrong
+                  ? '#E53935'
+                  : isSelected
+                    ? colors.inkDark
+                    : colors.borderLight;
 
-          return (
-            <TouchableOpacity
-              key={tile.id}
-              style={[styles.tile, { backgroundColor: bgColor, borderColor, opacity: isMatched ? 0.5 : 1 }]}
-              onPress={() => !isMatched && handleTile(tile)}
-              activeOpacity={0.7}
-              disabled={isMatched}
-            >
-              <Text
-                style={[
-                  styles.tileText,
-                  {
-                    color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
-                    fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
-                  },
-                ]}
-                numberOfLines={3}
-                adjustsFontSizeToFit
-              >
-                {tile.text}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+              return (
+                <TouchableOpacity
+                  key={tile.id}
+                  style={[styles.tile, { backgroundColor: bgColor, borderColor, opacity: isMatched ? 0.5 : 1 }]}
+                  onPress={() => !isMatched && handleTile(tile)}
+                  activeOpacity={0.7}
+                  disabled={isMatched}
+                >
+                  <Text
+                    style={[
+                      styles.tileText,
+                      {
+                        color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
+                        fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
+                      },
+                    ]}
+                    numberOfLines={3}
+                    adjustsFontSizeToFit
+                  >
+                    {tile.text}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -296,24 +297,26 @@ const styles = StyleSheet.create({
 
   grid: {
     flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
-    alignContent: 'flex-start',
     paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  gridRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
 
   tile: {
-    width: '30.5%',
-    minHeight: 72,
-    borderRadius: 10,
+    flex: 1,
+    borderRadius: 12,
     borderWidth: 1.5,
-    padding: Spacing.sm,
+    padding: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  tileText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   doneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
   doneScore: { fontSize: 64 },
