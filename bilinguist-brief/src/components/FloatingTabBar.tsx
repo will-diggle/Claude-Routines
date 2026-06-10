@@ -231,14 +231,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Content-fit left expanded width ──────────────────────────────────────
 
   function computeLeftExpandedW(): number {
-    if (currentRouteIndex === 1) {
+    if (currentRouteIndex === 0) {
       // Briefing — brief language switcher
       const labels = activeLanguages.length <= 4
         ? activeLanguages.map((l) => l.nativeName)
         : activeLanguages.map((l) => l.code.toUpperCase());
       return pillContentW(labels);
     }
-    if (currentRouteIndex === 0) {
+    if (currentRouteIndex === 2) {
       // Preferences — settings section shortcuts
       return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
@@ -316,8 +316,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Left context content ──────────────────────────────────────────────────
 
   function renderLeftContext() {
-    // Brief — language switcher for briefPageIndex
-    if (currentRouteIndex === 1) {
+    // Briefing (index 0) — language switcher for brief pages
+    if (currentRouteIndex === 0) {
       const showFull = activeLanguages.length <= 4;
       return (
         <View style={styles.contextRow}>
@@ -334,8 +334,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Preferences — settings section shortcuts
-    if (currentRouteIndex === 0) {
+    // Preferences (index 2) — settings section shortcuts
+    if (currentRouteIndex === 2) {
       return (
         <View style={styles.contextRow}>
           <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
