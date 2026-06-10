@@ -10,6 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
+import { useWordBankStore } from '../store/useWordBankStore';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
+  const savedWords = useWordBankStore(useShallow((s) => s.words));
   const {
     briefPageIndex, setBriefPageIndex,
     settingsSection, setSettingsSection,
@@ -242,7 +244,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    // Practice — language filter
+    // Practice — language filter (only languages that have saved words)
+    const savedLangCodes = [...new Set(savedWords.map((w) => w.language))].sort();
+    const MAX_LANGS = 4;
+    const visibleLangs = savedLangCodes.slice(0, MAX_LANGS);
+    const overflow = savedLangCodes.length - MAX_LANGS;
     return (
       <View style={styles.contextRow}>
         <TouchableOpacity
@@ -257,21 +263,28 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             ALL
           </Text>
         </TouchableOpacity>
-        {activeLanguages.map((lang) => (
+        {visibleLangs.map((code) => (
           <TouchableOpacity
-            key={lang.code}
-            style={[styles.contextItem, practiceLang === lang.code && activeChipStyle]}
-            onPress={() => setPracticeLang(lang.code as any)}
+            key={code}
+            style={[styles.contextItem, practiceLang === code && activeChipStyle]}
+            onPress={() => setPracticeLang(code as any)}
             activeOpacity={0.7}
           >
             <Text style={[styles.contextLabel, {
-              color:      practiceLang === lang.code ? activeColor : inactiveColor,
-              fontFamily: practiceLang === lang.code ? fontFamily.bold : fontFamily.regular,
+              color:      practiceLang === code ? activeColor : inactiveColor,
+              fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular,
             }]}>
-              {lang.code.toUpperCase()}
+              {code.toUpperCase()}
             </Text>
           </TouchableOpacity>
         ))}
+        {overflow > 0 && (
+          <View style={styles.contextItem}>
+            <Text style={[styles.contextLabel, { color: inactiveColor, fontFamily: fontFamily.regular }]}>
+              +{overflow}
+            </Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -429,6 +442,7 @@ const styles = StyleSheet.create({
   contextLabel: {
     fontSize: 13,
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
 
   centerFill: {

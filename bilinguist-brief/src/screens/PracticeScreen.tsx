@@ -148,7 +148,7 @@ export function PracticeScreen() {
       )}
 
       {/* Games section */}
-      <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
+      <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
         PRACTICE GAMES
       </Text>
 
