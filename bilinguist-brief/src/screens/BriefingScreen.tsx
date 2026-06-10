@@ -263,10 +263,6 @@ export function BriefingScreen() {
               }
             >
               {/* ── Masthead — unique per language page ─────────────────── */}
-              <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-                {cityLine}
-              </Text>
-
               <View style={styles.lockupWrap}>
                 <Image
                   source={MASTHEADS[background] ?? MASTHEADS.cream}
@@ -274,6 +270,10 @@ export function BriefingScreen() {
                   resizeMode="contain"
                 />
               </View>
+
+              <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+                {cityLine}
+              </Text>
 
               {/* Thin rule above date/vol — inset from edges */}
               <View style={[styles.ruleInset, { backgroundColor: hairline }]} />
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
   ruleInset:      { height: 1, marginHorizontal: 20, marginVertical: 3 },
-  ruleOuterInset: { height: 2, marginHorizontal: 20 },
+  ruleOuterInset: { height: 1.5, marginHorizontal: 20 },
 
   cities: {
     width: SCREEN_WIDTH,
