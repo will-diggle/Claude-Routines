@@ -46,7 +46,7 @@ const ROW_PAD  = 20;
 function pillContentW(labels: string[]): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
-  const charW = labels.every(l => l === l.toUpperCase()) ? 7 : 6.2;
+  const charW = labels.every(l => l === l.toUpperCase()) ? 6.5 : 5.8;
   const chars = labels.reduce((s, l) => s + l.length, 0);
   return Math.min(chars * charW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
 }
