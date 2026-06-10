@@ -12,6 +12,7 @@ import { WordDetailSheet } from '../components/WordDetailSheet';
 import { Spacing } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 
 const LANG_NATIVE: Partial<Record<LanguageCode, string>> = {
   fr: 'FR', de: 'DE', sv: 'SV', en: 'EN', it: 'IT', es: 'ES', tr: 'TR',
@@ -114,7 +115,7 @@ export function WordBankListScreen() {
         <FlatList
           data={sorted}
           keyExtractor={(w) => w.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: FLOAT_TAB_INSET }}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}

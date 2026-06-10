@@ -23,7 +23,9 @@ const TABS = [
 
 export const FLOAT_TAB_H      = 52;
 export const FLOAT_TAB_BOTTOM = 16;
-export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8;
+// Extra 48 = audio pill height (38) + gap above tab bar (10) so content is
+// never hidden behind the tab bar or a simultaneously playing audio pill.
+export const FLOAT_TAB_INSET  = FLOAT_TAB_H + FLOAT_TAB_BOTTOM + 8 + 48;
 
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;       // perfect circle

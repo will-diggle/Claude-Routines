@@ -71,6 +71,9 @@ export function PracticeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
       <TopBar />
+      <Text style={[styles.pageTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+        Practice
+      </Text>
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
@@ -98,7 +101,7 @@ export function PracticeScreen() {
       {/* Word bank section */}
       {hasWords && (
         <>
-        <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+        <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
           WORD BANK
         </Text>
 
@@ -177,7 +180,7 @@ export function PracticeScreen() {
       {hasWords && (
         <>
           <View style={[styles.sectionRow, { marginTop: Spacing.xl }]}>
-            <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
               RECENTLY SAVED
             </Text>
             <TouchableOpacity
@@ -286,9 +289,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.sm,
   },
+  pageTitle: {
+    fontSize: 26,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
   sectionLabel: {
-    fontSize: 11,
-    letterSpacing: 1.5,
+    fontSize: 13,
+    letterSpacing: 1.8,
+    fontWeight: '600',
   },
   practisePill: {
     borderWidth: 1,
