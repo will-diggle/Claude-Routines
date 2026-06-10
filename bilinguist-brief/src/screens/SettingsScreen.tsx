@@ -264,7 +264,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 // --- Main screen ---
 
 export function SettingsScreen() {
-  const { colors, fontFamily, fontSize } = useTheme();
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
@@ -377,7 +377,7 @@ export function SettingsScreen() {
                   <Switch
                     value={lang.active}
                     onValueChange={() => store.toggleLanguage(lang.code)}
-                    trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                     thumbColor="#FFF"
                   />
                 </View>
@@ -501,7 +501,7 @@ export function SettingsScreen() {
                   <Switch
                     value={store.topics[item.key]}
                     onValueChange={() => store.toggleTopic(item.key)}
-                    trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                     thumbColor="#FFF"
                   />
                 )}
