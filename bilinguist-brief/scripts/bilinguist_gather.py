@@ -269,7 +269,7 @@ def main():
     output = {
         "date": BRIEF_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "model": MODEL,
+        "model": model,
         "service_tier": "flex",
         "story_count": len(factbase),
         "usage_metadata": usage_metadata,
