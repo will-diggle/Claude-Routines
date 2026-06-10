@@ -67,8 +67,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     gameActive,
   } = useNavPillStore();
 
-  if (gameActive) return null;
-
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
@@ -333,6 +331,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   };
 
   const leftClosedIcon = currentRouteIndex === 2 ? 'menu-outline' : 'layers-outline';
+
+  if (gameActive) return null;
 
   return (
     <View
