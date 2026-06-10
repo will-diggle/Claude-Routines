@@ -42,13 +42,11 @@ RETRYABLE_CODES = {503, 429}
 #
 # Each entry: (model_id, service_tier_or_None, display_label, max_retries, retry_delays_secs)
 ATTEMPT_PLAN = [
-    # Standard tier first — predictable latency, no deprioritisation.
-    # 2.0-flash is the most battle-tested model for search grounding + JSON.
-    ("gemini-2.0-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
-    ("gemini-2.5-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
-    # Flex tiers as opportunistic cost-savers when capacity is available.
-    ("gemini-2.5-flash", "flex", "Flex",     4, [30, 60, 120, 300]),             # ~8 min
-    ("gemini-2.5-pro",   "flex", "Flex",     4, [30, 60, 120, 300]),             # ~8 min
+    # All Standard tier — predictable latency, no deprioritisation.
+    # 2.0-flash leads: most battle-tested for search grounding + JSON.
+    ("gemini-2.0-flash", None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
+    ("gemini-2.5-flash", None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
+    ("gemini-2.5-pro",   None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
 ]
 
 # Date is read from BRIEF_DATE env var (set once by the workflow at job start)
