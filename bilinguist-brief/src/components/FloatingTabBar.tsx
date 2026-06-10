@@ -386,12 +386,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   if (gameActive) return null;
 
   return (
+    // Flex-row layout guarantees pills never overlap — spacer fills remaining
+    // space and shrinks to 0 before either pill can cross the other.
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, styles.pillLeft, { height: pillHeightAnim, width: leftWidthAnim }]}>
+      <Animated.View style={[styles.pill, pillStyle, { height: pillHeightAnim, width: leftWidthAnim }]}>
 
-        {/* Closed icon — conditional render, iconScaleAnim on native driver */}
+        {/* Closed icon */}
         {!leftOpen && (
           <View style={styles.absoluteFill}>
             <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
@@ -402,23 +404,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           </View>
         )}
 
-        {/* Context chips — native-driver opacity fade-in */}
+        {/* Context chips */}
         <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
           {renderLeftContext()}
         </Animated.View>
       </Animated.View>
 
-      {/* ── Right pill ─────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, styles.pillRight, { height: pillHeightAnim, width: rightWidthAnim }]}>
+      {/* Spacer — takes all remaining space, preventing any overlap */}
+      <View style={styles.pillSpacer} />
 
-        {/* Mini icon — conditional render, iconScaleAnim on native driver */}
+      {/* ── Right pill ─────────────────────────────────────────────────────── */}
+      <Animated.View style={[styles.pill, pillStyle, { height: pillHeightAnim, width: rightWidthAnim }]}>
+
+        {/* Mini icon */}
         {!rightOpen && (
           <View style={styles.absoluteFill}>
             {renderMiniNav()}
           </View>
         )}
 
-        {/* Full nav — native-driver opacity fade-in */}
+        {/* Full nav */}
         <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
           {renderFullNav()}
         </Animated.View>
@@ -434,21 +439,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    height: FLOAT_TAB_H_LARGE,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
 
   pill: {
-    position: 'absolute',
-    bottom: 0,
     borderWidth: 1,
-    borderRadius: 100, // static large value — React Native always clamps to height/2,
-    overflow: 'hidden', // so this is always a perfect capsule without animated borderRadius
+    borderRadius: 100,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  pillLeft:  { left: 0 },
-  pillRight: { right: 0 },
+  // Fills all space between the two pills — collapses to 0 before they can touch
+  pillSpacer: { flex: 1 },
 
   absoluteFill: {
     ...StyleSheet.absoluteFillObject,
