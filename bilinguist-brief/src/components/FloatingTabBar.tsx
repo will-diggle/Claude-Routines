@@ -226,14 +226,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
     setRightOpen(false);
     setLeftOpen(true);
+    // Right pill: snap shut immediately so it never overflows the screen while
+    // the left pill is animating open. Left pill content is also instant.
     rightFullOp.setValue(0);
-    leftContextOp.setValue(1); // immediate — prevents empty-pill flash while opacity animates
+    leftContextOp.setValue(1);
+    rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
+    rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    iconScaleAnim.setValue(SCALE_SMALL);
+    // Only the left pill animates open.
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,   { toValue: openW,              duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(iconScaleAnim,   { toValue: SCALE_SMALL,        duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
+      Animated.timing(leftHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,  { toValue: openW,              duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
     ]).start();
   }
 
@@ -286,7 +289,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       if (leftOpen) {
         setLeftOpen(false);
         leftContextOp.setValue(0);
-        Animated.timing(leftWidthAnim, { toValue: LEFT_MINI_W, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }).start();
       }
       animOpenRight();
     }
