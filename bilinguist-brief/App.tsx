@@ -38,7 +38,7 @@ class AppErrorBoundary extends Component<{ children: React.ReactNode; bg: string
     if (!this.state.error) return this.props.children;
     const ink = this.props.bg === 'softGrey' || this.props.bg === 'night' ? '#F5F0E8' : '#162032';
     return (
-      <View style={[errStyles.container, { backgroundColor: this.props.bg === 'cream' ? '#F5F0E8' : this.props.bg === 'white' ? '#FFF' : this.props.bg === 'softGrey' ? '#162032' : '#141414' }]}>
+      <View style={[errStyles.container, { backgroundColor: this.props.bg === 'cream' ? '#F5F0E8' : this.props.bg === 'white' ? '#FAF8F6' : this.props.bg === 'softGrey' ? '#162032' : '#141414' }]}>
         <Text style={[errStyles.title, { color: ink }]}>Something went wrong</Text>
         <Text style={[errStyles.message, { color: ink }]}>{this.state.error.message}</Text>
         <TouchableOpacity onPress={() => this.setState({ error: null })} style={errStyles.button}>
@@ -123,7 +123,7 @@ function AppContent() {
 }
 
 const BG_COLORS: Record<string, string> = {
-  white: '#FFFFFF', cream: '#F5F2ED', softGrey: '#162032', night: '#141414',
+  white: '#FAF8F6', cream: '#F5F0E8', softGrey: '#162032', night: '#141414',
 };
 const SPINNER_COLORS: Record<string, string> = {
   white: '#1A1A1A', cream: '#7D6B4F', softGrey: '#F5F0E8', night: '#F5F0E8',

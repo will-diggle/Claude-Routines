@@ -163,8 +163,8 @@ export function FloatingAudioPill() {
   const isCream = background === 'cream';
   const pillBg  = isNavy  ? 'rgba(30,45,66,0.97)'
                 : isDark  ? 'rgba(22,22,22,0.96)'
-                : isCream ? 'rgba(245,242,237,0.97)'
-                : 'rgba(255,255,255,0.96)';
+                : isCream ? 'rgba(245,240,232,0.97)'
+                : 'rgba(250,248,246,0.96)';
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
                    : isDark  ? 'rgba(255,255,255,0.09)'
                    : 'rgba(0,0,0,0.07)';

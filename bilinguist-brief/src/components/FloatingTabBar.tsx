@@ -133,14 +133,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const isCream = background === 'cream';
   const pillBg = isNavy  ? 'rgba(30,45,66,0.93)'
                : isDark  ? 'rgba(22,22,22,0.92)'
-               : isCream ? 'rgba(245,242,237,0.95)'
-               :           'rgba(255,255,255,0.92)';
+               : isCream ? 'rgba(245,240,232,0.95)'
+               :           'rgba(250,248,246,0.92)';
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
                    : isDark  ? 'rgba(255,255,255,0.09)'
                    : isCream ? 'rgba(22,32,50,0.10)'
                    :           'rgba(0,0,0,0.07)';
-  const activeColor   = isNavy ? '#F5F2ED' : colors.inkDark;
-  const inactiveColor = isNavy ? 'rgba(245,242,237,0.40)' : colors.inkFaint;
+  const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
+  const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
   const activeChipStyle = (isNavy || isDark) ? {
     backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.28)',
   } : {

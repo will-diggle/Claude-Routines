@@ -44,7 +44,7 @@ const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
 const THEME_MAP: Record<BackgroundKey, { bg: string; ink: string; hair: string }> = {
   cream:    { bg: '#F5F0E8', ink: '#162032', hair: 'rgba(22,32,50,0.32)' },
   softGrey: { bg: '#162032', ink: '#F5F0E8', hair: 'rgba(245,240,232,0.40)' },
-  white:    { bg: '#FFFFFF', ink: '#1A1A1A', hair: 'rgba(26,26,26,0.30)' },
+  white:    { bg: '#FAF8F6', ink: '#1A1A1A', hair: 'rgba(26,26,26,0.30)' },
   night:    { bg: '#141414', ink: '#F5F0E8', hair: 'rgba(245,240,232,0.40)' },
 };
 
