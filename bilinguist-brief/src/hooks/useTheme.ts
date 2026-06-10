@@ -23,11 +23,15 @@ export function useTheme() {
       ? Colors.nightSurface
       : isNavy
       ? Colors.navySurface
+      : isCream
+      ? Colors.creamSurface
       : '#FFFFFF',
     card: isNight
       ? Colors.nightCard
       : isNavy
       ? Colors.navyCard
+      : isCream
+      ? Colors.creamCard
       : '#FFFFFF',
 
     // Ink — dark themes use night palette; cream uses blue palette; white uses standard

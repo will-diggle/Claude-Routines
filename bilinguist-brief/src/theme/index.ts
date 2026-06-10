@@ -6,6 +6,8 @@ export const Colors = {
   night: '#141414',
   nightSurface: '#1E1E1E',
   nightCard: '#252525',
+  creamSurface: '#FAF7F2',
+  creamCard: '#FDFAF6',
 
   // Ink
   inkDark: '#1A1A1A',
