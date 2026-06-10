@@ -49,17 +49,17 @@ export const BackgroundColors: Record<BackgroundKey, string> = {
 export type FontFamilyKey = 'playfair' | 'garamond' | 'times' | 'georgia';
 
 export const FontFamilies: Record<FontFamilyKey, { regular: string; bold: string; italic: string; label: string }> = {
-  playfair: {
-    regular: 'PlayfairDisplay_400Regular',
-    bold: 'PlayfairDisplay_700Bold',
-    italic: 'PlayfairDisplay_400Regular_Italic',
-    label: 'Playfair Display',
-  },
   garamond: {
     regular: 'EBGaramond_400Regular',
     bold: 'EBGaramond_700Bold',
     italic: 'EBGaramond_400Regular_Italic',
     label: 'EB Garamond',
+  },
+  playfair: {
+    regular: 'PlayfairDisplay_400Regular',
+    bold: 'PlayfairDisplay_700Bold',
+    italic: 'PlayfairDisplay_400Regular_Italic',
+    label: 'Playfair Display',
   },
   // Times New Roman is a native iOS system font; falls back to default serif on Android.
   times: {

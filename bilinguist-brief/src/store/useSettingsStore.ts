@@ -65,13 +65,13 @@ interface SettingsStore extends Settings {
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French',           nativeName: 'Français', flag: '🇫🇷', level: 'B1', readLength: 'medium', active: false },
-  { code: 'de', name: 'German',           nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', readLength: 'medium', active: false },
-  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',  flag: '🇸🇪', level: 'B2', readLength: 'medium', active: false },
-  { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'C1', readLength: 'medium', active: true  },
-  { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', readLength: 'medium', active: false },
-  { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2', readLength: 'medium', active: false },
-  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',   flag: '🇹🇷', level: 'A1', readLength: 'medium', active: false },
+  { code: 'fr', name: 'French',           nativeName: 'Français', flag: '🇫🇷', level: 'B2', readLength: 'short', active: false },
+  { code: 'de', name: 'German',           nativeName: 'Deutsch',  flag: '🇩🇪', level: 'A2', readLength: 'short', active: false },
+  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',  flag: '🇸🇪', level: 'B2', readLength: 'short', active: false },
+  { code: 'en', name: 'English (British)',nativeName: 'English',  flag: '🇬🇧', level: 'B2', readLength: 'short', active: true  },
+  { code: 'it', name: 'Italian',          nativeName: 'Italiano', flag: '🇮🇹', level: 'A1', readLength: 'short', active: false },
+  { code: 'es', name: 'Spanish',          nativeName: 'Español',  flag: '🇪🇸', level: 'A2', readLength: 'short', active: false },
+  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',   flag: '🇹🇷', level: 'A1', readLength: 'short', active: false },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
@@ -227,16 +227,19 @@ export const useSettingsStore = create<SettingsStore>()(
           tr: ['A1'],
         };
         // Preserve user's saved order — migrate stale levels and backfill readLength
-        const globalReadLength = ((state as any).readLength as ReadLength) ?? 'medium';
+        const globalReadLength = ((state as any).readLength as ReadLength) ?? 'short';
         const migratedLangs: LanguagePreference[] = filtered.map((lang: any) => {
           const valid = VALID_LEVELS[lang.code];
           const migratedLevel = (valid && !valid.includes(lang.level))
             ? valid[0] as LanguageLevel
             : lang.level;
+          const rawLength = (lang.readLength as ReadLength) ?? globalReadLength;
+          // 'medium' has no UI button — migrate to 'short'
+          const readLength: ReadLength = rawLength === 'medium' ? 'short' : rawLength;
           return {
             ...lang,
             level: migratedLevel,
-            readLength: (lang.readLength as ReadLength) ?? globalReadLength,
+            readLength,
           };
         });
         // Append any newly added languages not yet in the user's list
