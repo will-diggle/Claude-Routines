@@ -139,28 +139,15 @@ function notifyWordFailure(
   topic: string,
   word: string,
   lang: string,
-  translateAlsoFailed: boolean,
 ): void {
   const langName  = LANGUAGE_NAMES[lang] ?? lang.toUpperCase();
   const timestamp = new Date().toUTCString().replace(' GMT', ' UTC');
 
-  // What broke and what the user actually saw
-  const whatFailed = translateAlsoFailed
-    ? 'Claude (explanations) + Google Translate (translation)'
-    : 'Claude (explanations)';
-  const userSaw = translateAlsoFailed
-    ? '"Translation unavailable" — blank popup'
-    : 'Translation only — no verb tables, IPA, or explanation';
-
-  const title = translateAlsoFailed
-    ? 'Bilinguist — Full word lookup failure'
-    : 'Bilinguist — Claude word explanation failure';
-
   const body = [
-    `WHAT FAILED:  ${whatFailed}`,
+    `WHAT FAILED:  Claude (translation + explanations)`,
     `WORD:         "${word}" · ${langName} (${lang})`,
-    `USER SAW:     ${userSaw}`,
-    `RETRIES:      ${translateAlsoFailed ? '2+3' : '3'} attempts exhausted`,
+    `USER SAW:     "Translation unavailable" — blank popup`,
+    `RETRIES:      3 attempts exhausted`,
     `TIME:         ${timestamp}`,
     `ACTION:       Check Cloudflare Worker logs + Anthropic API status`,
   ].join('\n');
@@ -169,27 +156,13 @@ function notifyWordFailure(
   fetch(`https://ntfy.sh/${topic}`, {
     method: 'POST',
     headers: {
-      'Title': title,
+      'Title': 'Bilinguist — Word lookup failure',
       'Priority': 'urgent',
       'Tags': 'rotating_light,no_entry_sign',
       'Content-Type': 'text/plain',
     },
     body,
   }).catch(() => { /* non-fatal */ });
-}
-
-// ── Translation via Google Translate (no key required) ────────────────────────
-
-async function translateWord(word: string, lang: string): Promise<string | null> {
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${lang}&tl=en&dt=t&q=${encodeURIComponent(word)}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json() as unknown[][];
-    return (data?.[0]?.[0] as string[])?.[0] ?? null;
-  } catch {
-    return null;
-  }
 }
 
 // ── Claude word explanation ────────────────────────────────────────────────────
@@ -210,6 +183,7 @@ async function generateWordData(
 Identify the word type and reply ONLY with a JSON object — no markdown, no preamble:
 {
   "lemma": "the base dictionary form — for a verb the infinitive (e.g. 'haben' for 'hätte'), for a noun the nominative singular, for an adjective the base form. If '${word}' IS already the base form, repeat it here exactly.",
+  "translation": "the primary English meaning in 1-5 words — the most natural translation",
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other",
   "explanation": "Meaning in English, 1-2 sentences, suited to ${level} level",
   "example": "A ${langName} example sentence using this word",
@@ -246,6 +220,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
 
     const parsed = JSON.parse(raw.slice(start, end + 1)) as {
       lemma?: string | null;
+      translation?: string | null;
       wordType?: string;
       explanation?: string;
       example?: string;
@@ -260,10 +235,11 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
 
     return {
       lemma:         parsed.lemma?.toLowerCase() ?? null,
-      word_type:     parsed.wordType     ?? null,
-      explanation:   parsed.explanation  ?? null,
-      example:       parsed.example      ?? null,
-      pronunciation: parsed.pronunciation ?? null,
+      translation:   parsed.translation          ?? null,
+      word_type:     parsed.wordType             ?? null,
+      explanation:   parsed.explanation          ?? null,
+      example:       parsed.example              ?? null,
+      pronunciation: parsed.pronunciation        ?? null,
       verb_present:  parsed.verbTable     ? JSON.stringify(parsed.verbTable)     : null,
       verb_past:     parsed.verbTablePast ? JSON.stringify(parsed.verbTablePast) : null,
       forms:         parsed.forms         ? JSON.stringify(parsed.forms)         : null,
@@ -301,22 +277,18 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     return json(rowToWordData(hit, true));
   }
 
-  // ── Step 2: cache miss — call translation + Claude (gets lemma too) ───────────
-  // Google Translate: up to 2 attempts. Claude: up to 3 attempts with backoff.
-  const [translationResult, generatedResult] = await Promise.all([
-    withRetry(() => translateWord(word, lang), 2),
-    withRetry(() => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY), 3),
-  ]);
+  // ── Step 2: cache miss — call Claude (provides translation + full word data) ───
+  const generatedResult = await withRetry(
+    () => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY), 3,
+  );
+  const generated = generatedResult.result;
 
-  const translation = translationResult.result;
-  const generated   = generatedResult.result;
-
-  // Notify if Claude failed after all retries — it provides the rich learning data
   if (generatedResult.allFailed && env.NTFY_TOPIC) {
-    notifyWordFailure(env.NTFY_TOPIC, word, lang, translationResult.allFailed);
+    notifyWordFailure(env.NTFY_TOPIC, word, lang, true);
   }
 
-  const lemma = generated?.lemma ?? word;
+  const translation = generated?.translation ?? null;
+  const lemma       = generated?.lemma ?? word;
 
   // ── Step 3: if inflected form, check whether the lemma is already cached ──────
   if (lemma !== word) {
@@ -326,7 +298,6 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
       .first<WordRow>();
 
     if (lemmaHit) {
-      // Lemma cached — store this inflected form pointing to lemma's rich data
       await env.WORDS_DB.prepare(`
         INSERT INTO words
           (word, language, translation, lemma, word_type, explanation, example, pronunciation,
