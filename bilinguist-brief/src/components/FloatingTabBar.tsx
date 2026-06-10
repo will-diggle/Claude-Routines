@@ -190,8 +190,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex === 2) {
       return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
-    // Practice — ALL + language codes
-    return pillContentW(['ALL', ...activeLanguages.map((l) => l.code.toUpperCase())]);
+    // Practice — ALL + full native names (≤4 saved langs) or codes (>4)
+    const plCodes  = [...new Set(savedWords.map((w) => w.language))].sort();
+    const plFull   = plCodes.length <= 4;
+    const plOver   = plCodes.length - 4;
+    const plLabels = plFull
+      ? plCodes.map(c => activeLanguages.find(l => l.code === c)?.nativeName ?? c.toUpperCase())
+      : plCodes.slice(0, 4).map(c => c.toUpperCase());
+    return pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]);
   }
 
   // ── Toggle handlers — mutually exclusive ─────────────────────────────────
@@ -286,9 +292,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
     // Practice — language filter (only languages that have saved words)
     const savedLangCodes = [...new Set(savedWords.map((w) => w.language))].sort();
-    const MAX_LANGS = 4;
-    const visibleLangs = savedLangCodes.slice(0, MAX_LANGS);
-    const overflow = savedLangCodes.length - MAX_LANGS;
+    const showFull   = savedLangCodes.length <= 4;
+    const visibleLangs = savedLangCodes.slice(0, 4);
+    const overflow   = savedLangCodes.length - 4;
+    // ≤4 saved langs → full native name; >4 → code abbreviation
+    const langLabel  = (code: string) =>
+      showFull ? (activeLanguages.find(l => l.code === code)?.nativeName ?? code.toUpperCase()) : code.toUpperCase();
     return (
       <View style={styles.contextRow}>
         <TouchableOpacity
@@ -314,7 +323,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               color:      practiceLang === code ? activeColor : inactiveColor,
               fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular,
             }]}>
-              {code.toUpperCase()}
+              {langLabel(code)}
             </Text>
           </TouchableOpacity>
         ))}
