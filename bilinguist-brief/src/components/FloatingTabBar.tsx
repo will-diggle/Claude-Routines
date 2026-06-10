@@ -408,9 +408,10 @@ const styles = StyleSheet.create({
   contextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     flexGrow: 1,
-    paddingHorizontal: 10,
+    paddingLeft: 10,
+    paddingRight: 4,
     gap: 4,
   },
   contextItem: {
