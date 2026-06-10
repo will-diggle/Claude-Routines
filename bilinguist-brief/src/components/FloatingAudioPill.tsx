@@ -26,7 +26,7 @@ const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function FloatingAudioPill() {
-  const { colors, fontFamily } = useTheme();
+  const { colors, isDark, background, fontFamily } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
   const isVisible = isPlaying || isLoading;
@@ -126,9 +126,16 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  // Pill matches the canvas background; chrome is used for text and bars.
-  // The play circle is solid chrome with a contrasting icon inside.
-  const pillBg    = colors.bg;     // cream / white / navy — matches page background
+  // Pill is translucent with a border — same treatment as the nav pills below.
+  const isNavy  = background === 'softGrey';
+  const isCream = background === 'cream';
+  const pillBg  = isNavy  ? 'rgba(30,45,66,0.97)'
+                : isDark  ? 'rgba(22,22,22,0.96)'
+                : isCream ? 'rgba(245,240,232,0.97)'
+                : 'rgba(255,255,255,0.96)';
+  const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
+                   : isDark  ? 'rgba(255,255,255,0.09)'
+                   : 'rgba(0,0,0,0.07)';
   const onPill    = colors.chrome; // text + bars — dark on light, light on dark
   const circleIcon = colors.bg;    // icon inside the solid chrome circle
 
@@ -159,7 +166,7 @@ export function FloatingAudioPill() {
         },
       ]}
     >
-      <View style={[styles.pill, { backgroundColor: pillBg }]}>
+      <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
 
         {/* ── Waveform (LEFT) ── */}
         <View style={styles.waveform}>
@@ -240,6 +247,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     gap: 10,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0,
