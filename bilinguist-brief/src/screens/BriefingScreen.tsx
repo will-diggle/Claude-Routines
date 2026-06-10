@@ -263,6 +263,24 @@ export function BriefingScreen() {
               }
             >
               {/* ── Masthead — unique per language page ─────────────────── */}
+              {/* Page dots — above cities, centred */}
+              {langCount > 1 && (
+                <View style={styles.dotsRow}>
+                  {activeLanguages.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        {
+                          backgroundColor: i === briefPageIndex ? colors.inkMid : colors.borderMid,
+                          width: i === briefPageIndex ? 16 : 5,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+
               <View style={styles.lockupWrap}>
                 <Image
                   source={MASTHEADS[background] ?? MASTHEADS.cream}
@@ -290,30 +308,18 @@ export function BriefingScreen() {
                 </Text>
               </View>
 
-              {/* Thick rule below date/vol — inset from edges */}
+              {/* Medium rule below date/vol — inset from edges */}
               <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
-              <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                {tagline}
-              </Text>
-
-              {/* Page dots — only rendered when there are multiple languages */}
-              {langCount > 1 && (
-                <View style={styles.dotsRow}>
-                  {activeLanguages.map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.dot,
-                        {
-                          backgroundColor: i === briefPageIndex ? colors.inkMid : colors.borderMid,
-                          width: i === briefPageIndex ? 16 : 5,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
+              {/* Edition row: language·level left, tagline right */}
+              <View style={styles.editionRow}>
+                <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                  {lang.nativeName.toUpperCase()} · {level}
+                </Text>
+                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                  {tagline}
+                </Text>
+              </View>
 
               <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
 
@@ -329,6 +335,7 @@ export function BriefingScreen() {
                 topics={settings.topics}
                 weather={weatherByLang[lang.code] ?? null}
                 isTransitioning={isTransitioning}
+                hideEditionHeader
                 onRetry={() => {
                   clearError(lang.code);
                   loadBriefing(lang.code, level, length, true);
@@ -409,12 +416,22 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
   },
+  editionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingHorizontal: 18,
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
+  editionLabel: {
+    fontSize: 9,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   tagline: {
-    width: SCREEN_WIDTH,
-    fontSize: 14,
-    textAlign: 'center',
-    paddingTop: 8,
-    paddingBottom: 6,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
 
   dotsRow: {
@@ -422,7 +439,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 6,
+    paddingTop: 6,
+    paddingBottom: 2,
   },
   dot: {
     height: 5,

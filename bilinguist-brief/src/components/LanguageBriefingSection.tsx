@@ -88,6 +88,7 @@ interface Props {
   topics: Topics;
   weather?: WeatherData | null;
   isTransitioning?: boolean;
+  hideEditionHeader?: boolean;
   onRetry: () => void;
 }
 
@@ -209,6 +210,7 @@ export function LanguageBriefingSection({
   topics,
   weather,
   isTransitioning = false,
+  hideEditionHeader = false,
   onRetry,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
@@ -227,12 +229,14 @@ export function LanguageBriefingSection({
 
   return (
     <View>
-      {/* Edition header */}
-      <View style={[styles.mastHead, { marginHorizontal: Spacing.md, marginTop: Spacing.sm }]}>
-        <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          {nativeName.toUpperCase()} · {levelLabel(level, langCode, nativeGradeByLang[langCode])}
-        </Text>
-      </View>
+      {/* Edition header — hidden when BriefingScreen renders it inline */}
+      {!hideEditionHeader && (
+        <View style={[styles.mastHead, { marginHorizontal: Spacing.md, marginTop: Spacing.sm }]}>
+          <Text style={[styles.editionText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+            {nativeName.toUpperCase()} · {levelLabel(level, langCode, nativeGradeByLang[langCode])}
+          </Text>
+        </View>
+      )}
 
       {/* Sweep progress line — slides left→right while loading a new level/length */}
       {isTransitioning && <SweepRule color={colors.inkDark} />}
