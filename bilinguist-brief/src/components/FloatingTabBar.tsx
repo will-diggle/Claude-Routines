@@ -80,9 +80,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const pillHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H)).current;
   const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
   const rightWidthAnim = useRef(new Animated.Value(RIGHT_MINI_W)).current;
-  const leftIconOp     = useRef(new Animated.Value(1)).current;
+  // Opacity-only values for the expandable content layers — JS driver throughout
+  // so they can safely coexist with the JS-driven iconScale transform on child views.
   const leftContextOp  = useRef(new Animated.Value(0)).current;
-  const rightMiniOp    = useRef(new Animated.Value(1)).current;
   const rightFullOp    = useRef(new Animated.Value(0)).current;
 
   // Animated border radius always = height / 2 (perfect capsule / circle)
@@ -92,7 +92,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     extrapolate: 'clamp',
   });
 
-  // Icon scale tracks pill height — proportional to the default 52px size
+  // Icon scale tracks pill height — proportional to the default 52px size.
+  // Kept on JS driver to avoid native/JS driver conflicts with child Animated.Views.
   const iconScale = pillHeightAnim.interpolate({
     inputRange:  [FLOAT_TAB_H_SMALL, FLOAT_TAB_H, FLOAT_TAB_H_LARGE],
     outputRange: [FLOAT_TAB_H_SMALL / FLOAT_TAB_H, 1, FLOAT_TAB_H_LARGE / FLOAT_TAB_H],
@@ -128,6 +129,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const currentTab        = TABS.find((t) => t.route === currentRoute.name) ?? TABS[0];
 
   // ── Animation helpers ─────────────────────────────────────────────────────
+  // Mini icons (left closed, right mini) use conditional rendering based on
+  // React state — this avoids the native/JS driver conflict that caused the
+  // icon to disappear. leftContextOp and rightFullOp use useNativeDriver: false
+  // so iconScale transforms on child views work without interference.
 
   // Left opens → both pills shrink to SMALL (44), left expands to content width
   function animOpenLeft(targetW: number) {
@@ -136,20 +141,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(leftWidthAnim,  { toValue: targetW,           duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(leftIconOp,     { toValue: 0,                 duration: 80,  useNativeDriver: true }),
-      Animated.timing(leftContextOp,  { toValue: 1,                 duration: 160, delay: 80, useNativeDriver: true }),
+      Animated.timing(leftContextOp,  { toValue: 1, duration: 160, delay: 80, useNativeDriver: false }),
     ]).start();
   }
 
   // Left closes → both pills return to DEFAULT (52)
   function animCloseLeft() {
     setLeftOpen(false);
-    leftContextOp.setValue(0); // snap context chips off instantly — avoids squished-during-shrink artifact
+    leftContextOp.setValue(0); // snap context chips off instantly
     Animated.parallel([
       Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(leftIconOp,     { toValue: 1,           duration: 180, useNativeDriver: true }),
     ]).start();
   }
 
@@ -160,20 +163,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_LARGE, duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W,        duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_LARGE, duration: 200, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(rightMiniOp,    { toValue: 0,                 duration: 80,  useNativeDriver: true }),
-      Animated.timing(rightFullOp,    { toValue: 1,                 duration: 160, delay: 80, useNativeDriver: true }),
+      Animated.timing(rightFullOp,    { toValue: 1, duration: 160, delay: 80, useNativeDriver: false }),
     ]).start();
   }
 
   // Right closes → both pills return to DEFAULT (52); always followed by animOpenLeft
   function animCloseRight() {
     setRightOpen(false);
-    rightFullOp.setValue(0); // snap full nav off instantly — avoids squished-during-shrink artifact
+    rightFullOp.setValue(0); // snap full nav off instantly
     Animated.parallel([
       Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
       Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(rightMiniOp,    { toValue: 1,           duration: 180, useNativeDriver: true }),
     ]).start();
   }
 
@@ -207,11 +208,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       animCloseLeft();
     } else {
       if (rightOpen) {
-        // Close right inline (animOpenLeft will override the height/width targets)
+        // Close right inline — animOpenLeft will override height/width targets
         setRightOpen(false);
-        rightFullOp.setValue(0); // snap full nav off instantly
+        rightFullOp.setValue(0);
         Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-        Animated.timing(rightMiniOp,    { toValue: 1,            duration: 100, useNativeDriver: true }).start();
       }
       animOpenLeft(computeLeftExpandedW());
     }
@@ -223,11 +223,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       animOpenLeft(computeLeftExpandedW()); // re-open left on all tabs when right closes
     } else {
       if (leftOpen) {
-        // Close left inline (animOpenRight will override the height/width targets)
+        // Close left inline — animOpenRight will override height/width targets
         setLeftOpen(false);
-        leftContextOp.setValue(0); // snap context chips off instantly
+        leftContextOp.setValue(0);
         Animated.timing(leftWidthAnim, { toValue: LEFT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-        Animated.timing(leftIconOp,    { toValue: 1,           duration: 180, useNativeDriver: true }).start();
       }
       animOpenRight();
     }
@@ -410,17 +409,19 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     >
       {/* ── Left pill — anchored left ─────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillLeft, animatedPillShape, { width: leftWidthAnim }]}>
-        <Animated.View
-          style={[styles.absoluteFill, { opacity: leftIconOp }]}
-          pointerEvents={leftOpen ? 'none' : 'auto'}
-        >
-          <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
-            <Animated.View style={{ transform: [{ scale: iconScale }] }}>
-              <Ionicons name={leftClosedIcon} size={20} color={activeColor} />
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
 
+        {/* Closed icon: conditionally rendered so no opacity/transform driver conflict */}
+        {!leftOpen && (
+          <View style={styles.absoluteFill}>
+            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
+              <Animated.View style={{ transform: [{ scale: iconScale }] }}>
+                <Ionicons name={leftClosedIcon} size={20} color={activeColor} />
+              </Animated.View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Expanded context chips: fade in after pill grows (delay 80ms) */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: leftContextOp }]}
           pointerEvents={leftOpen ? 'auto' : 'none'}
@@ -431,13 +432,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill — anchored right ───────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, styles.pillRight, animatedPillShape, { width: rightWidthAnim }]}>
-        <Animated.View
-          style={[styles.absoluteFill, { opacity: rightMiniOp }]}
-          pointerEvents={rightOpen ? 'none' : 'auto'}
-        >
-          {renderMiniNav()}
-        </Animated.View>
 
+        {/* Mini icon: conditionally rendered so it's always crisp when visible */}
+        {!rightOpen && (
+          <View style={styles.absoluteFill}>
+            {renderMiniNav()}
+          </View>
+        )}
+
+        {/* Full nav: fade in after pill grows (delay 80ms), snap off on close */}
         <Animated.View
           style={[styles.absoluteFill, { opacity: rightFullOp }]}
           pointerEvents={rightOpen ? 'auto' : 'none'}
