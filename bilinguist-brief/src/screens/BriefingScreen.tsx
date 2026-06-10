@@ -321,8 +321,6 @@ export function BriefingScreen() {
                 </Text>
               </View>
 
-              <View style={[styles.hairline, { backgroundColor: colors.borderLight }]} />
-
               {/* ── Language content ────────────────────────────────────── */}
               <LanguageBriefingSection
                 langCode={lang.code}
@@ -425,7 +423,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   editionLabel: {
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },

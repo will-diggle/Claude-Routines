@@ -332,12 +332,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 18,
+    paddingBottom: 18,
     gap: 7,
   },
   weatherText: {
-    fontSize: 12,
+    fontSize: 14,
   },
   centerBlock: {
     alignItems: 'center',
