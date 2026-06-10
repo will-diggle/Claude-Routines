@@ -54,14 +54,14 @@ MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
 MODEL_4  = "gemini-2.5-flash"               # Grading of native journalism
 
-# Concurrency limit — keeps total inflight calls below Gemini Flash RPM limit.
-# At 5 concurrent × ~10s average = ~30 req/min, within typical free-tier limits.
-_MAX_WORKERS   = 5
+# Concurrency limit — thinking disabled so calls are short (~3-5s); 10 workers
+# stays comfortably within Gemini Flash RPM limits (~120 req/min at this rate).
+_MAX_WORKERS   = 10
 _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 
 # Retry settings for transient API errors
 MAX_RETRIES   = 3
-RETRY_DELAYS  = [30, 60, 120]   # seconds between retries
+RETRY_DELAYS  = [10, 30, 60]   # seconds between retries
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 # Passed as response_schema to GenerateContentConfig on write stages so the API
@@ -506,6 +506,7 @@ def call_gemini(
                         response_mime_type="application/json",
                         response_schema=schema,
                         max_output_tokens=max_output_tokens,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
                 )
             # Accumulate token usage for cost tracking
@@ -653,18 +654,12 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         }
         costs["total_usd"] += g_usd
 
-    # Write / grade stages — 2B uses 2.0 Flash pricing, all others use 2.5 Flash
+    # Write / grade stages — all use gemini-2.5-flash (thinking disabled)
     for sname, usage in _stage_usage.items():
-        if sname == "2B":
-            in_usd  = (usage.input_tokens  / 1_000_000) * FLASH2_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens / 1_000_000) * FLASH2_OUTPUT_USD_PER_M
-            thi_usd = 0.0
-            model_name = MODEL_BEGINNER
-        else:
-            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-            model_name = "gemini-2.5-flash"
+        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+        model_name = "gemini-2.5-flash"
         s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
             "model":           model_name,
