@@ -95,6 +95,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     [savedWords],
   );
 
+  // Stable string keys — prevents spurious effect re-runs when savedWords updates
+  // (e.g. background backfill) without actually changing which languages exist.
+  const activeLanguagesKey = activeLanguages.map((l) => l.code).join(',');
+  const savedLangCodesKey  = savedLangCodes.join(',');
+
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
 
@@ -123,9 +128,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   // JS-driver: layout properties (width, height) cannot use native driver
-  const pillHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H)).current;
-  const leftWidthAnim  = useRef(new Animated.Value(LEFT_MINI_W)).current;
-  const rightWidthAnim = useRef(new Animated.Value(RIGHT_MINI_W)).current;
+  // Each pill has its own height value — sharing one caused conflicts when
+  // animToLeftOpen (h=48) and animOpenRight (h=60) ran in close succession.
+  const leftHeightAnim  = useRef(new Animated.Value(FLOAT_TAB_H)).current;
+  const rightHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H)).current;
+  const leftWidthAnim   = useRef(new Animated.Value(LEFT_MINI_W)).current;
+  const rightWidthAnim  = useRef(new Animated.Value(RIGHT_MINI_W)).current;
 
   // Native-driver: opacity and transform run on the UI thread, keeping them
   // off the JS thread reduces competition with the layout animations above.
@@ -158,8 +166,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Animation helpers ─────────────────────────────────────────────────────
   // borderRadius uses a static value of 100 (React Native clamps to height/2,
-  // so it always renders as a perfect capsule/circle). This avoids deriving an
-  // animated borderRadius from pillHeightAnim, saving one JS computation per frame.
+  // so it always renders as a perfect capsule/circle regardless of pill height).
 
   const DUR_OPEN  = 200;
   const DUR_CLOSE = 180;
@@ -169,21 +176,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setLeftOpen(false);
     leftContextOp.setValue(0);
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
     ]).start();
   }
 
   function animOpenRight() {
     setRightOpen(true);
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W,        duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightFullOp,    { toValue: 1,            duration: 160, delay: 60, useNativeDriver: true }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_LARGE,  duration: DUR_OPEN,       useNativeDriver: true, easing: EASE }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightFullOp,     { toValue: 1,            duration: 160, delay: 60, useNativeDriver: true }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_LARGE,  duration: DUR_OPEN,       useNativeDriver: true, easing: EASE }),
     ]).start();
   }
 
@@ -191,10 +200,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(false);
     rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
     ]).start();
   }
 
@@ -204,27 +214,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H, duration: DUR_CLOSE, useNativeDriver: false, easing: EASE }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_DEFAULT, duration: DUR_CLOSE, useNativeDriver: true, easing: EASE }),
     ]).start();
   }
 
-  // Single animation that transitions from any state → left open.
-  // Replaces the old pattern of calling animCloseRight() + animOpenLeft() back-to-back,
-  // which caused conflicts because both functions animated the same values simultaneously.
   function animToLeftOpen(targetW: number) {
     const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
     setRightOpen(false);
     setLeftOpen(true);
     rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,  { toValue: openW,              duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftContextOp,  { toValue: 1,                  duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
-      Animated.timing(iconScaleAnim,  { toValue: SCALE_SMALL,        duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftWidthAnim,   { toValue: openW,              duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, duration: DUR_OPEN,  useNativeDriver: false, easing: EASE }),
+      Animated.timing(leftContextOp,   { toValue: 1,                  duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_SMALL,        duration: DUR_OPEN,  useNativeDriver: true,  easing: EASE }),
     ]).start();
   }
 
@@ -292,15 +301,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-open the left pill when store data hydrates — on cold start the
-  // pill opens before AsyncStorage finishes loading, so activeLanguages
-  // and savedLangCodes are empty. This effect fires once they populate.
+  // Re-open the left pill when language content changes (cold-start hydration or
+  // user adding/removing languages). Uses string keys so this does NOT fire on
+  // every savedWords reference change (e.g. background backfill every 500ms).
   useEffect(() => {
     if (leftOpen && !isAudioDocked) {
       chipGroupMeasuredW.current = 0;
       animToLeftOpen(computeLeftExpandedW());
     }
-  }, [activeLanguages, savedLangCodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeLanguagesKey, savedLangCodesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When audio pill docks, close nav pills. When it undocks, restore previous open state.
   useEffect(() => {
@@ -454,7 +463,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { height: pillHeightAnim, width: leftWidthAnim }]}>
+      <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
 
         {/* Closed icon */}
         {!leftOpen && (
@@ -480,7 +489,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       <View style={styles.pillSpacer} />
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { height: pillHeightAnim, width: rightWidthAnim }]}>
+      <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
 
         {/* Mini icon */}
         {!rightOpen && (
