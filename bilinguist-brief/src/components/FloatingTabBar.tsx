@@ -510,6 +510,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
   },
   navTabItem: {
     flex: 1,
