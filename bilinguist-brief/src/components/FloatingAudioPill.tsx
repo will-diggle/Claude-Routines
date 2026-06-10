@@ -23,14 +23,14 @@ const PILL_H        = FLOAT_TAB_H_SMALL; // 44px
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 4;
-const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
+const MARQUEE_SPEED = 38; // ms per pixel
 const FADE_WIDTH    = 24;
 
-// Docked: pill sits between the two 52px mini nav pills (left: 16 + 52 + 8 = 76)
+// Docked: sits between the two 52px mini nav pills
 const SIDE_NORMAL = 16;
 const SIDE_DOCKED = 16 + FLOAT_TAB_H + 8; // 76
 
-// Scroll range over which docking completes (px)
+// Scroll range over which docking completes
 const DOCK_START = 40;
 const DOCK_END   = 160;
 
@@ -42,8 +42,7 @@ export function FloatingAudioPill() {
   const { isPlaying, isLoading, headline } = useAudioStore();
   const isVisible = isPlaying || isLoading;
 
-  // ── Entrance / exit spring ───────────────────────────────────────────────
-  // Native driver: opacity + transform only
+  // ── Entrance / exit spring (native driver) ───────────────────────────────
   const showAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -55,21 +54,34 @@ export function FloatingAudioPill() {
     }).start();
   }, [isVisible]);
 
-  // ── Dock position (JS driver) ────────────────────────────────────────────
-  // Derived directly from briefingScrollY so there's no Zustand round-trip.
+  // ── Dock position (JS driver, stable refs) ───────────────────────────────
+  // Stable Animated.Values that never change identity — no re-subscription risk.
+  const bottomValue = useRef(new Animated.Value(0)).current;
+  const sideValue   = useRef(new Animated.Value(SIDE_NORMAL)).current;
+
+  // Position targets derived from safe-area insets
   const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
   const dockedBottom = insets.bottom + FLOAT_TAB_BOTTOM;
 
-  const bottomAnim = briefingScrollY.interpolate({
-    inputRange:  [DOCK_START, DOCK_END],
-    outputRange: [normalBottom, dockedBottom],
-    extrapolate: 'clamp',
-  });
-  const sideAnim = briefingScrollY.interpolate({
-    inputRange:  [DOCK_START, DOCK_END],
-    outputRange: [SIDE_NORMAL, SIDE_DOCKED],
-    extrapolate: 'clamp',
-  });
+  // Initialise once insets are known
+  const posReady = useRef(false);
+  useEffect(() => {
+    if (posReady.current) return;
+    posReady.current = true;
+    bottomValue.setValue(normalBottom);
+  }, [normalBottom]);
+
+  // Drive position directly from scroll — addListener fires every time
+  // briefingScrollY.setValue() is called, with no Animated.event or React
+  // re-render in the loop.
+  useEffect(() => {
+    const id = briefingScrollY.addListener(({ value }) => {
+      const t = Math.max(0, Math.min(1, (value - DOCK_START) / (DOCK_END - DOCK_START)));
+      bottomValue.setValue(normalBottom + t * (dockedBottom - normalBottom));
+      sideValue.setValue(SIDE_NORMAL + t * (SIDE_DOCKED - SIDE_NORMAL));
+    });
+    return () => briefingScrollY.removeListener(id);
+  }, [normalBottom, dockedBottom]);
 
   // ── Waveform bars ────────────────────────────────────────────────────────
   const barAnims = useRef(
@@ -162,7 +174,7 @@ export function FloatingAudioPill() {
     pillBg,
   ];
 
-  // ── Play / Pause handler ─────────────────────────────────────────────────
+  // ── Play / Pause ─────────────────────────────────────────────────────────
   async function handlePlayPause() {
     if (isLoading) return;
     if (isPlaying) { await pauseAudio(); } else { await resumeAudio(); }
@@ -171,12 +183,12 @@ export function FloatingAudioPill() {
   const marqueeText = headline ? `${headline}   ·   ` : '';
 
   return (
-    // Outer View: JS driver animates bottom / left / right
+    // Outer: JS driver — moves bottom / left / right as user scrolls
     <Animated.View
       pointerEvents={isVisible ? 'auto' : 'none'}
-      style={[styles.wrapper, { bottom: bottomAnim, left: sideAnim, right: sideAnim }]}
+      style={[styles.wrapper, { bottom: bottomValue, left: sideValue, right: sideValue }]}
     >
-      {/* Inner View: native driver for entrance / exit */}
+      {/* Inner: native driver — entrance / exit opacity + scale */}
       <Animated.View
         style={{
           opacity: showAnim,

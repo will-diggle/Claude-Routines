@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
-  View, Text, Image, Dimensions, Animated,
+  View, Text, Image, Dimensions,
   NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
@@ -261,10 +261,7 @@ export function BriefingScreen() {
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
               scrollEventThrottle={16}
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: briefingScrollY } } }],
-                { useNativeDriver: false },
-              )}
+              onScroll={e => briefingScrollY.setValue(e.nativeEvent.contentOffset.y)}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
