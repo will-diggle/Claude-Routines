@@ -36,15 +36,8 @@ TIMEOUT_MS      = TIMEOUT_SECONDS * 1000
 RETRYABLE_CODES = {503, 429}
 
 # Attempt plan — tried in order until one succeeds.
-# Flex tier is cheapest but gets deprioritized under high demand; Standard is
-# the fallback when Flex is saturated. gemini-2.0-flash is the final safety net
-# (older model, larger capacity pool, also supports Google Search grounding).
-#
 # Each entry: (model_id, service_tier_or_None, display_label, max_retries, retry_delays_secs)
 ATTEMPT_PLAN = [
-    # All Standard tier — predictable latency, no deprioritisation.
-    # 2.0-flash leads: most battle-tested for search grounding + JSON.
-    ("gemini-2.0-flash", None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
     ("gemini-2.5-flash", None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
     ("gemini-2.5-pro",   None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
 ]
@@ -174,8 +167,8 @@ def main():
                     )
                     break
                 else:
-                    print(f"[gather] ERROR: non-retryable failure on {model} — {e}", file=sys.stderr)
-                    sys.exit(1)
+                    print(f"[gather] {model} non-retryable error — {e} — trying next", file=sys.stderr)
+                    break
         if response:
             print(f"[gather] Success via {model} ({label} tier)")
             break
