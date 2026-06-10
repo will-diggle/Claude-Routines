@@ -24,7 +24,7 @@ const MAX_CARDS = 15;
 const CARD_W = SW - 48;
 const CARD_H = Math.min(Math.round(CARD_W * 1.42), Math.round(SH * 0.60));
 const SWIPE_THRESHOLD = 80;
-const STACK_OFFSET = 7;
+const STACK_OFFSET = 20;
 const STACK_SCALE = 0.04;
 
 function levelColor(level?: string | null): string {
@@ -230,7 +230,7 @@ export function FlashcardsScreen() {
                   zIndex: 10 - depth,
                   transform: [
                     { scale: 1 - depth * STACK_SCALE },
-                    { translateY: -(depth * STACK_OFFSET) },
+                    { translateY: depth * STACK_OFFSET },
                   ],
                 },
               ]}
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: STACK_OFFSET * 3,
+    paddingBottom: STACK_OFFSET * 3,
   },
 
   cardContainer: {
