@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
+import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type Pile } from '../store/useWordBankStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
@@ -50,22 +51,27 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 export function PracticeScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const navigation = useNavigation<PracticeNav>();
-  const { words } = useWordBankStore();
-  const { streak } = useStreakStore();
-  const { practiceLang: selectedLang } = useNavPillStore();
+  const words = useWordBankStore(useShallow((s) => s.words));
+  const streak = useStreakStore((s) => s.streak);
+  const selectedLang = useNavPillStore((s) => s.practiceLang);
 
   const [gameModalVisible, setGameModalVisible] = useState(false);
 
-  const filteredWords = selectedLang === 'all' ? words : words.filter((w) => w.language === selectedLang);
+  const filteredWords = useMemo(
+    () => selectedLang === 'all' ? words : words.filter((w) => w.language === selectedLang),
+    [words, selectedLang],
+  );
   const totalWords = filteredWords.length;
   const hasWords = totalWords > 0;
 
-  const filteredCounts: Record<Pile, number> = {
-    new: filteredWords.filter((w) => w.pile === 'new').length,
+  const filteredCounts = useMemo((): Record<Pile, number> => ({
+    new:      filteredWords.filter((w) => w.pile === 'new').length,
     learning: filteredWords.filter((w) => w.pile === 'learning').length,
     mastered: filteredWords.filter((w) => w.pile === 'mastered').length,
-    revisit: filteredWords.filter((w) => w.pile === 'revisit').length,
-  };
+    revisit:  filteredWords.filter((w) => w.pile === 'revisit').length,
+  }), [filteredWords]);
+
+  const recentWords = useMemo(() => filteredWords.slice(0, 5), [filteredWords]);
 
 
   return (
@@ -193,7 +199,7 @@ export function PracticeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          {filteredWords.slice(0, 5).map((w) => (
+          {recentWords.map((w) => (
             <View key={w.id} style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>

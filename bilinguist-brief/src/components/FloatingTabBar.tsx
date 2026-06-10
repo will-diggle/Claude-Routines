@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Platform, Dimensions, Animated, Easing,
@@ -75,9 +75,25 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     gameActive,
     briefingScrolled,
     audioPillForcedUp, setAudioPillForcedUp,
-  } = useNavPillStore();
+  } = useNavPillStore(useShallow((s) => ({
+    briefPageIndex: s.briefPageIndex,
+    setBriefPageIndex: s.setBriefPageIndex,
+    settingsSection: s.settingsSection,
+    setSettingsSection: s.setSettingsSection,
+    practiceLang: s.practiceLang,
+    setPracticeLang: s.setPracticeLang,
+    gameActive: s.gameActive,
+    briefingScrolled: s.briefingScrolled,
+    audioPillForcedUp: s.audioPillForcedUp,
+    setAudioPillForcedUp: s.setAudioPillForcedUp,
+  })));
   const isAudioVisible = useAudioStore(useShallow(s => s.isPlaying || s.isLoading));
   const isAudioDocked  = briefingScrolled && isAudioVisible && !audioPillForcedUp;
+
+  const savedLangCodes = useMemo(
+    () => [...new Set(savedWords.map((w) => w.language))].sort(),
+    [savedWords],
+  );
 
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
@@ -205,7 +221,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex === 2) {
       return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
-    const plCodes  = [...new Set(savedWords.map((w) => w.language))].sort();
+    const plCodes  = savedLangCodes;
     const plFull   = plCodes.length <= 4;
     const plOver   = plCodes.length - 4;
     const plLabels = plFull
@@ -297,7 +313,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       );
     }
 
-    const savedLangCodes = [...new Set(savedWords.map((w) => w.language))].sort();
     const showFull     = savedLangCodes.length <= 4;
     const visibleLangs = savedLangCodes.slice(0, 4);
     const overflow     = savedLangCodes.length - 4;

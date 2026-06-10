@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
   View, Text, Image, Dimensions,
@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useNavPillStore } from '../store/useNavPillStore';
@@ -128,17 +129,25 @@ function resolveLength(_level: LanguageLevel, readLength: ArticleLength): Articl
 export function BriefingScreen() {
   const { colors, fontFamily, background } = useTheme();
   const insets = useSafeAreaInsets();
-  const settings = useSettingsStore();
+  const { languages, topics } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics }))
+  );
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
-    syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
-    briefVolume, isSyncing,
-  } = useBriefingStore();
+    syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt, briefVolume,
+  } = useBriefingStore(useShallow((s) => ({
+    briefings: s.briefings, generatingFor: s.generatingFor, errorsFor: s.errorsFor,
+    weatherByLang: s.weatherByLang, syncFromServer: s.syncFromServer,
+    loadBriefing: s.loadBriefing, loadWeather: s.loadWeather, clearError: s.clearError,
+    bundleReceivedAt: s.bundleReceivedAt, briefVolume: s.briefVolume,
+  })));
 
-  const activeLanguages = settings.languages.filter((l) => l.active);
+  const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
   const langCount = activeLanguages.length;
 
-  const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore();
+  const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore(
+    useShallow((s) => ({ briefPageIndex: s.briefPageIndex, setBriefPageIndex: s.setBriefPageIndex, setBriefingScrolled: s.setBriefingScrolled }))
+  );
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
@@ -350,7 +359,7 @@ export function BriefingScreen() {
                 isGenerating={generatingFor.includes(lang.code)}
                 error={errorsFor[lang.code]}
                 isFirst
-                topics={settings.topics}
+                topics={topics}
                 weather={weatherByLang[lang.code] ?? null}
                 isTransitioning={isTransitioning}
                 hideEditionHeader
