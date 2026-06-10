@@ -11,6 +11,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useWordBankStore } from '../store/useWordBankStore';
+import { useAudioStore } from '../store/useAudioStore';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
@@ -39,16 +40,21 @@ const SCALE_DEFAULT = 1;
 const SCALE_SMALL   = FLOAT_TAB_H_SMALL / FLOAT_TAB_H;  // ≈ 0.846
 const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;  // ≈ 1.154
 
-const CHIP_PAD = 20;
+const CHIP_PAD = 12; // 6px each side — matches contextItem.paddingHorizontal × 2
 const CHIP_GAP = 4;
 const ROW_PAD  = 20;
 
+// Per-label charW: uppercase labels (FR, DE) are wider relative to font size
+// than mixed-case (Français, Languages). Uses generous upper-bound estimates
+// so any selected font (Playfair, Garamond, Times, Georgia) never overflows.
 function pillContentW(labels: string[]): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
-  const charW = labels.every(l => l === l.toUpperCase()) ? 6.5 : 5.8;
-  const chars = labels.reduce((s, l) => s + l.length, 0);
-  return Math.min(chars * charW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+  const textW = labels.reduce((sum, l) => {
+    const charW = l === l.toUpperCase() ? 8.5 : 7.5;
+    return sum + l.length * charW;
+  }, 0);
+  return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -67,7 +73,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     settingsSection, setSettingsSection,
     practiceLang, setPracticeLang,
     gameActive,
+    briefingScrolled,
+    audioPillForcedUp, setAudioPillForcedUp,
   } = useNavPillStore();
+  const isAudioVisible = useAudioStore(useShallow(s => s.isPlaying || s.isLoading));
+  const isAudioDocked  = briefingScrolled && isAudioVisible && !audioPillForcedUp;
 
   const [leftOpen,  setLeftOpen]  = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
@@ -88,14 +98,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const isCream = background === 'cream';
   const pillBg = isNavy  ? 'rgba(30,45,66,0.93)'
                : isDark  ? 'rgba(22,22,22,0.92)'
-               : isCream ? 'rgba(245,240,232,0.95)'
+               : isCream ? 'rgba(245,242,237,0.95)'
                :           'rgba(255,255,255,0.92)';
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
                    : isDark  ? 'rgba(255,255,255,0.09)'
                    : isCream ? 'rgba(22,32,50,0.10)'
                    :           'rgba(0,0,0,0.07)';
-  const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
-  const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
+  const activeColor   = isNavy ? '#F5F2ED' : colors.inkDark;
+  const inactiveColor = isNavy ? 'rgba(245,242,237,0.40)' : colors.inkFaint;
   const activeChipStyle = (isNavy || isDark) ? {
     backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.28)',
   } : {
@@ -185,6 +195,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Toggle handlers ───────────────────────────────────────────────────────
 
   function toggleLeft() {
+    // If audio pill is slotted between the pills, send it back up first
+    if (isAudioDocked) { setAudioPillForcedUp(true); }
     if (leftOpen) {
       animCloseLeft();
     } else {
@@ -198,9 +210,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function toggleRight() {
+    // If audio pill is slotted between the pills, send it back up first
+    if (isAudioDocked) { setAudioPillForcedUp(true); }
     if (rightOpen) {
       animCloseRight();
-      animOpenLeft(computeLeftExpandedW());
+      if (!isAudioDocked) animOpenLeft(computeLeftExpandedW());
     } else {
       if (leftOpen) {
         setLeftOpen(false);
@@ -215,6 +229,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     animCloseRight();
     animOpenLeft(computeLeftExpandedW());
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When audio pill docks, close both nav pills so it can slot in between
+  useEffect(() => {
+    if (isAudioDocked) {
+      animCloseLeft();
+      animCloseRight();
+    }
+  }, [isAudioDocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Left context content ──────────────────────────────────────────────────
 
@@ -411,19 +433,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     flexGrow: 1,
     paddingLeft: 10,
-    paddingRight: 4,
+    paddingRight: 10,
     gap: 4,
   },
   contextItem: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contextLabel: {
-    fontSize: 13,
-    letterSpacing: 0.3,
+    fontSize: 12,
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
 

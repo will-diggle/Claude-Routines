@@ -23,6 +23,10 @@ interface NavPillStore {
   // True when the user has scrolled down the briefing feed — docks the audio pill
   briefingScrolled: boolean;
   setBriefingScrolled: (scrolled: boolean) => void;
+
+  // Set to true when user taps a nav pill while audio is docked — forces audio back up
+  audioPillForcedUp: boolean;
+  setAudioPillForcedUp: (v: boolean) => void;
 }
 
 export const useNavPillStore = create<NavPillStore>((set) => ({
@@ -39,5 +43,10 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
   setGameActive: (active) => set({ gameActive: active }),
 
   briefingScrolled: false,
-  setBriefingScrolled: (scrolled) => set({ briefingScrolled: scrolled }),
+  setBriefingScrolled: (scrolled) => set(
+    scrolled ? { briefingScrolled: true } : { briefingScrolled: false, audioPillForcedUp: false }
+  ),
+
+  audioPillForcedUp: false,
+  setAudioPillForcedUp: (v) => set({ audioPillForcedUp: v }),
 }));

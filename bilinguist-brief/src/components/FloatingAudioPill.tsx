@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
 import { useNavPillStore } from '../store/useNavPillStore';
@@ -29,9 +30,12 @@ const FADE_WIDTH    = 24;
 const SIDE_NORMAL = 16;
 
 // When docked the pill drops down by exactly FLOAT_TAB_H + GAP_ABOVE_TAB.
-// The insets cancel (both normal and docked include insets.bottom), so this
-// is a compile-time constant — safe to use on the native driver.
+// Insets cancel out so this is a compile-time constant — safe on native driver.
 const DOCK_OFFSET = FLOAT_TAB_H + GAP_ABOVE_TAB; // 56px
+
+// Horizontal margin added each side when docked — pushes pill to sit between
+// the two mini nav pills (each 52px wide + 8px gap).
+const DOCK_SIDE = FLOAT_TAB_H + 8; // 60px each side
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -39,8 +43,11 @@ export function FloatingAudioPill() {
   const { colors, isDark, background, fontFamily } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
-  const briefingScrolled = useNavPillStore(s => s.briefingScrolled);
+  const { briefingScrolled, audioPillForcedUp } = useNavPillStore(
+    useShallow(s => ({ briefingScrolled: s.briefingScrolled, audioPillForcedUp: s.audioPillForcedUp }))
+  );
   const isVisible = isPlaying || isLoading;
+  const isDocked  = briefingScrolled && isVisible && !audioPillForcedUp;
 
   // ── Entrance / exit spring (native driver) ───────────────────────────────
   const showAnim = useRef(new Animated.Value(0)).current;
@@ -54,19 +61,29 @@ export function FloatingAudioPill() {
     }).start();
   }, [isVisible]);
 
-  // ── Dock animation — translateY, native driver ───────────────────────────
-  // translateY:  0 → floating   |  DOCK_OFFSET → docked between nav pills
-  // Native driver is unconditionally reliable; layout property animation is not.
+  // ── Dock: translateY (native driver) ─────────────────────────────────────
   const dockAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.spring(dockAnim, {
-      toValue: (briefingScrolled && isVisible) ? DOCK_OFFSET : 0,
+      toValue: isDocked ? DOCK_OFFSET : 0,
       useNativeDriver: true,
       bounciness: 4,
       speed: 12,
     }).start();
-  }, [briefingScrolled, isVisible]);
+  }, [isDocked]);
+
+  // ── Dock: side margins (JS driver) — narrows pill to slot between nav pills
+  const sideMarginAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(sideMarginAnim, {
+      toValue: isDocked ? DOCK_SIDE : 0,
+      useNativeDriver: false,
+      bounciness: 4,
+      speed: 12,
+    }).start();
+  }, [isDocked]);
 
   // ── Waveform bars ────────────────────────────────────────────────────────
   const barAnims = useRef(
@@ -146,7 +163,7 @@ export function FloatingAudioPill() {
   const isCream = background === 'cream';
   const pillBg  = isNavy  ? 'rgba(30,45,66,0.97)'
                 : isDark  ? 'rgba(22,22,22,0.96)'
-                : isCream ? 'rgba(245,240,232,0.97)'
+                : isCream ? 'rgba(245,242,237,0.97)'
                 : 'rgba(255,255,255,0.96)';
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
                    : isDark  ? 'rgba(255,255,255,0.09)'
@@ -170,91 +187,94 @@ export function FloatingAudioPill() {
   const marqueeText = headline ? `${headline}   ·   ` : '';
 
   return (
-    // Outer: plain View with static position — no animated layout properties
+    // Outermost: static absolute position
     <View
       pointerEvents={isVisible ? 'auto' : 'none'}
       style={[styles.wrapper, { bottom: normalBottom, left: SIDE_NORMAL, right: SIDE_NORMAL }]}
     >
-      {/* Inner: native driver — entrance + dock (both translateY) + scale + opacity */}
-      <Animated.View
-        style={{
-          opacity: showAnim,
-          transform: [
-            // Entrance: slides up from below on appear
-            { translateY: showAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
-            { scale:      showAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
-            // Dock: drops pill down to sit level with the nav pills
-            { translateY: dockAnim },
-          ],
-        }}
-      >
-        <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
+      {/* JS driver: horizontal margin shrinks pill to sit between nav pills */}
+      <Animated.View style={{ marginHorizontal: sideMarginAnim }}>
 
-          {/* ── Waveform (LEFT) ── */}
-          <View style={styles.waveform}>
-            {barAnims.map((anim, i) => (
-              <Animated.View
-                key={i}
-                style={[
-                  styles.bar,
-                  {
-                    backgroundColor: onPill,
-                    height:  anim.interpolate({ inputRange: [0, 1], outputRange: [3, BAR_MAX] }),
-                    opacity: isPlaying ? 0.9 : 0.4,
-                  },
-                ]}
-              />
-            ))}
-          </View>
+        {/* Native driver: entrance slide/scale + dock translateY */}
+        <Animated.View
+          style={{
+            opacity: showAnim,
+            transform: [
+              { translateY: showAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+              { scale:      showAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
+              { translateY: dockAnim },
+            ],
+          }}
+        >
+          <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
 
-          {/* ── Marquee title (MIDDLE) ── */}
-          <View
-            style={styles.marqueeContainer}
-            onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
-          >
-            <Animated.View
-              style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
+            {/* ── Waveform (LEFT) ── */}
+            <View style={styles.waveform}>
+              {barAnims.map((anim, i) => (
+                <Animated.View
+                  key={i}
+                  style={[
+                    styles.bar,
+                    {
+                      backgroundColor: onPill,
+                      height:  anim.interpolate({ inputRange: [0, 1], outputRange: [3, BAR_MAX] }),
+                      opacity: isPlaying ? 0.9 : 0.4,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* ── Marquee title (MIDDLE) ── */}
+            <View
+              style={styles.marqueeContainer}
+              onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
             >
-              <Text
-                style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
-                onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+              <Animated.View
+                style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
               >
-                {marqueeText}
-              </Text>
-              <Text
-                style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
-              >
-                {marqueeText}
-              </Text>
-            </Animated.View>
+                <Text
+                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+                  onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+                >
+                  {marqueeText}
+                </Text>
+                <Text
+                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+                >
+                  {marqueeText}
+                </Text>
+              </Animated.View>
 
-            {/* Right-edge fade */}
-            <LinearGradient
-              colors={fadeColors}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.fadeEdge}
-              pointerEvents="none"
-            />
-          </View>
-
-          {/* ── Play / Pause (RIGHT) ── */}
-          <TouchableOpacity
-            onPress={handlePlayPause}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <View style={[styles.playCircle, { backgroundColor: onPill }]}>
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={12}
-                color={circleIcon}
-                style={!isPlaying ? { marginLeft: 1 } : undefined}
+              {/* Right-edge fade */}
+              <LinearGradient
+                colors={fadeColors}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.fadeEdge}
+                pointerEvents="none"
               />
             </View>
-          </TouchableOpacity>
 
-        </View>
+            {/* ── Play / Pause (RIGHT) ── */}
+            <TouchableOpacity
+              onPress={handlePlayPause}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <View style={[styles.playCircle, { backgroundColor: onPill }]}>
+                <Ionicons
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={12}
+                  color={circleIcon}
+                  style={!isPlaying ? { marginLeft: 1 } : undefined}
+                />
+              </View>
+            </TouchableOpacity>
+
+          </View>
+        </Animated.View>
+
       </Animated.View>
     </View>
   );

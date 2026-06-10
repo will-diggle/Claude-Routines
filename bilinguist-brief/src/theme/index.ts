@@ -1,15 +1,15 @@
 export const Colors = {
   // Backgrounds
-  white: '#F5F2ED',
-  whiteSurface: '#FAF8F5',
-  whiteCard: '#FEFDFB',
-  cream: '#F5F0E8',
+  white: '#FFFFFF',
+  whiteSurface: '#F8F8F8',
+  whiteCard: '#FAFAFA',
+  cream: '#F5F2ED',
   softGrey: '#EDEBE6',
   night: '#141414',
   nightSurface: '#1E1E1E',
   nightCard: '#252525',
-  creamSurface: '#FAF7F2',
-  creamCard: '#FDFAF6',
+  creamSurface: '#EDEAE5',
+  creamCard: '#F8F5F0',
 
   // Ink
   inkDark: '#1A1A1A',
