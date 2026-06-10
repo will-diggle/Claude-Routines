@@ -1,6 +1,8 @@
 export const Colors = {
   // Backgrounds
   white: '#F5F2ED',
+  whiteSurface: '#FAF8F5',
+  whiteCard: '#FEFDFB',
   cream: '#F5F0E8',
   softGrey: '#EDEBE6',
   night: '#141414',
