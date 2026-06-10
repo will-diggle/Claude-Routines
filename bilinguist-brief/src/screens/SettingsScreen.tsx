@@ -430,42 +430,6 @@ export function SettingsScreen() {
             )}
           />
 
-          <SectionHeader title="Briefing Preferences" colors={colors} fontFamily={fontFamily} />
-
-          <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                Daily Briefing Time
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
-            </View>
-            <TimeInput
-              value={store.briefingNotificationTime}
-              onChange={store.setBriefingNotificationTime}
-              onCommit={() => {
-                const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
-                scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
-              }}
-              colors={colors}
-              fontFamily={fontFamily}
-            />
-          </View>
-
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                Daily Practice Reminder
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
-            </View>
-            <TimeInput
-              value={store.practiceNotificationTime}
-              onChange={store.setPracticeNotificationTime}
-              onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
-              colors={colors}
-              fontFamily={fontFamily}
-            />
-          </View>
         </ScrollView>
 
         {/* ── Page 1: Genres ── */}
