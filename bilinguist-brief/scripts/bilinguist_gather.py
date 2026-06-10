@@ -42,10 +42,13 @@ RETRYABLE_CODES = {503, 429}
 #
 # Each entry: (model_id, service_tier_or_None, display_label, max_retries, retry_delays_secs)
 ATTEMPT_PLAN = [
-    ("gemini-2.5-pro",   "flex", "Flex",     6, [30, 60, 120, 300, 600, 600]),   # ~28 min
-    ("gemini-2.5-flash", "flex", "Flex",     6, [30, 60, 120, 300, 600, 600]),   # ~28 min
-    ("gemini-2.5-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
+    # Standard tier first — predictable latency, no deprioritisation.
+    # 2.0-flash is the most battle-tested model for search grounding + JSON.
     ("gemini-2.0-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
+    ("gemini-2.5-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
+    # Flex tiers as opportunistic cost-savers when capacity is available.
+    ("gemini-2.5-flash", "flex", "Flex",     4, [30, 60, 120, 300]),             # ~8 min
+    ("gemini-2.5-pro",   "flex", "Flex",     4, [30, 60, 120, 300]),             # ~8 min
 ]
 
 # Date is read from BRIEF_DATE env var (set once by the workflow at job start)
@@ -234,11 +237,15 @@ def main():
     # 9. Write output to file — filename uses BRIEF_DATE so write.py can find it
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_path = os.path.join(script_dir, f"factbase_{BRIEF_DATE}.json")
+    # Capture the tier from the winning attempt entry
+    winning_tier = next(
+        (t for m, t, *_ in ATTEMPT_PLAN if m == model), None
+    )
     output = {
         "date": BRIEF_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "model": model,
-        "service_tier": "flex",
+        "service_tier": winning_tier or "standard",
         "story_count": len(factbase),
         "usage_metadata": usage_metadata,
         "factbase": factbase,
