@@ -15,7 +15,8 @@ const LANG_LOCALE: Record<string, string> = {
 };
 
 function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
-  const { setPlaying, setIdle } = useAudioStore.getState();
+  const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
+  setLoading(trackingKey); // stores the article headline so the pill can display it
   setPlaying();
   Speech.speak(text, {
     language: LANG_LOCALE[language] ?? 'en-GB',
