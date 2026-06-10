@@ -30,21 +30,23 @@ from google.genai import types
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
-# Priority list — first name found in the API's model list wins.
-# Google rotates preview model IDs frequently; this list auto-adapts.
-MODEL_CANDIDATES = [
-    "gemini-2.5-pro",    # GA stable
-    "gemini-2.5-flash",  # Flash fallback — gather degrades gracefully rather than crashing
-]
-
-PROMPT_FILE = "gemini_prompt_brief.md"   # system prompt loaded from file
-TIMEOUT_SECONDS = 1200                   # 20 minutes — accommodates Flex queue wait
-TIMEOUT_MS      = TIMEOUT_SECONDS * 1000 # HttpOptions.timeout is in milliseconds
-
-# Retries for transient server errors (503 UNAVAILABLE, 429 RESOURCE_EXHAUSTED)
-MAX_RETRIES    = 6
-RETRY_DELAYS   = [30, 60, 120, 300, 600, 600]  # ~28 min total before giving up
+PROMPT_FILE     = "gemini_prompt_brief.md"
+TIMEOUT_SECONDS = 1200
+TIMEOUT_MS      = TIMEOUT_SECONDS * 1000
 RETRYABLE_CODES = {503, 429}
+
+# Attempt plan — tried in order until one succeeds.
+# Flex tier is cheapest but gets deprioritized under high demand; Standard is
+# the fallback when Flex is saturated. gemini-2.0-flash is the final safety net
+# (older model, larger capacity pool, also supports Google Search grounding).
+#
+# Each entry: (model_id, service_tier_or_None, display_label, max_retries, retry_delays_secs)
+ATTEMPT_PLAN = [
+    ("gemini-2.5-pro",   "flex", "Flex",     6, [30, 60, 120, 300, 600, 600]),   # ~28 min
+    ("gemini-2.5-flash", "flex", "Flex",     6, [30, 60, 120, 300, 600, 600]),   # ~28 min
+    ("gemini-2.5-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
+    ("gemini-2.0-flash", None,   "Standard", 4, [15, 30,  60, 120]),             # ~3.7 min
+]
 
 # Date is read from BRIEF_DATE env var (set once by the workflow at job start)
 # so gather and write always agree even when the pipeline crosses midnight UTC.
@@ -93,33 +95,6 @@ def parse_llm_json(raw: str) -> dict | None:
         return None
 
 
-def resolve_model(client: genai.Client) -> str:
-    """
-    Return the first MODEL_CANDIDATE that is available in the current API.
-    Falls back to the last candidate if the listing call itself fails.
-    """
-    try:
-        available = {m.name.split("/")[-1] for m in client.models.list()}
-        for candidate in MODEL_CANDIDATES:
-            if candidate in available:
-                print(f"[gather] Using model: {candidate}")
-                return candidate
-        # None of the preferred names matched — use the first (most preferred)
-        # and let the generate_content call surface the real error.
-        print(
-            f"[gather] WARNING: none of the preferred model names found in API listing. "
-            f"Trying '{MODEL_CANDIDATES[0]}' anyway.",
-            file=sys.stderr,
-        )
-        return MODEL_CANDIDATES[0]
-    except Exception as e:
-        print(
-            f"[gather] WARNING: model listing failed ({e}). "
-            f"Defaulting to '{MODEL_CANDIDATES[0]}'.",
-            file=sys.stderr,
-        )
-        return MODEL_CANDIDATES[0]
-
 
 def validate_story(story: dict) -> dict:
     """
@@ -158,27 +133,22 @@ def main():
     )
     print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s / {TIMEOUT_MS}ms)")
 
-    # 2b. Print model priority order (selection is now done in the retry loop below)
-    print(f"[gather] Model priority: {' → '.join(MODEL_CANDIDATES)}")
+    plan_labels = " → ".join(f"{m}({t or 'Standard'})" for m, t, *_ in ATTEMPT_PLAN)
+    print(f"[gather] Attempt plan: {plan_labels}")
 
-    # 3. Build the generation config
-    #    - google_search tool: enables live web search grounding
-    #    - service_tier='flex': 50% discount on input/output tokens
-    #    - temperature 0.1: factual consistency
-    #    NOTE: do NOT set response_mime_type='application/json' — this disables search grounding
-    config = types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())],
-        temperature=0.1,
-        service_tier="flex",
-    )
-
-    # 4. Fire the request — try each model in priority order, retrying on 503/429.
-    #    When a model exhausts all retries (e.g. Pro is overloaded), fall through to
-    #    the next candidate (Flash) rather than failing the whole pipeline.
+    # 3. Fire the request — walk the attempt plan until one succeeds.
+    #    Flex tier is cheapest; Standard tier is the fallback when Flex is saturated.
+    #    NOTE: do NOT set response_mime_type='application/json' — disables search grounding.
     response = None
-    for model in MODEL_CANDIDATES:
-        print(f"[gather] Sending request via {model} (Flex tier)...")
-        for attempt in range(1, MAX_RETRIES + 2):   # up to MAX_RETRIES+1 total attempts
+    model    = ATTEMPT_PLAN[0][0]   # updated on each successful attempt entry
+    for model, tier, label, max_retries, delays in ATTEMPT_PLAN:
+        config = types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+            temperature=0.1,
+            **({"service_tier": tier} if tier else {}),
+        )
+        print(f"[gather] Trying {model} ({label} tier)...")
+        for attempt in range(1, max_retries + 2):   # up to max_retries+1 total attempts
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -189,30 +159,28 @@ def main():
             except Exception as e:
                 err_str = str(e)
                 is_retryable = any(str(code) in err_str for code in RETRYABLE_CODES)
-                if is_retryable and attempt <= MAX_RETRIES:
-                    delay = RETRY_DELAYS[attempt - 1]
+                if is_retryable and attempt <= max_retries:
+                    delay = delays[attempt - 1]
                     print(
-                        f"[gather] Attempt {attempt} failed ({e}). "
-                        f"Retrying in {delay}s...",
+                        f"[gather] Attempt {attempt} failed ({e}). Retrying in {delay}s...",
                         file=sys.stderr,
                     )
                     time.sleep(delay)
                 elif is_retryable:
-                    # Retries exhausted on this model — fall through to next
                     print(
-                        f"[gather] {model} exhausted after {MAX_RETRIES + 1} attempts — trying fallback",
+                        f"[gather] {model} ({label}) exhausted after {max_retries + 1} attempts — trying next",
                         file=sys.stderr,
                     )
                     break
                 else:
-                    # Non-retryable error (auth, bad request, etc.) — fail immediately
                     print(f"[gather] ERROR: non-retryable failure on {model} — {e}", file=sys.stderr)
                     sys.exit(1)
         if response:
-            break  # success — no need to try remaining models
+            print(f"[gather] Success via {model} ({label} tier)")
+            break
 
     if not response:
-        print("[gather] ERROR: all models exhausted without a successful response", file=sys.stderr)
+        print("[gather] ERROR: all models and tiers exhausted without a successful response", file=sys.stderr)
         sys.exit(1)
 
     # 5. Extract raw text and token usage
