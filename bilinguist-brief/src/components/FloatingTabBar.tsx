@@ -144,12 +144,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Left closes → both pills return to DEFAULT (52)
   function animCloseLeft() {
     setLeftOpen(false);
+    leftContextOp.setValue(0); // snap context chips off instantly — avoids squished-during-shrink artifact
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(leftIconOp,     { toValue: 1,                 duration: 180, useNativeDriver: true }),
-      Animated.timing(leftContextOp,  { toValue: 0,                 duration: 80,  useNativeDriver: true }),
+      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(leftIconOp,     { toValue: 1,           duration: 180, useNativeDriver: true }),
     ]).start();
   }
 
@@ -168,12 +168,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Right closes → both pills return to DEFAULT (52); always followed by animOpenLeft
   function animCloseRight() {
     setRightOpen(false);
+    rightFullOp.setValue(0); // snap full nav off instantly — avoids squished-during-shrink artifact
     Animated.parallel([
-      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H,       duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      Animated.timing(rightMiniOp,    { toValue: 1,                 duration: 180, useNativeDriver: true }),
-      Animated.timing(rightFullOp,    { toValue: 0,                 duration: 80,  useNativeDriver: true }),
+      Animated.timing(pillHeightAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
+      Animated.timing(rightMiniOp,    { toValue: 1,           duration: 180, useNativeDriver: true }),
     ]).start();
   }
 
@@ -203,9 +203,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       if (rightOpen) {
         // Close right inline (animOpenLeft will override the height/width targets)
         setRightOpen(false);
-        Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W,  duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-        Animated.timing(rightMiniOp,    { toValue: 1, duration: 100, useNativeDriver: true }).start();
-        Animated.timing(rightFullOp,    { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+        rightFullOp.setValue(0); // snap full nav off instantly
+        Animated.timing(rightWidthAnim, { toValue: RIGHT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+        Animated.timing(rightMiniOp,    { toValue: 1,            duration: 100, useNativeDriver: true }).start();
       }
       animOpenLeft(computeLeftExpandedW());
     }
@@ -219,9 +219,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       if (leftOpen) {
         // Close left inline (animOpenRight will override the height/width targets)
         setLeftOpen(false);
+        leftContextOp.setValue(0); // snap context chips off instantly
         Animated.timing(leftWidthAnim, { toValue: LEFT_MINI_W, duration: 180, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
-        Animated.timing(leftIconOp,    { toValue: 1, duration: 180, useNativeDriver: true }).start();
-        Animated.timing(leftContextOp, { toValue: 0, duration: 80,  useNativeDriver: true }).start();
+        Animated.timing(leftIconOp,    { toValue: 1,           duration: 180, useNativeDriver: true }).start();
       }
       animOpenRight();
     }
