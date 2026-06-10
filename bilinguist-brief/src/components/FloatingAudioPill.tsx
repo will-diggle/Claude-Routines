@@ -8,20 +8,27 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
+import { useNavPillStore } from '../store/useNavPillStore';
 import { pauseAudio, resumeAudio } from '../services/audioPlayer';
 import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
-const PILL_H        = FLOAT_TAB_H_SMALL; // matches left pill height when open (44px)
+const PILL_H        = FLOAT_TAB_H_SMALL; // 44px
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 4;
 const MARQUEE_SPEED = 38; // ms per pixel — lower = faster
+const FADE_WIDTH    = 24; // px of right-edge fade on marquee text
+
+// When docked: pill sits between the two 52px mini nav pills
+const SIDE_NORMAL = 16;
+const SIDE_DOCKED = 16 + FLOAT_TAB_H + 8; // 16 + 52 + 8 = 76
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -29,9 +36,11 @@ export function FloatingAudioPill() {
   const { colors, isDark, background, fontFamily } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
+  const { briefingScrolled } = useNavPillStore();
   const isVisible = isPlaying || isLoading;
 
   // ── Entrance / exit spring ───────────────────────────────────────────────
+  // Native driver: opacity + transform only
   const showAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -42,6 +51,26 @@ export function FloatingAudioPill() {
       speed: 16,
     }).start();
   }, [isVisible]);
+
+  // ── Dock animation ───────────────────────────────────────────────────────
+  // JS driver: bottom, left, right are layout properties
+  const dockAnim = useRef(new Animated.Value(0)).current;
+  const shouldDock = briefingScrolled && isVisible;
+
+  useEffect(() => {
+    Animated.spring(dockAnim, {
+      toValue: shouldDock ? 1 : 0,
+      useNativeDriver: false,
+      bounciness: 6,
+      speed: 14,
+    }).start();
+  }, [shouldDock]);
+
+  const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
+  const dockedBottom = insets.bottom + FLOAT_TAB_BOTTOM;
+
+  const bottomAnim = dockAnim.interpolate({ inputRange: [0, 1], outputRange: [normalBottom, dockedBottom] });
+  const sideAnim   = dockAnim.interpolate({ inputRange: [0, 1], outputRange: [SIDE_NORMAL, SIDE_DOCKED] });
 
   // ── Waveform bars ────────────────────────────────────────────────────────
   const barAnims = useRef(
@@ -68,33 +97,25 @@ export function FloatingAudioPill() {
         barAnims.forEach((a) => a.setValue(0.25));
       };
     } else {
-      // Freeze bars in their current position — no snap to mid-height
       waveRef.current?.stop();
       waveRef.current = null;
     }
   }, [isPlaying]);
 
   // ── Marquee ──────────────────────────────────────────────────────────────
-  // Dimensions are stored in refs (not state) so layout re-fires don't
-  // reset the animation position mid-scroll. animTrigger is only bumped
-  // when a measurement is genuinely new, decoupling layout events from
-  // animation lifecycle.
   const marqAnim      = useRef(new Animated.Value(0)).current;
   const marqLoopRef   = useRef<Animated.CompositeAnimation | null>(null);
   const textWidthRef  = useRef(0);
   const containerWRef = useRef(0);
   const [animTrigger, setAnimTrigger] = useState(0);
 
-  // Stop and reset position when headline changes (new track → start from left)
   useEffect(() => {
     marqLoopRef.current?.stop();
     marqLoopRef.current = null;
     marqAnim.setValue(0);
-    textWidthRef.current = 0; // force re-measure for new text
+    textWidthRef.current = 0;
   }, [headline]);
 
-  // Always return early when measurement hasn't changed — old-arch re-renders
-  // with new inline style objects can trigger onLayout without any real change.
   function onContainerLayout(w: number) {
     if (Math.abs(w - containerWRef.current) <= 1) return;
     containerWRef.current = w;
@@ -106,7 +127,6 @@ export function FloatingAudioPill() {
     if (containerWRef.current > 0) setAnimTrigger((t) => t + 1);
   }
 
-  // Start animation when trigger fires — scrolls continuously regardless of play state
   useEffect(() => {
     const tw = textWidthRef.current;
     const cw = containerWRef.current;
@@ -126,7 +146,6 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  // Pill is translucent with a border — same treatment as the nav pills below.
   const isNavy  = background === 'softGrey';
   const isCream = background === 'cream';
   const pillBg  = isNavy  ? 'rgba(30,45,66,0.97)'
@@ -136,11 +155,14 @@ export function FloatingAudioPill() {
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
                    : isDark  ? 'rgba(255,255,255,0.09)'
                    : 'rgba(0,0,0,0.07)';
-  const onPill    = colors.chrome; // text + bars — dark on light, light on dark
-  const circleIcon = colors.bg;    // icon inside the solid chrome circle
+  const onPill    = colors.chrome;
+  const circleIcon = colors.bg;
 
-  // ── Position ─────────────────────────────────────────────────────────────
-  const bottomOffset = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
+  // Fade overlay: transparent → pillBg (left to right) at the right edge
+  const fadeColors: [string, string] = [
+    pillBg.replace(/[\d.]+\)$/, '0)'), // same hue but alpha=0
+    pillBg,
+  ];
 
   // ── Play / Pause handler ─────────────────────────────────────────────────
   async function handlePlayPause() {
@@ -148,84 +170,95 @@ export function FloatingAudioPill() {
     if (isPlaying) { await pauseAudio(); } else { await resumeAudio(); }
   }
 
-  // Marquee text with separator so the loop reads naturally
   const marqueeText = headline ? `${headline}   ·   ` : '';
 
   return (
+    // Outer: JS driver for position (bottom/left/right are layout properties)
     <Animated.View
       pointerEvents={isVisible ? 'auto' : 'none'}
       style={[
         styles.wrapper,
-        { bottom: bottomOffset },
-        {
+        { bottom: bottomAnim, left: sideAnim, right: sideAnim },
+      ]}
+    >
+      {/* Inner: native driver for entrance / exit opacity + scale */}
+      <Animated.View
+        style={{
           opacity: showAnim,
           transform: [
             { translateY: showAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
             { scale:      showAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
           ],
-        },
-      ]}
-    >
-      <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
+        }}
+      >
+        <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
 
-        {/* ── Waveform (LEFT) ── */}
-        <View style={styles.waveform}>
-          {barAnims.map((anim, i) => (
-            <Animated.View
-              key={i}
-              style={[
-                styles.bar,
-                {
-                  backgroundColor: onPill,
-                  height:  anim.interpolate({ inputRange: [0, 1], outputRange: [3, BAR_MAX] }),
-                  opacity: isPlaying ? 0.9 : 0.4,
-                },
-              ]}
-            />
-          ))}
-        </View>
+          {/* ── Waveform (LEFT) ── */}
+          <View style={styles.waveform}>
+            {barAnims.map((anim, i) => (
+              <Animated.View
+                key={i}
+                style={[
+                  styles.bar,
+                  {
+                    backgroundColor: onPill,
+                    height:  anim.interpolate({ inputRange: [0, 1], outputRange: [3, BAR_MAX] }),
+                    opacity: isPlaying ? 0.9 : 0.4,
+                  },
+                ]}
+              />
+            ))}
+          </View>
 
-        {/* ── Marquee title (MIDDLE) ── */}
-        <View
-          style={styles.marqueeContainer}
-          onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
-        >
-          {/* Two copies of the text rendered side-by-side for a seamless loop */}
-          <Animated.View
-            style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
+          {/* ── Marquee title (MIDDLE) ── */}
+          <View
+            style={styles.marqueeContainer}
+            onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
           >
-            {/* No numberOfLines — must measure the natural (unconstrained) text width */}
-            <Text
-              style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
-              onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+            <Animated.View
+              style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
             >
-              {marqueeText}
-            </Text>
-            <Text
-              style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
-            >
-              {marqueeText}
-            </Text>
-          </Animated.View>
-        </View>
+              <Text
+                style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+                onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+              >
+                {marqueeText}
+              </Text>
+              <Text
+                style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+              >
+                {marqueeText}
+              </Text>
+            </Animated.View>
 
-        {/* ── Play / Pause (RIGHT) ── */}
-        <TouchableOpacity
-          onPress={handlePlayPause}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <View style={[styles.playCircle, { backgroundColor: onPill }]}>
-            <Ionicons
-              name={isPlaying ? 'pause' : 'play'}
-              size={12}
-              color={circleIcon}
-              style={!isPlaying ? { marginLeft: 1 } : undefined}
+            {/* Right-edge fade overlay — sits above the scrolling text */}
+            <LinearGradient
+              colors={fadeColors}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.fadeEdge}
+              pointerEvents="none"
             />
           </View>
-        </TouchableOpacity>
 
-      </View>
+          {/* ── Play / Pause (RIGHT) ── */}
+          <TouchableOpacity
+            onPress={handlePlayPause}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={[styles.playCircle, { backgroundColor: onPill }]}>
+              <Ionicons
+                name={isPlaying ? 'pause' : 'play'}
+                size={12}
+                color={circleIcon}
+                style={!isPlaying ? { marginLeft: 1 } : undefined}
+              />
+            </View>
+          </TouchableOpacity>
+
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -235,8 +268,6 @@ export function FloatingAudioPill() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 16,
-    right: 16,
   },
 
   pill: {
@@ -246,17 +277,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    gap: 10,
+    gap: 6,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0,
     shadowRadius: 14,
     elevation: 10,
-    overflow: 'hidden', // clips the marquee at pill edges
+    overflow: 'hidden',
   },
 
-  // Fixed-width waveform
   waveform: {
     width: 30,
     flexDirection: 'row',
@@ -271,7 +301,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  // Takes all remaining horizontal space
   marqueeContainer: {
     flex: 1,
     overflow: 'hidden',
@@ -280,10 +309,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
 
-  // Two copies side-by-side inside the animated wrapper.
-  // minWidth ensures each Text renders at natural single-line width — React Native
-  // ignores flexShrink:0 for word-wrap, so without an explicit wide parent the
-  // texts wrap to the container width and onLayout returns the wrong measurement.
   marqueeTrack: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,6 +320,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.2,
     flexShrink: 0,
+  },
+
+  fadeEdge: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: FADE_WIDTH,
   },
 
   playCircle: {

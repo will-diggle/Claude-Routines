@@ -137,7 +137,7 @@ export function BriefingScreen() {
   const activeLanguages = settings.languages.filter((l) => l.active);
   const langCount = activeLanguages.length;
 
-  const { briefPageIndex, setBriefPageIndex } = useNavPillStore();
+  const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
@@ -254,6 +254,11 @@ export function BriefingScreen() {
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
+              scrollEventThrottle={16}
+              onScroll={e => {
+                const y = e.nativeEvent.contentOffset.y;
+                setBriefingScrolled(y > 60);
+              }}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}

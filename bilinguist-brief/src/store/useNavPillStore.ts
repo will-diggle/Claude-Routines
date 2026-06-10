@@ -19,6 +19,10 @@ interface NavPillStore {
   // Hides the floating tab bar while inside a game screen
   gameActive: boolean;
   setGameActive: (active: boolean) => void;
+
+  // True when the user has scrolled down the briefing feed — docks the audio pill
+  briefingScrolled: boolean;
+  setBriefingScrolled: (scrolled: boolean) => void;
 }
 
 export const useNavPillStore = create<NavPillStore>((set) => ({
@@ -33,4 +37,7 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
 
   gameActive: false,
   setGameActive: (active) => set({ gameActive: active }),
+
+  briefingScrolled: false,
+  setBriefingScrolled: (scrolled) => set({ briefingScrolled: scrolled }),
 }));
