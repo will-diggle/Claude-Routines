@@ -421,9 +421,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           </View>
         )}
 
-        {/* Context chips */}
+        {/* Context chips — outer TouchableOpacity lets tapping any empty area close the pill;
+             inner chip TouchableOpacitys capture their own presses (innermost responder wins) */}
         <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
-          {renderLeftContext()}
+          <TouchableOpacity style={styles.absoluteFill} onPress={toggleLeft} activeOpacity={1}>
+            {renderLeftContext()}
+          </TouchableOpacity>
         </Animated.View>
       </Animated.View>
 
