@@ -364,7 +364,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={18} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={22} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>
                 {tab.label}
               </Text>
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 3,
     paddingTop: 2,
   },
   navDot: {
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 9,
+    fontSize: 11,
     letterSpacing: 0.3,
   },
 });
