@@ -43,6 +43,8 @@ export interface Settings {
   practiceNotificationTime: string;
   fontSize: FontSizeKey;
   background: BackgroundKey;
+  manualBackground: BackgroundKey; // user's chosen theme, preserved when auto-night overrides
+  autoNightMode: boolean;
   fontFamily: FontFamilyKey;
   developerMode: boolean;
 }
@@ -59,6 +61,8 @@ interface SettingsStore extends Settings {
   setPracticeNotificationTime: (time: string) => void;
   setFontSize: (size: FontSizeKey) => void;
   setBackground: (bg: BackgroundKey) => void;
+  setEffectiveBackground: (bg: BackgroundKey) => void; // auto-night only — doesn't touch manualBackground
+  setAutoNightMode: (v: boolean) => void;
   setFontFamily: (font: FontFamilyKey) => void;
   setDeveloperMode: (enabled: boolean) => void;
   activeLanguages: () => LanguagePreference[];
@@ -100,6 +104,8 @@ const DEFAULT_SETTINGS: Settings = {
   practiceNotificationTime: '18:00',
   fontSize: 'medium',
   background: 'white',
+  manualBackground: 'white',
+  autoNightMode: false,
   fontFamily: 'garamond',
   developerMode: false,
 };
@@ -173,7 +179,9 @@ export const useSettingsStore = create<SettingsStore>()(
       setBriefingNotificationTime: (briefingNotificationTime) => set({ briefingNotificationTime }),
       setPracticeNotificationTime: (practiceNotificationTime) => set({ practiceNotificationTime }),
       setFontSize: (fontSize) => set({ fontSize }),
-      setBackground: (background) => set({ background }),
+      setBackground: (background) => set({ background, manualBackground: background }),
+      setEffectiveBackground: (background) => set({ background }),
+      setAutoNightMode: (autoNightMode) => set({ autoNightMode }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setDeveloperMode: (developerMode) => set({ developerMode }),
 
@@ -192,6 +200,8 @@ export const useSettingsStore = create<SettingsStore>()(
         practiceNotificationTime: state.practiceNotificationTime,
         fontSize: state.fontSize,
         background: state.background,
+        manualBackground: state.manualBackground,
+        autoNightMode: state.autoNightMode,
         fontFamily: state.fontFamily,
       }),
       onRehydrateStorage: () => (state) => {

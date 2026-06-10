@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Component } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
@@ -60,8 +60,17 @@ const errStyles = StyleSheet.create({
 // ── Main content ──────────────────────────────────────────────────────────────
 
 function AppContent() {
-  const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages } = useSettingsStore();
-  const isNight = background === 'night';
+  const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
+          autoNightMode, manualBackground, setEffectiveBackground } = useSettingsStore();
+  const isNight    = background === 'night';
+  const colorScheme = useColorScheme();
+
+  // Follow iOS system dark mode (which the user can set to Automatic in
+  // iOS Settings → Display & Brightness → Automatic, tied to sunset/sunrise).
+  useEffect(() => {
+    if (!autoNightMode) return;
+    setEffectiveBackground(colorScheme === 'dark' ? 'night' : manualBackground);
+  }, [colorScheme, autoNightMode, manualBackground]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
 
@@ -114,7 +123,7 @@ function AppContent() {
 }
 
 const BG_COLORS: Record<string, string> = {
-  white: '#FFFFFF', cream: '#F5F0E8', softGrey: '#162032', night: '#141414',
+  white: '#FFFFFF', cream: '#F5F2ED', softGrey: '#162032', night: '#141414',
 };
 const SPINNER_COLORS: Record<string, string> = {
   white: '#1A1A1A', cream: '#7D6B4F', softGrey: '#F5F0E8', night: '#F5F0E8',

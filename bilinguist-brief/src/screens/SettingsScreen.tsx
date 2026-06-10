@@ -573,6 +573,21 @@ export function SettingsScreen() {
             );
           })}
 
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
+            <Switch
+              value={store.autoNightMode}
+              onValueChange={store.setAutoNightMode}
+              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+              thumbColor={colors.bg}
+            />
+          </View>
+          {store.autoNightMode && (
+            <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Switches to Night theme when your iPhone enters dark mode. Set iPhone to Automatic in Settings → Display & Brightness.
+            </Text>
+          )}
+
           <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
           <SegmentedControl
             options={[
