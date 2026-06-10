@@ -16,8 +16,8 @@ import { useWordBankStore } from '../store/useWordBankStore';
 
 const TABS = [
   { route: 'Preferences', label: 'Preferences', icon: 'options' as const,   iconOff: 'options-outline' as const   },
-  { route: 'Practice',    label: 'Practice',    icon: 'school' as const,    iconOff: 'school-outline' as const    },
   { route: 'Briefing',    label: 'The Brief',   icon: 'newspaper' as const, iconOff: 'newspaper-outline' as const },
+  { route: 'Practice',    label: 'Practice',    icon: 'school' as const,    iconOff: 'school-outline' as const    },
 ];
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
