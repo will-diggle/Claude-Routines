@@ -409,8 +409,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               onPress={() => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
-                toggleRight();
+                if (!isFocused && !event.defaultPrevented) {
+                  // Navigating to a different tab — immediately reset right pill state
+                  // and let the currentRouteIndex effect drive the open-left animation.
+                  // Calling toggleRight() here too would start a conflicting animation.
+                  setRightOpen(false);
+                  rightFullOp.setValue(0);
+                  navigation.navigate(route.name);
+                } else {
+                  // Same tab tapped — full toggle (no route change, effect won't fire)
+                  toggleRight();
+                }
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
@@ -435,7 +444,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     elevation: 16,
   };
 
-  const leftClosedIcon = 'settings-outline' as const;
+  const leftClosedIcon = 'layers-outline' as const;
 
   if (gameActive) return null;
 
