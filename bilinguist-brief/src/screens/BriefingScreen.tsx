@@ -250,7 +250,7 @@ export function BriefingScreen() {
               style={[styles.page, { backgroundColor: colors.bg }]}
               contentContainerStyle={[
                 styles.pageContent,
-                { paddingTop: insets.top + 8, paddingBottom: FLOAT_TAB_INSET },
+                { paddingTop: insets.top + 2, paddingBottom: FLOAT_TAB_INSET },
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled

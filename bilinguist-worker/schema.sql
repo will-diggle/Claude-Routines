@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS words (
   word          TEXT    NOT NULL,
   language      TEXT    NOT NULL,
   -- Structured data from Claude
+  lemma         TEXT,                          -- base/dictionary form of the word
   word_type     TEXT,                          -- 'verb' | 'noun' | 'adjective' | 'adverb' | 'phrase' | 'other'
   translation   TEXT,                          -- English translation
   explanation   TEXT,                          -- English explanation, context-appropriate
@@ -16,6 +17,8 @@ CREATE TABLE IF NOT EXISTS words (
   verb_past     TEXT,                          -- JSON: past tense table or NULL
   forms         TEXT,                          -- JSON: noun {gender,plural,article} or adj {feminine,comparative,superlative}
   tip           TEXT,                          -- memory hook / etymology note
+  meta          TEXT,                          -- JSON: verb regularity, auxiliary, separable, etc.
+  level         TEXT,                          -- CEFR level: A1 A2 B1 B2 C1 C2
   -- Stats
   lookup_count  INTEGER NOT NULL DEFAULT 0,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
