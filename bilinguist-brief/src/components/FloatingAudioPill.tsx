@@ -13,11 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
 import { pauseAudio, resumeAudio } from '../services/audioPlayer';
-import { FLOAT_TAB_H, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
+import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
-const PILL_H        = 38;
+const PILL_H        = FLOAT_TAB_H_SMALL; // matches left pill height when open (44px)
 const NUM_BARS      = 4;
 const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 10;
@@ -244,8 +244,8 @@ export function FloatingAudioPill() {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 8,
-    right: 8,
+    left: 16,
+    right: 16,
   },
 
   pill: {
