@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingTop: 18,
-    paddingBottom: 18,
+    paddingBottom: 6,
     gap: 7,
   },
   weatherText: {
