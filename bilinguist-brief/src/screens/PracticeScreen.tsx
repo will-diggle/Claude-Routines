@@ -10,6 +10,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { TopBar } from '../components/TopBar';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -68,7 +69,8 @@ export function PracticeScreen() {
 
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
+      <TopBar />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}

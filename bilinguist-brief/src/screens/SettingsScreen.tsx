@@ -49,6 +49,7 @@ import {
   type FontFamilyKey,
   type FontSizeKey,
 } from '../theme';
+import { TopBar } from '../components/TopBar';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -331,7 +332,8 @@ export function SettingsScreen() {
   const levelModal = store.languages.find((l) => l.code === levelModalLang);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
+      <TopBar />
       {/* Horizontal pager */}
       <ScrollView
         ref={pagerRef}
