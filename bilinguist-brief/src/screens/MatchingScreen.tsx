@@ -15,9 +15,9 @@ import { useNavPillStore } from '../store/useNavPillStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
 const TIME_LIMIT      = 30;
-const GRID_COLS       = 3;
-const GRID_ROWS       = 2;
-const PAIRS_PER_SCREEN = GRID_COLS; // 3 pairs × 2 tiles = 2 rows of 3
+const GRID_COLS       = 4;
+const GRID_ROWS       = 3;
+const PAIRS_PER_SCREEN = (GRID_COLS * GRID_ROWS) / 2; // 6 pairs × 2 tiles = 12 tiles
 
 interface Tile {
   id: string;
@@ -326,11 +326,11 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     borderWidth: 1.5,
-    padding: Spacing.md,
+    padding: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
   doneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
   doneScore: { fontSize: 64 },

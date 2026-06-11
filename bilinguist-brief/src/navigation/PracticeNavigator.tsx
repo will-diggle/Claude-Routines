@@ -31,7 +31,7 @@ export function PracticeNavigator() {
       <Stack.Screen name="MultipleChoice" component={MultipleChoiceScreen} />
       <Stack.Screen name="FillBlank" component={FillBlankScreen} />
       <Stack.Screen name="Translation" component={TranslationScreen} />
-      <Stack.Screen name="Matching" component={MatchingScreen} />
+      <Stack.Screen name="Matching" component={MatchingScreen} options={{ orientation: 'landscape' }} />
     </Stack.Navigator>
   );
 }
