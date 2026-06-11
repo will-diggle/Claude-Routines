@@ -515,7 +515,7 @@ export function SettingsScreen() {
           </View>
 
           <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
-          {(['garamond', 'playfair', 'times', 'georgia'] as FontFamilyKey[]).map((key) => {
+          {(['garamond', 'playfair', 'times', 'system'] as FontFamilyKey[]).map((key) => {
             const fam = FontFamilies[key];
             const selected = store.fontFamily === key;
             return (
@@ -537,6 +537,20 @@ export function SettingsScreen() {
             );
           })}
 
+          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
+          <SegmentedControl
+            options={[
+              { label: 'A', value: 'small',      optionFontSize: 11 },
+              { label: 'A', value: 'medium',     optionFontSize: 14 },
+              { label: 'A', value: 'large',      optionFontSize: 17 },
+              { label: 'A', value: 'extraLarge', optionFontSize: 20 },
+            ]}
+            value={store.fontSize}
+            onChange={(v) => store.setFontSize(v as FontSizeKey)}
+            colors={colors}
+            fontFamily={fontFamily}
+          />
+
           <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
             <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
             <Switch
@@ -551,20 +565,6 @@ export function SettingsScreen() {
               Switches to Night theme when your iPhone enters dark mode. Set iPhone to Automatic in Settings → Display & Brightness.
             </Text>
           )}
-
-          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
-          <SegmentedControl
-            options={[
-              { label: 'A', value: 'small',      optionFontSize: 11 },
-              { label: 'A', value: 'medium',     optionFontSize: 14 },
-              { label: 'A', value: 'large',      optionFontSize: 17 },
-              { label: 'A', value: 'extraLarge', optionFontSize: 20 },
-            ]}
-            value={store.fontSize}
-            onChange={(v) => store.setFontSize(v as FontSizeKey)}
-            colors={colors}
-            fontFamily={fontFamily}
-          />
         </ScrollView>
 
         {/* ── Page 3: Account ── */}
