@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   wordRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.md, paddingVertical: 13,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.sm,
   },
   word: {},
