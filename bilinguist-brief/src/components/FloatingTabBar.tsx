@@ -114,8 +114,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function onChipGroupLayout(chipGroupW: number) {
     const target = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
-    // Only adjust while open — closed pill uses a fixed target
-    if (!leftOpen) return;
+    // Use ref (not state) to avoid acting on a stale closure value during
+    // the window between setLeftOpen(false) and the next re-render.
+    if (!leftOpenRef.current) return;
     // Threshold of 10px filters out bold↔regular font weight jitter on chip selection
     if (Math.abs(target - chipGroupMeasuredW.current) < 10) return;
     chipGroupMeasuredW.current = target;
@@ -185,14 +186,20 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function animOpenRight() {
+    // Snap left pill to mini-circle immediately — prevents layout competition
+    // while the right pill is animating open.
+    setLeftOpen(false);
     setRightOpen(true);
+    leftContextOp.setValue(0);
+    leftWidthAnim.setValue(FLOAT_TAB_H_SMALL);
+    leftHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    iconScaleAnim.setValue(SCALE_SMALL);
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
       Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE, duration: DUR_OPEN, useNativeDriver: false, easing: EASE }),
-      Animated.timing(rightFullOp,     { toValue: 1,            duration: 160, delay: 60, useNativeDriver: true }),
-      Animated.timing(iconScaleAnim,   { toValue: SCALE_LARGE,  duration: DUR_OPEN,       useNativeDriver: true, easing: EASE }),
+      // Delay content until pill is almost fully expanded so icons never appear squished.
+      Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: DUR_OPEN - 40, useNativeDriver: true }),
+      Animated.timing(iconScaleAnim,   { toValue: SCALE_LARGE, duration: DUR_OPEN, useNativeDriver: true, easing: EASE }),
     ]).start();
   }
 
@@ -286,10 +293,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         animToLeftOpen(computeLeftExpandedW());
       }
     } else {
-      if (leftOpen) {
-        setLeftOpen(false);
-        leftContextOp.setValue(0);
-      }
       animOpenRight();
     }
   }
