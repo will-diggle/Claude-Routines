@@ -39,6 +39,7 @@ interface WordBankStore {
   words: SavedWord[];
   saveWord: (word: Omit<SavedWord, 'id' | 'pile' | 'correctStreak' | 'lastPracticed' | 'dateSaved'>) => void;
   isWordSaved: (word: string, language: LanguageCode) => boolean;
+  deleteWord: (id: string) => void;
   moveToPile: (id: string, pile: Pile) => void;
   recordPractice: (id: string, correct: boolean) => void;
   wordsByPile: (pile: Pile) => SavedWord[];
@@ -74,6 +75,8 @@ export const useWordBankStore = create<WordBankStore>()(
         get().words.some(
           (w) => w.word.toLowerCase() === word.toLowerCase() && w.language === language
         ),
+
+      deleteWord: (id) => set({ words: get().words.filter((w) => w.id !== id) }),
 
       moveToPile: (id, pile) =>
         set({ words: get().words.map((w) => (w.id === id ? { ...w, pile } : w)) }),

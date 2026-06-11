@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Animated,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,7 +40,10 @@ export function WordBankListScreen() {
   const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>(initialLang);
   const [detailWord, setDetailWord] = useState<SavedWord | null>(null);
 
-  const { words, moveToPile } = useWordBankStore();
+  const { words, moveToPile, deleteWord } = useWordBankStore();
+
+  // Track the currently open swipeable so we can close it when another opens
+  const openSwipeable = useRef<Swipeable | null>(null);
 
   const presentLangs = Array.from(new Set(words.map((w) => w.language))) as LanguageCode[];
 
@@ -117,35 +122,65 @@ export function WordBankListScreen() {
           keyExtractor={(w) => w.id}
           contentContainerStyle={{ paddingBottom: FLOAT_TAB_INSET }}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}
-              onPress={() => setDetailWord(item)}
-              activeOpacity={0.7}
+            <Swipeable
+              ref={(ref) => {
+                if (ref && openSwipeable.current && openSwipeable.current !== ref) {
+                  openSwipeable.current.close();
+                }
+              }}
+              onSwipeableOpen={() => {
+                // close any previously open row
+              }}
+              friction={2}
+              rightThreshold={60}
+              renderRightActions={(progress) => {
+                const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1], extrapolate: 'clamp' });
+                return (
+                  <Animated.View style={[styles.deleteAction, { transform: [{ scale }] }]}>
+                    <TouchableOpacity
+                      style={styles.deleteActionInner}
+                      onPress={() => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        deleteWord(item.id);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#FFF" />
+                      <Text style={[styles.deleteLabel, { fontFamily: fontFamily.regular }]}>Delete</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                );
+              }}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.word, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
-                  {item.word}
-                </Text>
-                {item.translation ? (
-                  <Text style={[styles.translation, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                    {item.translation}
+              <TouchableOpacity
+                style={[styles.wordRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.bg }]}
+                onPress={() => setDetailWord(item)}
+                activeOpacity={0.7}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.word, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
+                    {item.word}
                   </Text>
-                ) : null}
-              </View>
-              <View style={styles.wordMeta}>
-                <Text style={[styles.langTag, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {LANG_NATIVE[item.language] ?? item.language.toUpperCase()}
-                </Text>
-                <View style={[styles.pileBadge, { borderColor: PILE_COLOR[item.pile] }]}>
-                  <Text style={[styles.pileBadgeText, { color: PILE_COLOR[item.pile], fontFamily: fontFamily.regular }]}>
-                    {item.pile}
-                  </Text>
+                  {item.translation ? (
+                    <Text style={[styles.translation, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                      {item.translation}
+                    </Text>
+                  ) : null}
                 </View>
-                {(item.verbTable || item.forms || item.explanation) ? (
-                  <Ionicons name="layers-outline" size={12} color={colors.accentGold} />
-                ) : null}
-              </View>
-            </TouchableOpacity>
+                <View style={styles.wordMeta}>
+                  <Text style={[styles.langTag, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {LANG_NATIVE[item.language] ?? item.language.toUpperCase()}
+                  </Text>
+                  <View style={[styles.pileBadge, { borderColor: PILE_COLOR[item.pile] }]}>
+                    <Text style={[styles.pileBadgeText, { color: PILE_COLOR[item.pile], fontFamily: fontFamily.regular }]}>
+                      {item.pile}
+                    </Text>
+                  </View>
+                  {(item.verbTable || item.forms || item.explanation) ? (
+                    <Ionicons name="layers-outline" size={12} color={colors.accentGold} />
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            </Swipeable>
           )}
         />
       )}
@@ -179,6 +214,23 @@ const styles = StyleSheet.create({
   langChipText: { fontSize: 12, letterSpacing: 0.3 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
   emptyText: { fontSize: 15 },
+  deleteAction: {
+    justifyContent: 'center',
+    marginBottom: StyleSheet.hairlineWidth,
+  },
+  deleteActionInner: {
+    backgroundColor: '#E53935',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 76,
+    gap: 4,
+    alignSelf: 'stretch',
+  },
+  deleteLabel: {
+    color: '#FFF',
+    fontSize: 11,
+    letterSpacing: 0.3,
+  },
   wordRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.md, paddingVertical: 13,
