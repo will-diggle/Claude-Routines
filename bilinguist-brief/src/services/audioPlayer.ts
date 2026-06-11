@@ -18,6 +18,7 @@ function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
   setLoading(trackingKey); // stores the article headline so the pill can display it
   setPlaying();
+  Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
   Speech.speak(text, {
     language: LANG_LOCALE[language] ?? 'en-GB',
     rate: 0.88,
