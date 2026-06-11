@@ -75,8 +75,8 @@ export async function schedulePracticeNotification(time: string): Promise<void> 
   if (!granted) return;
   await scheduleDaily(
     'daily-practice',
-    'Time to practise',
-    'Keep your streak going — your words are waiting.',
+    'How was today\'s briefing?',
+    'Send your feedback to William — did you like the article?',
     time
   );
 }
