@@ -117,11 +117,25 @@ export function MatchingScreen() {
   function replacePairs(pairId: string) {
     setTiles((prev) => {
       setWordPool((pool) => {
-        if (pool.length < 1) return pool;
-        const [next, ...rest] = pool;
-        const newTiles = makeTiles([next]);
+        // When the pool is exhausted, cycle back through eligibleWords so the
+        // full 30 s is always playable. Exclude pairIds still visible on the grid
+        // so the same word never appears twice at once.
+        const activePool = pool.length > 0 ? pool : shuffle(
+          eligibleWords.filter((w) => !prev.some((t) => t.pairId === w.id && t.pairId !== pairId)),
+        );
+
+        if (activePool.length < 1) {
+          // Word bank too small to refill at all — remove matched tiles.
+          // If the grid is now empty, end the game.
+          const remaining = prev.filter((t) => t.pairId !== pairId);
+          setTiles(remaining);
+          if (remaining.length === 0) { recordSession(); setPhase('done'); }
+          return pool;
+        }
+
+        const [next, ...rest] = activePool;
         const withoutMatched = prev.filter((t) => t.pairId !== pairId);
-        setTiles(shuffle([...withoutMatched, ...newTiles]));
+        setTiles(shuffle([...withoutMatched, ...makeTiles([next])]));
         return rest;
       });
       return prev;
