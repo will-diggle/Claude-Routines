@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated,
+  View, Text, TouchableOpacity, StyleSheet, Animated, Easing,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -14,10 +14,12 @@ import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 
-const TIME_LIMIT      = 30;
-const GRID_COLS       = 4;
-const GRID_ROWS       = 3;
+const TIME_LIMIT       = 30;
+const MIN_WORDS        = 24;
+const GRID_COLS        = 4;
+const GRID_ROWS        = 3;
 const PAIRS_PER_SCREEN = (GRID_COLS * GRID_ROWS) / 2; // 6 pairs × 2 tiles = 12 tiles
+const EXIT_DURATION    = 320;
 
 interface Tile {
   id: string;
@@ -75,8 +77,34 @@ export function MatchingScreen() {
   const [score, setScore] = useState(0);
   const [phase, setPhase] = useState<'playing' | 'done'>('playing');
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const wrongAnim = useRef(new Animated.Value(0)).current;
+
+  // Per-tile exit animations — keyed by tile ID.
+  // Using a Map of Animated.Values avoids re-creating them on every render.
+  const exitAnims = useRef(new Map<string, { y: Animated.Value; op: Animated.Value }>());
+
+  function getExitAnim(id: string) {
+    if (!exitAnims.current.has(id)) {
+      exitAnims.current.set(id, { y: new Animated.Value(0), op: new Animated.Value(1) });
+    }
+    return exitAnims.current.get(id)!;
+  }
+
+  function animateMatchOut(idA: string, idB: string, pairId: string) {
+    const a = getExitAnim(idA);
+    const b = getExitAnim(idB);
+    Animated.parallel([
+      Animated.timing(a.y,  { toValue: 600, duration: EXIT_DURATION, useNativeDriver: true, easing: Easing.in(Easing.cubic) }),
+      Animated.timing(a.op, { toValue: 0,   duration: EXIT_DURATION - 40, useNativeDriver: true }),
+      Animated.timing(b.y,  { toValue: 600, duration: EXIT_DURATION, useNativeDriver: true, easing: Easing.in(Easing.cubic) }),
+      Animated.timing(b.op, { toValue: 0,   duration: EXIT_DURATION - 40, useNativeDriver: true }),
+    ]).start(() => {
+      exitAnims.current.delete(idA);
+      exitAnims.current.delete(idB);
+      replacePairs(pairId);
+    });
+  }
 
   const initGame = useCallback((pool: SavedWord[]) => {
     const first = pool.slice(0, PAIRS_PER_SCREEN);
@@ -119,8 +147,11 @@ export function MatchingScreen() {
       setWordPool((pool) => {
         // When the pool is exhausted, cycle back through eligibleWords so the
         // full 30 s is always playable. Exclude pairIds still visible on the grid
-        // so the same word never appears twice at once.
-        const activePool = pool.length > 0 ? pool : shuffle(
+        // so the same word never appears twice at once. Reset matched so recycled
+        // words aren't permanently disabled.
+        const cycling = pool.length === 0;
+        if (cycling) setMatched(new Set());
+        const activePool = !cycling ? pool : shuffle(
           eligibleWords.filter((w) => !prev.some((t) => t.pairId === w.id && t.pairId !== pairId)),
         );
 
@@ -155,9 +186,10 @@ export function MatchingScreen() {
     if (first.pairId === tile.pairId && first.id !== tile.id) {
       const newMatched = new Set(matched).add(tile.pairId);
       setMatched(newMatched);
+      const firstId = selected; // capture before setSelected clears it
       setSelected(null);
       setScore((n) => n + 1);
-      setTimeout(() => replacePairs(tile.pairId), 400);
+      animateMatchOut(firstId, tile.id, tile.pairId);
     } else {
       setWrong([selected, tile.id]);
       Animated.sequence([
@@ -169,13 +201,13 @@ export function MatchingScreen() {
     }
   }
 
-  if (eligibleWords.length < 2) {
+  if (eligibleWords.length < MIN_WORDS) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
         <GameHeader title="Match" current={0} total={0} />
         <View style={styles.center}>
           <Text style={[styles.emptyText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            Save at least 2 words with translations from your briefing to play this game.
+            Save at least {MIN_WORDS} words with translations from your briefing to unlock this game.
           </Text>
         </View>
       </View>
@@ -244,9 +276,10 @@ export function MatchingScreen() {
               const isMatched  = matched.has(tile.pairId);
               const isSelected = selected === tile.id;
               const isWrong    = wrong?.includes(tile.id);
+              const { y: exitY, op: exitOp } = getExitAnim(tile.id);
 
               const bgColor = isMatched
-                ? '#43A04722'
+                ? '#43A04730'
                 : isWrong
                   ? '#E5393522'
                   : isSelected
@@ -262,27 +295,31 @@ export function MatchingScreen() {
                     : colors.borderLight;
 
               return (
-                <TouchableOpacity
+                <Animated.View
                   key={tile.id}
-                  style={[styles.tile, { backgroundColor: bgColor, borderColor, opacity: isMatched ? 0.5 : 1 }]}
-                  onPress={() => !isMatched && handleTile(tile)}
-                  activeOpacity={0.7}
-                  disabled={isMatched}
+                  style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}
                 >
-                  <Text
-                    style={[
-                      styles.tileText,
-                      {
-                        color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
-                        fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
-                      },
-                    ]}
-                    numberOfLines={3}
-                    adjustsFontSizeToFit
+                  <TouchableOpacity
+                    style={[styles.tile, { backgroundColor: bgColor, borderColor }]}
+                    onPress={() => !isMatched && handleTile(tile)}
+                    activeOpacity={0.7}
+                    disabled={isMatched}
                   >
-                    {tile.text}
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.tileText,
+                        {
+                          color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
+                          fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
+                        },
+                      ]}
+                      numberOfLines={3}
+                      adjustsFontSizeToFit
+                    >
+                      {tile.text}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
               );
             })}
           </View>
