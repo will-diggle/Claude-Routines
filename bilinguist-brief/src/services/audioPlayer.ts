@@ -14,11 +14,15 @@ const LANG_LOCALE: Record<string, string> = {
   it: 'it-IT', es: 'es-ES', tr: 'tr-TR',
 };
 
-function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
+async function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
-  setLoading(trackingKey); // stores the article headline so the pill can display it
+  setLoading(trackingKey);
   setPlaying();
-  Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+  // Configure AVAudioSession BEFORE speaking — changing the category while the
+  // synthesiser is running triggers a system interruption that fires onStopped.
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+  } catch { /* ignore — speech will still play, just may respect the silent switch */ }
   Speech.speak(text, {
     language: LANG_LOCALE[language] ?? 'en-GB',
     rate: 0.88,
