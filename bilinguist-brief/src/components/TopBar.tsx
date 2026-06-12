@@ -23,10 +23,6 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const LOGOMARK_W = 68;
 const LOGOMARK_H = Math.round(LOGOMARK_W * (297 / 600)); // ≈ 34
 
-// Compact logomark — smaller for the Settings / Practice header
-const COMPACT_MARK_W = 44;
-const COMPACT_MARK_H = Math.round(COMPACT_MARK_W * (297 / 600)); // ≈ 22
-
 interface Props {
   routeName?: string;
 }
@@ -87,26 +83,16 @@ export function TopBar({ routeName }: Props) {
   }
 
   // ── Compact header — Settings / Practice ────────────────────────────────────
-  // All four masthead variants are rendered stacked and pre-decoded on first
-  // mount. Switching theme just flips opacity (instant — no decode latency).
+  // Single Image that swaps source on theme change. The container is a fixed
+  // pixel height so the logo's vertical position is identical across all themes.
   const bg = (background as BackgroundKey) in MASTHEADS ? (background as BackgroundKey) : 'cream';
   return (
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
-      <View style={styles.compactRow}>
-        {(Object.keys(MASTHEADS) as BackgroundKey[]).map((key, i) => (
-          <Image
-            key={key}
-            source={MASTHEADS[key]}
-            style={[
-              styles.compactLockup,
-              imageStyle,
-              i > 0 && styles.compactLockupAbsolute,
-              { opacity: key === bg ? 1 : 0 },
-            ]}
-            resizeMode="contain"
-          />
-        ))}
-      </View>
+      <Image
+        source={MASTHEADS[bg]}
+        style={[styles.compactLockup, imageStyle]}
+        resizeMode="contain"
+      />
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
     </View>
   );
@@ -169,33 +155,15 @@ const styles = StyleSheet.create({
   compact: {
     zIndex: 10,
     elevation: 10,
+    alignItems: 'center',
     paddingBottom: 0,
   },
-  compactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: SCREEN_WIDTH,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  compactMark: {
-    width: COMPACT_MARK_W,
-    height: COMPACT_MARK_H,
-  },
-  compactLockupWrap: {
-    flex: 1,
-    alignItems: 'center',
-  },
+  // Fixed pixel width & height so the container is always the same size
+  // regardless of the masthead image's intrinsic dimensions.
   compactLockup: {
-    width: '100%',
+    width: SCREEN_WIDTH - 24,
     height: 48,
-  },
-  // Layers 2–4 stack absolutely on top of layer 1 (which sets the row height)
-  compactLockupAbsolute: {
-    position: 'absolute',
-    top: 0,
-    left: 12,
-    right: 12,
+    marginVertical: 6,
   },
   compactRule: {
     height: StyleSheet.hairlineWidth,
