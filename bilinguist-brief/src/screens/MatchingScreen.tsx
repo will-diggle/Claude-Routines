@@ -204,7 +204,7 @@ export function MatchingScreen() {
   if (eligibleWords.length < MIN_WORDS) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-        <GameHeader title="Match" current={0} total={0} />
+        <GameHeader title="Speed Snap" current={0} total={0} />
         <View style={styles.center}>
           <Text style={[styles.emptyText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             Save at least {MIN_WORDS} words with translations from your briefing to unlock this game.
@@ -217,7 +217,7 @@ export function MatchingScreen() {
   if (phase === 'done') {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Match" current={TIME_LIMIT} total={TIME_LIMIT} />
+        <GameHeader title="Speed Snap" current={TIME_LIMIT} total={TIME_LIMIT} />
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
           <Text style={[styles.doneLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
@@ -254,7 +254,7 @@ export function MatchingScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Match" current={0} total={0} />
+      <GameHeader title="Speed Snap" current={0} total={0} />
 
       <View style={[styles.timerTrack, { backgroundColor: colors.borderLight }]}>
         <View style={[styles.timerFill, { backgroundColor: timerColor, width: `${timerFrac * 100}%` as any }]} />
