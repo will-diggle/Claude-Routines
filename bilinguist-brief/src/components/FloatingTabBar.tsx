@@ -23,26 +23,26 @@ const TABS = [
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H       = 52;
-export const FLOAT_TAB_H_LARGE = 60;
-export const FLOAT_TAB_H_SMALL = 48;
+export const FLOAT_TAB_H       = 62;
+export const FLOAT_TAB_H_LARGE = 72;
+export const FLOAT_TAB_H_SMALL = 58;
 export const FLOAT_TAB_BOTTOM  = 16;
 export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
 const RIGHT_MINI_W = FLOAT_TAB_H;
-const RIGHT_MAX_W  = 248;
+const RIGHT_MAX_W  = 298;
 const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
 
-// Icon scale targets (relative to default 52px)
+// Icon scale targets (relative to default 62px)
 const SCALE_DEFAULT = 1;
-const SCALE_SMALL   = FLOAT_TAB_H_SMALL / FLOAT_TAB_H;  // ≈ 0.846
-const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;  // ≈ 1.154
+const SCALE_SMALL   = FLOAT_TAB_H_SMALL / FLOAT_TAB_H;
+const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;
 
-const CHIP_PAD = 12; // 6px each side — matches contextItem.paddingHorizontal × 2
+const CHIP_PAD = 14;
 const CHIP_GAP = 4;
-const ROW_PAD  = 20;
+const ROW_PAD  = 24;
 
 // Per-label charW: uppercase labels (FR, DE) are wider relative to font size
 // than mixed-case (Français, Languages). Uses generous upper-bound estimates
@@ -51,7 +51,7 @@ function pillContentW(labels: string[]): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
   const textW = labels.reduce((sum, l) => {
-    const charW = l === l.toUpperCase() ? 8.5 : 7.5;
+    const charW = l === l.toUpperCase() ? 10 : 9;
     return sum + l.length * charW;
   }, 0);
   return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
@@ -149,10 +149,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                : isDark  ? 'rgba(22,22,22,0.92)'
                : isCream ? 'rgba(245,240,232,0.95)'
                :           'rgba(250,248,246,0.92)';
-  const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
-                   : isDark  ? 'rgba(255,255,255,0.09)'
-                   : isCream ? 'rgba(22,32,50,0.10)'
-                   :           'rgba(0,0,0,0.07)';
+  const pillBorder = isNavy  ? 'rgba(255,255,255,0.14)'
+                   : isDark  ? 'rgba(255,255,255,0.13)'
+                   : isCream ? 'rgba(22,32,50,0.14)'
+                   :           'rgba(0,0,0,0.11)';
+  const pillRimColor = (isDark || isNavy) ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.70)';
   const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
   const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
   const activeChipStyle = (isNavy || isDark) ? {
@@ -400,7 +401,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.icon} size={22} color={activeColor} />
+          <Ionicons name={currentTab.icon} size={26} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -437,7 +438,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={22} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={26} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>{tab.label}</Text>
             </TouchableOpacity>
           );
@@ -452,10 +453,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     backgroundColor: pillBg,
     borderColor: pillBorder,
     shadowColor: '#000' as string,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.22 : 0,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: Platform.OS === 'ios' ? 0.28 : 0,
     shadowRadius: 24,
-    elevation: 16,
+    elevation: 18,
   };
 
   const leftClosedIcon = 'layers-outline' as const;
@@ -469,6 +470,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
+        <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Closed icon */}
         {!leftOpen && (
@@ -495,6 +497,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
+        <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Mini icon */}
         {!rightOpen && (
@@ -530,6 +533,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pillRim: {
+    position: 'absolute',
+    top: 1, left: 1, right: 1, bottom: 1,
+    borderRadius: 100,
+    borderWidth: 1,
+  },
 
   // Fills all space between the two pills — collapses to 0 before they can touch
   pillSpacer: { flex: 1 },
@@ -556,14 +565,14 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   contextItem: {
-    paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 7,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contextLabel: {
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 0.2,
     textAlign: 'center',
   },
@@ -594,13 +603,13 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   navDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 0.3,
   },
 });
