@@ -8,6 +8,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -55,10 +56,10 @@ export function FlashcardsScreen() {
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
-  const { activeLanguages } = useSettingsStore();
+  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages().map((l) => l.code)), []);
-  const activeCodes = new Set(activeLanguages().map((l) => l.code));
+  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
+  const activeCodes = new Set(activeLanguages);
 
   const sessionWords = useMemo(() => {
     const pool = words.filter((w) =>

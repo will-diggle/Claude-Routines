@@ -7,6 +7,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -57,7 +58,7 @@ export function MatchingScreen() {
   const langFilter = route.params?.language;
   const { words } = useWordBankStore();
   const { recordSession, streak, speedSnapHighScore, setSpeedSnapHighScore } = useStreakStore();
-  const activeLanguages = useSettingsStore((s) => s.activeLanguages().map((l) => l.code));
+  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const setGameActive = useNavPillStore((s) => s.setGameActive);
   const scoreRef = useRef(0);
   const [isNewBest, setIsNewBest] = useState(false);
