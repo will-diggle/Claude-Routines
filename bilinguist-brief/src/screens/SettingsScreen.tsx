@@ -60,8 +60,8 @@ const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof 
   { name: 'Black',  label: 'Black',   image: require('../../assets/icon-black.png')   },
   { name: 'Cream',  label: 'Cream',   image: require('../../assets/icon-cream.png')   },
   { name: 'Navy',   label: 'Navy',    image: require('../../assets/icon-navy.png')    },
-  { name: 'Minimal',label: 'Minimal', image: require('../../assets/icon-minimal.png') },
   { name: 'Pride1', label: 'Pride',   image: require('../../assets/icon-pride-1.png') },
+  { name: 'Pride2', label: 'Pride 2', image: require('../../assets/icon-pride-2.png') },
 ];
 
 const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
@@ -612,7 +612,7 @@ export function SettingsScreen() {
           </View>
           {store.appIconAuto && (
             <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Icon switches automatically with your iPhone's light/dark mode. Pairs: White ↔ Black · Cream ↔ Navy · Pride 1 ↔ Pride 2.
+              Icon switches automatically with your iPhone's light/dark mode. Pairs: White ↔ Black · Cream ↔ Navy · Pride ↔ Pride 2.
             </Text>
           )}
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>

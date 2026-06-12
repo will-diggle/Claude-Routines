@@ -50,7 +50,6 @@
           { "name": "Black",   "image": "./assets/icon-black.png"   },
           { "name": "Cream",   "image": "./assets/icon-cream.png"   },
           { "name": "Navy",    "image": "./assets/icon-navy.png"    },
-          { "name": "Minimal", "image": "./assets/icon-minimal.png" },
           { "name": "Pride1",  "image": "./assets/icon-pride-1.png" },
           { "name": "Pride2",  "image": "./assets/icon-pride-2.png" }
         ]
