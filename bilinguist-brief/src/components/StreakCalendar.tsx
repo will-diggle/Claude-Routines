@@ -222,27 +222,27 @@ const calStyles = StyleSheet.create({
   },
   cell: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 46,
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
+    paddingVertical: 2,
   },
   circle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayText: {
-    fontSize: 13,
+    fontSize: 12,
   },
   flagRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: 1,
   },
   flagText: {
-    fontSize: 11,
+    fontSize: 9,
   },
 });

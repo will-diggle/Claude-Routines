@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 
 interface Props {
@@ -11,13 +10,14 @@ export function StreakBadge({ streak }: Props) {
   const { colors, fontFamily } = useTheme();
   if (streak === 0) return null;
 
-  const isGold = streak >= 7;
-  const tint = isGold ? colors.accentGold : colors.inkFaint;
+  const isWarm = streak >= 3;
+  const textColor = isWarm ? colors.inkDark : colors.inkFaint;
+  const borderColor = isWarm ? colors.inkDark : colors.borderLight;
 
   return (
-    <View style={[styles.container, { borderColor: isGold ? colors.accentGold : colors.borderLight }]}>
-      <Ionicons name="newspaper-outline" size={11} color={tint} />
-      <Text style={[styles.count, { color: tint, fontFamily: fontFamily.bold }]}>
+    <View style={[styles.container, { borderColor }]}>
+      <Text style={styles.fire}>🔥</Text>
+      <Text style={[styles.count, { color: textColor, fontFamily: fontFamily.bold }]}>
         {streak}
       </Text>
     </View>
@@ -34,5 +34,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
+  fire: { fontSize: 11, lineHeight: 15 },
   count: { fontSize: 11, lineHeight: 15 },
 });

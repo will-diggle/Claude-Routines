@@ -303,6 +303,7 @@ export function SettingsScreen() {
 
   // Streak store
   const readingHistory = useStreakStore((s) => s.readingHistory);
+  const readingStreaks = useStreakStore((s) => s.readingStreaks);
 
   // Username from settings
   const username = useSettingsStore((s) => s.username);
@@ -310,6 +311,9 @@ export function SettingsScreen() {
 
   // Active languages for filter chips
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
+  const maxStreak = activeLanguages.length > 0
+    ? Math.max(...activeLanguages.map((l) => readingStreaks[l.code] ?? 0))
+    : 0;
 
   // Auth
   const { session, setSession, signOut } = useAuthStore();
@@ -787,10 +791,18 @@ export function SettingsScreen() {
 
           {/* Daily Streaks section */}
           <View style={profileStyles.streakHeader}>
+            <View style={profileStyles.streakLeft}>
+              <Text style={profileStyles.streakFire}>🔥</Text>
+              {maxStreak > 0 && (
+                <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  {maxStreak}
+                </Text>
+              )}
+            </View>
             <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               Daily Streaks
             </Text>
-            <TouchableOpacity onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
+            <TouchableOpacity style={profileStyles.streakRight} onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
               <Text style={[profileStyles.viewAllText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
                 View All →
               </Text>
@@ -1567,12 +1579,28 @@ const profileStyles = StyleSheet.create({
   streakHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.sm,
   },
-  streakTitle: {
+  streakLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  streakFire: {
+    fontSize: 18,
+  },
+  streakCount: {
     fontSize: 16,
+  },
+  streakTitle: {
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  streakRight: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   viewAllText: {
     fontSize: 14,
