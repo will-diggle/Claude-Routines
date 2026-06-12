@@ -61,6 +61,7 @@ import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar
 import { useShallow } from 'zustand/react/shallow';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
   { name: null,     label: 'White',   image: require('../../assets/icon-white.png')   },
@@ -1489,6 +1490,7 @@ const modalStyles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: 34,
+    maxHeight: SCREEN_HEIGHT * 0.68,
   },
   codeSheet: {
     margin: 32,
