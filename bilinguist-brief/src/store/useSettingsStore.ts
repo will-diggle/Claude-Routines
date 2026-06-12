@@ -46,6 +46,7 @@ export interface Settings {
   manualBackground: BackgroundKey; // user's chosen theme, preserved when auto-night overrides
   autoNightMode: boolean;
   fontFamily: FontFamilyKey;
+  appIcon: string | null;
   developerMode: boolean;
 }
 
@@ -64,6 +65,7 @@ interface SettingsStore extends Settings {
   setEffectiveBackground: (bg: BackgroundKey) => void; // auto-night only — doesn't touch manualBackground
   setAutoNightMode: (v: boolean) => void;
   setFontFamily: (font: FontFamilyKey) => void;
+  setAppIcon: (icon: string | null) => void;
   setDeveloperMode: (enabled: boolean) => void;
   activeLanguages: () => LanguagePreference[];
 }
@@ -107,6 +109,7 @@ const DEFAULT_SETTINGS: Settings = {
   manualBackground: 'white',
   autoNightMode: false,
   fontFamily: 'garamond',
+  appIcon: null,
   developerMode: false,
 };
 
@@ -183,6 +186,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setEffectiveBackground: (background) => set({ background }),
       setAutoNightMode: (autoNightMode) => set({ autoNightMode }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
+      setAppIcon: (appIcon) => set({ appIcon }),
       setDeveloperMode: (developerMode) => set({ developerMode }),
 
       activeLanguages: () => get().languages.filter((l) => l.active),
@@ -203,6 +207,7 @@ export const useSettingsStore = create<SettingsStore>()(
         manualBackground: state.manualBackground,
         autoNightMode: state.autoNightMode,
         fontFamily: state.fontFamily,
+        appIcon: state.appIcon,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

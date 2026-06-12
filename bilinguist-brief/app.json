@@ -44,6 +44,15 @@
     },
     "plugins": [
       "expo-font",
+      [
+        "expo-alternate-app-icons",
+        [
+          { "name": "Night",   "image": "./assets/icon-alt-night.png"   },
+          { "name": "Navy",    "image": "./assets/icon-alt-navy.png"    },
+          { "name": "Cream",   "image": "./assets/icon-alt-cream.png"   },
+          { "name": "Minimal", "image": "./assets/icon-alt-minimal.png" }
+        ]
+      ],
       "expo-location",
       ["expo-build-properties", {
         "ios": {

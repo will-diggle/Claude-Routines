@@ -15,6 +15,7 @@ import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   Switch,
@@ -27,6 +28,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { setAlternateAppIconAsync } from 'expo-alternate-app-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
@@ -52,6 +54,14 @@ import {
 import { TopBar } from '../components/TopBar';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
+  { name: null,      label: 'Default', image: require('../../assets/icon-day.png')         },
+  { name: 'Night',   label: 'Night',   image: require('../../assets/icon-alt-night.png')   },
+  { name: 'Navy',    label: 'Navy',    image: require('../../assets/icon-alt-navy.png')    },
+  { name: 'Cream',   label: 'Cream',   image: require('../../assets/icon-alt-cream.png')   },
+  { name: 'Minimal', label: 'Minimal', image: require('../../assets/icon-alt-minimal.png') },
+];
 
 const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
 const SECTION_TO_INDEX: Record<SettingsSection, number> = {
@@ -565,6 +575,42 @@ export function SettingsScreen() {
               Switches to Night theme when your iPhone enters dark mode. Set iPhone to Automatic in Settings → Display & Brightness.
             </Text>
           )}
+
+          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>App Icon</Text>
+          <View style={styles.iconRow}>
+            {APP_ICONS.map((icon) => {
+              const active = store.appIcon === icon.name;
+              return (
+                <TouchableOpacity
+                  key={icon.name ?? 'default'}
+                  style={[styles.iconOption, { borderColor: active ? colors.inkDark : colors.borderMid }]}
+                  onPress={async () => {
+                    try {
+                      await setAlternateAppIconAsync(icon.name);
+                      store.setAppIcon(icon.name);
+                    } catch {
+                      // Alternate icons require a native build; silently ignore in Expo Go
+                    }
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Image source={icon.image} style={styles.iconThumb} />
+                  <Text style={[styles.iconLabel, { color: active ? colors.inkDark : colors.inkFaint, fontFamily: active ? fontFamily.bold : fontFamily.regular }]}>
+                    {icon.label}
+                  </Text>
+                  {active && (
+                    <View style={styles.iconCheck}>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.inkDark} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            iOS will briefly confirm the change. Requires an installed build — not available in Expo Go.
+          </Text>
+
         </ScrollView>
 
         {/* ── Page 3: Account ── */}
@@ -870,6 +916,26 @@ const styles = StyleSheet.create({
   },
   fontSample: { fontSize: 15 },
   fontPreview: { fontSize: 12, marginTop: 1 },
+  iconRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  iconOption: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: Spacing.sm,
+  },
+  iconThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+  },
+  iconLabel: { fontSize: 10, letterSpacing: 0.3 },
+  iconCheck: { position: 'absolute', top: 4, right: 4 },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },
