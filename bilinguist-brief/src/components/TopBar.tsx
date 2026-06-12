@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: SCREEN_WIDTH,
     paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 6,
   },
   logomark: {
     width: LOGOMARK_W,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   // Fixed pixel width & height so the container is always the same size
   // regardless of the masthead image's intrinsic dimensions.
   compactLockup: {
-    width: SCREEN_WIDTH - 24,
+    width: SCREEN_WIDTH - 12,
     height: 48,
     marginVertical: 6,
   },

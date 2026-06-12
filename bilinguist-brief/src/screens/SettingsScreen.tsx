@@ -709,8 +709,11 @@ export function SettingsScreen() {
                   onPress={() => store.setAppIcon(icon.name)}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.iconFrame, { borderColor: active ? colors.inkDark : 'transparent' }]}>
-                    <Image source={icon.image} style={styles.iconThumb} />
+                  <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
+                    <View style={styles.iconFrame}>
+                      <Image source={icon.image} style={styles.iconThumb} />
+                    </View>
+                    <View style={[styles.iconRim, { borderColor: active ? colors.inkDark : 'rgba(255,255,255,0.42)' }]} pointerEvents="none" />
                   </View>
                 </TouchableOpacity>
               );
@@ -780,7 +783,6 @@ export function SettingsScreen() {
             style={[profileStyles.settingsButton, { backgroundColor: colors.surface, borderColor: colors.borderMid }]}
             onPress={() => setSettingsSheetVisible(true)}
           >
-            <Ionicons name="settings-outline" size={20} color={colors.inkDark} />
             <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
               Account Settings
             </Text>
@@ -1215,7 +1217,7 @@ export function SettingsScreen() {
                   buttonStyle={isDark
                     ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
                     : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={8}
+                  cornerRadius={22}
                   style={{ height: 44 }}
                   onPress={handleAppleSignIn}
                 />
@@ -1404,10 +1406,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconShadow: {
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   iconFrame: {
-    borderWidth: 3,
+    width: 80,
+    height: 80,
     borderRadius: 20,
     overflow: 'hidden',
+  },
+  iconRim: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 20,
+    borderWidth: 2,
   },
   iconThumb: {
     width: 80,
@@ -1519,15 +1536,16 @@ const modalStyles = StyleSheet.create({
   cancelText: { fontSize: 15 },
   codeInput: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: Spacing.md,
+    borderRadius: 100,
+    paddingVertical: 13,
+    paddingHorizontal: 20,
     fontSize: 18,
     textAlign: 'center',
     letterSpacing: 3,
     marginBottom: Spacing.md,
   },
   codeButton: {
-    borderRadius: 8,
+    borderRadius: 100,
     padding: Spacing.md,
     alignItems: 'center',
     marginBottom: Spacing.sm,
@@ -1563,9 +1581,9 @@ const profileStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: Spacing.md,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 100,
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.sm,
     marginBottom: Spacing.lg,
@@ -1638,7 +1656,7 @@ const sheetStyles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 100,
     borderWidth: 1,
   },
   googleButtonText: {

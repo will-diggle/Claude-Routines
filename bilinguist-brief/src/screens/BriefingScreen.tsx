@@ -27,7 +27,7 @@ const MASTHEADS: Record<string, ReturnType<typeof require>> = {
 };
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const LOCKUP_PADDING = 12;
+const LOCKUP_PADDING = 4;
 const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
 const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 

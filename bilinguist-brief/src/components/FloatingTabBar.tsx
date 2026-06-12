@@ -265,10 +265,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
     // Practice — word-bank language filter
     const plCodes  = savedLangCodes;
-    const plFull   = plCodes.length <= 4;
+    const plFull   = plCodes.length <= 3;
     const plOver   = plCodes.length - 4;
     const plLabels = plFull
-      ? plCodes.map(c => activeLanguages.find(l => l.code === c)?.nativeName ?? c.toUpperCase())
+      ? plCodes.map(c => allLanguages.find(l => l.code === c)?.nativeName ?? c.toUpperCase())
       : plCodes.slice(0, 4).map(c => c.toUpperCase());
     return pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]);
   }
@@ -368,7 +368,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
 
     // Practice — word-bank language filter
-    const showFull     = savedLangCodes.length <= 4;
+    const showFull     = savedLangCodes.length <= 3;
     const visibleLangs = savedLangCodes.slice(0, 4);
     const overflow     = savedLangCodes.length - 4;
     const langLabel    = (code: string) =>

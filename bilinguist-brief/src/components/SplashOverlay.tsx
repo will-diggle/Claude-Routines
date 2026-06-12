@@ -32,7 +32,7 @@ function getTimeOfDayIndex(): number {
 }
 
 const SW = Dimensions.get('window').width;
-const LOGO_W = SW * 0.72;
+const LOGO_W = SW * 0.88;
 const LOGO_H = Math.round(LOGO_W / 5.17);
 
 const FADE_MS  = 220;

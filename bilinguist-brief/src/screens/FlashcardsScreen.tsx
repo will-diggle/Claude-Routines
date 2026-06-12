@@ -333,17 +333,17 @@ export function FlashcardsScreen() {
 
               {/* Badges */}
               <View style={styles.badgeRow}>
-                {card.wordType ? (
-                  <View style={[styles.badge, { backgroundColor: colors.borderLight }]}>
-                    <Text style={[styles.badgeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                      {card.wordType}
+                {card.level ? (
+                  <View style={[styles.levelCircle, { backgroundColor: levelColor(card.level) }]}>
+                    <Text style={[styles.levelCircleText, { fontFamily: fontFamily.bold }]}>
+                      {card.level}
                     </Text>
                   </View>
                 ) : null}
-                {card.level ? (
-                  <View style={[styles.badge, { backgroundColor: levelColor(card.level) + '22' }]}>
-                    <Text style={[styles.badgeText, { color: levelColor(card.level), fontFamily: fontFamily.bold }]}>
-                      {card.level}
+                {card.wordType ? (
+                  <View style={[styles.badge, { backgroundColor: colors.chrome }]}>
+                    <Text style={[styles.badgeText, { color: colors.bg, fontFamily: fontFamily.regular }]}>
+                      {card.wordType}
                     </Text>
                   </View>
                 ) : null}
@@ -542,9 +542,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   backTranslation: { textAlign: 'center', marginBottom: 2 },
-  badgeRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center', flexWrap: 'wrap' },
+  badgeRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' },
   badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, letterSpacing: 0.5 },
+  levelCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  levelCircleText: { fontSize: 10, color: '#FFF', letterSpacing: 0.3 },
   backExplanation: { lineHeight: 22, textAlign: 'center' },
   pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7 },
   backExample: { fontSize: 12, lineHeight: 19, textAlign: 'center' },
