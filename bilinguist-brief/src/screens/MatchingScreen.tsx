@@ -1,18 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated, Easing,
+  View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
+import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+
+const SCREEN_W = Dimensions.get('window').width;
 
 const TIME_LIMIT       = 30;
 const MIN_WORDS        = 24;
@@ -51,8 +56,12 @@ export function MatchingScreen() {
   const route = useRoute<RouteProp<PracticeStackParamList, 'Matching'>>();
   const langFilter = route.params?.language;
   const { words } = useWordBankStore();
-  const { recordSession, streak } = useStreakStore();
+  const { recordSession, streak, speedSnapHighScore, setSpeedSnapHighScore } = useStreakStore();
+  const activeLanguages = useSettingsStore((s) => s.activeLanguages().map((l) => l.code));
   const setGameActive = useNavPillStore((s) => s.setGameActive);
+  const scoreRef = useRef(0);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), [isNewBest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFocusEffect(useCallback(() => {
     setGameActive(true);
@@ -106,6 +115,18 @@ export function MatchingScreen() {
     });
   }
 
+  const finishGame = useCallback((finalScore: number) => {
+    recordSession();
+    if (finalScore > speedSnapHighScore) {
+      setSpeedSnapHighScore(finalScore);
+      setIsNewBest(true);
+    } else {
+      setIsNewBest(false);
+    }
+    setPhase('done');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speedSnapHighScore]);
+
   const initGame = useCallback((pool: SavedWord[]) => {
     const first = pool.slice(0, PAIRS_PER_SCREEN);
     setTiles(shuffle(makeTiles(first)));
@@ -113,7 +134,9 @@ export function MatchingScreen() {
     setMatched(new Set());
     setSelected(null);
     setWrong(null);
+    scoreRef.current = 0;
     setScore(0);
+    setIsNewBest(false);
     setTimeLeft(TIME_LIMIT);
     setPhase('playing');
   }, []);
@@ -131,8 +154,7 @@ export function MatchingScreen() {
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(timerRef.current!);
-          recordSession();
-          setPhase('done');
+          finishGame(scoreRef.current);
           return 0;
         }
         return t - 1;
@@ -160,7 +182,7 @@ export function MatchingScreen() {
           // If the grid is now empty, end the game.
           const remaining = prev.filter((t) => t.pairId !== pairId);
           setTiles(remaining);
-          if (remaining.length === 0) { recordSession(); setPhase('done'); }
+          if (remaining.length === 0) { finishGame(scoreRef.current); }
           return pool;
         }
 
@@ -188,7 +210,7 @@ export function MatchingScreen() {
       setMatched(newMatched);
       const firstId = selected; // capture before setSelected clears it
       setSelected(null);
-      setScore((n) => n + 1);
+      setScore((n) => { scoreRef.current = n + 1; return n + 1; });
       animateMatchOut(firstId, tile.id, tile.pairId);
     } else {
       setWrong([selected, tile.id]);
@@ -218,17 +240,37 @@ export function MatchingScreen() {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Speed Snap" current={TIME_LIMIT} total={TIME_LIMIT} />
+        {isNewBest && (
+          <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
+        )}
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
+          {isNewBest && (
+            <>
+              {congratsLines.map((line, i) => (
+                <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+                  {line}
+                </Text>
+              ))}
+              <Text style={[styles.newBestBadge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+                NEW BEST!
+              </Text>
+            </>
+          )}
           <Text style={[styles.doneLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             YOUR SCORE
           </Text>
-          <Text style={[styles.doneScore, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+          <Text style={[styles.doneScore, { color: isNewBest ? colors.accentGold : colors.inkDark, fontFamily: fontFamily.bold }]}>
             {score}
           </Text>
           <Text style={[styles.doneSub, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             pairs matched in 30 seconds
           </Text>
+          {!isNewBest && speedSnapHighScore > 0 && (
+            <Text style={[styles.doneSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Best: {speedSnapHighScore}
+            </Text>
+          )}
           <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
@@ -264,6 +306,12 @@ export function MatchingScreen() {
         <Text style={[styles.timerText, { color: timerColor, fontFamily: fontFamily.bold }]}>
           {timeLeft}s
         </Text>
+        {speedSnapHighScore > 0 && (
+          <Text style={[styles.timerLabel, { fontFamily: fontFamily.regular,
+            color: score >= speedSnapHighScore ? colors.accentGold : colors.inkFaint }]}>
+            Best: {speedSnapHighScore}
+          </Text>
+        )}
         <Text style={[styles.timerLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           {score} matched
         </Text>
@@ -369,6 +417,8 @@ const styles = StyleSheet.create({
   },
   tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
+  congratsLine: { fontSize: 18, letterSpacing: 0.5 },
+  newBestBadge: { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
   doneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
   doneScore: { fontSize: 64 },
   doneSub: { fontSize: 14 },

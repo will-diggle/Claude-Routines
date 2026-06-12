@@ -6,7 +6,9 @@ interface StreakStore {
   streak: number;
   lastPracticedDate: string | null;
   totalSessionsCompleted: number;
+  speedSnapHighScore: number;
   recordSession: () => void;
+  setSpeedSnapHighScore: (score: number) => void;
 }
 
 function todayString() {
@@ -25,6 +27,7 @@ export const useStreakStore = create<StreakStore>()(
       streak: 0,
       lastPracticedDate: null,
       totalSessionsCompleted: 0,
+      speedSnapHighScore: 0,
 
       recordSession: () => {
         const today = todayString();
@@ -41,6 +44,8 @@ export const useStreakStore = create<StreakStore>()(
           totalSessionsCompleted: get().totalSessionsCompleted + 1,
         });
       },
+
+      setSpeedSnapHighScore: (score) => set({ speedSnapHighScore: score }),
     }),
     {
       name: 'bilinguist-streak',

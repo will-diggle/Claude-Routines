@@ -7,9 +7,11 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { getCongratsLines } from '../utils/congrats';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
@@ -54,6 +56,8 @@ export function FlashcardsScreen() {
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const { activeLanguages } = useSettingsStore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const congratsLines = useMemo(() => getCongratsLines(activeLanguages().map((l) => l.code)), []);
   const activeCodes = new Set(activeLanguages().map((l) => l.code));
 
   const sessionWords = useMemo(() => {
@@ -181,11 +185,20 @@ export function FlashcardsScreen() {
   // ── Done screen ───────────────────────────────────────────────────────────────
 
   if (done) {
+    const isPerfect = done.missed === 0 && sessionWords.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} />
+        {isPerfect && (
+          <ConfettiCannon count={180} origin={{ x: SW / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
+        )}
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
+          {isPerfect && congratsLines.map((line, i) => (
+            <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+              {line}
+            </Text>
+          ))}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             Session complete
           </Text>
@@ -568,6 +581,7 @@ const styles = StyleSheet.create({
   streakText: { fontSize: 20 },
   doneBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneBtnText: { color: '#FFF', fontSize: 16 },
+  congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });
 
 const vStyles = StyleSheet.create({
