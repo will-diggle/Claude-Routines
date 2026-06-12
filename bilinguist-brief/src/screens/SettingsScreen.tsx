@@ -1138,11 +1138,13 @@ const styles = StyleSheet.create({
   fontPreview: { fontSize: 12, marginTop: 1 },
   iconRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
+    marginHorizontal: Spacing.md,
   },
   iconOption: {
-    flex: 1,
+    width: (SCREEN_WIDTH - Spacing.md * 2 - Spacing.sm * 2) / 3,
     alignItems: 'center',
     gap: 5,
     borderWidth: 1.5,
