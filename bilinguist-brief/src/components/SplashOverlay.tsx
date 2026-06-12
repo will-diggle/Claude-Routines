@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Image, StyleSheet, Dimensions, Animated } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { useAuthStore, sessionDisplayName } from '../store/useAuthStore';
 import type { BackgroundKey } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 
@@ -36,6 +35,10 @@ const SW = Dimensions.get('window').width;
 const LOGO_W = SW * 0.72;
 const LOGO_H = Math.round(LOGO_W / 5.17);
 
+const FADE_MS  = 400;
+const HOLD_MS  = 700;
+const SPLASH_MS = 3200;
+
 interface Props {
   onDone: () => void;
 }
@@ -43,29 +46,51 @@ interface Props {
 export function SplashOverlay({ onDone }: Props) {
   const { colors, background, fontFamily } = useTheme();
 
-  // useShallow prevents a new array reference on every render (which would cause
-  // an infinite re-render loop with useSyncExternalStore / Zustand v5)
   const activeLanguageCodes = useSettingsStore(
     useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code as LanguageCode))
   );
-  const session = useAuthStore((s) => s.session);
-  const displayName = sessionDisplayName(session);
-
-  useEffect(() => {
-    const t = setTimeout(onDone, 1500);
-    return () => clearTimeout(t);
-  }, [onDone]);
 
   const timeIdx = useMemo(() => getTimeOfDayIndex(), []);
-  const greeting = useMemo(() => {
+
+  const phrases = useMemo(() => {
     const langs = activeLanguageCodes.length > 0 ? activeLanguageCodes : ['en' as LanguageCode];
-    const base = GREETINGS[langs[0]]?.[timeIdx] ?? GREETINGS.en[timeIdx];
-    const primaryLine = displayName ? `${base}, ${displayName.split(' ')[0]}` : base;
-    const secondaries = langs.slice(1, 4).map(
-      (l) => GREETINGS[l]?.[timeIdx] ?? GREETINGS.en[timeIdx]
-    );
-    return { primary: primaryLine, secondaries };
-  }, [activeLanguageCodes, timeIdx, displayName]);
+    return langs.map((l) => GREETINGS[l]?.[timeIdx] ?? GREETINGS.en[timeIdx]);
+  }, [activeLanguageCodes, timeIdx]);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [phraseIdx, setPhraseIdx] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let idx = 0;
+
+    function cycle() {
+      if (cancelled) return;
+      Animated.timing(fadeAnim, { toValue: 1, duration: FADE_MS, useNativeDriver: true }).start(() => {
+        if (cancelled) return;
+        const holdTimer = setTimeout(() => {
+          if (cancelled) return;
+          Animated.timing(fadeAnim, { toValue: 0, duration: FADE_MS, useNativeDriver: true }).start(() => {
+            if (cancelled) return;
+            idx = (idx + 1) % phrases.length;
+            setPhraseIdx(idx);
+            cycle();
+          });
+        }, HOLD_MS);
+        return () => clearTimeout(holdTimer);
+      });
+    }
+
+    cycle();
+
+    const doneTimer = setTimeout(onDone, SPLASH_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(doneTimer);
+      fadeAnim.stopAnimation();
+    };
+  }, [onDone]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -74,16 +99,11 @@ export function SplashOverlay({ onDone }: Props) {
         style={{ width: LOGO_W, height: LOGO_H }}
         resizeMode="contain"
       />
-      <View style={styles.greetingBlock}>
-        <Text style={[styles.primaryGreeting, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-          {greeting.primary}
-        </Text>
-        {greeting.secondaries.map((line, i) => (
-          <Text key={i} style={[styles.secondaryGreeting, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {line}
-          </Text>
-        ))}
-      </View>
+      <Animated.Text
+        style={[styles.greeting, { color: colors.inkDark, fontFamily: fontFamily.italic, opacity: fadeAnim }]}
+      >
+        {phrases[phraseIdx] ?? ''}
+      </Animated.Text>
     </View>
   );
 }
@@ -98,18 +118,10 @@ const styles = StyleSheet.create({
     zIndex: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    gap: 28,
   },
-  greetingBlock: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  primaryGreeting: {
-    fontSize: 22,
+  greeting: {
+    fontSize: 18,
     letterSpacing: 0.3,
-  },
-  secondaryGreeting: {
-    fontSize: 15,
-    opacity: 0.75,
   },
 });
