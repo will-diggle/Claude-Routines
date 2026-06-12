@@ -19,10 +19,12 @@ import {
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
+import { useAuthStore } from './src/store/useAuthStore';
+import { supabase } from './src/services/supabase';
 import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
-import { setAlternateAppIconAsync } from 'expo-alternate-app-icons';
+import { setAlternateAppIcon } from 'expo-alternate-app-icons';
 import { lookupWord } from './src/services/wordService';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -74,6 +76,17 @@ function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
           autoNightMode, manualBackground, setEffectiveBackground,
           appIcon, appIconAuto } = useSettingsStore();
+  const setSession = useAuthStore((s) => s.setSession);
+
+  // Keep auth store in sync with Supabase session changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const isNight    = background === 'night';
   const colorScheme = useColorScheme();
 
@@ -95,7 +108,7 @@ function AppContent() {
       const pair = ICON_PAIRS.find((p) => p.base === appIcon || p.dark === appIcon);
       if (pair) target = colorScheme === 'dark' ? pair.dark : pair.base;
     }
-    setAlternateAppIconAsync(target).catch(() => {});
+    setAlternateAppIcon(target).catch(() => {});
   }, [colorScheme, appIcon, appIconAuto]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);

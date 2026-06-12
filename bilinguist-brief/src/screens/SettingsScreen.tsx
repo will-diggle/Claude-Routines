@@ -52,6 +52,9 @@ import {
   type FontSizeKey,
 } from '../theme';
 import { TopBar } from '../components/TopBar';
+import { useAuthStore } from '../store/useAuthStore';
+import { supabase } from '../services/supabase';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -64,9 +67,9 @@ const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof 
   { name: 'Pride2', label: 'Pride 2', image: require('../../assets/icon-pride-2.png') },
 ];
 
-const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
+const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'profile'];
 const SECTION_TO_INDEX: Record<SettingsSection, number> = {
-  languages: 0, genres: 1, display: 2, account: 3,
+  languages: 0, genres: 1, display: 2, profile: 3,
 };
 
 // Full list of levels available per language. 'Native' = Prompt 3 journalism track.
@@ -286,6 +289,78 @@ export function SettingsScreen() {
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
   const [usageLabel, setUsageLabel] = useState('');
   const [isForceRegenerating, setIsForceRegenerating] = useState(false);
+
+  // Auth
+  const { session, setSession, signOut } = useAuthStore();
+  const isSignedIn = !!session;
+  const displayName = session?.user?.user_metadata?.full_name ?? session?.user?.user_metadata?.name ?? null;
+  const userEmail = session?.user?.email ?? null;
+  const [signInModalVisible, setSignInModalVisible] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
+  }, []);
+
+  async function handleAppleSignIn() {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('No identity token from Apple');
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+      if (error) throw error;
+      if (data.session) setSession(data.session);
+      setSignInModalVisible(false);
+    } catch (e: any) {
+      if (e?.code !== 'ERR_REQUEST_CANCELED') {
+        setAuthError(e?.message ?? 'Apple sign-in failed');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleEmailAuth() {
+    if (!authEmail.trim() || !authPassword) return;
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      if (authMode === 'signin') {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
+        if (error) throw error;
+        if (data.session) setSession(data.session);
+      } else {
+        const { data, error } = await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
+        if (error) throw error;
+        if (data.session) {
+          setSession(data.session);
+        } else {
+          Alert.alert('Check your email', 'We sent you a confirmation link — click it to activate your account.');
+        }
+      }
+      setSignInModalVisible(false);
+      setAuthEmail('');
+      setAuthPassword('');
+    } catch (e: any) {
+      setAuthError(e?.message ?? 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
 
   const pagerRef = useRef<ScrollView>(null);
   const programmaticScrollRef = useRef(false);
@@ -621,7 +696,7 @@ export function SettingsScreen() {
 
         </ScrollView>
 
-        {/* ── Page 3: Account ── */}
+        {/* ── Page 3: Profile ── */}
         <ScrollView
           style={[styles.pageScroll, { backgroundColor: colors.bg }]}
           contentContainerStyle={styles.content}
@@ -629,6 +704,53 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
         >
+          <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
+
+          {isSignedIn ? (
+            <>
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <View style={{ flex: 1 }}>
+                  {displayName ? (
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
+                      {displayName}
+                    </Text>
+                  ) : null}
+                  {userEmail ? (
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>{userEmail}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                onPress={() => {
+                  Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
+                  ]);
+                }}
+              >
+                <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Sign out
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: 16, marginTop: 4 }]}>
+                Sign in to sync your streaks and word bank across devices.
+              </Text>
+              <TouchableOpacity
+                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                onPress={() => { setAuthError(null); setAuthEmail(''); setAuthPassword(''); setSignInModalVisible(true); }}
+              >
+                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Sign in / Create account
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+              </TouchableOpacity>
+            </>
+          )}
+
           <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
 
           <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
@@ -811,6 +933,94 @@ export function SettingsScreen() {
             })}
             <TouchableOpacity style={modalStyles.cancel} onPress={() => setLevelModalLang(null)}>
               <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sign-in modal */}
+      <Modal
+        visible={signInModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSignInModalVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              {authMode === 'signin' ? 'Sign in' : 'Create account'}
+            </Text>
+
+            {appleAvailable && (
+              <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md }}>
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={isDark
+                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={8}
+                  style={{ height: 44 }}
+                  onPress={handleAppleSignIn}
+                />
+              </View>
+            )}
+
+            {appleAvailable && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+              </View>
+            )}
+
+            <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+              <TextInput
+                style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
+                value={authEmail}
+                onChangeText={setAuthEmail}
+                placeholder="Email"
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+              />
+              <TextInput
+                style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
+                value={authPassword}
+                onChangeText={setAuthPassword}
+                placeholder="Password"
+                placeholderTextColor={colors.inkFaint}
+                secureTextEntry
+                autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
+                onSubmitEditing={handleEmailAuth}
+              />
+            </View>
+
+            {authError ? (
+              <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, paddingHorizontal: Spacing.lg, marginTop: 4, marginBottom: -4 }}>
+                {authError}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[modalStyles.codeButton, { backgroundColor: colors.accentGold, marginHorizontal: Spacing.lg, marginTop: Spacing.md, opacity: authLoading ? 0.6 : 1 }]}
+              onPress={handleEmailAuth}
+              disabled={authLoading}
+            >
+              <Text style={modalStyles.codeButtonText}>{authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[modalStyles.cancel]}
+              onPress={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+            >
+              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                {authMode === 'signin' ? "Don't have an account? Create one" : 'Already have an account? Sign in'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={modalStyles.cancel} onPress={() => setSignInModalVisible(false)}>
+              <Text style={[modalStyles.cancelText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>

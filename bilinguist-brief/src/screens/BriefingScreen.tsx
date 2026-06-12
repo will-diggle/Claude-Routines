@@ -13,6 +13,8 @@ import { useNavPillStore } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
+import { useStreakStore } from '../store/useStreakStore';
+import { StreakBadge } from '../components/StreakBadge';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
@@ -151,6 +153,10 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
+  const { recordRead, readingStreaks } = useStreakStore();
+  // Per-language flag to avoid calling recordRead multiple times per session
+  const readTrackedRef = useRef<Record<string, boolean>>({});
+
   const [refreshing, setRefreshing] = useState(false);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
   const lastSyncRef = useRef<number>(0);
@@ -276,12 +282,21 @@ export function BriefingScreen() {
               directionalLockEnabled
               scrollEventThrottle={16}
               onScroll={e => {
-                const y = e.nativeEvent.contentOffset.y;
+                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                const y = contentOffset.y;
                 briefingScrollY.setValue(y);
                 const nowScrolled = y > 80;
                 if (nowScrolled !== scrolledFlagRef.current) {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
+                }
+                // Mark language as read when user reaches 80% of the article
+                if (!readTrackedRef.current[lang.code] && contentSize.height > 0) {
+                  const pct = (y + layoutMeasurement.height) / contentSize.height;
+                  if (pct >= 0.8) {
+                    readTrackedRef.current[lang.code] = true;
+                    recordRead(lang.code);
+                  }
                 }
               }}
               refreshControl={
@@ -341,14 +356,17 @@ export function BriefingScreen() {
               {/* Medium rule below date/vol — inset from edges */}
               <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
-              {/* Edition row: language·level left, tagline right */}
+              {/* Edition row: language·level left, streak badge + tagline right */}
               <View style={styles.editionRow}>
                 <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
                   {lang.nativeName.toUpperCase()} · {level}
                 </Text>
-                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                  {tagline}
-                </Text>
+                <View style={styles.editionRight}>
+                  <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
+                  <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                    {tagline}
+                  </Text>
+                </View>
               </View>
 
               {/* ── Language content ────────────────────────────────────── */}
@@ -447,10 +465,15 @@ const styles = StyleSheet.create({
   editionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     paddingHorizontal: 18,
     paddingTop: 6,
     paddingBottom: 4,
+  },
+  editionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   editionLabel: {
     fontSize: 12,

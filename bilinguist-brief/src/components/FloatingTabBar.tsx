@@ -58,7 +58,7 @@ function pillContentW(labels: string[]): number {
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
-  languages: 'Languages', genres: 'Genres', display: 'Display', account: 'Account',
+  languages: 'Languages', genres: 'Genres', display: 'Display', profile: 'Profile',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────

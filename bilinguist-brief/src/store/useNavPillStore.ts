@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { LanguageCode } from './useSettingsStore';
 
-export type SettingsSection = 'languages' | 'genres' | 'display' | 'account';
+export type SettingsSection = 'languages' | 'genres' | 'display' | 'profile';
 
 interface NavPillStore {
   // Brief horizontal pager — which language page is showing
