@@ -56,12 +56,12 @@ import { TopBar } from '../components/TopBar';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
-  { name: null,      label: 'Default', image: require('../../assets/icon-day.png')         },
-  { name: 'Night',   label: 'Night',   image: require('../../assets/icon-alt-night.png')   },
-  { name: 'Cream',   label: 'Cream',   image: require('../../assets/icon-alt-cream.png')   },
-  { name: 'Navy',    label: 'Navy',    image: require('../../assets/icon-alt-navy.png')    },
-  { name: 'Minimal', label: 'Minimal', image: require('../../assets/icon-alt-minimal.png') },
-  { name: 'Pride',   label: 'Pride',   image: require('../../assets/icon-alt-pride.png')   },
+  { name: null,     label: 'White',   image: require('../../assets/icon-white.png')   },
+  { name: 'Black',  label: 'Black',   image: require('../../assets/icon-black.png')   },
+  { name: 'Cream',  label: 'Cream',   image: require('../../assets/icon-cream.png')   },
+  { name: 'Navy',   label: 'Navy',    image: require('../../assets/icon-navy.png')    },
+  { name: 'Minimal',label: 'Minimal', image: require('../../assets/icon-minimal.png') },
+  { name: 'Pride1', label: 'Pride',   image: require('../../assets/icon-pride-1.png') },
 ];
 
 const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
@@ -612,7 +612,7 @@ export function SettingsScreen() {
           </View>
           {store.appIconAuto && (
             <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Icon switches automatically with your iPhone's light/dark mode. Pairs: Default ↔ Night · Cream ↔ Navy · Pride ↔ Pride Night.
+              Icon switches automatically with your iPhone's light/dark mode. Pairs: White ↔ Black · Cream ↔ Navy · Pride 1 ↔ Pride 2.
             </Text>
           )}
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>

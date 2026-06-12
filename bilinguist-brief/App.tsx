@@ -65,9 +65,9 @@ const errStyles = StyleSheet.create({
 
 // Pairs for auto day/night icon switching — same logic as theme pairing.
 const ICON_PAIRS: { base: string | null; dark: string }[] = [
-  { base: null,    dark: 'Night'      }, // Default  ↔ Night
-  { base: 'Cream', dark: 'Navy'       }, // Cream    ↔ Navy
-  { base: 'Pride', dark: 'PrideNight' }, // Pride    ↔ PrideNight
+  { base: null,     dark: 'Black'  }, // White  ↔ Black
+  { base: 'Cream',  dark: 'Navy'   }, // Cream  ↔ Navy
+  { base: 'Pride1', dark: 'Pride2' }, // Pride1 ↔ Pride2
 ];
 
 function AppContent() {

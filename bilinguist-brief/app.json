@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "runtimeVersion": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon-day.png",
+    "icon": "./assets/icon-white.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "splash": {
@@ -16,9 +16,9 @@
       "bundleIdentifier": "com.bilinguistbrief.app",
       "buildNumber": "48",
       "icon": {
-        "light": "./assets/icon-day.png",
-        "dark": "./assets/icon-night.png",
-        "tinted": "./assets/icon-night.png"
+        "light": "./assets/icon-white.png",
+        "dark": "./assets/icon-black.png",
+        "tinted": "./assets/icon-black.png"
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Bilinguist Brief uses your location to show the local weather in your morning briefing.",
@@ -47,12 +47,12 @@
       [
         "expo-alternate-app-icons",
         [
-          { "name": "Night",   "image": "./assets/icon-alt-night.png"   },
-          { "name": "Navy",    "image": "./assets/icon-alt-navy.png"    },
-          { "name": "Cream",   "image": "./assets/icon-alt-cream.png"   },
-          { "name": "Minimal",    "image": "./assets/icon-alt-minimal.png"     },
-          { "name": "Pride",      "image": "./assets/icon-alt-pride.png"       },
-          { "name": "PrideNight", "image": "./assets/icon-alt-pride-night.png" }
+          { "name": "Black",   "image": "./assets/icon-black.png"   },
+          { "name": "Cream",   "image": "./assets/icon-cream.png"   },
+          { "name": "Navy",    "image": "./assets/icon-navy.png"    },
+          { "name": "Minimal", "image": "./assets/icon-minimal.png" },
+          { "name": "Pride1",  "image": "./assets/icon-pride-1.png" },
+          { "name": "Pride2",  "image": "./assets/icon-pride-2.png" }
         ]
       ],
       "expo-location",
