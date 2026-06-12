@@ -70,9 +70,13 @@ function AppContent() {
 
   // Follow iOS system dark mode (which the user can set to Automatic in
   // iOS Settings → Display & Brightness → Automatic, tied to sunset/sunrise).
+  // white→night, cream→softGrey (navy); if already on a dark theme, leave it.
   useEffect(() => {
     if (!autoNightMode) return;
-    setEffectiveBackground(colorScheme === 'dark' ? 'night' : manualBackground);
+    const darkPair = manualBackground === 'cream' ? 'softGrey'
+      : (manualBackground === 'night' || manualBackground === 'softGrey') ? manualBackground
+      : 'night';
+    setEffectiveBackground(colorScheme === 'dark' ? darkPair : manualBackground);
   }, [colorScheme, autoNightMode, manualBackground]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
