@@ -64,7 +64,7 @@ export function useTheme() {
     isNight,
   };
 
-  const fontFamily = FontFamilies[fontFamilyKey] ?? FontFamilies.garamond;
+  const fontFamily = FontFamilies[fontFamilyKey] ?? FontFamilies.lora;
   const fontSize   = FontSizes[fontSizeKey]      ?? FontSizes.medium;
 
   return { colors, fontFamily, fontSize, background, isNight, isDark, isCream };

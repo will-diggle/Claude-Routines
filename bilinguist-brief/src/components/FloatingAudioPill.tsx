@@ -293,14 +293,14 @@ const styles = StyleSheet.create({
     borderRadius: PILL_H / 2,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 7,
+    paddingHorizontal: 12,
+    gap: 6,
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.28 : 0,
-    shadowRadius: 24,
-    elevation: 18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: Platform.OS === 'ios' ? 0.20 : 0,
+    shadowRadius: 16,
+    elevation: 12,
     overflow: 'hidden',
   },
 
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
 
   marqueeText: {
-    fontSize: 14,
+    fontSize: 12,
     letterSpacing: 0.2,
     flexShrink: 0,
   },
@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
   },
 
   playCircle: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

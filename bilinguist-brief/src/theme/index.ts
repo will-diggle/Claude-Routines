@@ -48,9 +48,15 @@ export const BackgroundColors: Record<BackgroundKey, string> = {
   night: Colors.night,
 };
 
-export type FontFamilyKey = 'playfair' | 'garamond' | 'times' | 'system';
+export type FontFamilyKey = 'lora' | 'garamond' | 'playfair' | 'times';
 
 export const FontFamilies: Record<FontFamilyKey, { regular: string | undefined; bold: string | undefined; italic: string | undefined; label: string }> = {
+  lora: {
+    regular: 'Lora_400Regular',
+    bold: 'Lora_700Bold',
+    italic: 'Lora_400Regular_Italic',
+    label: 'Lora',
+  },
   garamond: {
     regular: 'EBGaramond_400Regular',
     bold: 'EBGaramond_700Bold',
@@ -69,13 +75,6 @@ export const FontFamilies: Record<FontFamilyKey, { regular: string | undefined; 
     bold: 'TimesNewRomanPS-BoldMT',
     italic: 'TimesNewRomanPS-ItalicMT',
     label: 'Times New Roman',
-  },
-  // San Francisco — iOS system font. undefined fontFamily falls back to SF Pro.
-  system: {
-    regular: undefined,
-    bold: undefined,
-    italic: undefined,
-    label: 'System',
   },
 };
 

@@ -23,9 +23,9 @@ const TABS = [
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H       = 62;
-export const FLOAT_TAB_H_LARGE = 72;
-export const FLOAT_TAB_H_SMALL = 58;
+export const FLOAT_TAB_H       = 52;
+export const FLOAT_TAB_H_LARGE = 60;
+export const FLOAT_TAB_H_SMALL = 48;
 export const FLOAT_TAB_BOTTOM  = 16;
 export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
@@ -40,9 +40,9 @@ const SCALE_DEFAULT = 1;
 const SCALE_SMALL   = FLOAT_TAB_H_SMALL / FLOAT_TAB_H;
 const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;
 
-const CHIP_PAD = 14;
+const CHIP_PAD = 12;
 const CHIP_GAP = 4;
-const ROW_PAD  = 24;
+const ROW_PAD  = 20;
 
 // Per-label charW: uppercase labels (FR, DE) are wider relative to font size
 // than mixed-case (Français, Languages). Uses generous upper-bound estimates
@@ -51,7 +51,7 @@ function pillContentW(labels: string[]): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
   const textW = labels.reduce((sum, l) => {
-    const charW = l === l.toUpperCase() ? 10 : 9;
+    const charW = l === l.toUpperCase() ? 8.5 : 7.5;
     return sum + l.length * charW;
   }, 0);
   return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
@@ -67,6 +67,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
+  const allLanguages    = useSettingsStore(useShallow((s) => s.languages));
   const savedWords = useWordBankStore(useShallow((s) => s.words));
   const {
     briefPageIndex, setBriefPageIndex,
@@ -371,7 +372,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     const visibleLangs = savedLangCodes.slice(0, 4);
     const overflow     = savedLangCodes.length - 4;
     const langLabel    = (code: string) =>
-      showFull ? (activeLanguages.find(l => l.code === code)?.nativeName ?? code.toUpperCase()) : code.toUpperCase();
+      showFull ? (allLanguages.find(l => l.code === code)?.nativeName ?? code.toUpperCase()) : code.toUpperCase();
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
@@ -401,7 +402,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.icon} size={26} color={activeColor} />
+          <Ionicons name={currentTab.icon} size={22} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -438,7 +439,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={26} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={22} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>{tab.label}</Text>
             </TouchableOpacity>
           );
@@ -566,13 +567,13 @@ const styles = StyleSheet.create({
   },
   contextItem: {
     paddingHorizontal: 7,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contextLabel: {
-    fontSize: 14,
+    fontSize: 12,
     letterSpacing: 0.2,
     textAlign: 'center',
   },
@@ -603,13 +604,13 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   navDot: {
-    width: 4,
-    height: 4,
+    width: 3,
+    height: 3,
     borderRadius: 2,
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 13,
+    fontSize: 11,
     letterSpacing: 0.3,
   },
 });

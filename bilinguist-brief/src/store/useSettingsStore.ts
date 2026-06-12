@@ -112,7 +112,7 @@ const DEFAULT_SETTINGS: Settings = {
   background: 'white',
   manualBackground: 'white',
   autoNightMode: false,
-  fontFamily: 'garamond',
+  fontFamily: 'lora',
   appIcon: null,
   appIconAuto: false,
   developerMode: false,
@@ -234,9 +234,9 @@ export const useSettingsStore = create<SettingsStore>()(
             : !COMING_SOON.has(k);
         });
         state.topics = cleanTopics;
-        // Migrate old ptserif → garamond (PT Serif removed; EB Garamond is the replacement)
-        if ((state as any).fontFamily === 'ptserif') {
-          state.fontFamily = 'garamond';
+        // Migrate removed font options → lora
+        if ((state as any).fontFamily === 'ptserif' || (state as any).fontFamily === 'system') {
+          state.fontFamily = 'lora';
         }
         // Ensure all languages are present; preserve user's existing languages
         const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es', 'tr']);

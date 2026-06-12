@@ -16,6 +16,11 @@ import {
   EBGaramond_700Bold,
   EBGaramond_400Regular_Italic,
 } from '@expo-google-fonts/eb-garamond';
+import {
+  Lora_400Regular,
+  Lora_700Bold,
+  Lora_400Regular_Italic,
+} from '@expo-google-fonts/lora';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
@@ -222,6 +227,9 @@ const SPINNER_COLORS: Record<string, string> = {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
+    Lora_400Regular,
+    Lora_700Bold,
+    Lora_400Regular_Italic,
     PlayfairDisplay_400Regular,
     PlayfairDisplay_700Bold,
     PlayfairDisplay_400Regular_Italic,
