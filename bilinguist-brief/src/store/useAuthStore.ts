@@ -15,10 +15,6 @@ function generateAnonymousId(): string {
 interface AuthStore {
   session: Session | null;
   anonymousId: string;
-  userId: string;
-  displayName: string | null;
-  email: string | null;
-  isSignedIn: boolean;
   setSession: (session: Session | null) => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -26,25 +22,9 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       session: null,
       anonymousId: generateAnonymousId(),
-
-      get userId() {
-        const s = get().session;
-        return s?.user?.id ?? get().anonymousId;
-      },
-      get displayName() {
-        const meta = get().session?.user?.user_metadata;
-        if (!meta) return null;
-        return (meta.full_name ?? meta.name ?? null) as string | null;
-      },
-      get email() {
-        return get().session?.user?.email ?? null;
-      },
-      get isSignedIn() {
-        return !!get().session;
-      },
 
       setSession: (session) => set({ session }),
 
@@ -66,3 +46,10 @@ export const useAuthStore = create<AuthStore>()(
     }
   )
 );
+
+// Derive display name from a session object
+export function sessionDisplayName(session: Session | null): string | null {
+  const meta = session?.user?.user_metadata;
+  if (!meta) return null;
+  return (meta.full_name ?? meta.name ?? null) as string | null;
+}

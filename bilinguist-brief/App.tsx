@@ -25,11 +25,17 @@ import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
 // expo-alternate-app-icons requires a native build — not available in Expo Go.
-// Lazy require inside a function avoids the startup crash.
+// Check executionEnvironment before requiring so we never touch the native module
+// in a store-client (Expo Go) context.
+import Constants from 'expo-constants';
 function safeSetAppIcon(icon: string | null) {
+  const env = (Constants as any).executionEnvironment;
+  if (env === 'storeClient') return; // Expo Go — native module not present
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('expo-alternate-app-icons').setAlternateAppIcon(icon).catch(() => {});
+    const mod = require('expo-alternate-app-icons');
+    const result = mod.setAlternateAppIcon?.(icon);
+    if (result?.catch) result.catch(() => {});
   } catch {}
 }
 import { lookupWord } from './src/services/wordService';

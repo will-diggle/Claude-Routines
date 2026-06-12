@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, sessionDisplayName } from '../store/useAuthStore';
 import type { BackgroundKey } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 
@@ -14,7 +15,6 @@ const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
 };
 
 const GREETINGS: Record<string, [string, string, string, string]> = {
-  // [morning, afternoon, evening, night]
   en: ['Good morning',        'Good afternoon',       'Good evening',   'Good night'],
   fr: ['Bonjour',             'Bon après-midi',       'Bonsoir',        'Bonne nuit'],
   de: ['Guten Morgen',        'Guten Tag',            'Guten Abend',    'Gute Nacht'],
@@ -26,10 +26,10 @@ const GREETINGS: Record<string, [string, string, string, string]> = {
 
 function getTimeOfDayIndex(): number {
   const h = new Date().getHours();
-  if (h >= 5  && h < 12) return 0; // morning
-  if (h >= 12 && h < 17) return 1; // afternoon
-  if (h >= 17 && h < 21) return 2; // evening
-  return 3;                          // night
+  if (h >= 5  && h < 12) return 0;
+  if (h >= 12 && h < 17) return 1;
+  if (h >= 17 && h < 21) return 2;
+  return 3;
 }
 
 const SW = Dimensions.get('window').width;
@@ -42,8 +42,14 @@ interface Props {
 
 export function SplashOverlay({ onDone }: Props) {
   const { colors, background, fontFamily } = useTheme();
-  const activeLanguages = useSettingsStore((s) => s.activeLanguages().map((l) => l.code as LanguageCode));
-  const displayName = useAuthStore((s) => s.displayName);
+
+  // useShallow prevents a new array reference on every render (which would cause
+  // an infinite re-render loop with useSyncExternalStore / Zustand v5)
+  const activeLanguageCodes = useSettingsStore(
+    useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code as LanguageCode))
+  );
+  const session = useAuthStore((s) => s.session);
+  const displayName = sessionDisplayName(session);
 
   useEffect(() => {
     const t = setTimeout(onDone, 1500);
@@ -52,17 +58,14 @@ export function SplashOverlay({ onDone }: Props) {
 
   const timeIdx = useMemo(() => getTimeOfDayIndex(), []);
   const greeting = useMemo(() => {
-    const langs = activeLanguages.length > 0 ? activeLanguages : ['en' as LanguageCode];
-    // Primary greeting (first active language) may include user's name
-    const primary = langs[0];
-    const base = GREETINGS[primary]?.[timeIdx] ?? GREETINGS.en[timeIdx];
+    const langs = activeLanguageCodes.length > 0 ? activeLanguageCodes : ['en' as LanguageCode];
+    const base = GREETINGS[langs[0]]?.[timeIdx] ?? GREETINGS.en[timeIdx];
     const primaryLine = displayName ? `${base}, ${displayName.split(' ')[0]}` : base;
-    // Secondary greetings (remaining languages, up to 3 more)
     const secondaries = langs.slice(1, 4).map(
       (l) => GREETINGS[l]?.[timeIdx] ?? GREETINGS.en[timeIdx]
     );
     return { primary: primaryLine, secondaries };
-  }, [activeLanguages, timeIdx, displayName]);
+  }, [activeLanguageCodes, timeIdx, displayName]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
