@@ -326,6 +326,13 @@ export function BriefingScreen() {
                 </View>
               )}
 
+              {/* Streak above logo — only when 4+ languages crowd the cities row */}
+              {langCount > 3 && (
+                <View style={styles.aboveLogoStreak}>
+                  <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
+                </View>
+              )}
+
               <View style={styles.lockupWrap}>
                 <Image
                   source={MASTHEADS[background] ?? MASTHEADS.cream}
@@ -334,9 +341,17 @@ export function BriefingScreen() {
                 />
               </View>
 
-              <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
-                {cityLine}
-              </Text>
+              {/* Cities row — streak badge floats to the right when ≤3 languages */}
+              <View style={styles.citiesWrap}>
+                <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
+                  {cityLine}
+                </Text>
+                {langCount <= 3 && (
+                  <View style={styles.citiesStreakAbs}>
+                    <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
+                  </View>
+                )}
+              </View>
 
               {/* Thin rule above date/vol — inset from edges */}
               <View style={[styles.ruleInset, { backgroundColor: hairline }]} />
@@ -361,12 +376,9 @@ export function BriefingScreen() {
                 <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
                   {lang.nativeName.toUpperCase()} · {level}
                 </Text>
-                <View style={styles.editionRight}>
-                  <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
-                  <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                    {tagline}
-                  </Text>
-                </View>
+                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                  {tagline}
+                </Text>
               </View>
 
               {/* ── Language content ────────────────────────────────────── */}
@@ -424,6 +436,11 @@ const styles = StyleSheet.create({
   ruleInset:      { height: 1, marginHorizontal: 20, marginVertical: 3 },
   ruleOuterInset: { height: 1.5, marginHorizontal: 20 },
 
+  citiesWrap: {
+    width: SCREEN_WIDTH,
+    position: 'relative',
+    alignItems: 'center',
+  },
   cities: {
     width: SCREEN_WIDTH,
     textAlign: 'center',
@@ -431,6 +448,19 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
     paddingVertical: 6,
+  },
+  citiesStreakAbs: {
+    position: 'absolute',
+    right: 18,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  aboveLogoStreak: {
+    width: SCREEN_WIDTH,
+    paddingHorizontal: 18,
+    paddingBottom: 4,
+    alignItems: 'flex-end',
   },
   lockupWrap: {
     width: SCREEN_WIDTH,

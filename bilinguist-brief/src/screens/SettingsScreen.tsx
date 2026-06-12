@@ -793,12 +793,12 @@ export function SettingsScreen() {
           {/* Daily Streaks section */}
           <View style={profileStyles.streakHeader}>
             <View style={profileStyles.streakLeft}>
-              <Text style={profileStyles.streakFire}>🔥</Text>
-              {maxStreak > 0 && (
-                <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {maxStreak}
-                </Text>
-              )}
+              <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {maxStreak}
+              </Text>
+              <Text style={[profileStyles.streakDayLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {maxStreak === 1 ? 'day' : 'days'}
+              </Text>
             </View>
             <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               Daily Streaks
@@ -1590,11 +1590,12 @@ const profileStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  streakFire: {
+  streakCount: {
     fontSize: 18,
   },
-  streakCount: {
-    fontSize: 16,
+  streakDayLabel: {
+    fontSize: 12,
+    marginTop: 2,
   },
   streakTitle: {
     fontSize: 20,
