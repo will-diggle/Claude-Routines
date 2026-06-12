@@ -22,8 +22,8 @@ const SCREEN_W = Dimensions.get('window').width;
 
 const TIME_LIMIT       = 30;
 const MIN_WORDS        = 24;
-const GRID_COLS        = 4;
-const GRID_ROWS        = 3;
+const GRID_COLS        = 3;
+const GRID_ROWS        = 4;
 const PAIRS_PER_SCREEN = (GRID_COLS * GRID_ROWS) / 2; // 6 pairs × 2 tiles = 12 tiles
 const EXIT_DURATION    = 320;
 
