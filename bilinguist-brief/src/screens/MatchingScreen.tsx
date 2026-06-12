@@ -89,6 +89,9 @@ export function MatchingScreen() {
 
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const wrongAnim = useRef(new Animated.Value(0)).current;
+  const congratsFadeAnim = useRef(new Animated.Value(1)).current;
+  const [congratsIdx, setCongratsIdx] = useState(0);
+  const congratsCycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Per-tile exit animations — keyed by tile ID.
   // Using a Map of Animated.Values avoids re-creating them on every render.
@@ -148,6 +151,35 @@ export function MatchingScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (phase !== 'done' || !isNewBest || congratsLines.length === 0) return;
+    let cancelled = false;
+    let idx = 0;
+    congratsFadeAnim.setValue(1);
+    setCongratsIdx(0);
+
+    function cycle() {
+      if (cancelled) return;
+      congratsCycleRef.current = setTimeout(() => {
+        if (cancelled) return;
+        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+          if (cancelled) return;
+          idx = (idx + 1) % congratsLines.length;
+          setCongratsIdx(idx);
+          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start(() => cycle());
+        });
+      }, 1500);
+    }
+    cycle();
+
+    return () => {
+      cancelled = true;
+      if (congratsCycleRef.current) clearTimeout(congratsCycleRef.current);
+      congratsFadeAnim.stopAnimation();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isNewBest]);
 
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -248,11 +280,9 @@ export function MatchingScreen() {
           <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
           {isNewBest && (
             <>
-              {congratsLines.map((line, i) => (
-                <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
-                  {line}
-                </Text>
-              ))}
+              <Animated.Text style={[styles.congratsLine, { color: colors.accentGold, fontFamily: fontFamily.bold, opacity: congratsFadeAnim }]}>
+                {congratsLines[congratsIdx] ?? ''}
+              </Animated.Text>
               <Text style={[styles.newBestBadge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
                 NEW BEST!
               </Text>
