@@ -32,7 +32,7 @@ export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
 const RIGHT_MINI_W = FLOAT_TAB_H;
-const RIGHT_MAX_W  = 298;
+const RIGHT_MAX_W  = 248;
 const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
 
 // Icon scale targets (relative to default 62px)
