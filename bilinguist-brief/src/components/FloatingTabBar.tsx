@@ -259,7 +259,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
     if (currentRouteIndex === 2) {
       // Preferences — settings section shortcuts
-      return pillContentW((['languages', 'genres', 'display', 'account'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
+      return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
     // Practice — word-bank language filter
     const plCodes  = savedLangCodes;
@@ -353,7 +353,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       return (
         <View style={styles.contextRow}>
           <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-            {(['languages', 'genres', 'display', 'account'] as SettingsSection[]).map((sec) => (
+            {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec) => (
               <TouchableOpacity key={sec} style={[styles.contextItem, settingsSection === sec && activeChipStyle]} onPress={() => setSettingsSection(sec)} activeOpacity={0.7}>
                 <Text style={[styles.contextLabel, { color: settingsSection === sec ? activeColor : inactiveColor, fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular }]}>
                   {SECTION_LABELS[sec]}
