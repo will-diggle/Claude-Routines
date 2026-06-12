@@ -308,6 +308,7 @@ export function SettingsScreen() {
   }, []);
 
   async function handleAppleSignIn() {
+    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
     setAuthLoading(true);
     setAuthError(null);
     try {
@@ -336,6 +337,7 @@ export function SettingsScreen() {
 
   async function handleEmailAuth() {
     if (!authEmail.trim() || !authPassword) return;
+    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
     setAuthLoading(true);
     setAuthError(null);
     try {

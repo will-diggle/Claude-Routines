@@ -78,8 +78,9 @@ function AppContent() {
           appIcon, appIconAuto } = useSettingsStore();
   const setSession = useAuthStore((s) => s.setSession);
 
-  // Keep auth store in sync with Supabase session changes
+  // Keep auth store in sync with Supabase session changes (no-op when not configured)
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);

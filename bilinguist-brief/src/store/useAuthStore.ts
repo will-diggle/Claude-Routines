@@ -13,16 +13,12 @@ function generateAnonymousId(): string {
 }
 
 interface AuthStore {
-  // null = anonymous (using anonymousId), Session = signed in
   session: Session | null;
   anonymousId: string;
-  // Convenience getters
-  userId: string;        // session user id or anonymousId
+  userId: string;
   displayName: string | null;
   email: string | null;
   isSignedIn: boolean;
-
-  // Actions
   setSession: (session: Session | null) => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -39,12 +35,9 @@ export const useAuthStore = create<AuthStore>()(
         return s?.user?.id ?? get().anonymousId;
       },
       get displayName() {
-        const s = get().session;
-        if (!s) return null;
-        const meta = s.user?.user_metadata;
-        if (meta?.full_name) return meta.full_name as string;
-        if (meta?.name) return meta.name as string;
-        return null;
+        const meta = get().session?.user?.user_metadata;
+        if (!meta) return null;
+        return (meta.full_name ?? meta.name ?? null) as string | null;
       },
       get email() {
         return get().session?.user?.email ?? null;
@@ -56,11 +49,12 @@ export const useAuthStore = create<AuthStore>()(
       setSession: (session) => set({ session }),
 
       signOut: async () => {
-        await supabase.auth.signOut();
+        if (supabase) await supabase.auth.signOut().catch(() => {});
         set({ session: null });
       },
 
       refresh: async () => {
+        if (!supabase) return;
         const { data } = await supabase.auth.getSession();
         set({ session: data.session });
       },
