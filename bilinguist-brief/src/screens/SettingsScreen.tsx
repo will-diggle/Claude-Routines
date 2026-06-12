@@ -661,19 +661,13 @@ export function SettingsScreen() {
               return (
                 <TouchableOpacity
                   key={icon.name ?? 'default'}
-                  style={[styles.iconOption, { borderColor: active ? colors.inkDark : colors.borderMid }]}
+                  style={styles.iconTile}
                   onPress={() => store.setAppIcon(icon.name)}
-                  activeOpacity={0.75}
+                  activeOpacity={0.8}
                 >
-                  <Image source={icon.image} style={styles.iconThumb} />
-                  <Text style={[styles.iconLabel, { color: active ? colors.inkDark : colors.inkFaint, fontFamily: active ? fontFamily.bold : fontFamily.regular }]}>
-                    {icon.label}
-                  </Text>
-                  {active && (
-                    <View style={styles.iconCheck}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.inkDark} />
-                    </View>
-                  )}
+                  <View style={[styles.iconFrame, { borderColor: active ? colors.inkDark : 'transparent' }]}>
+                    <Image source={icon.image} style={styles.iconThumb} />
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -1143,21 +1137,21 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     marginHorizontal: Spacing.md,
   },
-  iconOption: {
+  iconTile: {
     width: (SCREEN_WIDTH - Spacing.md * 2 - Spacing.sm * 2) / 3,
+    aspectRatio: 1,
     alignItems: 'center',
-    gap: 5,
-    borderWidth: 1.5,
-    borderRadius: 14,
-    padding: Spacing.sm,
+    justifyContent: 'center',
+  },
+  iconFrame: {
+    borderWidth: 3,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   iconThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 80,
+    height: 80,
   },
-  iconLabel: { fontSize: 10, letterSpacing: 0.3 },
-  iconCheck: { position: 'absolute', top: 4, right: 4 },
   devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
   devTap: { padding: Spacing.md },
   devText: { fontSize: 13 },
