@@ -741,8 +741,8 @@ export function SettingsScreen() {
         >
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>
-            <View style={[profileStyles.avatar, { backgroundColor: colors.accentGold }]}>
-              <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold }]}>
+            <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
+              <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>
                 {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
               </Text>
             </View>
@@ -791,7 +791,7 @@ export function SettingsScreen() {
               Daily Streaks
             </Text>
             <TouchableOpacity onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
-              <Text style={[profileStyles.viewAllText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
+              <Text style={[profileStyles.viewAllText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
                 View All →
               </Text>
             </TouchableOpacity>
@@ -1061,12 +1061,12 @@ export function SettingsScreen() {
             <TouchableOpacity
               style={[
                 sheetStyles.chip,
-                { borderColor: filterLang === 'all' ? colors.accentGold : colors.borderMid,
-                  backgroundColor: filterLang === 'all' ? colors.accentGold : 'transparent' },
+                { borderColor: filterLang === 'all' ? colors.chrome : colors.borderMid,
+                  backgroundColor: filterLang === 'all' ? colors.chrome : 'transparent' },
               ]}
               onPress={() => setFilterLang('all')}
             >
-              <Text style={[sheetStyles.chipText, { color: filterLang === 'all' ? '#FFF' : colors.inkDark, fontFamily: fontFamily.regular }]}>
+              <Text style={[sheetStyles.chipText, { color: filterLang === 'all' ? colors.bg : colors.inkDark, fontFamily: fontFamily.regular }]}>
                 ALL
               </Text>
             </TouchableOpacity>
@@ -1075,12 +1075,12 @@ export function SettingsScreen() {
                 key={lang.code}
                 style={[
                   sheetStyles.chip,
-                  { borderColor: filterLang === lang.code ? colors.accentGold : colors.borderMid,
-                    backgroundColor: filterLang === lang.code ? colors.accentGold : 'transparent' },
+                  { borderColor: filterLang === lang.code ? colors.chrome : colors.borderMid,
+                    backgroundColor: filterLang === lang.code ? colors.chrome : 'transparent' },
                 ]}
                 onPress={() => setFilterLang(lang.code)}
               >
-                <Text style={[sheetStyles.chipText, { color: filterLang === lang.code ? '#FFF' : colors.inkDark, fontFamily: fontFamily.regular }]}>
+                <Text style={[sheetStyles.chipText, { color: filterLang === lang.code ? colors.bg : colors.inkDark, fontFamily: fontFamily.regular }]}>
                   {lang.flag} {lang.nativeName}
                 </Text>
               </TouchableOpacity>
@@ -1118,7 +1118,7 @@ export function SettingsScreen() {
               autoFocus
             />
             <TouchableOpacity
-              style={[modalStyles.codeButton, { backgroundColor: colors.accentGold }]}
+              style={[modalStyles.codeButton, { backgroundColor: colors.chrome }]}
               onPress={() => {
                 setUsername(usernameInput.trim());
                 setUsernameModalVisible(false);
@@ -1536,7 +1536,6 @@ const profileStyles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   avatarInitials: {
-    color: '#FFFFFF',
     fontSize: 32,
   },
   displayName: {

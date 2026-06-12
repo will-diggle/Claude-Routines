@@ -101,7 +101,7 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
                   style={[
                     calStyles.circle,
                     isRead
-                      ? { backgroundColor: colors.accentGold }
+                      ? { backgroundColor: colors.chrome }
                       : { backgroundColor: 'transparent' },
                   ]}
                 >
@@ -109,7 +109,7 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
                     style={[
                       calStyles.dayText,
                       {
-                        color: isRead ? '#FFFFFF' : colors.inkLight,
+                        color: isRead ? colors.bg : colors.inkLight,
                         fontFamily: isRead ? fontFamily.bold : fontFamily.regular,
                       },
                     ]}
