@@ -815,12 +815,13 @@ export function SettingsScreen() {
               <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
             </View>
             <View style={sheetStyles.titleRow}>
+              <TouchableOpacity onPress={() => setSettingsSheetVisible(false)}>
+                <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
+              </TouchableOpacity>
               <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Settings
               </Text>
-              <TouchableOpacity onPress={() => setSettingsSheetVisible(false)}>
-                <Ionicons name="close" size={22} color={colors.inkDark} />
-              </TouchableOpacity>
+              <View style={{ width: 24 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -960,12 +961,6 @@ export function SettingsScreen() {
                   Version 1.0
                 </Text>
               </View>
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <Text style={[styles.rowLabel, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Powered by Claude AI
-                </Text>
-              </View>
-
               {/* Developer */}
               <View style={styles.devSection}>
                 <TouchableOpacity onPress={() => { setSettingsSheetVisible(false); handleDevTap(); }} style={styles.devTap}>
