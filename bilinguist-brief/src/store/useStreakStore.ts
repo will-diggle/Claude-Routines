@@ -10,6 +10,7 @@ interface StreakStore {
   // Per-language reading streaks
   readingStreaks: Record<string, number>;
   lastReadDates: Record<string, string>;
+  readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
   recordSession: () => void;
   setSpeedSnapHighScore: (score: number) => void;
   recordRead: (langCode: string) => void;
@@ -35,6 +36,7 @@ export const useStreakStore = create<StreakStore>()(
       speedSnapHighScore: 0,
       readingStreaks: {},
       lastReadDates: {},
+      readingHistory: {},
 
       recordSession: () => {
         const today = todayString();
@@ -56,17 +58,32 @@ export const useStreakStore = create<StreakStore>()(
 
       recordRead: (langCode: string) => {
         const today = todayString();
-        const { lastReadDates, readingStreaks } = get();
+        const { lastReadDates, readingStreaks, readingHistory } = get();
         const lastRead = lastReadDates[langCode];
 
-        if (lastRead === today) return;
-
         const currentStreak = readingStreaks[langCode] ?? 0;
-        const newStreak = lastRead === yesterdayString() ? currentStreak + 1 : 1;
+        const newStreak = lastRead === today
+          ? currentStreak
+          : lastRead === yesterdayString() ? currentStreak + 1 : 1;
+
+        // Append today to history (no duplicates)
+        const existingHistory = readingHistory[langCode] ?? [];
+        const newHistory = existingHistory.includes(today)
+          ? existingHistory
+          : [...existingHistory, today];
+
+        if (lastRead === today) {
+          // Only update history if today wasn't already recorded
+          if (!existingHistory.includes(today)) {
+            set({ readingHistory: { ...readingHistory, [langCode]: newHistory } });
+          }
+          return;
+        }
 
         set({
           lastReadDates: { ...lastReadDates, [langCode]: today },
           readingStreaks: { ...readingStreaks, [langCode]: newStreak },
+          readingHistory: { ...readingHistory, [langCode]: newHistory },
         });
       },
 

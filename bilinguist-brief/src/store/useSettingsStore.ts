@@ -49,6 +49,7 @@ export interface Settings {
   appIcon: string | null;
   appIconAuto: boolean;
   developerMode: boolean;
+  username: string;
 }
 
 interface SettingsStore extends Settings {
@@ -69,6 +70,7 @@ interface SettingsStore extends Settings {
   setAppIcon: (icon: string | null) => void;
   setAppIconAuto: (v: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
+  setUsername: (v: string) => void;
   activeLanguages: () => LanguagePreference[];
 }
 
@@ -114,6 +116,7 @@ const DEFAULT_SETTINGS: Settings = {
   appIcon: null,
   appIconAuto: false,
   developerMode: false,
+  username: '',
 };
 
 const MAX_ACTIVE_LANGUAGES = 5;
@@ -192,6 +195,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setAppIcon: (appIcon) => set({ appIcon }),
       setAppIconAuto: (appIconAuto) => set({ appIconAuto }),
       setDeveloperMode: (developerMode) => set({ developerMode }),
+      setUsername: (username) => set({ username }),
 
       activeLanguages: () => get().languages.filter((l) => l.active),
     }),
@@ -213,6 +217,7 @@ export const useSettingsStore = create<SettingsStore>()(
         fontFamily: state.fontFamily,
         appIcon: state.appIcon,
         appIconAuto: state.appIconAuto,
+        username: state.username,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

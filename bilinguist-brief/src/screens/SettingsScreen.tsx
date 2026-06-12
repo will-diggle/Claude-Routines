@@ -25,6 +25,7 @@ import {
   StyleSheet,
   Platform,
   Dimensions,
+  Linking,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -53,8 +54,11 @@ import {
 } from '../theme';
 import { TopBar } from '../components/TopBar';
 import { useAuthStore } from '../store/useAuthStore';
+import { useStreakStore } from '../store/useStreakStore';
 import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
+import { useShallow } from 'zustand/react/shallow';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -290,6 +294,23 @@ export function SettingsScreen() {
   const [usageLabel, setUsageLabel] = useState('');
   const [isForceRegenerating, setIsForceRegenerating] = useState(false);
 
+  // Profile page state
+  const [settingsSheetVisible, setSettingsSheetVisible] = useState(false);
+  const [viewAllVisible, setViewAllVisible] = useState(false);
+  const [usernameModalVisible, setUsernameModalVisible] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [filterLang, setFilterLang] = useState<string>('all');
+
+  // Streak store
+  const readingHistory = useStreakStore((s) => s.readingHistory);
+
+  // Username from settings
+  const username = useSettingsStore((s) => s.username);
+  const setUsername = useSettingsStore((s) => s.setUsername);
+
+  // Active languages for filter chips
+  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
+
   // Auth
   const { session, setSession, signOut } = useAuthStore();
   const isSignedIn = !!session;
@@ -330,6 +351,24 @@ export function SettingsScreen() {
       if (e?.code !== 'ERR_REQUEST_CANCELED') {
         setAuthError(e?.message ?? 'Apple sign-in failed');
       }
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const { data } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { skipBrowserRedirect: true },
+      });
+      if (data?.url) Linking.openURL(data.url);
+      setSignInModalVisible(false);
+    } catch (e: any) {
+      setAuthError(e?.message ?? 'Google sign-in failed');
     } finally {
       setAuthLoading(false);
     }
@@ -700,190 +739,404 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
         >
-          <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
-
-          {isSignedIn ? (
-            <>
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <View style={{ flex: 1 }}>
-                  {displayName ? (
-                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
-                      {displayName}
-                    </Text>
-                  ) : null}
-                  {userEmail ? (
-                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>{userEmail}</Text>
-                  ) : null}
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                onPress={() => {
-                  Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
-                  ]);
-                }}
-              >
-                <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Sign out
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: 16, marginTop: 4 }]}>
-                Sign in to sync your streaks and word bank across devices.
+          {/* Profile Avatar */}
+          <View style={profileStyles.avatarSection}>
+            <View style={[profileStyles.avatar, { backgroundColor: colors.accentGold }]}>
+              <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold }]}>
+                {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
               </Text>
-              <TouchableOpacity
-                style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                onPress={() => { setAuthError(null); setAuthEmail(''); setAuthPassword(''); setSignInModalVisible(true); }}
-              >
-                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Sign in / Create account
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-              </TouchableOpacity>
-            </>
-          )}
-
-          <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
-
-          <View style={[styles.row, { borderBottomColor: colors.borderLight, marginTop: Spacing.md }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                Daily Briefing Time
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
             </View>
-            <TimeInput
-              value={store.briefingNotificationTime}
-              onChange={store.setBriefingNotificationTime}
-              onCommit={() => {
-                const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
-                scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+            {displayName ? (
+              <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {displayName}
+              </Text>
+            ) : (
+              <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Guest
+              </Text>
+            )}
+            <TouchableOpacity
+              onPress={() => {
+                if (isSignedIn) {
+                  setUsernameInput(username);
+                  setUsernameModalVisible(true);
+                }
               }}
-              colors={colors}
-              fontFamily={fontFamily}
-            />
-          </View>
-
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                Daily Practice Reminder
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
-            </View>
-            <TimeInput
-              value={store.practiceNotificationTime}
-              onChange={store.setPracticeNotificationTime}
-              onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
-              colors={colors}
-              fontFamily={fontFamily}
-            />
-          </View>
-
-          <SectionHeader title="Premium" colors={colors} fontFamily={fontFamily} />
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                Bilinguist Premium
-              </Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
-            </View>
-            <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
-              <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                Coming soon
-              </Text>
-            </View>
-          </View>
-
-          <SectionHeader title="About" colors={colors} fontFamily={fontFamily} />
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              Bilinguist Brief
-            </Text>
-            <Text style={[styles.rowSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Version 1.0
-            </Text>
-          </View>
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[styles.rowLabel, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              Powered by Claude AI
-            </Text>
-          </View>
-
-          {/* ── Developer ── */}
-          <View style={styles.devSection}>
-            <TouchableOpacity onPress={handleDevTap} style={styles.devTap}>
-              <Text style={[styles.devText, { color: colors.inkFaint }]}>
-                {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
+              disabled={!isSignedIn}
+            >
+              <Text style={[profileStyles.usernameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {username ? `@${username}` : isSignedIn ? 'Tap to set username' : '@guest'}
               </Text>
             </TouchableOpacity>
-            {store.developerMode && (
-              <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <Text style={[styles.devText, { color: colors.inkFaint }]}>
-                  {usageLabel} · Access: {status}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
-                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                >
-                  <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    const result = applyPromoCode('FOUNDER');
-                    Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
-                  }}
-                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                >
-                  <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  disabled={isForceRegenerating}
-                  onPress={async () => {
-                    const active = store.languages.filter((l) => l.active);
-                    if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
-                    setIsForceRegenerating(true);
-                    try {
-                      const calls: Array<() => Promise<void>> = [];
-                      for (const lang of active) {
-                        const level = lang.level ?? 'B1';
-                        const length = (lang.readLength ?? 'medium') as ArticleLength;
-                        calls.push(() => loadBriefing(lang.code, level, length, true));
-                      }
-                      await Promise.all(calls.map((fn) => fn()));
-                      Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
-                    } catch {
-                      Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
-                    } finally {
-                      setIsForceRegenerating(false);
-                    }
-                  }}
-                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
-                >
-                  <Text style={[styles.devText, { color: colors.accentRed }]}>
-                    {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={async () => {
-                    const fb = await getTodayFactbase();
-                    if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
-                    const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
-                    Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
-                  }}
-                  style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                >
-                  <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
+
+          {/* Account Settings button */}
+          <TouchableOpacity
+            style={[profileStyles.settingsButton, { backgroundColor: colors.surface, borderColor: colors.borderMid }]}
+            onPress={() => setSettingsSheetVisible(true)}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.inkDark} />
+            <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              Account Settings
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={[profileStyles.divider, { backgroundColor: colors.borderLight }]} />
+
+          {/* Daily Streaks section */}
+          <View style={profileStyles.streakHeader}>
+            <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              Daily Streaks
+            </Text>
+            <TouchableOpacity onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
+              <Text style={[profileStyles.viewAllText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
+                View All →
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <StreakCalendar readingHistory={readingHistory} />
         </ScrollView>
       </ScrollView>
+
+      {/* ── Settings bottom sheet ── */}
+      <Modal
+        visible={settingsSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSettingsSheetVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+            {/* Drag handle + title + close */}
+            <View style={sheetStyles.handleRow}>
+              <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
+            </View>
+            <View style={sheetStyles.titleRow}>
+              <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Settings
+              </Text>
+              <TouchableOpacity onPress={() => setSettingsSheetVisible(false)}>
+                <Ionicons name="close" size={22} color={colors.inkDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Account */}
+              <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
+              {isSignedIn ? (
+                <>
+                  <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                    <View style={{ flex: 1 }}>
+                      {displayName ? (
+                        <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
+                          {displayName}
+                        </Text>
+                      ) : null}
+                      {userEmail ? (
+                        <Text style={[styles.rowSub, { color: colors.inkFaint }]}>{userEmail}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                    onPress={() => {
+                      Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
+                      ]);
+                    }}
+                  >
+                    <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Sign out
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: 16, marginTop: 4 }]}>
+                    Sign in to sync your streaks and word bank across devices.
+                  </Text>
+                  {appleAvailable && (
+                    <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
+                      <AppleAuthentication.AppleAuthenticationButton
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                        buttonStyle={isDark
+                          ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                          : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                        cornerRadius={8}
+                        style={{ height: 44 }}
+                        onPress={handleAppleSignIn}
+                      />
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
+                    onPress={handleGoogleSignIn}
+                  >
+                    <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                      Continue with Google
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                    onPress={() => {
+                      setSettingsSheetVisible(false);
+                      setAuthError(null);
+                      setAuthEmail('');
+                      setAuthPassword('');
+                      setSignInModalVisible(true);
+                    }}
+                  >
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Sign in / Create account
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Notifications */}
+              <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Daily Briefing Time
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
+                </View>
+                <TimeInput
+                  value={store.briefingNotificationTime}
+                  onChange={store.setBriefingNotificationTime}
+                  onCommit={() => {
+                    const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
+                    scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+                  }}
+                  colors={colors}
+                  fontFamily={fontFamily}
+                />
+              </View>
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Daily Practice Reminder
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
+                </View>
+                <TimeInput
+                  value={store.practiceNotificationTime}
+                  onChange={store.setPracticeNotificationTime}
+                  onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
+                  colors={colors}
+                  fontFamily={fontFamily}
+                />
+              </View>
+
+              {/* Premium */}
+              <SectionHeader title="Premium" colors={colors} fontFamily={fontFamily} />
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Bilinguist Premium
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
+                </View>
+                <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                  <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    Coming soon
+                  </Text>
+                </View>
+              </View>
+
+              {/* About */}
+              <SectionHeader title="About" colors={colors} fontFamily={fontFamily} />
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Bilinguist Brief
+                </Text>
+                <Text style={[styles.rowSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Version 1.0
+                </Text>
+              </View>
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <Text style={[styles.rowLabel, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Powered by Claude AI
+                </Text>
+              </View>
+
+              {/* Developer */}
+              <View style={styles.devSection}>
+                <TouchableOpacity onPress={() => { setSettingsSheetVisible(false); handleDevTap(); }} style={styles.devTap}>
+                  <Text style={[styles.devText, { color: colors.inkFaint }]}>
+                    {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
+                  </Text>
+                </TouchableOpacity>
+                {store.developerMode && (
+                  <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Text style={[styles.devText, { color: colors.inkFaint }]}>
+                      {usageLabel} · Access: {status}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
+                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                    >
+                      <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const result = applyPromoCode('FOUNDER');
+                        Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
+                      }}
+                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                    >
+                      <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      disabled={isForceRegenerating}
+                      onPress={async () => {
+                        const active = store.languages.filter((l) => l.active);
+                        if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
+                        setIsForceRegenerating(true);
+                        try {
+                          const calls: Array<() => Promise<void>> = [];
+                          for (const lang of active) {
+                            const level = lang.level ?? 'B1';
+                            const length = (lang.readLength ?? 'medium') as ArticleLength;
+                            calls.push(() => loadBriefing(lang.code, level, length, true));
+                          }
+                          await Promise.all(calls.map((fn) => fn()));
+                          Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
+                        } catch {
+                          Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
+                        } finally {
+                          setIsForceRegenerating(false);
+                        }
+                      }}
+                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
+                    >
+                      <Text style={[styles.devText, { color: colors.accentRed }]}>
+                        {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const fb = await getTodayFactbase();
+                        if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
+                        const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
+                        Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
+                      }}
+                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
+                    >
+                      <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── View All (Reading History) modal ── */}
+      <Modal
+        visible={viewAllVisible}
+        animationType="slide"
+        onRequestClose={() => setViewAllVisible(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom']}>
+          {/* Header */}
+          <View style={[sheetStyles.fullScreenHeader, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[sheetStyles.fullScreenTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              Reading History
+            </Text>
+            <TouchableOpacity onPress={() => setViewAllVisible(false)}>
+              <Ionicons name="close" size={22} color={colors.inkDark} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Language filter chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={sheetStyles.chipScroll}
+            contentContainerStyle={sheetStyles.chipContainer}
+          >
+            <TouchableOpacity
+              style={[
+                sheetStyles.chip,
+                { borderColor: filterLang === 'all' ? colors.accentGold : colors.borderMid,
+                  backgroundColor: filterLang === 'all' ? colors.accentGold : 'transparent' },
+              ]}
+              onPress={() => setFilterLang('all')}
+            >
+              <Text style={[sheetStyles.chipText, { color: filterLang === 'all' ? '#FFF' : colors.inkDark, fontFamily: fontFamily.regular }]}>
+                ALL
+              </Text>
+            </TouchableOpacity>
+            {activeLanguages.map((lang) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  sheetStyles.chip,
+                  { borderColor: filterLang === lang.code ? colors.accentGold : colors.borderMid,
+                    backgroundColor: filterLang === lang.code ? colors.accentGold : 'transparent' },
+                ]}
+                onPress={() => setFilterLang(lang.code)}
+              >
+                <Text style={[sheetStyles.chipText, { color: filterLang === lang.code ? '#FFF' : colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  {lang.flag} {lang.nativeName}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Full calendar */}
+          <FullStreakCalendar readingHistory={readingHistory} filterLang={filterLang} />
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Username edit modal ── */}
+      <Modal
+        visible={usernameModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setUsernameModalVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.codeSheet, { backgroundColor: colors.surface }]}>
+            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              Set Username
+            </Text>
+            <TextInput
+              style={[
+                modalStyles.codeInput,
+                { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 16 },
+              ]}
+              value={usernameInput}
+              onChangeText={setUsernameInput}
+              placeholder="username"
+              placeholderTextColor={colors.inkFaint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[modalStyles.codeButton, { backgroundColor: colors.accentGold }]}
+              onPress={() => {
+                setUsername(usernameInput.trim());
+                setUsernameModalVisible(false);
+              }}
+            >
+              <Text style={modalStyles.codeButtonText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={modalStyles.cancel} onPress={() => setUsernameModalVisible(false)}>
+              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Level picker modal */}
       <Modal
@@ -1271,4 +1524,128 @@ const modalStyles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   codeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+});
+
+const profileStyles = StyleSheet.create({
+  avatarSection: {
+    alignItems: 'center',
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  avatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 32,
+  },
+  displayName: {
+    fontSize: 18,
+    marginBottom: Spacing.xs,
+  },
+  usernameLabel: {
+    fontSize: 13,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  settingsButtonText: {
+    flex: 1,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  streakTitle: {
+    fontSize: 16,
+  },
+  viewAllText: {
+    fontSize: 14,
+  },
+});
+
+const sheetStyles = StyleSheet.create({
+  handleRow: {
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  sheetTitle: {
+    fontSize: 18,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  googleButtonText: {
+    fontSize: 15,
+  },
+  fullScreenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  fullScreenTitle: {
+    fontSize: 18,
+  },
+  chipScroll: {
+    flexGrow: 0,
+  },
+  chipContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+    flexDirection: 'row',
+  },
+  chip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 13,
+  },
 });
