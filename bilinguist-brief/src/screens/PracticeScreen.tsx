@@ -32,8 +32,8 @@ const GAMES: Array<{
   tint: string;
 }> = [
   { key: 'Flashcards',    label: 'Flashcards',           icon: 'layers-outline',          description: 'Flip cards with spaced repetition',   tint: '#4A6FA5' },
-  { key: 'MultipleChoice',label: 'Multiple Choice',      icon: 'list-outline',            description: 'Which word means…? Four options',      tint: '#1E6B3A' },
   { key: 'Matching',      label: 'Speed Snap',           icon: 'grid-outline',            description: 'Match words to translations against the clock', tint: '#B5510A' },
+  { key: 'MultipleChoice',label: 'Multiple Choice',      icon: 'list-outline',            description: 'Which word means…? Four options',      tint: '#1E6B3A' },
   { key: 'FillBlank',     label: 'Fill in the Blank',    icon: 'pencil-outline',          description: 'Complete the original news sentence',  tint: '#6A1B9A' },
   { key: 'Translation',   label: 'Translation Challenge',icon: 'swap-horizontal-outline', description: 'Translate between languages',           tint: '#8B1A1A' },
 ];

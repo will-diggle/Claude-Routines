@@ -87,6 +87,11 @@ export function MatchingScreen() {
   const [score, setScore] = useState(0);
   const [phase, setPhase] = useState<'playing' | 'done'>('playing');
 
+  // Refs mirror tiles/wordPool so animation callbacks always see current values
+  // without causing nested-setState errors when reading inside setTiles updaters.
+  const tilesRef    = useRef<Tile[]>([]);
+  const wordPoolRef = useRef<SavedWord[]>([]);
+
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const wrongAnim = useRef(new Animated.Value(0)).current;
   const congratsFadeAnim = useRef(new Animated.Value(1)).current;
@@ -133,8 +138,12 @@ export function MatchingScreen() {
 
   const initGame = useCallback((pool: SavedWord[]) => {
     const first = pool.slice(0, PAIRS_PER_SCREEN);
-    setTiles(shuffle(makeTiles(first)));
-    setWordPool(pool.slice(PAIRS_PER_SCREEN));
+    const initialTiles = shuffle(makeTiles(first));
+    const restPool = pool.slice(PAIRS_PER_SCREEN);
+    tilesRef.current = initialTiles;
+    wordPoolRef.current = restPool;
+    setTiles(initialTiles);
+    setWordPool(restPool);
     setMatched(new Set());
     setSelected(null);
     setWrong(null);
@@ -198,34 +207,36 @@ export function MatchingScreen() {
   }, [phase]);
 
   function replacePairs(pairId: string) {
-    setTiles((prev) => {
-      setWordPool((pool) => {
-        // When the pool is exhausted, cycle back through eligibleWords so the
-        // full 30 s is always playable. Exclude pairIds still visible on the grid
-        // so the same word never appears twice at once. Reset matched so recycled
-        // words aren't permanently disabled.
-        const cycling = pool.length === 0;
-        if (cycling) setMatched(new Set());
-        const activePool = !cycling ? pool : shuffle(
-          eligibleWords.filter((w) => !prev.some((t) => t.pairId === w.id && t.pairId !== pairId)),
-        );
+    // Read current values from refs — safe to call from animation callbacks
+    // without triggering the "setState during render" error.
+    const pool = wordPoolRef.current;
+    const currentTiles = tilesRef.current;
+    const cycling = pool.length === 0;
 
-        if (activePool.length < 1) {
-          // Word bank too small to refill at all — remove matched tiles.
-          // If the grid is now empty, end the game.
-          const remaining = prev.filter((t) => t.pairId !== pairId);
-          setTiles(remaining);
-          if (remaining.length === 0) { finishGame(scoreRef.current); }
-          return pool;
-        }
+    // When the pool is exhausted cycle back through eligibleWords, excluding
+    // any pairId still visible on the grid so the same word can't appear twice.
+    if (cycling) setMatched(new Set());
 
-        const [next, ...rest] = activePool;
-        const withoutMatched = prev.filter((t) => t.pairId !== pairId);
-        setTiles(shuffle([...withoutMatched, ...makeTiles([next])]));
-        return rest;
-      });
-      return prev;
-    });
+    const activePool = cycling
+      ? shuffle(eligibleWords.filter((w) => !currentTiles.some((t) => t.pairId === w.id && t.pairId !== pairId)))
+      : pool;
+
+    if (activePool.length < 1) {
+      // Word bank too small to refill — just remove the matched pair.
+      const remaining = currentTiles.filter((t) => t.pairId !== pairId);
+      tilesRef.current = remaining;
+      setTiles(remaining);
+      if (remaining.length === 0) finishGame(scoreRef.current);
+      return;
+    }
+
+    const [next, ...rest] = activePool;
+    const withoutMatched = currentTiles.filter((t) => t.pairId !== pairId);
+    const newTiles = shuffle([...withoutMatched, ...makeTiles([next])]);
+    tilesRef.current = newTiles;
+    wordPoolRef.current = rest;
+    setTiles(newTiles);
+    setWordPool(rest);
   }
 
   function handleTile(tile: Tile) {
