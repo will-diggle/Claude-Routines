@@ -22,6 +22,7 @@ import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
 import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
+import { setAlternateAppIconAsync } from 'expo-alternate-app-icons';
 import { lookupWord } from './src/services/wordService';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -62,9 +63,17 @@ const errStyles = StyleSheet.create({
 
 // ── Main content ──────────────────────────────────────────────────────────────
 
+// Pairs for auto day/night icon switching — same logic as theme pairing.
+const ICON_PAIRS: { base: string | null; dark: string }[] = [
+  { base: null,    dark: 'Night'      }, // Default  ↔ Night
+  { base: 'Cream', dark: 'Navy'       }, // Cream    ↔ Navy
+  { base: 'Pride', dark: 'PrideNight' }, // Pride    ↔ PrideNight
+];
+
 function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
-          autoNightMode, manualBackground, setEffectiveBackground } = useSettingsStore();
+          autoNightMode, manualBackground, setEffectiveBackground,
+          appIcon, appIconAuto } = useSettingsStore();
   const isNight    = background === 'night';
   const colorScheme = useColorScheme();
 
@@ -78,6 +87,16 @@ function AppContent() {
       : 'night';
     setEffectiveBackground(colorScheme === 'dark' ? darkPair : manualBackground);
   }, [colorScheme, autoNightMode, manualBackground]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync app icon — either the user's manual choice, or the auto day/night pair.
+  useEffect(() => {
+    let target: string | null = appIcon;
+    if (appIconAuto) {
+      const pair = ICON_PAIRS.find((p) => p.base === appIcon || p.dark === appIcon);
+      if (pair) target = colorScheme === 'dark' ? pair.dark : pair.base;
+    }
+    setAlternateAppIconAsync(target).catch(() => {});
+  }, [colorScheme, appIcon, appIconAuto]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
 

@@ -28,7 +28,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
-import { setAlternateAppIconAsync } from 'expo-alternate-app-icons';
+
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
@@ -58,9 +58,10 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
   { name: null,      label: 'Default', image: require('../../assets/icon-day.png')         },
   { name: 'Night',   label: 'Night',   image: require('../../assets/icon-alt-night.png')   },
-  { name: 'Navy',    label: 'Navy',    image: require('../../assets/icon-alt-navy.png')    },
   { name: 'Cream',   label: 'Cream',   image: require('../../assets/icon-alt-cream.png')   },
+  { name: 'Navy',    label: 'Navy',    image: require('../../assets/icon-alt-navy.png')    },
   { name: 'Minimal', label: 'Minimal', image: require('../../assets/icon-alt-minimal.png') },
+  { name: 'Pride',   label: 'Pride',   image: require('../../assets/icon-alt-pride.png')   },
 ];
 
 const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'account'];
@@ -584,14 +585,7 @@ export function SettingsScreen() {
                 <TouchableOpacity
                   key={icon.name ?? 'default'}
                   style={[styles.iconOption, { borderColor: active ? colors.inkDark : colors.borderMid }]}
-                  onPress={async () => {
-                    try {
-                      await setAlternateAppIconAsync(icon.name);
-                      store.setAppIcon(icon.name);
-                    } catch {
-                      // Alternate icons require a native build; silently ignore in Expo Go
-                    }
-                  }}
+                  onPress={() => store.setAppIcon(icon.name)}
                   activeOpacity={0.75}
                 >
                   <Image source={icon.image} style={styles.iconThumb} />
@@ -607,8 +601,22 @@ export function SettingsScreen() {
               );
             })}
           </View>
+          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Day / Night Icon</Text>
+            <Switch
+              value={store.appIconAuto}
+              onValueChange={store.setAppIconAuto}
+              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
+              thumbColor={colors.bg}
+            />
+          </View>
+          {store.appIconAuto && (
+            <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Icon switches automatically with your iPhone's light/dark mode. Pairs: Default ↔ Night · Cream ↔ Navy · Pride ↔ Pride Night.
+            </Text>
+          )}
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            iOS will briefly confirm the change. Requires an installed build — not available in Expo Go.
+            Requires an installed build. iOS briefly confirms when the icon changes.
           </Text>
 
         </ScrollView>

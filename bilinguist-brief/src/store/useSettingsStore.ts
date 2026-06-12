@@ -47,6 +47,7 @@ export interface Settings {
   autoNightMode: boolean;
   fontFamily: FontFamilyKey;
   appIcon: string | null;
+  appIconAuto: boolean;
   developerMode: boolean;
 }
 
@@ -66,6 +67,7 @@ interface SettingsStore extends Settings {
   setAutoNightMode: (v: boolean) => void;
   setFontFamily: (font: FontFamilyKey) => void;
   setAppIcon: (icon: string | null) => void;
+  setAppIconAuto: (v: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   activeLanguages: () => LanguagePreference[];
 }
@@ -110,6 +112,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoNightMode: false,
   fontFamily: 'garamond',
   appIcon: null,
+  appIconAuto: false,
   developerMode: false,
 };
 
@@ -187,6 +190,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setAutoNightMode: (autoNightMode) => set({ autoNightMode }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setAppIcon: (appIcon) => set({ appIcon }),
+      setAppIconAuto: (appIconAuto) => set({ appIconAuto }),
       setDeveloperMode: (developerMode) => set({ developerMode }),
 
       activeLanguages: () => get().languages.filter((l) => l.active),
@@ -208,6 +212,7 @@ export const useSettingsStore = create<SettingsStore>()(
         autoNightMode: state.autoNightMode,
         fontFamily: state.fontFamily,
         appIcon: state.appIcon,
+        appIconAuto: state.appIconAuto,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

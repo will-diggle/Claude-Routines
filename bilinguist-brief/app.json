@@ -50,7 +50,9 @@
           { "name": "Night",   "image": "./assets/icon-alt-night.png"   },
           { "name": "Navy",    "image": "./assets/icon-alt-navy.png"    },
           { "name": "Cream",   "image": "./assets/icon-alt-cream.png"   },
-          { "name": "Minimal", "image": "./assets/icon-alt-minimal.png" }
+          { "name": "Minimal",    "image": "./assets/icon-alt-minimal.png"     },
+          { "name": "Pride",      "image": "./assets/icon-alt-pride.png"       },
+          { "name": "PrideNight", "image": "./assets/icon-alt-pride-night.png" }
         ]
       ],
       "expo-location",
