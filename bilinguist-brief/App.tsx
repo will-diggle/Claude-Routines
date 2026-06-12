@@ -24,7 +24,14 @@ import { supabase } from './src/services/supabase';
 import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
-import { setAlternateAppIcon } from 'expo-alternate-app-icons';
+// expo-alternate-app-icons requires a native build — not available in Expo Go.
+// Lazy require inside a function avoids the startup crash.
+function safeSetAppIcon(icon: string | null) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('expo-alternate-app-icons').setAlternateAppIcon(icon).catch(() => {});
+  } catch {}
+}
 import { lookupWord } from './src/services/wordService';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -109,7 +116,7 @@ function AppContent() {
       const pair = ICON_PAIRS.find((p) => p.base === appIcon || p.dark === appIcon);
       if (pair) target = colorScheme === 'dark' ? pair.dark : pair.base;
     }
-    setAlternateAppIcon(target).catch(() => {});
+    safeSetAppIcon(target);
   }, [colorScheme, appIcon, appIconAuto]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
