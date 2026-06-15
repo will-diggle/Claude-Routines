@@ -8,6 +8,7 @@
     "icon": "./assets/icon-white.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
+    "jsEngine": "jsc",
     "splash": {
       "backgroundColor": "#F5F0E8"
     },
