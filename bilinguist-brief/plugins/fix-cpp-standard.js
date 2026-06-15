@@ -15,11 +15,12 @@ module.exports = (config) =>
     end
   end
 `;
-      const lastEnd = podfile.lastIndexOf('\nend');
-      if (lastEnd !== -1) {
-        podfile = podfile.slice(0, lastEnd) + hook + podfile.slice(lastEnd);
+      const marker = 'post_install do |installer|';
+      const idx = podfile.indexOf(marker);
+      if (idx !== -1) {
+        podfile = podfile.slice(0, idx + marker.length) + hook + podfile.slice(idx + marker.length);
+        fs.writeFileSync(podfilePath, podfile);
       }
-      fs.writeFileSync(podfilePath, podfile);
       return config;
     },
   ]);
