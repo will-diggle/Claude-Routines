@@ -69,7 +69,8 @@
           "color": "#F5F0E8",
           "sounds": []
         }
-      ]
+      ],
+      "./plugins/disable-hermes"
     ]
   }
 }
