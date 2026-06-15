@@ -70,7 +70,8 @@
           "sounds": []
         }
       ],
-      "./plugins/disable-hermes"
+      "./plugins/disable-hermes",
+      "./plugins/fix-cpp-standard"
     ]
   }
 }
