@@ -46,43 +46,49 @@ async function scheduleDaily(
   body: string,
   hhmm: string
 ): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+  try {
+    await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
 
-  const time = parseTime(hhmm);
-  if (!time) return;
+    const time = parseTime(hhmm);
+    if (!time) return;
 
-  await Notifications.scheduleNotificationAsync({
-    identifier,
-    content: { title, body },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: time.hour,
-      minute: time.minute,
-    },
-  });
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: { title, body },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: time.hour,
+        minute: time.minute,
+      },
+    });
+  } catch {}
 }
 
 export async function scheduleBriefingNotification(
   time: string,
   language: LanguageCode = 'en'
 ): Promise<void> {
-  const granted = await requestNotificationPermission();
-  if (!granted) return;
-  const copy = BRIEFING_COPY[language] ?? BRIEFING_COPY.en;
-  await scheduleDaily('daily-briefing', copy.title, copy.body, time);
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+    const copy = BRIEFING_COPY[language] ?? BRIEFING_COPY.en;
+    await scheduleDaily('daily-briefing', copy.title, copy.body, time);
+  } catch {}
 }
 
 export async function schedulePracticeNotification(time: string): Promise<void> {
-  const granted = await requestNotificationPermission();
-  if (!granted) return;
-  await scheduleDaily(
-    'daily-practice',
-    'How was today\'s briefing?',
-    'Send your feedback to William — did you like the article?',
-    time
-  );
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+    await scheduleDaily(
+      'daily-practice',
+      'How was today\'s briefing?',
+      'Send your feedback to William — did you like the article?',
+      time
+    );
+  } catch {}
 }
 
 export async function cancelAllNotifications(): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 }

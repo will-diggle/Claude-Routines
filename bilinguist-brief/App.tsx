@@ -99,7 +99,7 @@ function AppContent() {
   // Keep auth store in sync with Supabase session changes (no-op when not configured)
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => {});
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -139,10 +139,10 @@ function AppContent() {
       shouldShowSplash().then((show) => {
         setShowSplash(show);
         setSplashChecked(true);
-      });
+      }).catch(() => { setSplashChecked(true); });
       const topLanguage = activeLanguages()[0]?.code ?? 'en';
-      scheduleBriefingNotification(briefingNotificationTime, topLanguage);
-      schedulePracticeNotification(practiceNotificationTime);
+      scheduleBriefingNotification(briefingNotificationTime, topLanguage).catch(() => {});
+      schedulePracticeNotification(practiceNotificationTime).catch(() => {});
       return;
     }
 
@@ -150,10 +150,10 @@ function AppContent() {
       shouldShowSplash().then((show) => {
         setShowSplash(show);
         setSplashChecked(true);
-      });
+      }).catch(() => { setSplashChecked(true); });
       const topLanguage = activeLanguages()[0]?.code ?? 'en';
-      scheduleBriefingNotification(briefingNotificationTime, topLanguage);
-      schedulePracticeNotification(practiceNotificationTime);
+      scheduleBriefingNotification(briefingNotificationTime, topLanguage).catch(() => {});
+      schedulePracticeNotification(practiceNotificationTime).catch(() => {});
     });
 
     return unsub;
@@ -246,7 +246,7 @@ export default function App() {
         const bg = JSON.parse(json)?.state?.background;
         if (bg) setStoredBg(bg);
       } catch {}
-    });
+    }).catch(() => {});
   }, []);
 
   if (!fontsLoaded) {
