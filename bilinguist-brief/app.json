@@ -58,6 +58,7 @@
       "expo-location",
       ["expo-build-properties", {
         "ios": {
+          "useHermes": false,
           "deploymentTarget": "15.1"
         }
       }],
