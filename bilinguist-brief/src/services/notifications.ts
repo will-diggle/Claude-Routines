@@ -2,15 +2,17 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { LanguageCode } from '../store/useSettingsStore';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+} catch {}
 
 const BRIEFING_COPY: Record<LanguageCode, { title: string; body: string }> = {
   en: { title: '🇬🇧 Good Morning',  body: 'Your daily news briefing is ready.' },

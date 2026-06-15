@@ -201,7 +201,7 @@ function AppContent() {
         await new Promise(r => setTimeout(r, 500));
       }
     };
-    run();
+    run().catch(() => {});
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
