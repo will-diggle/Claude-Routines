@@ -413,7 +413,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     if (store.developerMode) {
-      getDailyUsage().then(({ used, limit }) => setUsageLabel(`${used}/${limit} briefings today`));
+      getDailyUsage().then(({ used, limit }) => setUsageLabel(`${used}/${limit} briefings today`)).catch(() => {});
     }
   }, [store.developerMode]);
 
@@ -989,7 +989,7 @@ export function SettingsScreen() {
                       {usageLabel} · Access: {status}
                     </Text>
                     <TouchableOpacity
-                      onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today'))}
+                      onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today')).catch(() => {})}
                       style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
                     >
                       <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
@@ -1032,10 +1032,12 @@ export function SettingsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={async () => {
-                        const fb = await getTodayFactbase();
-                        if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
-                        const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
-                        Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
+                        try {
+                          const fb = await getTodayFactbase();
+                          if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
+                          const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
+                          Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
+                        } catch {}
                       }}
                       style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
                     >
