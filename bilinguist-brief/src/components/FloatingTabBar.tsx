@@ -262,7 +262,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     const plLabels = plFull
       ? plCodes.map(c => allLanguages.find(l => l.code === c)?.nativeName ?? c.toUpperCase())
       : plCodes.slice(0, 4).map(c => c.toUpperCase());
-    return pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]);
+    return Math.max(pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]), 100);
   }
 
   // ── Toggle handlers ───────────────────────────────────────────────────────

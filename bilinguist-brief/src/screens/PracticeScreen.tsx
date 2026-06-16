@@ -56,6 +56,7 @@ export function PracticeScreen() {
   const selectedLang = useNavPillStore((s) => s.practiceLang);
 
   const [gameModalVisible, setGameModalVisible] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(false);
 
   const filteredWords = useMemo(
     () => selectedLang === 'all' ? words : words.filter((w) => w.language === selectedLang),
@@ -91,16 +92,18 @@ export function PracticeScreen() {
       </View>
 
 
-      {/* Empty state */}
-      {!hasWords && (
-        <View style={styles.emptyState}>
-          <Ionicons name="bookmark-outline" size={40} color={colors.borderMid} />
-          <Text style={[styles.emptyTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            Your word bank is empty
-          </Text>
-          <Text style={[styles.emptyBody, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            Tap any word in your daily briefing to look it up, then save it here to start building your collection.
-          </Text>
+      {/* Empty state tip */}
+      {!hasWords && !tipDismissed && (
+        <View style={[styles.tipCard, { backgroundColor: colors.surface, borderColor: colors.borderMid }]}>
+          <View style={styles.tipContent}>
+            <Ionicons name="bookmark-outline" size={20} color={colors.inkMid} style={{ marginTop: 1 }} />
+            <Text style={[styles.tipText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+              Tap any word in The Brief to save it here for practice.
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setTipDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={18} color={colors.inkFaint} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -337,6 +340,24 @@ const styles = StyleSheet.create({
     borderRadius: 8, gap: 6,
   },
   allWordsBtnText: { fontSize: 13 },
+  tipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
+  },
+  tipContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  tipText: { flex: 1, fontSize: 13, lineHeight: 18 },
   emptyState: {
     alignItems: 'center',
     paddingVertical: Spacing.xxl,
