@@ -1,6 +1,15 @@
 import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
 import { synthesizeWord } from './elevenlabs';
+
+// Lazy-require expo-speech — the native module may not be present in all
+// build environments. Static import would throw synchronously at module load
+// and prevent registerRootComponent from ever being called.
+let _speech: typeof import('expo-speech') | null = null;
+function getSpeech() {
+  if (_speech !== undefined) return _speech;
+  try { _speech = require('expo-speech'); } catch { _speech = null; }
+  return _speech;
+}
 import { useAudioStore } from '../store/useAudioStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 
@@ -23,7 +32,7 @@ async function speakDemo(text: string, language: LanguageCode, trackingKey: stri
   try {
     await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
   } catch { /* ignore — speech will still play, just may respect the silent switch */ }
-  Speech.speak(text, {
+  getSpeech()?.speak(text, {
     language: LANG_LOCALE[language] ?? 'en-GB',
     rate: 0.88,
     onDone:    setIdle,
@@ -101,7 +110,7 @@ export async function playAudioHeadline(
  * Pause currently playing audio (keeps it loaded for resumption).
  */
 export async function pauseAudio(): Promise<void> {
-  if (DEMO_MODE) { Speech.stop(); useAudioStore.getState().setIdle(); return; }
+  if (DEMO_MODE) { getSpeech()?.stop(); useAudioStore.getState().setIdle(); return; }
   if (!_sound) return;
   try {
     await _sound.pauseAsync();
@@ -175,7 +184,7 @@ export async function playArticleAudio(
 
 /** Stop and fully release the current sound. */
 export async function stopAudio(): Promise<void> {
-  if (DEMO_MODE) { Speech.stop(); useAudioStore.getState().setIdle(); return; }
+  if (DEMO_MODE) { getSpeech()?.stop(); useAudioStore.getState().setIdle(); return; }
   if (!_sound) return;
   try {
     await _sound.stopAsync();
