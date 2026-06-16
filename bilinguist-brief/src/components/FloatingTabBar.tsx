@@ -114,19 +114,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const chipGroupMeasuredW = useRef(0);
 
   function onChipGroupLayout(chipGroupW: number) {
-    const target = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
-    // Use ref (not state) to avoid acting on a stale closure value during
-    // the window between setLeftOpen(false) and the next re-render.
-    if (!leftOpenRef.current) return;
-    // Threshold of 10px filters out bold↔regular font weight jitter on chip selection
-    if (Math.abs(target - chipGroupMeasuredW.current) < 10) return;
-    chipGroupMeasuredW.current = target;
-    Animated.spring(leftWidthAnim, {
-      toValue: target,
-      useNativeDriver: false,
-      bounciness: 0,
-      speed: 30,
-    }).start();
+    // Record the measured width for future reference only.
+    // The animation target is driven exclusively by computeLeftExpandedW()
+    // to prevent constrained mid-animation measurements from overriding the
+    // opening animation (which caused the pill to stay stuck at mini size).
+    chipGroupMeasuredW.current = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
   }
 
   // JS-driver: layout properties (width, height) cannot use native driver
@@ -232,7 +224,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function animToLeftOpen(targetW: number) {
-    const openW = chipGroupMeasuredW.current > 0 ? chipGroupMeasuredW.current : targetW;
+    const openW = targetW;
     setRightOpen(false);
     setLeftOpen(true);
     // Right pill: snap shut immediately so it never overflows the screen while
