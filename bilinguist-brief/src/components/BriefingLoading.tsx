@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Animated, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 
@@ -63,6 +63,35 @@ function ArticleSkeleton() {
   );
 }
 
+function SweepBar() {
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(anim, { toValue: 1, duration: 1100, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [-width, width] });
+
+  return (
+    <View style={{ height: 1.5, width, overflow: 'hidden', opacity: 0.5 }}>
+      <Animated.View
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          height: 1.5, width,
+          backgroundColor: colors.inkMid,
+          transform: [{ translateX }],
+        }}
+      />
+    </View>
+  );
+}
+
 export function BriefingLoading() {
   const { colors, fontFamily } = useTheme();
   const [phraseIndex, setPhraseIndex] = useState(0);
@@ -71,39 +100,26 @@ export function BriefingLoading() {
   useEffect(() => {
     let index = 0;
     const cycle = () => {
-      // Fade out
-      Animated.timing(textOpacity, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start(() => {
-        // Swap text, then fade back in
+      Animated.timing(textOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
         index = (index + 1) % GENERATING_PHRASES.length;
         setPhraseIndex(index);
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }).start();
+        Animated.timing(textOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       });
     };
-
-    const timer = setInterval(cycle, 450);
+    const timer = setInterval(cycle, 600);
     return () => clearInterval(timer);
   }, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.spinnerBlock}>
-        <ActivityIndicator size="large" color={colors.inkLight} />
+        <SweepBar />
         <Animated.Text
-          style={[
-            styles.phraseText,
-            { color: colors.inkLight, fontFamily: fontFamily.italic, opacity: textOpacity },
-          ]}
+          style={[styles.phraseText, { color: colors.inkLight, fontFamily: fontFamily.italic, opacity: textOpacity }]}
         >
           {GENERATING_PHRASES[phraseIndex]}
         </Animated.Text>
+        <SweepBar />
       </View>
       <ArticleSkeleton />
       <ArticleSkeleton />
@@ -117,11 +133,13 @@ const styles = StyleSheet.create({
   spinnerBlock: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
-    gap: Spacing.md,
+    gap: 14,
   },
   phraseText: {
     fontSize: 15,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+    paddingHorizontal: 20,
+    textAlign: 'center',
   },
   article: {
     paddingHorizontal: Spacing.md,

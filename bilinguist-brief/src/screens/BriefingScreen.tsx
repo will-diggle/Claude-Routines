@@ -20,6 +20,8 @@ import { FullStreakCalendar } from '../components/StreakCalendar';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
+import { LANGUAGE_LEVELS } from '../store/useSettingsStore';
+import * as Haptics from 'expo-haptics';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-cream.png'),
@@ -133,8 +135,8 @@ function resolveLength(_level: LanguageLevel, readLength: ArticleLength): Articl
 export function BriefingScreen() {
   const { colors, fontFamily, background } = useTheme();
   const insets = useSafeAreaInsets();
-  const { languages, topics } = useSettingsStore(
-    useShallow((s) => ({ languages: s.languages, topics: s.topics }))
+  const { languages, topics, setLanguageLevel } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel }))
   );
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
@@ -158,6 +160,7 @@ export function BriefingScreen() {
   const { recordRead, readingStreaks, readingHistory } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
+  const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
   // Per-language flag to avoid calling recordRead multiple times per session
   const readTrackedRef = useRef<Record<string, boolean>>({});
 
@@ -383,11 +386,19 @@ export function BriefingScreen() {
               {/* Medium rule below date/vol — inset from edges */}
               <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
-              {/* Edition row: language·level left, streak badge + tagline right */}
+              {/* Edition row: language·level left (tappable), tagline right */}
               <View style={styles.editionRow}>
-                <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                  {lang.nativeName.toUpperCase()} · {level}
-                </Text>
+                <TouchableOpacity
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLevelPickerLang(lang.code); }}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                  style={styles.editionLabelRow}
+                >
+                  <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                    {lang.nativeName.toUpperCase()} · {level}
+                  </Text>
+                  <Ionicons name="chevron-down" size={11} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
+                </TouchableOpacity>
                 <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
                   {tagline}
                 </Text>
@@ -431,6 +442,66 @@ export function BriefingScreen() {
           );
         })}
       </ScrollView>
+
+      {/* ── Level picker modal ─────────────────────────────────────────── */}
+      <Modal
+        visible={levelPickerLang !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLevelPickerLang(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setLevelPickerLang(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {activeLanguages.find(l => l.code === levelPickerLang)?.nativeName ?? ''} · Level
+              </Text>
+              <TouchableOpacity
+                onPress={() => setLevelPickerLang(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={colors.inkFaint} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.levelGrid}>
+              {LANGUAGE_LEVELS.map((lvl) => {
+                const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
+                const isActive = lvl === currentLevel;
+                return (
+                  <TouchableOpacity
+                    key={lvl}
+                    style={[
+                      styles.levelChip,
+                      { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                      isActive && { backgroundColor: colors.inkDark },
+                    ]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      if (levelPickerLang) setLanguageLevel(levelPickerLang as any, lvl);
+                      setLevelPickerLang(null);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.levelChipText,
+                      { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
+                    ]}>
+                      {lvl}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+              Your brief will reload at the new level.
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={streakModalVisible}
@@ -614,5 +685,35 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     letterSpacing: 0.3,
+  },
+
+  levelGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingBottom: 20,
+  },
+  levelChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 100,
+    borderWidth: 1,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  levelChipText: {
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  levelHint: {
+    fontSize: 12,
+    opacity: 0.7,
+    textAlign: 'center',
+    paddingBottom: 4,
+  },
+
+  editionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
