@@ -180,8 +180,10 @@ export function FloatingAudioPill() {
   const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
 
   async function handlePlayPause() {
-    if (isLoading) return;
-    if (isPlaying) { await pauseAudio(); } else { await resumeAudio(); }
+    try {
+      if (isLoading) return;
+      if (isPlaying) { await pauseAudio(); } else { await resumeAudio(); }
+    } catch {}
   }
 
   const marqueeText = headline ? `${headline}   ·   ` : '';
