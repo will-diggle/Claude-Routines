@@ -15,6 +15,7 @@ import { useWordBankStore } from '../store/useWordBankStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { lookupWord } from '../services/wordService';
 import type { WordEntry } from '../services/wordService';
+import { translateWord } from '../services/deepl';
 import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
@@ -48,6 +49,7 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   const fullAccess = isFullAccess();
 
   const [entry, setEntry] = useState<WordEntry | null>(null);
+  const [quickTranslation, setQuickTranslation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -57,14 +59,21 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
   useEffect(() => {
     if (!word) return;
     setEntry(null);
+    setQuickTranslation(null);
     setIsLoading(true);
     setShowExplanation(false);
     setSaved(false);
 
+    // Fast path: Google Translate (~200ms) shows a translation immediately.
+    // Replaced silently by the full worker result when it arrives.
+    translateWord(word, language).then((result) => {
+      if (result?.translation) setQuickTranslation(result.translation);
+    }).catch(() => {});
+
+    // Slow path: full AI lookup (translation + conjugation + explanation).
     lookupWord(word, language, level).then((result) => {
       setEntry(result);
       setIsLoading(false);
-      // Backfill any word saved before the lookup completed
       if (result) {
         const stored = useWordBankStore.getState().words.find(
           w => w.word.toLowerCase() === word.toLowerCase() && w.language === language
@@ -140,27 +149,36 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 
         {/* Translation */}
         <View style={[styles.translationRow, { borderTopColor: colors.borderLight, borderBottomColor: colors.borderLight }]}>
-          {isLoading ? (
-            <ActivityIndicator size="small" color={colors.inkFaint} />
-          ) : entry?.translation ? (
-            <>
-              <Text style={[styles.translationLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                EN
+          {(() => {
+            const displayTranslation = entry?.translation ?? quickTranslation;
+            if (displayTranslation) {
+              return (
+                <>
+                  <Text style={[styles.translationLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    EN
+                  </Text>
+                  <Text style={[styles.translation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    {displayTranslation}
+                  </Text>
+                  {entry?.lemma && entry.lemma !== word?.toLowerCase() && (
+                    <Text style={[styles.lemmaLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                      ← {entry.lemma}
+                    </Text>
+                  )}
+                  {/* Small spinner when quick translation is showing but full result still loading */}
+                  {isLoading && !entry?.translation && (
+                    <ActivityIndicator size="small" color={colors.inkFaint} style={{ marginLeft: 4 }} />
+                  )}
+                </>
+              );
+            }
+            if (isLoading) return <ActivityIndicator size="small" color={colors.inkFaint} />;
+            return (
+              <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                Translation unavailable
               </Text>
-              <Text style={[styles.translation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {entry.translation}
-              </Text>
-              {entry.lemma && entry.lemma !== word?.toLowerCase() && (
-                <Text style={[styles.lemmaLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                  ← {entry.lemma}
-                </Text>
-              )}
-            </>
-          ) : !isLoading ? (
-            <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Translation unavailable
-            </Text>
-          ) : null}
+            );
+          })()}
         </View>
 
         {/* Original sentence */}

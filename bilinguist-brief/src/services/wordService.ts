@@ -21,18 +21,28 @@ export interface WordEntry {
   fromCache: boolean;
 }
 
+// In-memory cache — keyed by word:language:level. Cleared when app restarts.
+// Repeat taps on the same word are instant with zero network calls.
+const lookupCache = new Map<string, WordEntry>();
+
 export async function lookupWord(
   word: string,
   language: LanguageCode,
   level: LanguageLevel,
 ): Promise<WordEntry | null> {
+  const cacheKey = `${word.toLowerCase()}:${language}:${level}`;
+  const cached = lookupCache.get(cacheKey);
+  if (cached) return cached;
+
   const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
-    return await res.json() as WordEntry;
+    const entry = await res.json() as WordEntry;
+    lookupCache.set(cacheKey, entry);
+    return entry;
   } catch {
     return null;
   } finally {
