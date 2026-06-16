@@ -8,14 +8,14 @@
     "icon": "./assets/icon-white.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "jsEngine": "hermes",
+    "jsEngine": "jsc",
     "splash": {
       "backgroundColor": "#F5F0E8"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
-      "buildNumber": "74",
+      "buildNumber": "77",
       "icon": {
         "light": "./assets/icon-white.png",
         "dark": "./assets/icon-black.png",
@@ -58,7 +58,7 @@
       "expo-location",
       ["expo-build-properties", {
         "ios": {
-          "useHermes": true,
+          "useHermes": false,
           "deploymentTarget": "15.1"
         }
       }],
@@ -70,7 +70,7 @@
           "sounds": []
         }
       ],
-      "./plugins/fix-cpp-standard"
+      "./plugins/disable-hermes"
     ]
   }
 }
