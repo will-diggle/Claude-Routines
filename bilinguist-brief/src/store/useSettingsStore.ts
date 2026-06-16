@@ -119,7 +119,7 @@ const DEFAULT_SETTINGS: Settings = {
   username: '',
 };
 
-const MAX_ACTIVE_LANGUAGES = 5;
+const MAX_ACTIVE_LANGUAGES = 7;
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(
