@@ -59,9 +59,31 @@ import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
 import { useShallow } from 'zustand/react/shallow';
+import { setAppIcon as setNativeAppIcon } from 'expo-dynamic-app-icon';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+// Pairs for auto day/night icon switching
+const ICON_PAIRS: { light: string | null; dark: string }[] = [
+  { light: null,     dark: 'Black'  }, // White ↔ Black
+  { light: 'Cream',  dark: 'Navy'   }, // Cream ↔ Navy
+  { light: 'Pride1', dark: 'Pride2' }, // Pride ↔ Pride 2
+];
+
+function getAutoIcon(base: string | null, dark: boolean): string | null {
+  const pair = ICON_PAIRS.find(p => p.light === base || p.dark === base);
+  if (!pair) return base;
+  return dark ? pair.dark : pair.light;
+}
+
+function applyNativeIcon(name: string | null) {
+  try {
+    setNativeAppIcon(name ?? '');
+  } catch {
+    // Silently ignore — icon stays unchanged if native call fails
+  }
+}
 
 const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
   { name: null,     label: 'White',   image: require('../../assets/icon-white.png')   },
@@ -332,6 +354,12 @@ export function SettingsScreen() {
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
   }, []);
+
+  // Auto day/night icon — apply the correct variant whenever dark mode or the toggle changes
+  useEffect(() => {
+    if (!store.appIconAuto) return;
+    applyNativeIcon(getAutoIcon(store.appIcon, isDark));
+  }, [store.appIconAuto, store.appIcon, isDark]);
 
   async function handleAppleSignIn() {
     if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
@@ -706,7 +734,10 @@ export function SettingsScreen() {
                 <TouchableOpacity
                   key={icon.name ?? 'default'}
                   style={styles.iconTile}
-                  onPress={() => store.setAppIcon(icon.name)}
+                  onPress={() => {
+                    store.setAppIcon(icon.name);
+                    applyNativeIcon(store.appIconAuto ? getAutoIcon(icon.name, isDark) : icon.name);
+                  }}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
