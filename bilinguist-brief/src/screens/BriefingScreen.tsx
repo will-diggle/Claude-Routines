@@ -168,14 +168,16 @@ export function BriefingScreen() {
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
 
   const runSync = useCallback(async (force = false) => {
-    lastSyncRef.current = Date.now();
-    const langs = useSettingsStore.getState().languages.filter((l) => l.active);
-    await syncFromServer(force);
-    await Promise.all(langs.map((lang) => {
-      const level = lang.level ?? 'B1';
-      return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength), true);
-    }));
-    await Promise.all(langs.map((lang) => loadWeather(lang.code)));
+    try {
+      lastSyncRef.current = Date.now();
+      const langs = useSettingsStore.getState().languages.filter((l) => l.active);
+      await syncFromServer(force);
+      await Promise.all(langs.map((lang) => {
+        const level = lang.level ?? 'B1';
+        return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength), true);
+      }));
+      await Promise.all(langs.map((lang) => loadWeather(lang.code)));
+    } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
@@ -223,7 +225,7 @@ export function BriefingScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await runSync(true);
+    await runSync(true).catch(() => {});
     setRefreshing(false);
   }, [runSync]);
 
