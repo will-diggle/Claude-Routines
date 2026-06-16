@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
-  View, Text, Image, Dimensions,
+  View, Text, Image, Dimensions, Modal, TouchableOpacity,
   NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
@@ -15,6 +16,7 @@ import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { useStreakStore } from '../store/useStreakStore';
 import { StreakBadge } from '../components/StreakBadge';
+import { FullStreakCalendar } from '../components/StreakCalendar';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
@@ -153,7 +155,9 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
-  const { recordRead, readingStreaks } = useStreakStore();
+  const { recordRead, readingStreaks, readingHistory } = useStreakStore();
+  const [streakModalVisible, setStreakModalVisible] = useState(false);
+  const [streakModalLang, setStreakModalLang] = useState<string>('all');
   // Per-language flag to avoid calling recordRead multiple times per session
   const readTrackedRef = useRef<Record<string, boolean>>({});
 
@@ -331,7 +335,10 @@ export function BriefingScreen() {
               {/* Streak above logo — only when 4+ languages crowd the cities row */}
               {langCount > 3 && (
                 <View style={styles.aboveLogoStreak}>
-                  <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
+                  <StreakBadge
+                    streak={readingStreaks[lang.code] ?? 0}
+                    onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
+                  />
                 </View>
               )}
 
@@ -350,7 +357,10 @@ export function BriefingScreen() {
                 </Text>
                 {langCount <= 3 && (
                   <View style={styles.citiesStreakAbs}>
-                    <StreakBadge streak={readingStreaks[lang.code] ?? 0} />
+                    <StreakBadge
+                      streak={readingStreaks[lang.code] ?? 0}
+                      onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
+                    />
                   </View>
                 )}
               </View>
@@ -421,6 +431,36 @@ export function BriefingScreen() {
           );
         })}
       </ScrollView>
+
+      <Modal
+        visible={streakModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStreakModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setStreakModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Reading History
+              </Text>
+              <TouchableOpacity
+                onPress={() => setStreakModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={colors.inkFaint} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <FullStreakCalendar readingHistory={readingHistory} filterLang={streakModalLang} />
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -550,5 +590,29 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     opacity: 0.6,
     paddingBottom: 10,
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    maxHeight: '75%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
 });

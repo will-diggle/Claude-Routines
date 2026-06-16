@@ -1,15 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
-// Label options: 'DAY STREAK' | 'DAYS READ' | 'STREAK' | 'IN A ROW'
 const LABEL = 'DAY STREAK';
 
 interface Props {
   streak: number;
+  onPress?: () => void;
 }
 
-export function StreakBadge({ streak }: Props) {
+export function StreakBadge({ streak, onPress }: Props) {
   const { colors, fontFamily } = useTheme();
   if (streak === 0) return null;
 
@@ -17,7 +17,7 @@ export function StreakBadge({ streak }: Props) {
   const textColor = active ? colors.inkDark : colors.inkFaint;
   const borderColor = active ? colors.inkDark : colors.borderLight;
 
-  return (
+  const inner = (
     <View style={[styles.container, { borderColor }]}>
       <Text style={[styles.count, { color: textColor, fontFamily: fontFamily.bold }]}>
         {streak}
@@ -27,6 +27,11 @@ export function StreakBadge({ streak }: Props) {
       </Text>
     </View>
   );
+
+  if (onPress) {
+    return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{inner}</TouchableOpacity>;
+  }
+  return inner;
 }
 
 const styles = StyleSheet.create({

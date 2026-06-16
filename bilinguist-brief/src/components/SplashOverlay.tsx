@@ -13,22 +13,21 @@ const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
   night:    require('../../assets/masthead-black.png'),
 };
 
-const GREETINGS: Record<string, [string, string, string, string]> = {
-  en: ['Good morning',        'Good afternoon',       'Good evening',   'Good night'],
-  fr: ['Bonjour',             'Bon après-midi',       'Bonsoir',        'Bonne nuit'],
-  de: ['Guten Morgen',        'Guten Tag',            'Guten Abend',    'Gute Nacht'],
-  sv: ['God morgon',          'God eftermiddag',      'God kväll',      'God natt'],
-  it: ['Buongiorno',          'Buon pomeriggio',      'Buona sera',     'Buonanotte'],
-  es: ['Buenos días',         'Buenas tardes',        'Buenas noches',  'Buenas noches'],
-  tr: ['Günaydın',            'İyi öğleden sonralar', 'İyi akşamlar',   'İyi geceler'],
+const PHRASE_POOL: Record<string, string[]> = {
+  en: ['Hello', 'Good morning', 'Good afternoon', 'Good evening', 'Welcome', 'Your daily brief', "Today's news", 'Hi there', 'Loading your brief', 'Good to see you'],
+  fr: ['Bonjour', 'Bonsoir', 'Salut', 'Bienvenue', 'Bon après-midi', 'Votre brief du jour', 'Les actualités du jour', 'Ravi de vous voir'],
+  de: ['Hallo', 'Guten Morgen', 'Guten Tag', 'Servus', 'Willkommen', 'Guten Abend', 'Ihr täglicher Brief', 'Schön, Sie zu sehen'],
+  sv: ['Hej', 'God morgon', 'God eftermiddag', 'Välkommen', 'Hej hej', 'Dagens nyheter', 'God kväll'],
+  it: ['Ciao', 'Buongiorno', 'Benvenuto', 'Buona sera', 'Salve', 'Le notizie di oggi', 'Ben trovato'],
+  es: ['Hola', 'Buenos días', 'Buenas tardes', 'Bienvenido', 'Buenas noches', 'Las noticias de hoy', 'Qué tal'],
+  tr: ['Merhaba', 'Günaydın', 'Hoş geldiniz', 'İyi akşamlar', 'Selam', 'Günlük haberler', 'Nasılsınız'],
 };
 
-function getTimeOfDayIndex(): number {
-  const h = new Date().getHours();
-  if (h >= 5  && h < 12) return 0;
-  if (h >= 12 && h < 17) return 1;
-  if (h >= 17 && h < 21) return 2;
-  return 3;
+function pickPhrases(langs: string[]): string[] {
+  return langs.map((l) => {
+    const pool = PHRASE_POOL[l] ?? PHRASE_POOL.en;
+    return pool[Math.floor(Math.random() * pool.length)];
+  });
 }
 
 const SW = Dimensions.get('window').width;
@@ -50,12 +49,10 @@ export function SplashOverlay({ onDone }: Props) {
     useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code as LanguageCode))
   );
 
-  const timeIdx = useMemo(() => getTimeOfDayIndex(), []);
-
   const phrases = useMemo(() => {
     const langs = activeLanguageCodes.length > 0 ? activeLanguageCodes : ['en' as LanguageCode];
-    return langs.map((l) => GREETINGS[l]?.[timeIdx] ?? GREETINGS.en[timeIdx]);
-  }, [activeLanguageCodes, timeIdx]);
+    return pickPhrases(langs);
+  }, [activeLanguageCodes]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [phraseIdx, setPhraseIdx] = useState(0);
