@@ -34,13 +34,15 @@ function ArticleAudioButton({ headline, body, language, date }: AudioBtnProps) {
   const isThisLoading = isLoading && activeHeadline === headline;
 
   async function handlePress() {
-    if (isThisLoading) return;
-    if (isThisPlaying) {
-      await pauseAudio();
-      return;
-    }
-    const audioKey = makeAudioKey(language, date, headline);
-    await playArticleAudio(`${headline}. ${body}`, language, headline, audioKey);
+    try {
+      if (isThisLoading) return;
+      if (isThisPlaying) {
+        await pauseAudio();
+        return;
+      }
+      const audioKey = makeAudioKey(language, date, headline);
+      await playArticleAudio(`${headline}. ${body}`, language, headline, audioKey);
+    } catch {}
   }
 
   // Button colour = opposite of the current theme background

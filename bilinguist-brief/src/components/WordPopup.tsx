@@ -84,7 +84,7 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
           });
         }
       }
-    });
+    }).catch(() => { setIsLoading(false); });
   }, [word, language]);
 
   function handleSave() {
@@ -348,26 +348,28 @@ function AudioButton({ word, language, level, genre }: { word: string; language:
     getMonthlyAudioUsage().then((u) => {
       setCapInfo({ remaining: u.remaining, limit: u.limit });
       setCapReached(u.remaining <= 0);
-    });
+    }).catch(() => {});
   }, []);
 
   // Only render for languages the TTS model supports
   if (!AUDIO_LANGUAGES_POPUP.includes(language)) return null;
 
   async function handlePress() {
-    if (state === 'playing') { await stop(); return; }
-    if (state === 'loading' || capReached) return;
-    const result = await synthesizeWord(word, language);
-    if (result.ok) {
-      // Refresh cap counter after playing
-      getMonthlyAudioUsage().then((u) => {
-        setCapInfo({ remaining: u.remaining, limit: u.limit });
-        setCapReached(u.remaining <= 0);
-      });
-      await play(result.audioUri);
-    } else if (result.reason === 'cap_reached') {
-      setCapReached(true);
-    }
+    try {
+      if (state === 'playing') { await stop(); return; }
+      if (state === 'loading' || capReached) return;
+      const result = await synthesizeWord(word, language);
+      if (result.ok) {
+        // Refresh cap counter after playing
+        getMonthlyAudioUsage().then((u) => {
+          setCapInfo({ remaining: u.remaining, limit: u.limit });
+          setCapReached(u.remaining <= 0);
+        }).catch(() => {});
+        await play(result.audioUri);
+      } else if (result.reason === 'cap_reached') {
+        setCapReached(true);
+      }
+    } catch {}
   }
 
   const isLoading = state === 'loading';
