@@ -23,9 +23,10 @@ export function AppNavigator() {
         initialRouteName="Briefing"
         tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{
-          // Every screen manages its own top safe-area inset directly, so no
-          // navigation header is needed at all.
           headerShown: false,
+          // Subtle crossfade between tabs — faster than default, feels snappy
+          animation: 'fade',
+          animationDuration: 120,
         }}
       >
         <Tab.Screen name="Briefing"    component={BriefingScreen} />
