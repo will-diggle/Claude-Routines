@@ -71,15 +71,22 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
     }).catch(() => {});
 
     // Slow path: full AI lookup (translation + conjugation + explanation).
-    lookupWord(word, language, level).then((result) => {
+    // This promise is NOT cancelled when the popup closes — it runs to completion
+    // so the word bank is always backfilled with rich data regardless of how
+    // quickly the user closes the sheet.
+    const currentWord = word;
+    const currentLang = language;
+    lookupWord(currentWord, currentLang, level).then((result) => {
+      // Update UI if still mounted (React ignores setState on unmounted components)
       setEntry(result);
       setIsLoading(false);
+      // Backfill word bank with full AI data — runs even after popup is closed
       if (result) {
         const stored = useWordBankStore.getState().words.find(
-          w => w.word.toLowerCase() === word.toLowerCase() && w.language === language
+          w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
         );
-        if (stored && (!stored.translation || !stored.explanation)) {
-          backfillWord(word, language, {
+        if (stored) {
+          backfillWord(currentWord, currentLang, {
             translation: result.translation ?? undefined,
             explanation: result.explanation ?? undefined,
             lemma: result.lemma,
@@ -98,10 +105,13 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
 
   function handleSave() {
     if (!word || alreadySaved || saved) return;
+    // Use AI entry if available, fall back to quickTranslation so the saved word
+    // always has at least a translation even if the AI hasn't returned yet.
+    // backfillWord() will upgrade the entry with full AI data once it arrives.
     saveWord({
       word,
       language,
-      translation: entry?.translation ?? '',
+      translation: entry?.translation ?? quickTranslation ?? '',
       explanation: entry?.explanation ?? '',
       exampleSentence: entry?.example ?? '',
       originalSentence: sentence,
