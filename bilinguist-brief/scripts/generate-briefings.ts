@@ -180,10 +180,11 @@ function validateStory(raw: any, index: number): FactbaseStory {
 }
 
 // ── Combinations ──────────────────────────────────────────────────────────────
-// Per-language level lists (must match LEVELS_BY_LANG in SettingsScreen.tsx):
+// Per-language level lists (must match VALID_LEVELS in useSettingsStore.ts):
 //   en → C1, C2, Native  (testing phase — A2/B1/B2 removed until pipeline is stable)
 //   fr → A1, A2, B1, B2, C1, C2
 //   de → A1, A2, B1  (learners don't typically reach C1 in German)
+//   it → A1, Native
 // A1/A2 → short only; B1/C1/C2/Native → medium + longer
 // C1 = Advanced; C2 = Challenge; Native = C1/Native label (same prompt tier as C1)
 
@@ -192,7 +193,7 @@ const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
   fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
   de: ['A1', 'A2', 'B1'],
   es: [],
-  it: [],
+  it: ['A1', 'Native'],
 };
 
 const LANGUAGES = Object.keys(LANGUAGE_LEVELS).filter(

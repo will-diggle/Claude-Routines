@@ -7,6 +7,17 @@ export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
+// Levels available per language — single source of truth used by all level pickers.
+export const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
+  en: ['B2', 'C1', 'Native'],
+  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
+  de: ['A1', 'A2', 'Native'],
+  sv: ['B2', 'Native'],
+  it: ['A1', 'Native'],
+  es: ['A2'],
+  tr: ['A1'],
+};
+
 export type ReadLength = 'short' | 'medium' | 'longer';
 
 export interface LanguagePreference {
@@ -242,19 +253,10 @@ export const useSettingsStore = create<SettingsStore>()(
         const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es', 'tr']);
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         // Validate levels without resetting the user's custom drag order
-        const VALID_LEVELS: Record<string, string[]> = {
-          fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-          de: ['A1', 'A2', 'Native'],
-          sv: ['B2', 'Native'],
-          en: ['B2', 'C1', 'Native'],
-          it: ['A1', 'Native'],
-          es: ['A2'],
-          tr: ['A1'],
-        };
         // Preserve user's saved order — migrate stale levels and backfill readLength
         const globalReadLength = ((state as any).readLength as ReadLength) ?? 'short';
         const migratedLangs: LanguagePreference[] = filtered.map((lang: any) => {
-          const valid = VALID_LEVELS[lang.code];
+          const valid = LEVELS_BY_LANG[lang.code];
           const migratedLevel = (valid && !valid.includes(lang.level))
             ? valid[0] as LanguageLevel
             : lang.level;

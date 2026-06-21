@@ -49,6 +49,13 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_gather.py
 
+      - name: Stage 1B - Fact-check factbase
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_factcheck.py
+
       - name: Stages 2-4 - Write and grade
         working-directory: bilinguist-brief/scripts
         env:

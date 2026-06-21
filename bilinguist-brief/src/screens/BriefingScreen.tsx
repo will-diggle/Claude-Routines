@@ -20,7 +20,7 @@ import { FullStreakCalendar } from '../components/StreakCalendar';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
-import { LANGUAGE_LEVELS } from '../store/useSettingsStore';
+import { LANGUAGE_LEVELS, LEVELS_BY_LANG } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
@@ -468,7 +468,7 @@ export function BriefingScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.levelGrid}>
-              {LANGUAGE_LEVELS.map((lvl) => {
+              {(LEVELS_BY_LANG[levelPickerLang ?? ''] ?? LANGUAGE_LEVELS).map((lvl) => {
                 const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
                 const isActive = lvl === currentLevel;
                 return (

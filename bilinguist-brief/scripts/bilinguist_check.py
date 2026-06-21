@@ -67,6 +67,66 @@ def _cost_summary(output_dir: Path, date: str) -> str:
     return "\n".join(lines)
 
 
+def _factcheck_summary(script_dir: Path, date: str) -> str:
+    """Returns a fact-check summary string for the ntfy report, or '' if not run."""
+    corrections_path = script_dir / f"corrections_{date}.json"
+    if not corrections_path.exists():
+        return ""
+    try:
+        with open(corrections_path) as f:
+            data = json.load(f)
+    except Exception:
+        return ""
+
+    error = data.get("error")
+    if error:
+        return f"\n🔍 Fact-check: skipped ({error})"
+
+    checked = data.get("stories_checked", 0)
+    count   = data.get("corrections_count", 0)
+    corrections = data.get("corrections", [])
+
+    if count == 0:
+        return f"\n🔍 Fact-check: {checked} stories verified — no corrections needed ✓"
+
+    lines = [f"\n🔍 Fact-check: {count} correction(s) applied ({checked} stories checked)"]
+    for c in corrections:
+        slug      = c.get("slug", "?")
+        original  = c.get("original", "?")
+        corrected = c.get("corrected", "?")
+        reason    = c.get("reason", "")
+        lines.append(f"  • [{slug}] «{original}» → «{corrected}»")
+        if reason:
+            lines.append(f"    ↳ {reason}")
+    return "\n".join(lines)
+
+
+def _language_breakdown(briefings: dict) -> str:
+    """
+    Returns a per-language, per-level breakdown showing which levels are present.
+    Each language gets its own line with tick/cross per level.
+
+    Example:
+      French:  A1✓ A2✓ B1✓ B2✓ C1✓ Native✓
+      German:  A1✓ A2✓ Native✗
+      Italian: A1✓ Native✓
+    """
+    lines = []
+    for lang, levels in LANGUAGE_LEVELS.items():
+        lang_name = LANG_NAMES.get(lang, lang)
+        level_parts = []
+        for level in levels:
+            # A level is "present" if it has at least one non-empty length
+            has_any = any(
+                briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles")
+                for length in LENGTHS
+            )
+            mark = "✓" if has_any else "✗"
+            level_parts.append(f"{level}{mark}")
+        lines.append(f"  {lang_name}: {' '.join(level_parts)}")
+    return "\n".join(lines)
+
+
 def check(bundle_path: Path) -> None:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
@@ -89,24 +149,36 @@ def check(bundle_path: Path) -> None:
                 else:
                     missing.append(f"{LANG_NAMES.get(lang, lang)} {level}/{length}")
 
-    all_missing = missing
+    # ── Per-language level breakdown ───────────────────────────────────────────
+    breakdown = _language_breakdown(briefings)
 
     # ── Cost summary ───────────────────────────────────────────────────────────
+    script_dir = bundle_path.parent.parent  # scripts/ not scripts/output/
     cost_str = _cost_summary(bundle_path.parent, date)
 
+    # ── Fact-check summary ────────────────────────────────────────────────────
+    factcheck_str = _factcheck_summary(script_dir, date)
+
     # ── Build report ───────────────────────────────────────────────────────────
-    if all_missing:
+    if missing:
         title  = f"Bilinguist Brief — {present}/{total} ⚠️"
         emoji  = "warning"
         body   = (
-            f"{date}: {len(all_missing)} combination(s) missing:\n"
-            + "\n".join(f"  ✗ {m}" for m in all_missing)
+            f"{date}: {len(missing)} combination(s) missing.\n\n"
+            f"Languages:\n{breakdown}\n\n"
+            f"Missing:\n" + "\n".join(f"  ✗ {m}" for m in missing)
+            + factcheck_str
             + cost_str
         )
     else:
         title  = f"Bilinguist Brief — {present}/{total} ✅"
         emoji  = "white_check_mark"
-        body   = f"{date}: All {total} article combinations generated successfully." + cost_str
+        body   = (
+            f"{date}: All {total} article combinations generated.\n\n"
+            f"Languages:\n{breakdown}"
+            + factcheck_str
+            + cost_str
+        )
 
     print(title)
     print(body)
