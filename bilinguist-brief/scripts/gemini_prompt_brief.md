@@ -83,6 +83,12 @@ NEUTRALITY RULES — apply to every story:
 - Be specific and confident about what is known. Neutrality means precise attribution, not vague hedging. State plainly what is verified.
 - Never record verbatim sentences or distinctive phrasing from any source. Convert every point into a plain factual statement in your own neutral wording. The only permitted verbatim strings are: numbers, proper nouns, and official titles. Direct quotations from named speakers may be recorded only as reported speech (who said what, paraphrased), never as quoted text.
 
+POLITICAL TITLES — always use the title a person holds on {DATE}:
+
+- Before recording any political figure, verify their current role as of today. Do not rely on prior knowledge — titles change with elections and appointments.
+- Use their current title, not a former one. Example: if Donald Trump is the sitting US President on {DATE}, write "President Donald Trump", never "Former President Donald Trump".
+- If a figure has recently left office, use "former" only if you have confirmed through today's search results that they are no longer in post.
+
 FACT ORDER — important for downstream processing:
 
 - List the points in "what_happened" in deliberate narrative order: what happened first, then next, then consequences (casualties, reactions, outcomes).
