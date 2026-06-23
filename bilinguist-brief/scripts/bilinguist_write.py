@@ -52,7 +52,8 @@ MODEL_BEGINNER = "gemini-2.5-flash"          # A1/A2: same model as B1+ for reli
 MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
-MODEL_4  = "gemini-2.5-flash"               # Grading of native journalism
+MODEL_4A = "gemini-2.0-flash-lite"          # P4a: grade native journalism → overall CEFR level
+MODEL_4B = "gemini-2.0-flash-lite"          # P4b: grade CEFR level articles (quality gate)
 
 # Concurrency limit — 6 workers balances throughput against Gemini Flash demand
 # spikes (503s); 10 workers caused cascade failures when the API was under load.
@@ -127,6 +128,16 @@ _SCHEMA_GRADING = {
     "required": ["assessments"],
 }
 
+# P4a schema — single overall CEFR level per language (one call per language)
+_SCHEMA_GRADE_NATIVE = {
+    "type": "object",
+    "properties": {
+        "cefr_level": {"type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"]},
+        "reasoning":  {"type": "string"},
+    },
+    "required": ["cefr_level", "reasoning"],
+}
+
 
 # ── Token-usage tracking (thread-safe) ───────────────────────────────────────
 
@@ -140,10 +151,11 @@ class _StageUsage:
 _usage_lock = threading.Lock()
 _stage_usage: dict[str, _StageUsage] = {
     "2S": _StageUsage(),
-    "2B": _StageUsage(),  # A1/A2 on gemini-2.5-flash
+    "2B": _StageUsage(),
     "2M": _StageUsage(),
     "3":  _StageUsage(),
-    "4":  _StageUsage(),
+    "4a": _StageUsage(),  # grade native journalism → overall CEFR level (Flash-Lite)
+    "4b": _StageUsage(),  # grade CEFR level articles (Flash-Lite)
 }
 
 
@@ -170,6 +182,10 @@ FLASH_THINK_USD_PER_M  = 3.50
 FLASH2_INPUT_USD_PER_M  = 0.10
 FLASH2_OUTPUT_USD_PER_M = 0.40
 
+# Gemini 2.0 Flash-Lite pricing — verify at ai.google.dev/pricing
+FLASH_LITE_INPUT_USD_PER_M  = 0.075
+FLASH_LITE_OUTPUT_USD_PER_M = 0.30
+
 # Gemini 2.5 Pro Flex pricing (50 % discount over standard Pro rates)
 PRO_FLEX_INPUT_USD_PER_M  = 0.625   # standard $1.25 × 0.5
 PRO_FLEX_OUTPUT_USD_PER_M = 5.00    # standard $10.00 × 0.5
@@ -177,6 +193,11 @@ PRO_FLEX_THINK_USD_PER_M  = 1.75    # standard $3.50 × 0.5
 
 USD_TO_GBP = 0.79  # approximate — update as needed
 
+
+# ── CEFR ordering (used by skip logic in build_combinations) ─────────────────
+# Levels in ascending difficulty. P4a grades native journalism to a position in
+# this list; P2S/2M then only writes levels strictly below that position.
+CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"]
 
 # ── Language / level matrix ───────────────────────────────────────────────────
 # Testing phase matrix — add languages/levels here as pipeline is validated.
@@ -189,6 +210,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "it": ["A1", "Native"],
     "es": ["A2"],
     "tr": ["A1"],
+    "hu": ["Native"],  # Hungarian — native journalism only; CEFR levels added after P4a validation
 }
 
 LANGUAGE_NAMES: dict[str, str] = {
@@ -199,6 +221,7 @@ LANGUAGE_NAMES: dict[str, str] = {
     "es": "Spanish",
     "it": "Italian",
     "tr": "Turkish",
+    "hu": "Hungarian",
 }
 
 LEVEL_LABELS: dict[str, str] = {
@@ -244,18 +267,36 @@ ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 
 # ── Combination matrix ────────────────────────────────────────────────────────
 
-def build_combinations() -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+def build_combinations(
+    native_grades: Optional[dict] = None,
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
     """
     Returns (combos_2s, combos_2m).
-    combos_2s → short length for all levels
-    combos_2m → medium + longer for all levels
-    Every level gets all 3 length variants; users choose per language in-app.
+    combos_2s → short length for all eligible CEFR levels
+    combos_2m → medium + longer for all eligible CEFR levels
+
+    native_grades: dict[lang, cefr_level] from P4a. For each language, levels at
+    or above the native grade are skipped — P3 native journalism already covers them.
+    "Native" is always excluded from P2 (Stage 3 handles it).
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
 
     for lang, levels in LANGUAGE_LEVELS.items():
+        # Determine the skip threshold from P4a output
+        skip_from_idx = len(CEFR_ORDER)  # default: skip nothing
+        if native_grades and lang in native_grades:
+            native_cefr = native_grades[lang]
+            if native_cefr in CEFR_ORDER:
+                skip_from_idx = CEFR_ORDER.index(native_cefr)
+
         for level in levels:
+            if level == "Native":
+                continue  # always handled by Stage 3
+            if level not in CEFR_ORDER:
+                continue
+            if CEFR_ORDER.index(level) >= skip_from_idx:
+                continue  # at or above native grade — skip
             combos_2s.append((lang, level, "short"))
             combos_2m.append((lang, level, "medium"))
             combos_2m.append((lang, level, "longer"))
@@ -298,6 +339,7 @@ JSON SAFETY:
   English: "…"
   Swedish: "…"
   Turkish: "…"
+  Hungarian: „…" (same low-high curly style as German)
 
 WRITING RULES:
 - Write every article in {LANGUAGE}.
@@ -359,7 +401,7 @@ PROMPT_2M_HEADER = _PROMPT_INTRO + _PROMPT_SHARED_CORE + _LEVELS_B1_PLUS + "[FAC
 
 PROMPT_3_HEADER = """\
 You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
-French → Le Monde. German → Der Spiegel. English → The Guardian (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera.
+French → Le Monde. German → Der Spiegel. English → The Guardian (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG.
 
 You receive a pre-gathered fact-base of today's news. Write every story as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
@@ -375,6 +417,7 @@ JSON SAFETY:
   Italian: «…»
   English: "…"
   Swedish: "…"
+  Hungarian: „…" (same low-high curly style as German)
 
 WRITING RULES:
 - Write every story from the fact-base. Do not skip any.
@@ -435,6 +478,22 @@ Be decisive. One level per article, one length band per article. The app uses th
 """
 
 
+PROMPT_4A_HEADER = """\
+You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE} by a native journalist.
+
+Assess the collection as a whole and return the single CEFR level that best describes the overall reading difficulty for a language learner.
+
+CEFR levels: A1 / A2 / B1 / B2 / C1 / C2
+
+Base your assessment on: sentence length and complexity, vocabulary range, use of tenses, subordinate clauses, idiomatic language, nominalisations, overall register. Return the dominant level across all articles — the level that fits the majority. Ignore outliers.
+
+OUTPUT FORMAT:
+{"cefr_level": "B2", "reasoning": "one sentence explaining the assessment"}
+
+[NATIVE ARTICLES BELOW]
+"""
+
+
 def build_writing_prompt(template: str, lang: str, level: str, length: str, factbase: list) -> str:
     """Build a complete prompt by injecting variables and appending the factbase."""
     level_display = NATIVE_WRITING_LEVEL if level == "Native" else level
@@ -472,9 +531,18 @@ def build_native_prompt(lang: str, factbase: list) -> str:
 
 
 def build_grading_prompt(lang: str, native_articles: list) -> str:
-    """Build the grading prompt for one language's native journalism."""
+    """Build the P4b grading prompt for one language's CEFR-level articles."""
     lang_name = LANGUAGE_NAMES.get(lang, lang)
     prompt = PROMPT_4_HEADER.replace("{LANGUAGE}", lang_name)
+    articles_json = json.dumps({"articles": native_articles}, ensure_ascii=False, indent=2)
+    prompt += f"\n{articles_json}"
+    return prompt
+
+
+def build_grade_native_prompt(lang: str, native_articles: list) -> str:
+    """Build the P4a prompt: assess overall CEFR level of native journalism batch."""
+    lang_name = LANGUAGE_NAMES.get(lang, lang)
+    prompt = PROMPT_4A_HEADER.replace("{LANGUAGE}", lang_name)
     articles_json = json.dumps({"articles": native_articles}, ensure_ascii=False, indent=2)
     prompt += f"\n{articles_json}"
     return prompt
@@ -654,12 +722,19 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         }
         costs["total_usd"] += g_usd
 
-    # Write / grade stages — all use gemini-2.5-flash (thinking disabled)
+    # Write / grade stages — Flash-Lite for 4a/4b, Flash 2.5 for everything else
+    FLASH_LITE_STAGES = {"4a", "4b"}
     for sname, usage in _stage_usage.items():
-        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-        model_name = "gemini-2.5-flash"
+        if sname in FLASH_LITE_STAGES:
+            in_usd  = (usage.input_tokens  / 1_000_000) * FLASH_LITE_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens / 1_000_000) * FLASH_LITE_OUTPUT_USD_PER_M
+            thi_usd = 0.0
+            model_name = "gemini-2.0-flash-lite"
+        else:
+            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+            model_name = "gemini-2.5-flash"
         s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
             "model":           model_name,
@@ -694,22 +769,101 @@ def write_costs_report(date: str, script_dir: str) -> dict:
 
 # ── Stage runners ─────────────────────────────────────────────────────────────
 
+def run_native_journalism(
+    client: genai.Client,
+    factbase: list,
+) -> dict:
+    """Stage 3 — generate native journalism for all languages. Returns native_journalism dict."""
+    native_langs = list(LANGUAGE_LEVELS.keys())
+    tasks: list[_WriteTask] = [
+        _WriteTask(
+            stage="3", lang=lang, level=None, length=None,
+            model=MODEL_3, prompt=build_native_prompt(lang, factbase),
+            schema=_SCHEMA_NATIVE, max_output_tokens=8192,
+            template=PROMPT_3_HEADER, factbase=factbase, n_splits=2,
+        )
+        for lang in native_langs
+    ]
+
+    print(f"[3] Generating native journalism for {len(native_langs)} languages...")
+    native_journalism: dict = {}
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+        future_to_task = {executor.submit(_execute_task, client, t): t for t in tasks}
+        for future in as_completed(future_to_task):
+            task = future_to_task[future]
+            articles = future.result()
+            if articles:
+                native_journalism[task.lang] = articles
+                print(f"[3] {task.lang}: {len(articles)} native articles ✓")
+
+    return native_journalism
+
+
+def run_grade_native(
+    client: genai.Client,
+    native_journalism: dict,
+) -> dict:
+    """
+    Stage P4a — grade native journalism to determine overall CEFR level per language.
+    Returns dict[lang → cefr_level_str]. Uses gemini-2.0-flash-lite (classification only).
+    """
+    langs_with_articles = [lang for lang, arts in native_journalism.items() if arts]
+    if not langs_with_articles:
+        print("[4a] No native articles to grade — skipping", file=sys.stderr)
+        return {}
+
+    print(f"[4a] Grading native journalism level for {len(langs_with_articles)} languages...")
+    native_grades: dict = {}
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+        future_to_lang = {
+            executor.submit(
+                call_gemini, client, MODEL_4A,
+                build_grade_native_prompt(lang, native_journalism[lang]),
+                f"4a/{lang}", "4a", _SCHEMA_GRADE_NATIVE,
+            ): lang
+            for lang in langs_with_articles
+        }
+
+        for future in as_completed(future_to_lang):
+            lang = future_to_lang[future]
+            raw, finish_reason = future.result()
+            if not raw:
+                print(f"[ERROR] [4a] {lang}: no response — using default B2", file=sys.stderr)
+                native_grades[lang] = "B2"
+                continue
+            parsed = parse_llm_json(raw)
+            cefr = parsed.get("cefr_level") if parsed else None
+            if not cefr or cefr not in CEFR_ORDER:
+                print(f"[ERROR] [4a] {lang}: unparseable level '{cefr}' — using default B2",
+                      file=sys.stderr)
+                native_grades[lang] = "B2"
+                continue
+            reasoning = (parsed.get("reasoning") or "")[:120]
+            native_grades[lang] = cefr
+            print(f"[4a] {lang}: {cefr} — {reasoning}")
+
+    return native_grades
+
+
 def run_writing_concurrent(
     client: genai.Client,
     factbase: list,
     generated_at: int,
     date: str,
-) -> tuple[dict, dict]:
+    native_grades: Optional[dict] = None,
+) -> dict:
     """
-    Run stages 2S, 2B, 2M, and 3 concurrently using direct generate_content() calls.
-    Returns (briefings, native_journalism).
+    Stages 2S, 2B, 2M — write CEFR level articles.
+    Levels at or above native_grades[lang] are skipped (P3 already covers them).
+    Returns briefings dict.
     """
-    combos_2s, combos_2m = build_combinations()
-    native_langs = list(LANGUAGE_LEVELS.keys())
+    combos_2s, combos_2m = build_combinations(native_grades)
 
     tasks: list[_WriteTask] = []
 
-    # Short combos — A1/A2 → 2B (2.0 Flash), B1+/Native → 2S (2.5 Flash)
+    # Short combos — A1/A2 → 2B, B1+ → 2S
     for lang, level, length in combos_2s:
         is_beginner = level in ("A1", "A2")
         stage = "2B" if is_beginner else "2S"
@@ -722,16 +876,12 @@ def run_writing_concurrent(
             n_splits=1,
         ))
 
-    # Medium/longer combos — A1/A2 → 2B (no split needed; short output),
-    # B1+/Native → 2M with proactive splitting (medium=2, longer=3)
+    # Medium/longer combos — A1/A2 → 2B, B1+ → 2M with proactive splitting
     for lang, level, length in combos_2m:
         is_beginner = level in ("A1", "A2")
         stage = "2B" if is_beginner else "2M"
         model = MODEL_BEGINNER if is_beginner else MODEL_2M
         template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
-        # A1/longer (190 words × many stories) has caused concurrent rate-limit failures
-        # when all four A1 languages fire simultaneously. Split it like B1+ medium.
-        # A1/medium and A2 remain single-call (output is small enough).
         if is_beginner:
             n_splits = 2 if (level == "A1" and length == "longer") else 1
         else:
@@ -744,101 +894,95 @@ def run_writing_concurrent(
             n_splits=n_splits,
         ))
 
-    # Stage 3 native journalism — 2 proactive batches to stay under output limit
-    for lang in native_langs:
-        prompt = build_native_prompt(lang, factbase)
-        tasks.append(_WriteTask(
-            stage="3", lang=lang, level=None, length=None,
-            model=MODEL_3, prompt=prompt, schema=_SCHEMA_NATIVE,
-            max_output_tokens=8192, template=PROMPT_3_HEADER, factbase=factbase,
-            n_splits=2,
-        ))
+    if not tasks:
+        print("[write] No CEFR level combos to generate (all skipped by P4a grades)")
+        return {}
 
     beginner_count = sum(1 for t in tasks if t.stage == "2B")
     print(
-        f"[write] Running {len(tasks)} writing requests concurrently (max {_MAX_WORKERS} at a time)... "
-        f"({beginner_count} beginner on 2.0-flash, {len(tasks) - beginner_count} on 2.5-flash)"
+        f"[write] Running {len(tasks)} writing requests (max {_MAX_WORKERS} at a time)... "
+        f"({beginner_count} beginner, {len(tasks) - beginner_count} standard)"
     )
 
     briefings: dict = {}
-    native_journalism: dict = {}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_task = {
-            executor.submit(_execute_task, client, t): t
-            for t in tasks
-        }
+        future_to_task = {executor.submit(_execute_task, client, t): t for t in tasks}
 
         for future in as_completed(future_to_task):
             task = future_to_task[future]
             stage, lang, level, length = task.stage, task.lang, task.level, task.length
-            label = f"{stage}/{lang}-{level}-{length}" if level else f"{stage}/{lang}"
             articles = future.result()
 
             if not articles:
                 continue
 
-            if stage in ("2S", "2B", "2M"):
-                briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
-                    "articles": articles,
-                    "date": date,
-                    "language": lang,
-                    "level": level,
-                    "length": length,
-                    "generatedAt": generated_at,
-                }
-                print(f"[{stage}] {lang}-{level}-{length}: {len(articles)} articles ✓")
+            briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
+                "articles": articles,
+                "date": date,
+                "language": lang,
+                "level": level,
+                "length": length,
+                "generatedAt": generated_at,
+            }
+            print(f"[{stage}] {lang}-{level}-{length}: {len(articles)} articles ✓")
 
-            elif stage == "3":
-                native_journalism[lang] = articles
-                print(f"[3] {lang}: {len(articles)} native articles ✓")
-
-    return briefings, native_journalism
+    return briefings
 
 
-def run_grading(
+def run_grade_cefr(
     client: genai.Client,
-    native_journalism: dict,
+    briefings: dict,
 ) -> dict:
-    """Run Stage 4 grading with direct concurrent calls. Returns grading dict."""
-    langs_with_articles = [lang for lang, arts in native_journalism.items() if arts]
-    if not langs_with_articles:
-        print("[4] No native articles to grade — skipping", file=sys.stderr)
+    """
+    Stage P4b — grade the CEFR level articles that were actually written.
+    Uses gemini-2.0-flash-lite. Returns grading dict (per-article assessments).
+    """
+    # Collect all written articles per language for grading
+    articles_by_lang: dict = {}
+    for lang, levels in briefings.items():
+        flat: list = []
+        for level_data in levels.values():
+            for length_data in level_data.values():
+                flat.extend(length_data.get("articles", []))
+        if flat:
+            articles_by_lang[lang] = flat
+
+    langs_to_grade = list(articles_by_lang.keys())
+    if not langs_to_grade:
+        print("[4b] No CEFR articles to grade — skipping", file=sys.stderr)
         return {}
 
-    print(f"[4] Grading {len(langs_with_articles)} languages...")
+    print(f"[4b] Grading CEFR articles for {len(langs_to_grade)} languages...")
     grading: dict = {}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         future_to_lang = {
             executor.submit(
-                call_gemini, client, MODEL_4,
-                build_grading_prompt(lang, native_journalism[lang]),
-                f"4/{lang}",
-                "4",
-                _SCHEMA_GRADING,
+                call_gemini, client, MODEL_4B,
+                build_grading_prompt(lang, articles_by_lang[lang]),
+                f"4b/{lang}", "4b", _SCHEMA_GRADING,
             ): lang
-            for lang in langs_with_articles
+            for lang in langs_to_grade
         }
 
         for future in as_completed(future_to_lang):
             lang = future_to_lang[future]
             raw, finish_reason = future.result()
             if not raw:
-                print(f"[ERROR] [4] {lang}: no response — grading incomplete", file=sys.stderr)
+                print(f"[ERROR] [4b] {lang}: no response — grading incomplete", file=sys.stderr)
                 grading[lang] = []
                 continue
             if finish_reason == "MAX_TOKENS":
-                print(f"[ERROR] [4] {lang}: MAX_TOKENS on grading — grading incomplete", file=sys.stderr)
+                print(f"[ERROR] [4b] {lang}: MAX_TOKENS — grading incomplete", file=sys.stderr)
                 grading[lang] = []
                 continue
             parsed = parse_llm_json(raw)
             assessments = parsed.get("assessments", []) if parsed else []
             if not assessments:
-                print(f"[ERROR] [4] {lang}: empty or unparseable assessments — grading incomplete",
-                      file=sys.stderr)
+                print(f"[ERROR] [4b] {lang}: empty assessments", file=sys.stderr)
             grading[lang] = assessments
-            print(f"[4] {lang}: {len(assessments)} assessments ✓")
+            print(f"[4b] {lang}: {len(assessments)} assessments ✓")
 
     return grading
 
@@ -868,8 +1012,7 @@ def main():
     gather_source = gather_output.get("model", "gemini")
     print(f"[write] Loaded {len(factbase)} stories from factbase (source: {gather_source})")
 
-    combos_2s, combos_2m = build_combinations()
-    print(f"[write] Matrix: {len(combos_2s)} short + {len(combos_2m)} medium/longer + {len(ACTIVE_LANGUAGES)} native + {len(ACTIVE_LANGUAGES)} grading")
+    print(f"[write] Languages: {', '.join(ACTIVE_LANGUAGES)}")
     for lang in ACTIVE_LANGUAGES:
         print(f"[write]   {lang}: {', '.join(LANGUAGE_LEVELS[lang])}")
 
@@ -877,8 +1020,17 @@ def main():
     client = genai.Client()
     print("[write] Gemini client initialised")
 
-    # ── Stages 2S + 2B + 2M + 3 — run concurrently ───────────────────────────
-    briefings, native_journalism = run_writing_concurrent(client, factbase, 0, date)
+    # ── Stage 3 — native journalism (runs before CEFR writing) ───────────────
+    native_journalism = run_native_journalism(client, factbase)
+
+    # ── Stage P4a — grade native journalism → CEFR level per language ─────────
+    # This gates P2S/2M: levels at or above the native grade are skipped.
+    native_grades = run_grade_native(client, native_journalism)
+    if native_grades:
+        print(f"[write] Native grades: {native_grades}")
+
+    # ── Stages 2S + 2B + 2M — write CEFR levels below native grade ───────────
+    briefings = run_writing_concurrent(client, factbase, 0, date, native_grades)
     # Stamp generatedAt AFTER writing completes so "Published at" reflects when
     # articles finished, not when the pipeline launched.
     generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -887,6 +1039,7 @@ def main():
             for _b in _lvl.values():
                 _b["generatedAt"] = generated_at
 
+    combos_2s, combos_2m = build_combinations(native_grades)
     total_briefings = sum(
         1
         for lang_data in briefings.values()
@@ -895,8 +1048,8 @@ def main():
     )
     print(f"[write] Writing done: {total_briefings} / {len(combos_2s) + len(combos_2m)} briefings assembled")
 
-    # ── Stage 4 — grading (depends on Stage 3 output) ────────────────────────
-    grading = run_grading(client, native_journalism)
+    # ── Stage P4b — grade the CEFR level articles that were written ───────────
+    grading = run_grade_cefr(client, briefings)
 
     # ── Cost report ───────────────────────────────────────────────────────────
     write_costs_report(date, script_dir)
@@ -924,6 +1077,7 @@ def main():
         "gatherSource": "gemini",
         "briefings": briefings,
         "nativeJournalism": native_journalism,
+        "nativeGrades": native_grades,   # P4a output: dict[lang → cefr_level]
         "grading": grading,
     }
 
