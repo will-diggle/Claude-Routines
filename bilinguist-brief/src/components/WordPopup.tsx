@@ -170,6 +170,13 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                   <Text style={[styles.translation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                     {displayTranslation}
                   </Text>
+                  {entry?.level && (
+                    <View style={[styles.levelBadge, { backgroundColor: colors.borderLight }]}>
+                      <Text style={[styles.levelBadgeText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                        {entry.level}
+                      </Text>
+                    </View>
+                  )}
                   {entry?.lemma && entry.lemma !== word?.toLowerCase() && (
                     <Text style={[styles.lemmaLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                       ← {entry.lemma}
@@ -523,6 +530,15 @@ const styles = StyleSheet.create({
   lemmaLabel: {
     fontSize: 11,
     fontStyle: 'italic',
+  },
+  levelBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  levelBadgeText: {
+    fontSize: 10,
+    letterSpacing: 1,
   },
   noKey: {
     flex: 1,

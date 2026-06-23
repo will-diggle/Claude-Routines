@@ -54,14 +54,14 @@ MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
 MODEL_4  = "gemini-2.5-flash"               # Grading of native journalism
 
-# Concurrency limit — thinking disabled so calls are short (~3-5s); 10 workers
-# stays comfortably within Gemini Flash RPM limits (~120 req/min at this rate).
-_MAX_WORKERS   = 10
+# Concurrency limit — 6 workers balances throughput against Gemini Flash demand
+# spikes (503s); 10 workers caused cascade failures when the API was under load.
+_MAX_WORKERS   = 6
 _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 
-# Retry settings for transient API errors
-MAX_RETRIES   = 3
-RETRY_DELAYS  = [10, 30, 60]   # seconds between retries
+# Retry settings for transient API errors (503 high-demand spikes need longer waits)
+MAX_RETRIES   = 4
+RETRY_DELAYS  = [30, 60, 120, 180]   # seconds between retries
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 # Passed as response_schema to GenerateContentConfig on write stages so the API
