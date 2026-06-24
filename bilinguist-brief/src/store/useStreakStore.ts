@@ -15,6 +15,8 @@ interface StreakStore {
   readingTimeSecs: Record<string, number>;
   // Freeze days consumed per language (ISO date strings)
   freezeDatesUsed: Record<string, string[]>;
+  // Date of last "all active languages read" celebration, to avoid re-firing
+  fullSweepDate: string | null;
   recordSession: () => void;
   setSpeedSnapHighScore: (score: number) => void;
   recordRead: (langCode: string) => void;
@@ -25,6 +27,12 @@ interface StreakStore {
   checkAndConsumeFreeze: (langCode: string) => boolean;
   // Returns true if today is covered by a freeze (read yesterday via freeze, not yet read today)
   isFrozenToday: (langCode: string) => boolean;
+  // Returns true if ALL given language codes have been read today (for full-sweep celebration)
+  allReadToday: (langCodes: string[]) => boolean;
+  // Mark the full-sweep celebration as shown for today
+  recordFullSweep: () => void;
+  // Returns true if full-sweep celebration already shown today
+  fullSweepShownToday: () => boolean;
 }
 
 function todayString() {
@@ -49,6 +57,7 @@ export const useStreakStore = create<StreakStore>()(
       readingHistory: {},
       readingTimeSecs: {},
       freezeDatesUsed: {},
+      fullSweepDate: null,
 
       recordSession: () => {
         const today = todayString();
@@ -162,6 +171,20 @@ export const useStreakStore = create<StreakStore>()(
         // Frozen today = covered by a freeze yesterday AND haven't read today
         if (lastReadDates[langCode] === today) return false;
         return (freezeDatesUsed[langCode] ?? []).includes(yesterday);
+      },
+
+      allReadToday: (langCodes: string[]) => {
+        const today = todayString();
+        const { lastReadDates } = get();
+        return langCodes.every(code => lastReadDates[code] === today);
+      },
+
+      recordFullSweep: () => {
+        set({ fullSweepDate: todayString() });
+      },
+
+      fullSweepShownToday: () => {
+        return get().fullSweepDate === todayString();
       },
     }),
     {
