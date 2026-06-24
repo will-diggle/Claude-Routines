@@ -59,7 +59,13 @@ import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
 import { useShallow } from 'zustand/react/shallow';
-import { setAppIcon as setNativeAppIcon } from 'expo-dynamic-app-icon';
+// expo-dynamic-app-icon is not available in Expo Go — lazy require so it fails
+// gracefully rather than crashing the whole module on load.
+let setNativeAppIcon: (icon: string) => void = () => {};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  setNativeAppIcon = require('expo-dynamic-app-icon').setAppIcon;
+} catch { /* not available in Expo Go */ }
 import * as analytics from '../services/analytics';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
