@@ -34,6 +34,7 @@ Requirements:
 import argparse
 import json
 import os
+import random
 import sys
 import time
 import threading
@@ -55,14 +56,17 @@ MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per languag
 MODEL_4A = "gemini-2.0-flash-lite"          # P4a: grade native journalism → overall CEFR level
 MODEL_4B = "gemini-2.0-flash-lite"          # P4b: grade CEFR level articles (quality gate)
 
-# Concurrency limit — 6 workers balances throughput against Gemini Flash demand
-# spikes (503s); 10 workers caused cascade failures when the API was under load.
-_MAX_WORKERS   = 6
+# Concurrency limit — 4 workers keeps Gemini 2.5 Flash 503 rate low now that the
+# level matrix has expanded (~88+ writing calls vs ~50 before). 10 workers caused
+# cascade failures; 6 was OK with fewer levels but too aggressive now.
+_MAX_WORKERS   = 4
 _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 
-# Retry settings for transient API errors (503 high-demand spikes need longer waits)
+# Retry settings for transient API errors.
+# Delays are SHORT — jitter below breaks the thundering-herd where all 4 workers
+# would otherwise retry at the exact same instant, causing a second 503 wave.
 MAX_RETRIES   = 4
-RETRY_DELAYS  = [30, 60, 120, 180]   # seconds between retries
+RETRY_DELAYS  = [5, 15, 30, 60]   # base seconds; actual sleep = delay × (0.5–1.5)
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 # Passed as response_schema to GenerateContentConfig on write stages so the API
@@ -604,8 +608,9 @@ def call_gemini(
         except Exception as e:
             code = getattr(e, "code", None) or getattr(e, "status_code", None)
             if attempt < MAX_RETRIES:
-                delay = RETRY_DELAYS[attempt]
-                print(f"[{label}] Attempt {attempt + 1} failed (code={code}): {e} — retrying in {delay}s",
+                base = RETRY_DELAYS[attempt]
+                delay = base * (0.5 + random.random())  # ±50% jitter breaks thundering herd
+                print(f"[{label}] Attempt {attempt + 1} failed (code={code}): {e} — retrying in {delay:.1f}s",
                       file=sys.stderr)
                 time.sleep(delay)
             else:
