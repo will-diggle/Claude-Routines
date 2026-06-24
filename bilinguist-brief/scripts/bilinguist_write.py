@@ -204,10 +204,10 @@ CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"]
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
     "fr": ["A1", "A2", "B1", "B2", "C1", "Native"],
-    "de": ["A1", "A2", "Native"],
+    "de": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "sv": ["B2", "Native"],
-    "en": ["B2", "C1", "Native"],
-    "it": ["A1", "Native"],
+    "en": ["A1", "A2", "B1", "B2", "C1", "Native"],
+    "it": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "es": ["A2"],
     "tr": ["A1"],
     "hu": ["Native"],  # Hungarian — native journalism only; CEFR levels added after P4a validation
@@ -234,15 +234,13 @@ LEVEL_LABELS: dict[str, str] = {
     "Native": "Native",
 }
 
-WORDS_PER_ARTICLE_BEGINNER: dict[str, int] = {  # A1 / A2
-    "short":  55,
-    "medium": 110,
-    "longer": 190,
+WORDS_PER_ARTICLE_BEGINNER: dict[str, str] = {  # A1 / A2
+    "short":  "65–85",
+    "longer": "170–220",
 }
-WORDS_PER_ARTICLE_ADVANCED: dict[str, int] = {  # B1+
-    "short":  80,
-    "medium": 160,
-    "longer": 300,
+WORDS_PER_ARTICLE_ADVANCED: dict[str, str] = {  # B1+
+    "short":  "75–105",
+    "longer": "270–340",
 }
 
 # Sentence count targets per length.
@@ -355,7 +353,7 @@ WRITING RULES:
 
 NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
 
-ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article (~{WORD_COUNT} words). This sentence count is a HARD CONSTRAINT. Never padded. Never truncated mid-thought.
+ARTICLE LENGTH — {LENGTH_LABEL}: Write exactly {SENTENCE_COUNT} sentences per article ({WORD_COUNT} words). This sentence count is a HARD CONSTRAINT. Never padded. Never truncated mid-thought.
 
 FACTBASE DEPTH — all lengths follow the SAME order of the "what_happened" list in the fact-base. Shorter articles stop earlier in the list; longer articles continue further. Never reorder facts for stylistic effect.
   Concise: Cover facts 1–2 from "what_happened". Skip numbers, attribution, and contested claims unless essential to understand the story.

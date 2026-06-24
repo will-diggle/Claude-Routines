@@ -9,11 +9,11 @@ export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', '
 
 // Levels available per language — single source of truth used by all level pickers.
 export const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
-  en: ['B2', 'C1', 'Native'],
+  en: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
   fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  de: ['A1', 'A2', 'Native'],
+  de: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
   sv: ['B2', 'Native'],
-  it: ['A1', 'Native'],
+  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
   es: ['A2'],
   tr: ['A1'],
 };

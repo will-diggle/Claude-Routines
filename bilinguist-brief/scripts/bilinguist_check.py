@@ -15,10 +15,10 @@ from pathlib import Path
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
     "fr": ["A1", "A2", "B1", "B2", "C1", "Native"],
-    "de": ["A1", "A2", "Native"],
+    "de": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "sv": ["B2", "Native"],
-    "en": ["B2", "C1", "Native"],
-    "it": ["A1", "Native"],
+    "en": ["A1", "A2", "B1", "B2", "C1", "Native"],
+    "it": ["A1", "A2", "B1", "B2", "C1", "Native"],
     "es": ["A2"],
     "tr": ["A1"],
 }
