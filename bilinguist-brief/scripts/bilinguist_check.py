@@ -23,7 +23,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "tr": ["A1"],
 }
 
-LENGTHS = ["short", "medium", "longer"]
+LENGTHS = ["short", "longer"]
 
 LANG_NAMES = {"fr": "French", "de": "German", "sv": "Swedish",
                "en": "English", "it": "Italian", "es": "Spanish", "tr": "Turkish"}
@@ -103,33 +103,32 @@ def _factcheck_summary(script_dir: Path, date: str) -> str:
     return "\n".join(lines)
 
 
-def _language_breakdown(briefings: dict, native_journalism: dict) -> str:
+def _language_breakdown(briefings: dict, native_journalism: dict, native_grades: dict = {}) -> str:
     """
     Returns a per-language, per-level breakdown showing which levels are present.
-    Each language gets its own line with tick/cross per level.
-
-    CEFR levels are checked in briefings[lang][level][length].
-    Native is checked in nativeJournalism[lang] — it is not split by length.
-
-    Example:
-      French:  A1✓ A2✓ B1✓ B2✓ C1✓ Native✓
-      German:  A1✓ A2✓ Native✗
-      Italian: A1✓ Native✓
+    Levels intentionally skipped by the pipeline (at/above native grade) are omitted.
     """
+    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
     lines = []
     for lang, levels in LANGUAGE_LEVELS.items():
         lang_name = LANG_NAMES.get(lang, lang)
+        native_grade = native_grades.get(lang)
+        skip_from_idx = CEFR_ORDER.index(native_grade) if native_grade in CEFR_ORDER else len(CEFR_ORDER)
         level_parts = []
         for level in levels:
             if level == "Native":
                 has_any = bool(native_journalism.get(lang))
+                mark = "✓" if has_any else "✗"
+                level_parts.append(f"{level}{mark}")
+            elif level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
+                continue  # intentionally skipped — omit from breakdown
             else:
                 has_any = any(
                     briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles")
                     for length in LENGTHS
                 )
-            mark = "✓" if has_any else "✗"
-            level_parts.append(f"{level}{mark}")
+                mark = "✓" if has_any else "✗"
+                level_parts.append(f"{level}{mark}")
         lines.append(f"  {lang_name}: {' '.join(level_parts)}")
     return "\n".join(lines)
 
@@ -138,18 +137,26 @@ def check(bundle_path: Path) -> None:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
 
-    briefings        = bundle.get("briefings", {})
+    briefings         = bundle.get("briefings", {})
     native_journalism = bundle.get("nativeJournalism", {})
-    date             = bundle.get("date", "unknown")
+    native_grades     = bundle.get("nativeGrades", {})
+    date              = bundle.get("date", "unknown")
+
+    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
     # ── Check article combinations ─────────────────────────────────────────────
     # Native is a single entry per language (not split by length) stored in
-    # nativeJournalism. CEFR levels are split by short/medium/longer in briefings.
+    # nativeJournalism. CEFR levels are split by short/longer in briefings.
+    # Levels at or above the native grade are intentionally skipped by the
+    # pipeline (P3 native journalism covers them) — don't flag them as missing.
     missing: list[str] = []
     present = 0
     total   = 0
 
     for lang, levels in LANGUAGE_LEVELS.items():
+        native_grade = native_grades.get(lang)
+        skip_from_idx = CEFR_ORDER.index(native_grade) if native_grade in CEFR_ORDER else len(CEFR_ORDER)
+
         for level in levels:
             if level == "Native":
                 total += 1
@@ -158,6 +165,8 @@ def check(bundle_path: Path) -> None:
                 else:
                     missing.append(f"{LANG_NAMES.get(lang, lang)} Native")
             else:
+                if level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
+                    continue  # intentionally skipped by pipeline
                 for length in LENGTHS:
                     total += 1
                     articles = briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles", [])
@@ -167,7 +176,7 @@ def check(bundle_path: Path) -> None:
                         missing.append(f"{LANG_NAMES.get(lang, lang)} {level}/{length}")
 
     # ── Per-language level breakdown ───────────────────────────────────────────
-    breakdown = _language_breakdown(briefings, native_journalism)
+    breakdown = _language_breakdown(briefings, native_journalism, native_grades)
 
     # ── Cost summary ───────────────────────────────────────────────────────────
     script_dir = bundle_path.parent.parent  # scripts/ not scripts/output/

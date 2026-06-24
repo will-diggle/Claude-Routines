@@ -16,6 +16,14 @@ export interface DailyBundle {
       };
     };
   };
+  // P3 native journalism — flat array of articles per language.
+  nativeJournalism: {
+    [lang: string]: Array<{ slug: string; text: string; [key: string]: unknown }>;
+  };
+  // P4a output — CEFR reading level of native journalism per language.
+  nativeGrades: {
+    [lang: string]: string;
+  };
   // Prompt 4 grading — array of assessment objects per language.
   // Python writes grading[lang] as an array: [{genre, slug, level, length, reasoning}, ...].
   grading: {
@@ -23,7 +31,7 @@ export interface DailyBundle {
       genre: string;
       slug: string;
       level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-      length: 'short' | 'medium' | 'longer';
+      length: 'short' | 'longer';
       reasoning: string;
     }>;
   };

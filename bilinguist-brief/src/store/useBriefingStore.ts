@@ -71,8 +71,10 @@ interface BriefingStore {
   lastBundleDate: string | null;
   // Daily native CEFR grade per language — derived from Prompt 4 assessments.
   // The modal CEFR level across all native-journalism articles for a given language.
-  // Used to position the 'Native' slot in the level picker dynamically.
   nativeGradeByLang: Partial<Record<LanguageCode, LanguageLevel>>;
+  // Levels actually generated today per language — CEFR levels from briefings
+  // keys + Native if nativeJournalism exists. Updates each bundle sync.
+  availableLevelsByLang: Partial<Record<LanguageCode, LanguageLevel[]>>;
 
   syncFromServer: (force?: boolean) => Promise<void>;
   loadBriefing: (
@@ -102,6 +104,7 @@ export const useBriefingStore = create<BriefingStore>()(
       briefVolume: 0,
       lastBundleDate: null,
       nativeGradeByLang: {},
+      availableLevelsByLang: {},
 
       syncFromServer: async (force = false) => {
         const today = todayString();
@@ -210,6 +213,22 @@ export const useBriefingStore = create<BriefingStore>()(
             }
           }
 
+          // Derive available levels from what was actually generated today.
+          // CEFR levels come from briefings keys (sorted by CEFR_ORDER);
+          // Native is appended last if nativeJournalism exists for that language.
+          const levelUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
+          const availableUpdates: Partial<Record<LanguageCode, LanguageLevel[]>> = {};
+          for (const [lang, levels] of Object.entries(bundle.briefings ?? {})) {
+            const cefrLevels = (Object.keys(levels) as LanguageLevel[])
+              .filter((l) => CEFR_ORDER.includes(l as CefrLevel))
+              .sort((a, b) => CEFR_ORDER.indexOf(a as CefrLevel) - CEFR_ORDER.indexOf(b as CefrLevel));
+            const hasNative = (bundle.nativeJournalism ?? {})[lang]?.length > 0;
+            const available: LanguageLevel[] = [...cefrLevels, ...(hasNative ? ['Native' as LanguageLevel] : [])];
+            if (available.length > 0) {
+              availableUpdates[lang as LanguageCode] = available;
+            }
+          }
+
           // Volume comes from the bundle (consistent across all devices). Fall back
           // to local increment for bundles published before the field was added.
           const nextVolume = bundle.volume != null
@@ -225,6 +244,7 @@ export const useBriefingStore = create<BriefingStore>()(
             lastBundleDate: bundle.date,
             briefVolume: nextVolume,
             nativeGradeByLang: { ...s.nativeGradeByLang, ...gradeUpdates },
+            availableLevelsByLang: { ...s.availableLevelsByLang, ...availableUpdates },
           }));
         } finally {
           set({ isSyncing: false, syncMessage: null });
@@ -386,6 +406,7 @@ export const useBriefingStore = create<BriefingStore>()(
         briefVolume: state.briefVolume,
         lastBundleDate: state.lastBundleDate,
         nativeGradeByLang: state.nativeGradeByLang,
+        availableLevelsByLang: state.availableLevelsByLang,
       }),
     }
   )

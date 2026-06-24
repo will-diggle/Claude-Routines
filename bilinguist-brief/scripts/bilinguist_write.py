@@ -298,7 +298,6 @@ def build_combinations(
             if CEFR_ORDER.index(level) >= skip_from_idx:
                 continue  # at or above native grade — skip
             combos_2s.append((lang, level, "short"))
-            combos_2m.append((lang, level, "medium"))
             combos_2m.append((lang, level, "longer"))
 
     return combos_2s, combos_2m
@@ -885,7 +884,7 @@ def run_writing_concurrent(
         if is_beginner:
             n_splits = 2 if (level == "A1" and length == "longer") else 1
         else:
-            n_splits = 2 if length == "medium" else 3
+            n_splits = 3  # longer only — medium removed
         prompt = build_writing_prompt(template, lang, level, length, factbase)
         tasks.append(_WriteTask(
             stage=stage, lang=lang, level=level, length=length,
