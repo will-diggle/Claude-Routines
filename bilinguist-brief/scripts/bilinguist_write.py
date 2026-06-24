@@ -995,6 +995,7 @@ def main():
     args = parser.parse_args()
 
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[write] Starting writing/grading pipeline — {date}")
 
     # Locate the factbase produced by Stage 1
@@ -1069,15 +1070,19 @@ def main():
         prev_volume = 0
     current_volume = prev_volume + 1
 
+    finished_at = int(datetime.now(timezone.utc).timestamp() * 1000)
+
     bundle = {
         "date": date,
+        "startedAt": started_at,
         "generatedAt": generated_at,
+        "finishedAt": finished_at,
         "volume": current_volume,
         "factbase": factbase,
         "gatherSource": "gemini",
         "briefings": briefings,
         "nativeJournalism": native_journalism,
-        "nativeGrades": native_grades,   # P4a output: dict[lang → cefr_level]
+        "nativeGrades": native_grades,
         "grading": grading,
     }
 

@@ -5,10 +5,8 @@ Reads output/latest.json and verifies every expected lang/level/length
 combination is present, has the right number of articles, and that articles
 are not suspiciously long for their length band.
 
-Writes a status summary to GITHUB_ENV so the calling workflow can include it
-in the ntfy push notification.
-
-Exits 0 on success (all present), 1 on critical missing content.
+Writes a status summary to GITHUB_ENV for the ntfy notification.
+Exits 1 if critical content is missing so GitHub Actions marks it failed.
 """
 
 import json
@@ -29,34 +27,35 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
 
 LENGTHS = ["short", "longer"]
 
+LANG_FLAGS = {
+    "fr": "🇫🇷", "de": "🇩🇪", "sv": "🇸🇪", "en": "🇬🇧",
+    "it": "🇮🇹", "es": "🇪🇸", "tr": "🇹🇷", "hu": "🇭🇺",
+}
 LANG_NAMES = {
     "fr": "French", "de": "German", "sv": "Swedish",
     "en": "English", "it": "Italian", "es": "Spanish",
     "tr": "Turkish", "hu": "Hungarian",
 }
 
-_STAGE_LABELS: dict[str, str] = {
-    "1_gather": "Gather (Pro Flex)",
-    "2S":       "Stage 2S writing",
-    "2B":       "Stage 2B beginner",
-    "2M":       "Stage 2M writing",
-    "3":        "Stage 3 native",
-    "4a":       "Stage 4a grade native",
-    "4b":       "Stage 4b grade CEFR",
-    "4":        "Stage 4 grading",
-}
-
-# Expected article counts per briefing. Fewer than this is suspicious.
-MIN_ARTICLES = 5
-
-# Word-count thresholds: a "short" article body with >250 words is likely a
-# longer article that was returned in the wrong slot.
-SHORT_WORD_LIMIT = 250
+MIN_ARTICLES   = 5     # fewer than this is suspiciously thin
+SHORT_MAX_WORDS = 250  # avg body words above this in a "short" slot = wrong article
 
 
-def _body_word_count(article: dict) -> int:
-    body = article.get("body", "")
-    return len(body.split())
+def _fmt_duration(ms: int) -> str:
+    s = ms // 1000
+    if s < 60:
+        return f"{s}s"
+    m, s = divmod(s, 60)
+    if m < 60:
+        return f"{m}m {s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m:02d}m"
+
+
+def _avg_body_words(articles: list) -> float:
+    if not articles:
+        return 0.0
+    return sum(len(a.get("body", "").split()) for a in articles) / len(articles)
 
 
 def _cost_summary(output_dir: Path, date: str) -> str:
@@ -69,89 +68,92 @@ def _cost_summary(output_dir: Path, date: str) -> str:
     except Exception:
         return ""
 
-    lines = [f"\n💰 Cost: £{costs['total_gbp']:.3f} (${costs['total_usd']:.3f})"]
-    for sname in ["1_gather", "2S", "2B", "2M", "3", "4a", "4b", "4"]:
+    stage_labels = {
+        "1_gather": "Gather",
+        "2S": "Write B1+/short",
+        "2B": "Write A1-A2",
+        "2M": "Write B1+/longer",
+        "3":  "Native journalism",
+        "4a": "Grade native",
+        "4b": "Grade CEFR",
+        "4":  "Grade (legacy)",
+    }
+
+    lines = [f"💰 Cost: £{costs['total_gbp']:.3f}  (${costs['total_usd']:.3f})"]
+    for sname, label in stage_labels.items():
         sdata = costs["stages"].get(sname)
         if not sdata or sdata.get("calls", 0) == 0:
             continue
-        label = _STAGE_LABELS.get(sname, sname)
+        calls   = sdata["calls"]
         tok_in  = sdata.get("input_tokens", 0)
         tok_out = sdata.get("output_tokens", 0)
         tok_thi = sdata.get("thinking_tokens", 0)
-        tok_str = f"{tok_in:,}in+{tok_out:,}out"
+        gbp     = sdata.get("cost_gbp", 0)
+        tok_str = f"{tok_in//1000}k in + {tok_out//1000}k out"
         if tok_thi:
-            tok_str += f"+{tok_thi:,}think"
-        lines.append(f"  {label} ({sdata['calls']}×): {tok_str} → £{sdata['cost_gbp']:.3f}")
+            tok_str += f" + {tok_thi//1000}k think"
+        lines.append(f"  {label} ({calls} calls): {tok_str} → £{gbp:.3f}")
     return "\n".join(lines)
 
 
 def _factcheck_summary(script_dir: Path, date: str) -> str:
-    corrections_path = script_dir / f"corrections_{date}.json"
-    if not corrections_path.exists():
+    path = script_dir / f"corrections_{date}.json"
+    if not path.exists():
         return ""
     try:
-        with open(corrections_path) as f:
+        with open(path) as f:
             data = json.load(f)
     except Exception:
         return ""
 
-    error = data.get("error")
-    if error:
-        return f"\n🔍 Fact-check: skipped ({error})"
+    if data.get("error"):
+        return f"🔍 Fact-check: skipped ({data['error']})"
 
     checked = data.get("stories_checked", 0)
     count   = data.get("corrections_count", 0)
-    corrections = data.get("corrections", [])
-
     if count == 0:
-        return f"\n🔍 Fact-check: {checked} stories verified — no corrections ✓"
+        return f"🔍 Fact-check: {checked} stories — no corrections ✓"
 
-    lines = [f"\n🔍 Fact-check: {count} correction(s) ({checked} stories)"]
-    for c in corrections:
-        slug      = c.get("slug", "?")
-        original  = c.get("original", "?")
-        corrected = c.get("corrected", "?")
-        reason    = c.get("reason", "")
-        lines.append(f"  • [{slug}] «{original}» → «{corrected}»")
-        if reason:
-            lines.append(f"    ↳ {reason}")
+    lines = [f"🔍 Fact-check: {count} correction(s) across {checked} stories"]
+    for c in data.get("corrections", []):
+        lines.append(f"  [{c.get('slug','?')}] {c.get('original','?')} → {c.get('corrected','?')}")
+        if c.get("reason"):
+            lines.append(f"    ↳ {c['reason']}")
     return "\n".join(lines)
 
 
-def _language_breakdown(
+def _language_table(
     briefings: dict,
     native_journalism: dict,
     native_grades: dict,
-    wrong_length: list[str],
-    thin: list[str],
+    issues: set[str],
 ) -> str:
     CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
     lines = []
-    wrong_set = set(wrong_length)
-    thin_set  = set(thin)
 
     for lang, levels in LANGUAGE_LEVELS.items():
+        flag      = LANG_FLAGS.get(lang, "  ")
         lang_name = LANG_NAMES.get(lang, lang)
-        native_grade = native_grades.get(lang)
+        native_grade  = native_grades.get(lang, "")
         skip_from_idx = (
             CEFR_ORDER.index(native_grade)
             if native_grade in CEFR_ORDER else len(CEFR_ORDER)
         )
-        level_parts = []
+
+        parts = []
         for level in levels:
             if level == "Native":
-                arts = native_journalism.get(lang, [])
+                arts  = native_journalism.get(lang, [])
                 count = len(arts)
-                if count == 0:
-                    mark = "✗"
-                else:
-                    mark = f"✓({count})"
-                level_parts.append(f"Native{mark}")
+                mark  = f"✓{count}" if count else "✗"
+                grade_label = f" [{native_grade}]" if native_grade else ""
+                parts.append(f"Native{mark}{grade_label}")
             elif level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
-                continue
+                continue  # intentionally skipped — P3 covers it
             else:
+                row = []
                 for length in LENGTHS:
-                    key = f"{LANG_NAMES.get(lang, lang)} {level}/{length}"
+                    key      = f"{lang_name} {level}/{length}"
                     articles = (
                         briefings.get(lang, {})
                                  .get(level, {})
@@ -160,15 +162,14 @@ def _language_breakdown(
                     )
                     count = len(articles)
                     if count == 0:
-                        mark = "✗"
-                    elif key in wrong_set:
-                        mark = f"⚠️len({count})"
-                    elif key in thin_set:
-                        mark = f"⚠️thin({count})"
+                        row.append("✗")
+                    elif key in issues:
+                        row.append(f"⚠{count}")
                     else:
-                        mark = f"✓({count})"
-                    level_parts.append(f"{level}/{length[:1]}{mark}")
-        lines.append(f"  {lang_name}: {' '.join(level_parts)}")
+                        row.append(f"✓{count}")
+                parts.append(f"{level}[{'/'.join(row)}]")
+
+        lines.append(f"  {flag} {lang_name}: {' '.join(parts)}")
     return "\n".join(lines)
 
 
@@ -180,18 +181,26 @@ def check(bundle_path: Path) -> int:
     native_journalism = bundle.get("nativeJournalism", {})
     native_grades     = bundle.get("nativeGrades", {})
     date              = bundle.get("date", "unknown")
+    volume            = bundle.get("volume", "?")
+    started_at        = bundle.get("startedAt")
+    finished_at       = bundle.get("finishedAt")
+    factbase          = bundle.get("factbase", [])
+
+    duration_str = ""
+    if started_at and finished_at:
+        duration_str = f"  ⏱ {_fmt_duration(finished_at - started_at)}"
 
     CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
     missing:      list[str] = []
-    wrong_length: list[str] = []  # short slot has suspiciously long articles
-    thin:         list[str] = []  # fewer articles than expected
+    wrong_length: list[str] = []
+    thin:         list[str] = []
     present = 0
     total   = 0
 
     for lang, levels in LANGUAGE_LEVELS.items():
         lang_name = LANG_NAMES.get(lang, lang)
-        native_grade = native_grades.get(lang)
+        native_grade  = native_grades.get(lang)
         skip_from_idx = (
             CEFR_ORDER.index(native_grade)
             if native_grade in CEFR_ORDER else len(CEFR_ORDER)
@@ -220,71 +229,66 @@ def check(bundle_path: Path) -> int:
                     if not articles:
                         missing.append(key)
                         continue
-
                     present += 1
-
-                    # Detect wrong-length content: short slot with long articles
-                    if length == "short":
-                        avg_words = sum(_body_word_count(a) for a in articles) / len(articles)
-                        if avg_words > SHORT_WORD_LIMIT:
-                            wrong_length.append(key)
-
-                    # Detect suspiciously thin output
+                    if length == "short" and _avg_body_words(articles) > SHORT_MAX_WORDS:
+                        wrong_length.append(key)
                     if len(articles) < MIN_ARTICLES:
                         thin.append(key)
 
-    breakdown = _language_breakdown(
-        briefings, native_journalism, native_grades, wrong_length, thin
-    )
+    all_issues = set(wrong_length + thin)
+    table = _language_table(briefings, native_journalism, native_grades, all_issues)
 
-    script_dir = bundle_path.parent.parent
-    cost_str     = _cost_summary(bundle_path.parent, date)
+    script_dir    = bundle_path.parent.parent
+    cost_str      = _cost_summary(bundle_path.parent, date)
     factcheck_str = _factcheck_summary(script_dir, date)
 
-    warnings = wrong_length + thin
+    story_count  = len(factbase)
+    total_native = sum(len(v) for v in native_journalism.values())
+    header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
+
+    warnings  = wrong_length + thin
     critical  = len(missing) > 0
 
+    # ── Build title and body ───────────────────────────────────────────────────
     if not missing and not warnings:
         title = f"Bilinguist Brief — {present}/{total} ✅"
         emoji = "white_check_mark"
-        body  = (
-            f"{date}: All {total} combinations generated ✓\n\n"
-            f"Languages:\n{breakdown}"
-            + factcheck_str
-            + cost_str
-        )
-    elif missing and not warnings:
-        title = f"Bilinguist Brief — {present}/{total} ❌ MISSING"
+        body_parts = [
+            header_line,
+            "",
+            table,
+        ]
+    elif missing:
+        title = f"Bilinguist Brief — {present}/{total} ❌"
         emoji = "rotating_light"
-        body  = (
-            f"{date}: {len(missing)} combination(s) MISSING.\n\n"
-            f"Languages:\n{breakdown}\n\n"
-            f"Missing ({len(missing)}):\n" + "\n".join(f"  ✗ {m}" for m in missing)
-            + factcheck_str
-            + cost_str
-        )
+        body_parts = [
+            header_line,
+            "",
+            table,
+            "",
+            f"Missing ({len(missing)}):",
+        ] + [f"  ✗ {m}" for m in missing]
     else:
-        title = f"Bilinguist Brief — {present}/{total} ⚠️ WARNINGS"
+        title = f"Bilinguist Brief — {present}/{total} ⚠️"
         emoji = "warning"
-        issues = missing + warnings
-        body  = (
-            f"{date}: {len(missing)} missing, {len(warnings)} suspicious.\n\n"
-            f"Languages:\n{breakdown}\n\n"
-            f"Issues ({len(issues)}):\n"
-            + "\n".join(
-                f"  ✗ {m}" for m in missing
-            )
-            + "\n".join(
-                f"  ⚠️ {w} — short slot has long-form articles (article may not have been written)"
-                for w in wrong_length
-            )
-            + "\n".join(
-                f"  ⚠️ {t} — only {len(briefings.get(t.split()[0].lower()[:2], {}))} articles (expected ≥{MIN_ARTICLES})"
-                for t in thin
-            )
-            + factcheck_str
-            + cost_str
-        )
+        body_parts = [
+            header_line,
+            "",
+            table,
+            "",
+            f"Warnings ({len(warnings)}):",
+        ]
+        for w in wrong_length:
+            body_parts.append(f"  ⚠️ {w} — long content in short slot (article may not have been written)")
+        for t in thin:
+            body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
+
+    if factcheck_str:
+        body_parts += ["", factcheck_str]
+    if cost_str:
+        body_parts += ["", cost_str]
+
+    body = "\n".join(body_parts)
 
     print(title)
     print(body)
@@ -296,7 +300,6 @@ def check(bundle_path: Path) -> int:
             env_file.write(f"BRIEF_EMOJI={emoji}\n")
             env_file.write(f"BRIEF_BODY<<BRIEF_EOF\n{body}\nBRIEF_EOF\n")
 
-    # Exit 1 if content is critically missing so GitHub Actions marks the step failed
     return 1 if critical else 0
 
 
@@ -304,7 +307,7 @@ if __name__ == "__main__":
     script_dir = Path(__file__).parent
     bundle = script_dir / "output" / "latest.json"
     if not bundle.exists():
-        print("ERROR: output/latest.json not found — has bilinguist_write.py run yet?",
+        print("ERROR: output/latest.json not found — run bilinguist_write.py first.",
               file=sys.stderr)
         sys.exit(0)
     sys.exit(check(bundle))
