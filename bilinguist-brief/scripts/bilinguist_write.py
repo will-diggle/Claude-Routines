@@ -573,6 +573,9 @@ def call_gemini(
                         max_output_tokens=max_output_tokens,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
+                    # Hard 120s timeout per call — prevents hung requests
+                    # blocking a worker for the full retry window
+                    request_options=types.RequestOptions(timeout=120),
                 )
             # Accumulate token usage for cost tracking
             if stage and stage in _stage_usage:
@@ -1095,33 +1098,8 @@ def main():
     print(f"[write] Done — output/{date}.json ({approx_kb} KB) | Vol. {current_volume}")
     print(f"[write] Briefings: {total_briefings} | Native: {sum(len(v) for v in native_journalism.values())} | Gradings: {sum(len(v) for v in grading.values())}")
 
-    # ── Stage P5 — linguistic token analysis + dictionary population ──────────
-    # Import here to avoid a circular dependency at module level.
-    try:
-        import bilinguist_tokenise as p5
-        # Embed token maps into bundle in-place; returns unique lemmas per language
-        lemmas_by_lang = p5.enrich_bundle_with_token_maps(client, bundle)
-        # Supabase for dictionary population
-        p5_env = p5._load_env()
-        supa_p5 = None
-        p5_url = p5_env.get("EXPO_PUBLIC_SUPABASE_URL", "")
-        p5_key = p5_env.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if p5_url and p5_key:
-            from supabase import create_client as _sc
-            supa_p5 = _sc(p5_url, p5_key)
-        p5.populate_dictionary(client, supa_p5, lemmas_by_lang)
-        p5.print_costs()
-        # Re-write bundle with tokenMaps embedded
-        bundle_json_p5 = json.dumps(bundle, ensure_ascii=False, indent=2)
-        with open(dated_path,  "w", encoding="utf-8") as f:
-            f.write(bundle_json_p5)
-        with open(latest_path, "w", encoding="utf-8") as f:
-            f.write(bundle_json_p5)
-        kb_p5 = len(bundle_json_p5.encode("utf-8")) // 1024
-        print(f"[P5] Bundle updated with token maps — {kb_p5} KB (was {approx_kb} KB)")
-    except Exception as p5_err:
-        print(f"[ERROR] [P5] Stage failed: {p5_err} — pipeline output is still valid without token maps",
-              file=sys.stderr)
+    # P5 (token maps + dictionary) runs as a separate workflow after this one
+    # to avoid competing for Gemini quota during the main writing stage.
 
 
 if __name__ == "__main__":
