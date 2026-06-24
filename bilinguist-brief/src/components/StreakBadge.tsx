@@ -3,19 +3,21 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
 const LABEL = 'DAY STREAK';
+const FROZEN_COLOR = '#4A90C4'; // light blue — freeze protected
 
 interface Props {
   streak: number;
+  frozen?: boolean;
   onPress?: () => void;
 }
 
-export function StreakBadge({ streak, onPress }: Props) {
+export function StreakBadge({ streak, frozen = false, onPress }: Props) {
   const { colors, fontFamily } = useTheme();
   if (streak === 0) return null;
 
   const active = streak >= 3;
-  const textColor = active ? colors.inkDark : colors.inkFaint;
-  const borderColor = active ? colors.inkDark : colors.borderLight;
+  const textColor = frozen ? FROZEN_COLOR : (active ? colors.inkDark : colors.inkFaint);
+  const borderColor = frozen ? FROZEN_COLOR : (active ? colors.inkDark : colors.borderLight);
 
   const inner = (
     <View style={[styles.container, { borderColor }]}>

@@ -13,12 +13,18 @@ interface StreakStore {
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
   // Cumulative time spent on each language brief per day (key: `${langCode}_${date}`)
   readingTimeSecs: Record<string, number>;
+  // Freeze days consumed per language (ISO date strings)
+  freezeDatesUsed: Record<string, string[]>;
   recordSession: () => void;
   setSpeedSnapHighScore: (score: number) => void;
   recordRead: (langCode: string) => void;
   getReadingStreak: (langCode: string) => number;
   addReadingTime: (langCode: string, seconds: number) => void;
   getReadingTimeToday: (langCode: string) => number;
+  // Returns true if a freeze was silently applied (streak preserved); false if streak broken
+  checkAndConsumeFreeze: (langCode: string) => boolean;
+  // Returns true if today is covered by a freeze (read yesterday via freeze, not yet read today)
+  isFrozenToday: (langCode: string) => boolean;
 }
 
 function todayString() {
@@ -42,6 +48,7 @@ export const useStreakStore = create<StreakStore>()(
       lastReadDates: {},
       readingHistory: {},
       readingTimeSecs: {},
+      freezeDatesUsed: {},
 
       recordSession: () => {
         const today = todayString();
@@ -116,6 +123,45 @@ export const useStreakStore = create<StreakStore>()(
       getReadingTimeToday: (langCode: string) => {
         const key = `${langCode}_${todayString()}`;
         return get().readingTimeSecs[key] ?? 0;
+      },
+
+      checkAndConsumeFreeze: (langCode: string) => {
+        const today = todayString();
+        const yesterday = yesterdayString();
+        const { lastReadDates, readingStreaks, freezeDatesUsed } = get();
+        const lastRead = lastReadDates[langCode];
+        const currentStreak = readingStreaks[langCode] ?? 0;
+
+        // Only apply freeze if: streak is active, yesterday was missed, today not yet read
+        if (currentStreak === 0) return false;
+        if (lastRead === today || lastRead === yesterday) return false;
+
+        // Count freezes used in the rolling 7-day window
+        const cutoff = (() => {
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          return d.toISOString().split('T')[0];
+        })();
+        const used = (freezeDatesUsed[langCode] ?? []).filter(d => d >= cutoff);
+        if (used.length >= 2) return false; // freeze exhausted
+
+        // Consume freeze: set lastReadDate to yesterday so next read continues streak
+        set({
+          lastReadDates: { ...lastReadDates, [langCode]: yesterday },
+          freezeDatesUsed: {
+            ...freezeDatesUsed,
+            [langCode]: [...used, yesterday],
+          },
+        });
+        return true;
+      },
+
+      isFrozenToday: (langCode: string) => {
+        const today = todayString();
+        const yesterday = yesterdayString();
+        const { lastReadDates, freezeDatesUsed } = get();
+        // Frozen today = covered by a freeze yesterday AND haven't read today
+        if (lastReadDates[langCode] === today) return false;
+        return (freezeDatesUsed[langCode] ?? []).includes(yesterday);
       },
     }),
     {

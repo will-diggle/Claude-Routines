@@ -158,7 +158,7 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
-  const { recordRead, readingStreaks, readingHistory, lastReadDates, addReadingTime, getReadingTimeToday } = useStreakStore();
+  const { recordRead, readingStreaks, readingHistory, lastReadDates, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
@@ -173,6 +173,15 @@ export function BriefingScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Which language page is currently visible
   const currentLangRef = useRef<string | null>(null);
+
+  // Silently consume freezes for any active language that missed yesterday
+  const checkFreezes = useCallback(() => {
+    for (const lang of activeLanguages) {
+      checkAndConsumeFreeze(lang.code);
+    }
+  }, [activeLanguages, checkAndConsumeFreeze]);
+
+  useEffect(() => { checkFreezes(); }, []);
 
   // Initialize readTracked from store so returning users don't get double credit
   useEffect(() => {
@@ -297,6 +306,8 @@ export function BriefingScreen() {
         // Resume reading timer for current language
         const lang = activeLanguages[briefPageIndex]?.code;
         if (lang) startTimer(lang);
+        // Silently apply any pending freezes for missed days
+        checkFreezes();
         // Sync if stale
         if (Date.now() - lastSyncRef.current >= 30_000) runSync();
       } else {
@@ -423,6 +434,7 @@ export function BriefingScreen() {
                 <View style={styles.aboveLogoStreak}>
                   <StreakBadge
                     streak={readingStreaks[lang.code] ?? 0}
+                    frozen={isFrozenToday(lang.code)}
                     onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
                   />
                 </View>
@@ -445,6 +457,7 @@ export function BriefingScreen() {
                   <View style={styles.citiesStreakAbs}>
                     <StreakBadge
                       streak={readingStreaks[lang.code] ?? 0}
+                      frozen={isFrozenToday(lang.code)}
                       onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
                     />
                   </View>
