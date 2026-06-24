@@ -5,7 +5,12 @@ let _ph: PostHog | null = null;
 export function initAnalytics(): void {
   const apiKey = process.env.EXPO_PUBLIC_POSTHOG_API_KEY;
   if (!apiKey) return;
-  _ph = new PostHog(apiKey, { host: 'https://eu.posthog.com' });
+  try {
+    _ph = new PostHog(apiKey, { host: 'https://eu.posthog.com' });
+  } catch (e) {
+    // PostHog can fail in Expo Go if storage isn't ready — analytics silently disabled
+    console.warn('[analytics] PostHog init failed:', e);
+  }
 }
 
 function ph(): PostHog | null {
