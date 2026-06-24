@@ -24,6 +24,7 @@ import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
 import { LANGUAGE_LEVELS, LEVELS_BY_LANG } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
+import * as analytics from '../services/analytics';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-cream.png'),
@@ -179,7 +180,15 @@ export function BriefingScreen() {
   // Silently consume freezes for any active language that missed yesterday
   const checkFreezes = useCallback(() => {
     for (const lang of activeLanguages) {
-      checkAndConsumeFreeze(lang.code);
+      const froze = checkAndConsumeFreeze(lang.code);
+      if (froze) {
+        const cutoff = (() => {
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          return d.toISOString().split('T')[0];
+        })();
+        const used = (useStreakStore.getState().freezeDatesUsed[lang.code] ?? []).filter(d => d >= cutoff);
+        analytics.trackStreakFrozen(lang.code, Math.max(0, 2 - used.length));
+      }
     }
   }, [activeLanguages, checkAndConsumeFreeze]);
 
@@ -215,6 +224,12 @@ export function BriefingScreen() {
       const current = store.readingStreaks[langCode] ?? 0;
       const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
       recordRead(langCode);
+      analytics.trackBriefCompleted(langCode);
+      if (newCount === 1 && current > 0) {
+        analytics.trackStreakBroken(langCode, current);
+      } else {
+        analytics.trackStreakIncremented(langCode, newCount);
+      }
       setCelebration({ langCode, streakCount: newCount });
       // Full-sweep check: if 2+ languages active and all are now read, queue it
       // (shown after individual streak modal is dismissed)
@@ -276,6 +291,13 @@ export function BriefingScreen() {
     runSync();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
+
+  // Track brief_opened when user navigates between language pages
+  useEffect(() => {
+    const lang = activeLanguages[briefPageIndex];
+    if (lang) analytics.trackBriefOpened(lang.code);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefPageIndex]);
 
   // When pill taps a language tab, scroll the pager to match
   useEffect(() => {
@@ -648,6 +670,7 @@ export function BriefingScreen() {
           ) {
             recordFullSweep();
             setFullSweepVisible(true);
+            analytics.trackAllLanguagesRead(activeCodes.length);
           }
         }}
       />

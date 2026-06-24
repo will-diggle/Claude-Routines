@@ -35,6 +35,7 @@
     "expo-notifications": "~0.32.17",
     "expo-speech": "^13.1.7",
     "expo-status-bar": "~3.0.9",
+    "posthog-react-native": "^4.52.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-confetti-cannon": "^1.5.2",

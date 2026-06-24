@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import * as analytics from '../services/analytics';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { TappableText } from './TappableText';
@@ -24,9 +25,15 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   const { colors, fontFamily, fontSize } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
+  const articleTappedRef = useRef(false);
 
   function handleWordPress(word: string, sentence: string) {
     if (locked) { onLockedWordPress?.(); return; }
+    if (!articleTappedRef.current) {
+      articleTappedRef.current = true;
+      analytics.trackArticleTapped(language);
+    }
+    analytics.trackWordTapped(language, word);
     setActiveWord(word);
     setActiveSentence(sentence);
   }

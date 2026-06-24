@@ -60,6 +60,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
 import { useShallow } from 'zustand/react/shallow';
 import { setAppIcon as setNativeAppIcon } from 'expo-dynamic-app-icon';
+import * as analytics from '../services/analytics';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -335,7 +336,10 @@ export function SettingsScreen() {
         token: credential.identityToken,
       });
       if (error) throw error;
-      if (data.session) setSession(data.session);
+      if (data.session) {
+        setSession(data.session);
+        analytics.trackUserLoggedIn();
+      }
       setSignInModalVisible(false);
     } catch (e: any) {
       if (e?.code !== 'ERR_REQUEST_CANCELED') {
@@ -373,12 +377,16 @@ export function SettingsScreen() {
       if (authMode === 'signin') {
         const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
         if (error) throw error;
-        if (data.session) setSession(data.session);
+        if (data.session) {
+          setSession(data.session);
+          analytics.trackUserLoggedIn();
+        }
       } else {
         const { data, error } = await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
         if (error) throw error;
         if (data.session) {
           setSession(data.session);
+          analytics.trackUserSignedUp();
         } else {
           Alert.alert('Check your email', 'We sent you a confirmation link — click it to activate your account.');
         }
@@ -493,7 +501,12 @@ export function SettingsScreen() {
                   </Text>
                   <Switch
                     value={lang.active}
-                    onValueChange={() => store.toggleLanguage(lang.code)}
+                    onValueChange={() => {
+                    const wasActive = lang.active;
+                    store.toggleLanguage(lang.code);
+                    if (wasActive) analytics.trackLanguageRemoved(lang.code);
+                    else analytics.trackLanguageAdded(lang.code);
+                  }}
                     trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                     thumbColor="#FFF"
                   />
@@ -523,7 +536,10 @@ export function SettingsScreen() {
                           return (
                             <TouchableOpacity
                               key={val}
-                              onPress={() => store.setLanguageReadLength(lang.code, val)}
+                              onPress={() => {
+                              store.setLanguageReadLength(lang.code, val);
+                              analytics.trackBriefLengthChanged(lang.code, val);
+                            }}
                               style={{
                                 paddingHorizontal: 10,
                                 paddingVertical: 4,
@@ -1159,7 +1175,11 @@ export function SettingsScreen() {
                   key={level}
                   style={[modalStyles.option, { borderBottomColor: colors.borderLight }]}
                   onPress={() => {
-                    if (levelModalLang) store.setLanguageLevel(levelModalLang as any, level);
+                    if (levelModalLang) {
+                      const oldLevel = store.languages.find(l => l.code === levelModalLang)?.level ?? '';
+                      store.setLanguageLevel(levelModalLang as any, level);
+                      analytics.trackLevelChanged(levelModalLang, level, oldLevel);
+                    }
                     setLevelModalLang(null);
                   }}
                 >

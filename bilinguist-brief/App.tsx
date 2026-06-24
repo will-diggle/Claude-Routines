@@ -44,6 +44,8 @@ function safeSetAppIcon(icon: string | null) {
   } catch {}
 }
 import { lookupWord } from './src/services/wordService';
+import * as analytics from './src/services/analytics';
+import { useSubscriptionStore } from './src/store/useSubscriptionStore';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -99,9 +101,35 @@ function AppContent() {
   // Keep auth store in sync with Supabase session changes (no-op when not configured)
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => {});
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session?.user?.id) {
+        analytics.identifyUser(data.session.user.id);
+        analytics.setSuperProperties({
+          platform: 'ios',
+          app_version: Constants.expoConfig?.version ?? '0.0.0',
+          active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
+          subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
+        });
+      } else {
+        const anonId = useAuthStore.getState().anonymousId;
+        analytics.identifyUser(anonId);
+        analytics.trackAnonymousSessionStarted();
+      }
+    }).catch(() => {});
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.id) {
+        analytics.identifyUser(session.user.id);
+        analytics.setSuperProperties({
+          platform: 'ios',
+          app_version: Constants.expoConfig?.version ?? '0.0.0',
+          active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
+          subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
+        });
+      } else if (_event === 'SIGNED_OUT') {
+        analytics.resetIdentity();
+      }
     });
     return () => subscription.unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -226,6 +254,11 @@ const SPINNER_COLORS: Record<string, string> = {
 };
 
 export default function App() {
+  useEffect(() => {
+    analytics.initAnalytics();
+    analytics.trackAppOpened(true);
+  }, []);
+
   const [fontsLoaded] = useFonts({
     Lora_400Regular,
     Lora_700Bold,

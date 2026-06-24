@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { Spacing } from '../theme';
+import * as analytics from '../services/analytics';
 
 const FREE_FEATURES = [
   '1 World News article daily',
@@ -43,6 +44,8 @@ export function PaywallScreen({ onClose }: Props) {
   const [promoVisible, setPromoVisible] = useState(false);
   const [promoInput, setPromoInput] = useState('');
 
+  useEffect(() => { analytics.trackPaywallShown(); }, []);
+
   function handlePromoSubmit() {
     const result = applyPromoCode(promoInput);
     if (result === 'success') {
@@ -58,7 +61,7 @@ export function PaywallScreen({ onClose }: Props) {
 
   function handleSubscribe() {
     // RevenueCat purchase flow — stub
-    // Production: await Purchases.purchasePackage(package)
+    // Production: await Purchases.purchasePackage(package); analytics.trackSubscriptionStarted(plan)
     Alert.alert(
       'Subscription',
       'Add your RevenueCat API key to enable in-app purchases.\n\nFor testing, use your promo code instead.',
