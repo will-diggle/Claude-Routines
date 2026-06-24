@@ -36,6 +36,25 @@ export function countWordTokens(text: string): number {
   return matches?.length ?? 0;
 }
 
+/**
+ * Scan `text` for the first token that matches `targetToken` (case-insensitive)
+ * and return its article-global word position (wordIndex + wordPositionOffset).
+ * Returns null if not found.
+ */
+export function findWordPosition(
+  text: string,
+  targetToken: string,
+  wordPositionOffset: number,
+): number | null {
+  const lower = targetToken.toLowerCase();
+  for (const token of tokenise(text)) {
+    if (token.isWord && token.text.toLowerCase() === lower) {
+      return token.wordIndex + wordPositionOffset;
+    }
+  }
+  return null;
+}
+
 export function findContainingSentence(text: string, word: string): string {
   const sentences = text.split(/(?<=[.!?»])\s+/);
   const hit = sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()));

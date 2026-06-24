@@ -2,7 +2,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { TappableText, countWordTokens } from './TappableText';
+import { TappableText, countWordTokens, findWordPosition } from './TappableText';
+import { lookupSeparableInfo } from '../services/dictionaryService';
 import { WordPopup } from './WordPopup';
 import type { BriefingArticle as Article, TokenMapEntry } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -73,7 +74,20 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActiveWord(word);
     setActiveLemma(lemma);
     setActiveSentence(sentence);
-  }, [locked, onLockedWordPress, tokenByPosition, language]);
+
+    // Separable verb detection — de and sv only, fails silently
+    if (language === 'de' || language === 'sv') {
+      lookupSeparableInfo(lemma, language).then((sep) => {
+        if (!sep?.separablePrefix) return;
+        const partnerPos =
+          findWordPosition(article.headline, sep.separablePrefix, 0) ??
+          findWordPosition(article.body, sep.separablePrefix, headlineWordCount);
+        if (partnerPos !== null) {
+          setActivePositions((prev) => new Set([...prev, partnerPos]));
+        }
+      }).catch(() => {});
+    }
+  }, [locked, onLockedWordPress, tokenByPosition, language, article, headlineWordCount]);
 
   const handleClose = useCallback(() => {
     setActivePositions(new Set());
