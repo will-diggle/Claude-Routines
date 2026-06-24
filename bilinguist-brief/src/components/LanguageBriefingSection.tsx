@@ -183,7 +183,7 @@ function SectionHeader({
           text={label}
           style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}
           activeWord={activeWord}
-          onWordPress={(word) => setActiveWord(word)}
+          onWordPress={(_pos, word) => setActiveWord(word)}
         />
       </View>
       {activeWord && (

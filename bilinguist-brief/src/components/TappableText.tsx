@@ -5,24 +5,35 @@ import { useTheme } from '../hooks/useTheme';
 interface Token {
   text: string;
   isWord: boolean;
-  index: number;
+  index: number;       // sequential index across ALL tokens (words + non-words)
+  wordIndex: number;   // sequential index counting only word tokens (-1 for non-words)
 }
 
-// Tokenise into words (any Unicode letter, incl. Turkish ı/ğ/ş, Arabic, CJK)
-// and non-words. The `u` flag enables full Unicode property escapes.
+// Tokenise into words and non-words using the same Unicode letter regex as
+// bilinguist_tokenise.py, so that wordIndex values align with the pipeline's
+// token map positions.
 function tokenise(text: string): Token[] {
   const regex = /(\p{L}+(?:'\p{L}+)?)|([^\p{L}]+)/gu;
   const tokens: Token[] = [];
   let match: RegExpExecArray | null;
   let index = 0;
+  let wordIndex = 0;
   while ((match = regex.exec(text)) !== null) {
+    const isWord = !!match[1];
     tokens.push({
-      text: match[0],
-      isWord: !!match[1],
-      index: index++,
+      text:      match[0],
+      isWord,
+      index:     index++,
+      wordIndex: isWord ? wordIndex++ : -1,
     });
   }
   return tokens;
+}
+
+/** Count word tokens in a string — used by BriefingArticle to compute offset. */
+export function countWordTokens(text: string): number {
+  const matches = text.match(/\p{L}+(?:'\p{L}+)?/gu);
+  return matches?.length ?? 0;
 }
 
 export function findContainingSentence(text: string, word: string): string {
@@ -34,11 +45,35 @@ export function findContainingSentence(text: string, word: string): string {
 interface Props {
   text: string;
   style?: any;
+  /** Deprecated single-word active state — still supported for legacy callers. */
   activeWord?: string | null;
-  onWordPress: (word: string, sentence: string) => void;
+  /**
+   * Set of article-global word positions to highlight (multi-position support
+   * for separable verbs, gendered article+noun pairs, etc.).
+   * When provided, overrides `activeWord`.
+   */
+  activePositions?: Set<number>;
+  /**
+   * Offset added to each word's local wordIndex to produce the article-global
+   * word position. Headline TappableText uses 0; body TappableText uses the
+   * word count of the headline.
+   */
+  wordPositionOffset?: number;
+  /**
+   * Called when a word is tapped.
+   * `wordPosition` is the article-global word position (wordIndex + offset).
+   */
+  onWordPress: (wordPosition: number, word: string, sentence: string) => void;
 }
 
-export function TappableText({ text, style, activeWord, onWordPress }: Props) {
+export function TappableText({
+  text,
+  style,
+  activeWord,
+  activePositions,
+  wordPositionOffset = 0,
+  onWordPress,
+}: Props) {
   const { colors } = useTheme();
   const tokens = useMemo(() => tokenise(text), [text]);
 
@@ -49,12 +84,20 @@ export function TappableText({ text, style, activeWord, onWordPress }: Props) {
           return <Text key={token.index}>{token.text}</Text>;
         }
 
-        const isActive = token.text.toLowerCase() === activeWord?.toLowerCase();
+        const globalPos = token.wordIndex + wordPositionOffset;
+
+        const isActive = activePositions
+          ? activePositions.has(globalPos)
+          : token.text.toLowerCase() === activeWord?.toLowerCase();
 
         return (
           <Text
             key={token.index}
-            onPress={() => onWordPress(token.text, findContainingSentence(text, token.text))}
+            onPress={() => onWordPress(
+              globalPos,
+              token.text,
+              findContainingSentence(text, token.text),
+            )}
             style={[
               styles.word,
               isActive

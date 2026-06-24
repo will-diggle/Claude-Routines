@@ -1,12 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import * as analytics from '../services/analytics';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { TappableText } from './TappableText';
+import { TappableText, countWordTokens } from './TappableText';
 import { WordPopup } from './WordPopup';
-import type { BriefingArticle as Article } from '../services/anthropic';
+import type { BriefingArticle as Article, TokenMapEntry } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
+import * as analytics from '../services/analytics';
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -23,24 +23,63 @@ interface Props {
 
 export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedWordPress }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
-  const [activeWord, setActiveWord] = useState<string | null>(null);
-  const [activeSentence, setActiveSentence] = useState('');
-  const articleTappedRef = useRef(false);
 
-  function handleWordPress(word: string, sentence: string) {
+  // Word position of the first body word (= number of words in headline)
+  const headlineWordCount = useMemo(
+    () => countWordTokens(article.headline),
+    [article.headline],
+  );
+
+  // Build a position-indexed lookup map from the token map for O(1) access
+  const tokenByPosition = useMemo<Map<number, TokenMapEntry>>(() => {
+    const map = new Map<number, TokenMapEntry>();
+    for (const t of article.tokenMap ?? []) {
+      map.set(t.position, t);
+    }
+    return map;
+  }, [article.tokenMap]);
+
+  // Highlighted word positions (article-global) — supports non-adjacent tokens
+  const [activePositions, setActivePositions] = useState<Set<number>>(new Set());
+  // The surface word shown in the popup header
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  // The lemma to look up (may differ from surface, e.g. "sehe" → "ansehen")
+  const [activeLemma, setActiveLemma] = useState<string | null>(null);
+  const [activeSentence, setActiveSentence] = useState('');
+
+  const articleTappedRef = React.useRef(false);
+
+  const handleWordPress = useCallback((
+    wordPosition: number,
+    word: string,
+    sentence: string,
+  ) => {
     if (locked) { onLockedWordPress?.(); return; }
+
     if (!articleTappedRef.current) {
       articleTappedRef.current = true;
       analytics.trackArticleTapped(language);
     }
-    analytics.trackWordTapped(language, word);
-    setActiveWord(word);
-    setActiveSentence(sentence);
-  }
 
-  function handleClose() {
+    // Resolve lemma and linked positions from token map (if available)
+    const tokenEntry = tokenByPosition.get(wordPosition);
+    const lemma = tokenEntry?.lemma ?? word;
+    const linked = tokenEntry?.linked_positions ?? [];
+    const allPositions = new Set([wordPosition, ...linked]);
+
+    analytics.trackWordTapped(language, lemma);
+
+    setActivePositions(allPositions);
+    setActiveWord(word);
+    setActiveLemma(lemma);
+    setActiveSentence(sentence);
+  }, [locked, onLockedWordPress, tokenByPosition, language]);
+
+  const handleClose = useCallback(() => {
+    setActivePositions(new Set());
     setActiveWord(null);
-  }
+    setActiveLemma(null);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -53,15 +92,18 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
             styles.headline,
             { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading },
           ]}
-          activeWord={activeWord}
+          activePositions={activePositions}
+          wordPositionOffset={0}
           onWordPress={handleWordPress}
         />
       </View>
 
+      {/* Body */}
       <TappableText
         text={article.body}
         style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
-        activeWord={activeWord}
+        activePositions={activePositions}
+        wordPositionOffset={headlineWordCount}
         onWordPress={handleWordPress}
       />
 
@@ -70,6 +112,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       {activeWord && (
         <WordPopup
           word={activeWord}
+          lemma={activeLemma ?? activeWord}
           sentence={activeSentence}
           language={language}
           level={level}
@@ -86,26 +129,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
   },
-
-  // Headline sits in a row so the audio button can float to the right
   headlineRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     marginBottom: Spacing.sm,
-    gap: 10,
   },
   headline: {
-    lineHeight: 36,
-    // flex: 1 set inline so headline wraps and button stays pinned right
-  },
-
-  body: {
     lineHeight: 28,
-    marginBottom: Spacing.lg,
-    textAlign: 'justify',
+  },
+  body: {
+    lineHeight: 26,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-    marginBottom: Spacing.xs,
+    marginTop: Spacing.lg,
   },
 });

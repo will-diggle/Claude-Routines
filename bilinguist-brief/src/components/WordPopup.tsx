@@ -16,6 +16,7 @@ import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { lookupWord } from '../services/wordService';
 import type { WordEntry } from '../services/wordService';
 import { translateWord } from '../services/deepl';
+import { lookupDictionary, writeBackDictionary } from '../services/dictionaryService';
 import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
@@ -34,14 +35,18 @@ const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
 
 interface Props {
   word: string | null;
+  /** Lemma resolved from token map (e.g. "ansehen" for tapped "sehe"). Falls back to word. */
+  lemma?: string;
   sentence: string;
   language: LanguageCode;
   level: LanguageLevel;
-  genre?: string;   // ← add this
+  genre?: string;
   onClose: () => void;
 }
 
-export function WordPopup({ word, sentence, language, level, genre, onClose }: Props) {
+export function WordPopup({ word, lemma, sentence, language, level, genre, onClose }: Props) {
+  const lookupLemma = lemma ?? word ?? '';
+
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const { saveWord, isWordSaved, backfillWord } = useWordBankStore();
@@ -64,44 +69,61 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
     setShowExplanation(false);
     setSaved(false);
 
-    // Fast path: Google Translate (~200ms) shows a translation immediately.
-    // Replaced silently by the full worker result when it arrives.
-    translateWord(word, language).then((result) => {
-      if (result?.translation) setQuickTranslation(result.translation);
-    }).catch(() => {});
-
-    // Slow path: full AI lookup (translation + conjugation + explanation).
-    // This promise is NOT cancelled when the popup closes — it runs to completion
-    // so the word bank is always backfilled with rich data regardless of how
-    // quickly the user closes the sheet.
     const currentWord = word;
+    const currentLemma = lookupLemma;
     const currentLang = language;
-    lookupWord(currentWord, currentLang, level).then((result) => {
-      // Update UI if still mounted (React ignores setState on unmounted components)
-      setEntry(result);
-      setIsLoading(false);
-      // Backfill word bank with full AI data — runs even after popup is closed
-      if (result) {
-        const stored = useWordBankStore.getState().words.find(
-          w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
-        );
-        if (stored) {
-          backfillWord(currentWord, currentLang, {
-            translation: result.translation ?? undefined,
-            explanation: result.explanation ?? undefined,
-            lemma: result.lemma,
-            pronunciation: result.pronunciation,
-            verbTable: result.verbTable,
-            verbTablePast: result.verbTablePast,
-            forms: result.forms,
-            wordType: result.wordType,
-            tip: result.tip,
-            meta: result.meta,
-          });
-        }
+
+    (async () => {
+      // Tier 1: instant translation — check Supabase dictionary first.
+      // Falls back to Google Translate only when dictionary misses.
+      const dictEntry = await lookupDictionary(currentLemma, currentLang);
+      if (dictEntry?.translation) {
+        setQuickTranslation(dictEntry.translation);
+        setEntry(dictEntry);
+        setIsLoading(false);
+      } else {
+        // Dictionary miss (rare post-population) — fall back to Google Translate
+        translateWord(currentLemma, currentLang).then((result) => {
+          if (result?.translation) setQuickTranslation(result.translation);
+        }).catch(() => {});
       }
-    }).catch(() => { setIsLoading(false); });
-  }, [word, language]);
+
+      // Tier 2: full card — skip live AI call if dictionary already has a complete entry
+      if (dictEntry) {
+        setEntry(dictEntry);
+        setIsLoading(false);
+      } else {
+        // Missing from dictionary — live Haiku call, then write back
+        lookupWord(currentWord, currentLang, level).then((result) => {
+          setEntry(result);
+          setIsLoading(false);
+          if (result) {
+            // Write back so future taps of this word are instant
+            writeBackDictionary(currentLemma, currentLang, result).catch(() => {});
+            // Backfill word bank
+            const stored = useWordBankStore.getState().words.find(
+              w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
+            );
+            if (stored) {
+              backfillWord(currentWord, currentLang, {
+                translation:   result.translation ?? undefined,
+                explanation:   result.explanation ?? undefined,
+                lemma:         result.lemma,
+                pronunciation: result.pronunciation,
+                verbTable:     result.verbTable,
+                verbTablePast: result.verbTablePast,
+                forms:         result.forms,
+                wordType:      result.wordType,
+                tip:           result.tip,
+                meta:          result.meta,
+              });
+            }
+          }
+        }).catch(() => { setIsLoading(false); });
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [word, lookupLemma, language]);
 
   function handleSave() {
     if (!word || alreadySaved || saved) return;
@@ -177,9 +199,10 @@ export function WordPopup({ word, sentence, language, level, genre, onClose }: P
                       </Text>
                     </View>
                   )}
-                  {entry?.lemma && entry.lemma !== word?.toLowerCase() && (
+                  {/* Show lemma hint when the displayed surface word differs from its citation form */}
+                  {lookupLemma && lookupLemma.toLowerCase() !== word?.toLowerCase() && (
                     <Text style={[styles.lemmaLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                      ← {entry.lemma}
+                      ← {lookupLemma}
                     </Text>
                   )}
                   {/* Small spinner when quick translation is showing but full result still loading */}
