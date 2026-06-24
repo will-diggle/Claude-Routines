@@ -17,6 +17,7 @@ import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { useStreakStore } from '../store/useStreakStore';
 import { StreakBadge } from '../components/StreakBadge';
 import { FullStreakCalendar } from '../components/StreakCalendar';
+import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageLevel } from '../store/useSettingsStore';
@@ -160,6 +161,7 @@ export function BriefingScreen() {
   const { recordRead, readingStreaks, readingHistory, lastReadDates, addReadingTime, getReadingTimeToday } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
+  const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
   // Per-language flags — reset from store on mount so app restarts don't double-credit
   const readTrackedRef = useRef<Record<string, boolean>>({});
@@ -194,7 +196,15 @@ export function BriefingScreen() {
         addReadingTime(langCode, session);
         sessionTimeRef.current[langCode] = 0;
       }
+      // Compute new streak before recording so we can show correct count
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })();
+      const store = useStreakStore.getState();
+      const lastRead = store.lastReadDates[langCode];
+      const current = store.readingStreaks[langCode] ?? 0;
+      const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
       recordRead(langCode);
+      setCelebration({ langCode, streakCount: newCount });
     }
   }, [getReadingTimeToday, addReadingTime, recordRead]);
 
@@ -605,6 +615,13 @@ export function BriefingScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <StreakCelebrationModal
+        visible={celebration !== null}
+        streakCount={celebration?.streakCount ?? 1}
+        langCode={celebration?.langCode ?? 'en'}
+        onDismiss={() => setCelebration(null)}
+      />
     </View>
   );
 }
