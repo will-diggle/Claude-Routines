@@ -34,7 +34,9 @@ _STAGE_LABELS: dict[str, str] = {
     "2B":       "Stage 2B beginner",
     "2M":       "Stage 2M writing",
     "3":        "Stage 3 native",
-    "4":        "Stage 4 grading",
+    "4a":       "Stage 4a grade native",
+    "4b":       "Stage 4b grade CEFR",
+    "4":        "Stage 4 grading",      # legacy key — kept for old bundles
 }
 
 
@@ -50,7 +52,7 @@ def _cost_summary(output_dir: Path, date: str) -> str:
         return ""
 
     lines = [f"\n💰 API Cost: £{costs['total_gbp']:.3f} (${costs['total_usd']:.3f})"]
-    for sname in ["1_gather", "2S", "2M", "3", "4"]:
+    for sname in ["1_gather", "2S", "2M", "3", "4a", "4b", "4"]:
         sdata = costs["stages"].get(sname)
         if not sdata or sdata.get("calls", 0) == 0:
             continue
@@ -101,10 +103,13 @@ def _factcheck_summary(script_dir: Path, date: str) -> str:
     return "\n".join(lines)
 
 
-def _language_breakdown(briefings: dict) -> str:
+def _language_breakdown(briefings: dict, native_journalism: dict) -> str:
     """
     Returns a per-language, per-level breakdown showing which levels are present.
     Each language gets its own line with tick/cross per level.
+
+    CEFR levels are checked in briefings[lang][level][length].
+    Native is checked in nativeJournalism[lang] — it is not split by length.
 
     Example:
       French:  A1✓ A2✓ B1✓ B2✓ C1✓ Native✓
@@ -116,11 +121,13 @@ def _language_breakdown(briefings: dict) -> str:
         lang_name = LANG_NAMES.get(lang, lang)
         level_parts = []
         for level in levels:
-            # A level is "present" if it has at least one non-empty length
-            has_any = any(
-                briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles")
-                for length in LENGTHS
-            )
+            if level == "Native":
+                has_any = bool(native_journalism.get(lang))
+            else:
+                has_any = any(
+                    briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles")
+                    for length in LENGTHS
+                )
             mark = "✓" if has_any else "✗"
             level_parts.append(f"{level}{mark}")
         lines.append(f"  {lang_name}: {' '.join(level_parts)}")
@@ -131,26 +138,36 @@ def check(bundle_path: Path) -> None:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
 
-    briefings = bundle.get("briefings", {})
-    date      = bundle.get("date", "unknown")
+    briefings        = bundle.get("briefings", {})
+    native_journalism = bundle.get("nativeJournalism", {})
+    date             = bundle.get("date", "unknown")
 
     # ── Check article combinations ─────────────────────────────────────────────
+    # Native is a single entry per language (not split by length) stored in
+    # nativeJournalism. CEFR levels are split by short/medium/longer in briefings.
     missing: list[str] = []
     present = 0
     total   = 0
 
     for lang, levels in LANGUAGE_LEVELS.items():
         for level in levels:
-            for length in LENGTHS:
+            if level == "Native":
                 total += 1
-                articles = briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles", [])
-                if articles:
+                if native_journalism.get(lang):
                     present += 1
                 else:
-                    missing.append(f"{LANG_NAMES.get(lang, lang)} {level}/{length}")
+                    missing.append(f"{LANG_NAMES.get(lang, lang)} Native")
+            else:
+                for length in LENGTHS:
+                    total += 1
+                    articles = briefings.get(lang, {}).get(level, {}).get(length, {}).get("articles", [])
+                    if articles:
+                        present += 1
+                    else:
+                        missing.append(f"{LANG_NAMES.get(lang, lang)} {level}/{length}")
 
     # ── Per-language level breakdown ───────────────────────────────────────────
-    breakdown = _language_breakdown(briefings)
+    breakdown = _language_breakdown(briefings, native_journalism)
 
     # ── Cost summary ───────────────────────────────────────────────────────────
     script_dir = bundle_path.parent.parent  # scripts/ not scripts/output/
