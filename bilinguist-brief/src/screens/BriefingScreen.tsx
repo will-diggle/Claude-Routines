@@ -157,12 +157,73 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
-  const { recordRead, readingStreaks, readingHistory } = useStreakStore();
+  const { recordRead, readingStreaks, readingHistory, lastReadDates, addReadingTime, getReadingTimeToday } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
-  // Per-language flag to avoid calling recordRead multiple times per session
+  // Per-language flags — reset from store on mount so app restarts don't double-credit
   const readTrackedRef = useRef<Record<string, boolean>>({});
+  // Per-language: has 80% scroll been reached today?
+  const scrollMetRef = useRef<Record<string, boolean>>({});
+  // Seconds accumulated this session (not yet flushed to the store)
+  const sessionTimeRef = useRef<Record<string, number>>({});
+  // Interval ref for the 1-second reading timer
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Which language page is currently visible
+  const currentLangRef = useRef<string | null>(null);
+
+  // Initialize readTracked from store so returning users don't get double credit
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    for (const lang of activeLanguages) {
+      if (lastReadDates[lang.code] === today) {
+        readTrackedRef.current[lang.code] = true;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Credit streak only when BOTH 80% scroll AND 20 seconds have been met
+  const maybeCredit = useCallback((langCode: string) => {
+    if (readTrackedRef.current[langCode]) return;
+    const persisted = getReadingTimeToday(langCode);
+    const session = sessionTimeRef.current[langCode] ?? 0;
+    if (scrollMetRef.current[langCode] && (persisted + session) >= 20) {
+      readTrackedRef.current[langCode] = true;
+      if (session > 0) {
+        addReadingTime(langCode, session);
+        sessionTimeRef.current[langCode] = 0;
+      }
+      recordRead(langCode);
+    }
+  }, [getReadingTimeToday, addReadingTime, recordRead]);
+
+  const flushCurrentLang = useCallback(() => {
+    const lang = currentLangRef.current;
+    if (lang && (sessionTimeRef.current[lang] ?? 0) > 0) {
+      addReadingTime(lang, sessionTimeRef.current[lang]);
+      sessionTimeRef.current[lang] = 0;
+    }
+  }, [addReadingTime]);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    flushCurrentLang();
+  }, [flushCurrentLang]);
+
+  const startTimer = useCallback((langCode: string) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    currentLangRef.current = langCode;
+    timerRef.current = setInterval(() => {
+      const lang = currentLangRef.current;
+      if (!lang) return;
+      sessionTimeRef.current[lang] = (sessionTimeRef.current[lang] ?? 0) + 1;
+      maybeCredit(lang);
+    }, 1000);
+  }, [maybeCredit]);
 
   const [refreshing, setRefreshing] = useState(false);
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
@@ -209,21 +270,33 @@ export function BriefingScreen() {
     }
   }, [langCount]);
 
-  // Reset dock state when user swipes to a new language page
+  // Reset dock state and start reading timer when user swipes to a new language page
   useEffect(() => {
     briefingScrollY.setValue(0);
     scrolledFlagRef.current = false;
     setBriefingScrolled(false);
+    const lang = activeLanguages[briefPageIndex]?.code;
+    if (lang) startTimer(lang);
+    return () => stopTimer();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [briefPageIndex]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state !== 'active') return;
-      if (Date.now() - lastSyncRef.current < 30_000) return;
-      runSync();
+      if (state === 'active') {
+        // Resume reading timer for current language
+        const lang = activeLanguages[briefPageIndex]?.code;
+        if (lang) startTimer(lang);
+        // Sync if stale
+        if (Date.now() - lastSyncRef.current >= 30_000) runSync();
+      } else {
+        // App backgrounded — pause timer and flush accumulated time
+        stopTimer();
+      }
     });
     return () => sub.remove();
-  }, [runSync]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSync, briefPageIndex, startTimer, stopTimer]);
 
   useEffect(() => {
     const id = setInterval(() => runSync(), 10 * 60 * 1000);
@@ -299,12 +372,12 @@ export function BriefingScreen() {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
                 }
-                // Mark language as read when user reaches 80% of the article
-                if (!readTrackedRef.current[lang.code] && contentSize.height > 0) {
+                // Gate streak on 80% scroll AND 20 seconds spent on this brief
+                if (!scrollMetRef.current[lang.code] && contentSize.height > 0) {
                   const pct = (y + layoutMeasurement.height) / contentSize.height;
                   if (pct >= 0.8) {
-                    readTrackedRef.current[lang.code] = true;
-                    recordRead(lang.code);
+                    scrollMetRef.current[lang.code] = true;
+                    maybeCredit(lang.code);
                   }
                 }
               }}

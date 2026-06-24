@@ -11,10 +11,14 @@ interface StreakStore {
   readingStreaks: Record<string, number>;
   lastReadDates: Record<string, string>;
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
+  // Cumulative time spent on each language brief per day (key: `${langCode}_${date}`)
+  readingTimeSecs: Record<string, number>;
   recordSession: () => void;
   setSpeedSnapHighScore: (score: number) => void;
   recordRead: (langCode: string) => void;
   getReadingStreak: (langCode: string) => number;
+  addReadingTime: (langCode: string, seconds: number) => void;
+  getReadingTimeToday: (langCode: string) => number;
 }
 
 function todayString() {
@@ -37,6 +41,7 @@ export const useStreakStore = create<StreakStore>()(
       readingStreaks: {},
       lastReadDates: {},
       readingHistory: {},
+      readingTimeSecs: {},
 
       recordSession: () => {
         const today = todayString();
@@ -89,6 +94,28 @@ export const useStreakStore = create<StreakStore>()(
 
       getReadingStreak: (langCode: string) => {
         return get().readingStreaks[langCode] ?? 0;
+      },
+
+      addReadingTime: (langCode: string, seconds: number) => {
+        if (seconds <= 0) return;
+        const key = `${langCode}_${todayString()}`;
+        const { readingTimeSecs } = get();
+        // Prune keys older than 7 days to keep storage small
+        const cutoff = (() => {
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          return d.toISOString().split('T')[0];
+        })();
+        const pruned: Record<string, number> = {};
+        for (const [k, v] of Object.entries(readingTimeSecs)) {
+          const date = k.split('_').slice(1).join('_');
+          if (date >= cutoff) pruned[k] = v;
+        }
+        set({ readingTimeSecs: { ...pruned, [key]: (pruned[key] ?? 0) + seconds } });
+      },
+
+      getReadingTimeToday: (langCode: string) => {
+        const key = `${langCode}_${todayString()}`;
+        return get().readingTimeSecs[key] ?? 0;
       },
     }),
     {
