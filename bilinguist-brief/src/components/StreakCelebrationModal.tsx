@@ -33,11 +33,14 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
 
   useEffect(() => {
     if (visible) {
-      // Small delay so the modal is fully rendered before confetti fires
-      const t = setTimeout(() => confettiRef.current?.start(), 100);
-      return () => clearTimeout(t);
+      const confettiTimer = setTimeout(() => confettiRef.current?.start(), 100);
+      const dismissTimer = setTimeout(onDismiss, 4000);
+      return () => {
+        clearTimeout(confettiTimer);
+        clearTimeout(dismissTimer);
+      };
     }
-  }, [visible]);
+  }, [visible, onDismiss]);
 
   const copy = STREAK_COPY[langCode] ?? 'Your streak is on fire';
   const headline = streakCount === 1 ? '1 day streak!' : `${streakCount} day streak!`;
@@ -89,6 +92,7 @@ const styles = StyleSheet.create({
     paddingVertical: 36,
     paddingHorizontal: 28,
     alignItems: 'center',
+    opacity: 0.92,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
