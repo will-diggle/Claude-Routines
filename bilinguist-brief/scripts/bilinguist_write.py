@@ -882,10 +882,12 @@ def run_writing_concurrent(
         else:
             n_splits = 3  # longer only — medium removed
         prompt = build_writing_prompt(template, lang, level, length, factbase)
+        # longer articles generate ~4-5k tokens per split part with gemini-2.5-flash;
+        # 8192 is too tight — 16384 gives headroom for verbose languages (German, Swedish)
         tasks.append(_WriteTask(
             stage=stage, lang=lang, level=level, length=length,
             model=model, prompt=prompt, schema=_SCHEMA_WRITING,
-            max_output_tokens=8192, template=template, factbase=factbase,
+            max_output_tokens=16384, template=template, factbase=factbase,
             n_splits=n_splits,
         ))
 
