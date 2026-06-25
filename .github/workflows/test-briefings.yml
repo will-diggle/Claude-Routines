@@ -169,9 +169,9 @@ jobs:
           TITLE="[TEST] ${{ env.BRIEF_TITLE || format('Bilinguist Brief - {0}', env.BRIEF_DATE) }}"
           BODY="${{ env.BRIEF_BODY }}
 
-${{ env.TEST_TIMING }}
+          ${{ env.TEST_TIMING }}
 
-Run: https://github.com/will-diggle/Claude-Routines/actions"
+          Run: https://github.com/will-diggle/Claude-Routines/actions"
           curl -s -X POST \
             -H "Title: ${TITLE}" \
             -H "Tags: ${{ env.BRIEF_EMOJI || 'test_tube' }}" \
