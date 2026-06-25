@@ -53,8 +53,8 @@ MODEL_BEGINNER = "gemini-2.5-flash"          # A1/A2: same model as B1+ for reli
 MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
-MODEL_4A = "gemini-2.0-flash-lite"          # P4a: grade native journalism → overall CEFR level
-MODEL_4B = "gemini-2.0-flash-lite"          # P4b: grade CEFR level articles (quality gate)
+MODEL_4A = "gemini-2.5-flash"               # P4a: grade native journalism → overall CEFR level
+MODEL_4B = "gemini-2.5-flash"               # P4b: grade CEFR level articles (quality gate)
 
 # Concurrency limit — 4 workers keeps Gemini 2.5 Flash 503 rate low now that the
 # level matrix has expanded (~88+ writing calls vs ~50 before). 10 workers caused
@@ -724,19 +724,12 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         }
         costs["total_usd"] += g_usd
 
-    # Write / grade stages — Flash-Lite for 4a/4b, Flash 2.5 for everything else
-    FLASH_LITE_STAGES = {"4a", "4b"}
+    # All write/grade stages use gemini-2.5-flash (gemini-2.0-flash-lite deprecated)
     for sname, usage in _stage_usage.items():
-        if sname in FLASH_LITE_STAGES:
-            in_usd  = (usage.input_tokens  / 1_000_000) * FLASH_LITE_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens / 1_000_000) * FLASH_LITE_OUTPUT_USD_PER_M
-            thi_usd = 0.0
-            model_name = "gemini-2.0-flash-lite"
-        else:
-            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-            model_name = "gemini-2.5-flash"
+        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+        model_name = "gemini-2.5-flash"
         s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
             "model":           model_name,

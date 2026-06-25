@@ -165,17 +165,22 @@ jobs:
 
       - name: Notify test success
         if: success()
+        env:
+          NTFY_TITLE: ${{ env.BRIEF_TITLE || format('[TEST] Bilinguist Brief - {0}', env.BRIEF_DATE) }}
+          NTFY_BODY: ${{ env.BRIEF_BODY }}
+          NTFY_TIMING: ${{ env.TEST_TIMING }}
+          NTFY_EMOJI: ${{ env.BRIEF_EMOJI || 'test_tube' }}
+          NTFY_RUN_URL: https://github.com/will-diggle/Claude-Routines/actions
         run: |
-          TITLE="[TEST] ${{ env.BRIEF_TITLE || format('Bilinguist Brief - {0}', env.BRIEF_DATE) }}"
-          BODY="${{ env.BRIEF_BODY }}
+          FULL_BODY="${NTFY_BODY}
 
-          ${{ env.TEST_TIMING }}
+          ${NTFY_TIMING}
 
-          Run: https://github.com/will-diggle/Claude-Routines/actions"
+          Run: ${NTFY_RUN_URL}"
           curl -s -X POST \
-            -H "Title: ${TITLE}" \
-            -H "Tags: ${{ env.BRIEF_EMOJI || 'test_tube' }}" \
-            --data-binary "${BODY}" \
+            -H "Title: [TEST] ${NTFY_TITLE}" \
+            -H "Tags: ${NTFY_EMOJI}" \
+            --data-binary "${FULL_BODY}" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
       - name: Notify test failure
