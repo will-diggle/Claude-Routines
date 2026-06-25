@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
@@ -34,17 +34,17 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
 // Genre labels translated into each supported language.
 // The API always returns genre in English — we translate on the display side.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
-  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER'       },
-  'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK'    },
-  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK'             },
-  'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA',              sv: 'EKONOMI'             },
-  'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK'  },
-  'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR'              },
-  'ASIA':                { en: 'ASIA',                fr: 'ASIE',                 de: 'ASIEN',                   es: 'ASIA',                  it: 'ASIA',                  sv: 'ASIEN'               },
-  'EUROPE':              { en: 'EUROPE',              fr: 'EUROPE',               de: 'EUROPA',                  es: 'EUROPA',                it: 'EUROPA',                sv: 'EUROPA'              },
-  'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN'        },
-  'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA'              },
-  'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER'        },
+  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER',        hu: 'VILÁGHÍREK'          },
+  'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK',     hu: 'BRIT POLITIKA'       },
+  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK',              hu: 'POLITIKA'            },
+  'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA',              sv: 'EKONOMI',              hu: 'GAZDASÁG'            },
+  'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK',   hu: 'TUDOMÁNY & TECH'     },
+  'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR',               hu: 'KULTÚRA'             },
+  'ASIA':                { en: 'ASIA',                fr: 'ASIE',                 de: 'ASIEN',                   es: 'ASIA',                  it: 'ASIA',                  sv: 'ASIEN',                hu: 'ÁZSIA'               },
+  'EUROPE':              { en: 'EUROPE',              fr: 'EUROPE',               de: 'EUROPA',                  es: 'EUROPA',                it: 'EUROPA',                sv: 'EUROPA',               hu: 'EURÓPA'              },
+  'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN',         hu: 'KÖZEL-KELET'         },
+  'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA',               hu: 'AFRIKA'              },
+  'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER',         hu: 'JÓ HÍREK'            },
 };
 
 function translateGenre(genre: string, lang: LanguageCode): string {
@@ -75,6 +75,7 @@ function genreColor(genre: string): string {
 const NATIVE_WORD: Partial<Record<LanguageCode, string>> = {
   en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
   es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
+  tr: 'Yerel', hu: 'Anyanyelvi',
 };
 
 interface Props {
@@ -128,46 +129,6 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
     }
   }
   return groups;
-}
-
-// Sweeping progress line — 2 px rule that slides left → right on loop while
-// a new level or length is loading. Mounts/unmounts with isTransitioning.
-function SweepRule({ color }: { color: string }) {
-  const { width } = useWindowDimensions();
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 700,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
-  const translateX = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-width, width],
-  });
-
-  return (
-    <View style={{ height: 2, width, overflow: 'hidden' }}>
-      <Animated.View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          height: 2,
-          width,
-          backgroundColor: color,
-          transform: [{ translateX }],
-        }}
-      />
-    </View>
-  );
 }
 
 function SectionHeader({
@@ -238,9 +199,6 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {/* Sweep progress line — slides left→right while loading a new level/length */}
-      {isTransitioning && <SweepRule color={colors.inkDark} />}
-
       {/* Inline weather strip — centred, per-language */}
       {weather && (
         <View style={styles.weatherLine}>
@@ -255,9 +213,9 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {(isGenerating || (!error && !briefing)) && <BriefingLoading />}
+      {(isTransitioning || isGenerating || (!error && !briefing)) && <BriefingLoading />}
 
-      {!isGenerating && error && (
+      {!isTransitioning && !isGenerating && error && (
         <View style={styles.centerBlock}>
           <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             {error}
@@ -274,7 +232,7 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {!isGenerating && !error && briefing && !hasContent && (
+      {!isTransitioning && !isGenerating && !error && briefing && !hasContent && (
         <View style={styles.centerBlock}>
           <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             All topics are hidden — turn some on in Settings to read the briefing.
@@ -282,7 +240,7 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {hasContent && (
+      {!isTransitioning && hasContent && (
         <>
           {genreGroups.map((group, groupIndex) => {
             const accent = genreColor(group.genre);

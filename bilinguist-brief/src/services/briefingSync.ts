@@ -16,9 +16,11 @@ export interface DailyBundle {
       };
     };
   };
-  // P3 native journalism — flat array of articles per language.
+  // P3 native journalism — articles per language per length variant.
   nativeJournalism: {
-    [lang: string]: Array<{ slug: string; text: string; [key: string]: unknown }>;
+    [lang: string]: {
+      [length: string]: Array<{ genre: string; headline: string; body: string; slug?: string }>;
+    };
   };
   // P4a output — CEFR reading level of native journalism per language.
   nativeGrades: {
@@ -120,6 +122,23 @@ export async function applyBundleToCache(bundle: DailyBundle): Promise<void> {
         const key = `briefing_${bundle.date}_${lang}_${level}_${length}`;
         pairs.push([key, JSON.stringify(briefing)]);
       }
+    }
+  }
+
+  // Cache native journalism — each language now has short + longer variants
+  for (const [lang, lengths] of Object.entries(bundle.nativeJournalism ?? {})) {
+    for (const [length, articles] of Object.entries(lengths as Record<string, any[]>)) {
+      if (!Array.isArray(articles) || !articles.length) continue;
+      const key = `briefing_${bundle.date}_${lang}_Native_${length}`;
+      const briefing = {
+        articles: articles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body })),
+        date: bundle.date,
+        language: lang,
+        level: 'Native',
+        length,
+        generatedAt: bundle.generatedAt,
+      };
+      pairs.push([key, JSON.stringify(briefing)]);
     }
   }
 

@@ -414,7 +414,7 @@ OUTPUT FORMAT:
 {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
 
 JSON SAFETY:
-- Each "body" is a SINGLE continuous string. No literal line breaks. Flowing prose in one unbroken string.
+- Each "body" MUST contain 2–3 paragraphs. Separate paragraphs with \\n\\n (two JSON newline escapes). Example: "body": "First paragraph prose.\\n\\nSecond paragraph prose." — exactly this format. No other line breaks within a paragraph.
 - Use the target language's typographic quotation marks — never straight ASCII quotes:
   French: « … » with non-breaking spaces
   German: „…" (low curly opening U+201E, high curly closing U+201C)
@@ -434,7 +434,44 @@ WRITING RULES:
   * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
   * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- Write to the natural length the story demands — aim for 200–300 words per article. Never pad, never cut mid-thought.
+- LENGTH AND STRUCTURE: 200–300 words across 2–3 paragraphs. First paragraph: core facts (who, what, when, where). Second paragraph: context and significance. Third paragraph (optional): reaction, wider implications, or outlook. Never pad, never cut mid-thought.
+- Include the "slug" from the corresponding fact-base story in each article's slug field.
+- Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
+
+[FACTBASE BELOW]
+"""
+
+PROMPT_3_SHORT_HEADER = """\
+You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
+French → Le Monde. German → Der Spiegel. English → The Guardian (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG.
+
+You receive a pre-gathered fact-base of today's news. Write every story as a tight, polished news brief — exactly as a senior staff journalist would write a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
+
+OUTPUT FORMAT:
+{"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
+
+JSON SAFETY:
+- Each "body" is a SINGLE continuous paragraph. No line breaks whatsoever.
+- Use the target language's typographic quotation marks — never straight ASCII quotes:
+  French: « … » with non-breaking spaces
+  German: „…" (low curly opening U+201E, high curly closing U+201C)
+  Spanish: «…»
+  Italian: «…»
+  English: "…"
+  Swedish: "…"
+  Hungarian: „…" (same low-high curly style as German)
+
+WRITING RULES:
+- Write every story from the fact-base. Do not skip any.
+- Write in {LANGUAGE}. British English only if English.
+- Write original prose from the facts. Never copy source phrasing.
+- Use only facts from the fact-base. Preserve all attributions exactly.
+- FACT ORDER: follow the "what_happened" sequence. Lead with the core fact; add key context in order.
+- GLOSSARY:
+  * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
+  * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
+- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources.
+- LENGTH: 100–130 words per article. One tight paragraph. Lead sentence covers the core fact (who, what, when). Remaining sentences add the most important context. Stop at 130 words — never pad, never cut mid-sentence.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
@@ -526,10 +563,11 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     return prompt
 
 
-def build_native_prompt(lang: str, factbase: list) -> str:
-    """Build the native journalism prompt for one language."""
+def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None) -> str:
+    """Build the native journalism prompt for one language and length variant."""
     lang_name = LANGUAGE_NAMES.get(lang, lang)
-    prompt = PROMPT_3_HEADER.replace("{LANGUAGE}", lang_name)
+    template = PROMPT_3_SHORT_HEADER if length == "short" else PROMPT_3_HEADER
+    prompt = template.replace("{LANGUAGE}", lang_name)
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"
     return prompt
@@ -679,7 +717,7 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
                 task.template, task.lang, task.level, task.length, fb_slice
             )
         else:  # stage "3"
-            sub_prompt = build_native_prompt(task.lang, fb_slice)
+            sub_prompt = build_native_prompt(task.lang, fb_slice, task.length)
         sub_label = f"{label}-p{i + 1}"
         text, reason = call_gemini(
             client, task.model, sub_prompt, sub_label,
@@ -785,20 +823,27 @@ def run_native_journalism(
     client: genai.Client,
     factbase: list,
 ) -> dict:
-    """Stage 3 — generate native journalism for all languages. Returns native_journalism dict."""
+    """Stage 3 — generate native journalism for all languages × both lengths.
+    Returns {lang: {short: [articles], longer: [articles]}}."""
     native_langs = list(LANGUAGE_LEVELS.keys())
-    tasks: list[_WriteTask] = [
-        _WriteTask(
-            stage="3", lang=lang, level=None, length=None,
-            model=MODEL_3, prompt=build_native_prompt(lang, factbase),
+    tasks: list[_WriteTask] = []
+    for lang in native_langs:
+        tasks.append(_WriteTask(
+            stage="3", lang=lang, level=None, length="short",
+            model=MODEL_3, prompt=build_native_prompt(lang, factbase, "short"),
             schema=_SCHEMA_NATIVE, max_output_tokens=8192,
+            template=PROMPT_3_SHORT_HEADER, factbase=factbase, n_splits=1,
+        ))
+        tasks.append(_WriteTask(
+            stage="3", lang=lang, level=None, length="longer",
+            model=MODEL_3, prompt=build_native_prompt(lang, factbase, "longer"),
+            schema=_SCHEMA_NATIVE, max_output_tokens=16384,
             template=PROMPT_3_HEADER, factbase=factbase, n_splits=2,
-        )
-        for lang in native_langs
-    ]
+        ))
 
-    print(f"[3] Generating native journalism for {len(native_langs)} languages...")
-    native_journalism: dict = {}
+    total = len(native_langs) * 2
+    print(f"[3] Generating native journalism: {len(native_langs)} languages × 2 lengths ({total} tasks)...")
+    native_journalism: dict = {lang: {} for lang in native_langs}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         future_to_task = {executor.submit(_execute_task, client, t): t for t in tasks}
@@ -806,10 +851,13 @@ def run_native_journalism(
             task = future_to_task[future]
             articles = future.result()
             if articles:
-                native_journalism[task.lang] = articles
-                print(f"[3] {task.lang}: {len(articles)} native articles ✓")
+                native_journalism[task.lang][task.length] = articles
+                print(f"[3] {task.lang}/{task.length}: {len(articles)} articles ✓")
+            else:
+                print(f"[3] {task.lang}/{task.length}: ❌ no articles", file=sys.stderr)
 
-    return native_journalism
+    # Only include languages that produced at least one length variant
+    return {lang: lengths for lang, lengths in native_journalism.items() if lengths}
 
 
 def run_grade_native(
@@ -820,7 +868,14 @@ def run_grade_native(
     Stage P4a — grade native journalism to determine overall CEFR level per language.
     Returns dict[lang → cefr_level_str]. Uses gemini-2.0-flash-lite (classification only).
     """
-    langs_with_articles = [lang for lang, arts in native_journalism.items() if arts]
+    # Use the longer variant for grading (more words = more representative of level)
+    def _articles_for_grading(lengths: dict) -> list:
+        return lengths.get("longer") or lengths.get("short") or []
+
+    langs_with_articles = [
+        lang for lang, lengths in native_journalism.items()
+        if isinstance(lengths, dict) and _articles_for_grading(lengths)
+    ]
     if not langs_with_articles:
         print("[4a] No native articles to grade — skipping", file=sys.stderr)
         return {}
@@ -832,7 +887,7 @@ def run_grade_native(
         future_to_lang = {
             executor.submit(
                 call_gemini, client, MODEL_4A,
-                build_grade_native_prompt(lang, native_journalism[lang]),
+                build_grade_native_prompt(lang, _articles_for_grading(native_journalism[lang])),
                 f"4a/{lang}", "4a", _SCHEMA_GRADE_NATIVE,
             ): lang
             for lang in langs_with_articles
@@ -1009,7 +1064,6 @@ def main():
     args = parser.parse_args()
 
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[write] Starting writing/grading pipeline — {date}")
 
     # Locate the factbase produced by Stage 1
@@ -1025,6 +1079,8 @@ def main():
 
     factbase = gather_output.get("factbase", [])
     gather_source = gather_output.get("model", "gemini")
+    # Use the gather stage's start time so the bundle duration covers the full pipeline
+    started_at = gather_output.get("pipeline_started_at") or int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[write] Loaded {len(factbase)} stories from factbase (source: {gather_source})")
 
     print(f"[write] Languages: {', '.join(ACTIVE_LANGUAGES)}")

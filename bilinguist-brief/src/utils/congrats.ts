@@ -9,6 +9,7 @@ const PHRASES: Record<LanguageCode, string[]> = {
   it: ['Ben fatto!',    'Perfetto!',  'Brillante!',  'Eccellente!',     'Superbo!',       'Incredibile!'],
   es: ['¡Bien hecho!',  '¡Perfecto!', '¡Brillante!', '¡Sobresaliente!', '¡Estupendo!',   '¡Increíble!'],
   tr: ['Çok iyi!',      'Mükemmel!',  'Muhteşem!',   'Olağanüstü!',     'Harika!',        'İnanılmaz!'],
+  hu: ['Szép munka!',   'Tökéletes!', 'Brilliáns!',  'Kiváló!',         'Nagyszerű!',     'Hihetetlen!'],
 };
 
 /** Returns one congratulations phrase per language, all at the same random intensity. */

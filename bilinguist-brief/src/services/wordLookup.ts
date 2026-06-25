@@ -1,7 +1,7 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const LANGUAGE_NAMES: Record<LanguageCode, string> = {
-  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian',
 };
 
 const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {

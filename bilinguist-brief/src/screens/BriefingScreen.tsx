@@ -21,8 +21,7 @@ import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
-import type { LanguageLevel } from '../store/useSettingsStore';
-import { LANGUAGE_LEVELS, LEVELS_BY_LANG } from '../store/useSettingsStore';
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
 import * as analytics from '../services/analytics';
 
@@ -38,22 +37,41 @@ const LOCKUP_PADDING = 4;
 const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
 const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 
+// "Native" word in each language (for level chip labels like "B2 / Natif")
+const NATIVE_WORD: Record<string, string> = {
+  en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
+  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål', tr: 'Yerel', hu: 'Anyanyelvi',
+};
+
+// Localized short/long labels — must match SettingsScreen's LENGTH_LABELS
+const LENGTH_LABELS: Record<string, readonly [string, string]> = {
+  fr: ['Concis',  'Long'],
+  de: ['Kurz',    'Lang'],
+  sv: ['Kort',    'Lång'],
+  en: ['Concise', 'Long'],
+  it: ['Conciso', 'Lungo'],
+  es: ['Conciso', 'Extenso'],
+  tr: ['Kısa',    'Uzun'],
+  hu: ['Rövid',   'Hosszú'],
+};
+
 // City names in each language's native form (fallback)
 const LANG_CITY_NATIVE: Record<string, string> = {
   en: 'London', fr: 'Paris',  de: 'Berlin', es: 'Madrid',
-  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara',
+  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara', hu: 'Budapest',
 };
 
 // Each language's capital city translated into every display language.
 // Row = the language whose city it is; column = the language to display it in.
 const CITY_IN_LANG: Record<string, Partial<Record<string, string>>> = {
-  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra'    },
-  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris'     },
-  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin'    },
-  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid'    },
-  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma'      },
-  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm'  },
-  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara'    },
+  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra',    hu: 'London'    },
+  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris',     hu: 'Párizs'    },
+  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin',    hu: 'Berlin'    },
+  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid',    hu: 'Madrid'    },
+  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma',      hu: 'Róma'      },
+  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm',  hu: 'Stockholm' },
+  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara',    hu: 'Ankara'    },
+  hu: { en: 'Budapest',  fr: 'Budapest',  de: 'Budapest',  es: 'Budapest',  it: 'Budapest',  sv: 'Budapest',  tr: 'Budapeşte', hu: 'Budapest'  },
 };
 
 // BCP-47 locale for date/time formatting on each page
@@ -65,6 +83,7 @@ const LANG_LOCALE: Record<string, string> = {
   it: 'it-IT',
   sv: 'sv-SE',
   tr: 'tr-TR',
+  hu: 'hu-HU',
 };
 
 // "Published" prefix in each language
@@ -76,6 +95,7 @@ const PUBLISHED_PREFIX: Record<string, string> = {
   it: 'Pubblicato il',
   sv: 'Publicerad',
   tr: 'Yayınlandı',
+  hu: 'Közzétéve',
 };
 
 // Taglines indexed by [mono=0, bi=1, tri=2, multi=3]
@@ -87,6 +107,7 @@ const TAGLINES: Record<string, [string, string, string, string]> = {
   it: ['Il tuo brief quotidiano',    'Il tuo brief bilingue',       'Il tuo brief trilingue',        'Il tuo brief multilingue'],
   sv: ['Din dagliga brief',          'Din tvåspråkiga brief',       'Din trespråkiga brief',         'Din flerspråkiga brief'],
   tr: ['Günlük brifinginiz',         'İki dilli brifinginiz',       'Üç dilli brifinginiz',          'Çok dilli brifinginiz'],
+  hu: ['Napi briefinged',            'Kétnyelvű briefinged',        'Háromnyelvű briefinged',        'Többnyelvű briefinged'],
 };
 
 function getTagline(langCode: string, count: number): string {
@@ -138,13 +159,13 @@ function resolveLength(_level: LanguageLevel, readLength: ArticleLength): Articl
 export function BriefingScreen() {
   const { colors, fontFamily, background } = useTheme();
   const insets = useSafeAreaInsets();
-  const { languages, topics, setLanguageLevel } = useSettingsStore(
-    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel }))
+  const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength }))
   );
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt, briefVolume,
-    availableLevelsByLang, availableLevelsByLangAndLength,
+    availableLevelsByLang, availableLevelsByLangAndLength, nativeGradeByLang,
   } = useBriefingStore(useShallow((s) => ({
     briefings: s.briefings, generatingFor: s.generatingFor, errorsFor: s.errorsFor,
     weatherByLang: s.weatherByLang, syncFromServer: s.syncFromServer,
@@ -152,6 +173,7 @@ export function BriefingScreen() {
     bundleReceivedAt: s.bundleReceivedAt, briefVolume: s.briefVolume,
     availableLevelsByLang: s.availableLevelsByLang,
     availableLevelsByLangAndLength: s.availableLevelsByLangAndLength,
+    nativeGradeByLang: s.nativeGradeByLang,
   })));
 
   const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
@@ -169,6 +191,7 @@ export function BriefingScreen() {
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
+  const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('short');
   // Per-language flags — reset from store on mount so app restarts don't double-credit
   const readTrackedRef = useRef<Record<string, boolean>>({});
   // Per-language: has 80% scroll been reached today?
@@ -196,6 +219,16 @@ export function BriefingScreen() {
   }, [activeLanguages, checkAndConsumeFreeze]);
 
   useEffect(() => { checkFreezes(); }, []);
+
+  // Initialise the modal's length picker to the language's current readLength
+  useEffect(() => {
+    if (levelPickerLang !== null) {
+      const lang = activeLanguages.find(l => l.code === levelPickerLang);
+      const rl = lang?.readLength;
+      setPickerLength((rl === 'short' || rl === 'longer') ? rl : 'short');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelPickerLang]);
 
   // Initialize readTracked from store so returning users don't get double credit
   useEffect(() => {
@@ -520,7 +553,9 @@ export function BriefingScreen() {
                   style={styles.editionLabelRow}
                 >
                   <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                    {lang.nativeName.toUpperCase()} · {level}
+                    {lang.nativeName.toUpperCase()} · {level === 'Native'
+                      ? `${nativeGradeByLang[lang.code as LanguageCode] ?? 'C1'} / ${NATIVE_WORD[lang.code] ?? 'Native'}`
+                      : level}
                   </Text>
                   <Ionicons name="chevron-down" size={11} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
                 </TouchableOpacity>
@@ -568,7 +603,7 @@ export function BriefingScreen() {
         })}
       </ScrollView>
 
-      {/* ── Level picker modal ─────────────────────────────────────────── */}
+      {/* ── Level + Length picker modal ─────────────────────────────────── */}
       <Modal
         visible={levelPickerLang !== null}
         transparent
@@ -583,7 +618,7 @@ export function BriefingScreen() {
           <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                {activeLanguages.find(l => l.code === levelPickerLang)?.nativeName ?? ''} · Level
+                {activeLanguages.find(l => l.code === levelPickerLang)?.nativeName ?? ''} · Edition
               </Text>
               <TouchableOpacity
                 onPress={() => setLevelPickerLang(null)}
@@ -592,21 +627,54 @@ export function BriefingScreen() {
                 <Ionicons name="close" size={20} color={colors.inkFaint} />
               </TouchableOpacity>
             </View>
+
+            {/* Length toggle */}
+            <Text style={[styles.pickerSectionLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+              Length
+            </Text>
+            <View style={styles.lengthToggleRow}>
+              {(['short', 'longer'] as const).map((len) => {
+                const isActive = pickerLength === len;
+                return (
+                  <TouchableOpacity
+                    key={len}
+                    style={[styles.lengthChip, { borderColor: isActive ? colors.inkDark : colors.borderMid }, isActive && { backgroundColor: colors.inkDark }]}
+                    onPress={() => { Haptics.selectionAsync(); setPickerLength(len); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+                      {len === 'short'
+                        ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
+                        : (LENGTH_LABELS[levelPickerLang ?? '']?.[1] ?? 'Long')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Level chips — filtered to today's brief for the selected length */}
+            <Text style={[styles.pickerSectionLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+              Level
+            </Text>
             <View style={styles.levelGrid}>
               {(() => {
-                const lang = activeLanguages.find(l => l.code === levelPickerLang);
-                const rl = lang?.readLength;
-                const lc = levelPickerLang as import('../store/useSettingsStore').LanguageCode | null;
-                const perLength = (rl === 'short' || rl === 'longer') && lc
-                  ? availableLevelsByLangAndLength[lc]?.[rl]
-                  : undefined;
-                return (perLength
-                  ?? (lc ? availableLevelsByLang[lc] : undefined)
-                  ?? LEVELS_BY_LANG[levelPickerLang ?? '']
-                  ?? LANGUAGE_LEVELS) as import('../store/useSettingsStore').LanguageLevel[];
+                const lc = levelPickerLang as LanguageCode | null;
+                const perLength = (lc ? availableLevelsByLangAndLength[lc]?.[pickerLength] : undefined) ?? [];
+                const allForLang = (lc ? availableLevelsByLang[lc] : undefined) ?? [];
+                // Use per-length CEFR levels; always append Native if it exists (it has no length variant)
+                const base = perLength.length > 0 ? perLength : allForLang;
+                const nativeLevel = 'Native' as LanguageLevel;
+                const levels = allForLang.includes(nativeLevel) && !base.includes(nativeLevel)
+                  ? [...base, nativeLevel]
+                  : base;
+                return levels;
               })().map((lvl) => {
                 const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
                 const isActive = lvl === currentLevel;
+                const grade = nativeGradeByLang[levelPickerLang as LanguageCode];
+                const chipLabel = lvl === 'Native'
+                  ? `${grade ?? 'C1'} / ${NATIVE_WORD[levelPickerLang ?? ''] ?? 'Native'}`
+                  : lvl;
                 return (
                   <TouchableOpacity
                     key={lvl}
@@ -617,7 +685,15 @@ export function BriefingScreen() {
                     ]}
                     onPress={() => {
                       Haptics.selectionAsync();
-                      if (levelPickerLang) setLanguageLevel(levelPickerLang as any, lvl);
+                      const lc = levelPickerLang;
+                      if (lc) {
+                        const origLength = activeLanguages.find(l => l.code === lc)?.readLength;
+                        // Don't update readLength when selecting Native — it has no length variants
+                        if (lvl !== 'Native' && pickerLength !== origLength) {
+                          setLanguageReadLength(lc as any, pickerLength);
+                        }
+                        setLanguageLevel(lc as any, lvl);
+                      }
                       setLevelPickerLang(null);
                     }}
                     activeOpacity={0.7}
@@ -626,14 +702,14 @@ export function BriefingScreen() {
                       styles.levelChipText,
                       { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
                     ]}>
-                      {lvl}
+                      {chipLabel}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
             <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Your brief will reload at the new level.
+              Your brief will reload at the selected edition.
             </Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -846,6 +922,31 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     letterSpacing: 0.3,
+  },
+
+  pickerSectionLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginTop: 4,
+    opacity: 0.6,
+  },
+  lengthToggleRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  lengthChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 100,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  lengthChipText: {
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
 
   levelGrid: {

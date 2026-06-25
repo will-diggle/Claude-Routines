@@ -19,6 +19,8 @@ const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | '
   sv: { morning: 'God morgon',     afternoon: 'God dag',         evening: 'God kväll'     },
   it: { morning: 'Buongiorno',     afternoon: 'Buon pomeriggio', evening: 'Buonasera'     },
   es: { morning: 'Buenos días',    afternoon: 'Buenas tardes',   evening: 'Buenas noches' },
+  tr: { morning: 'Günaydın',       afternoon: 'İyi günler',      evening: 'İyi akşamlar'  },
+  hu: { morning: 'Jó reggelt',     afternoon: 'Jó napot',        evening: 'Jó estét'      },
 };
 
 const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: number; name: string }>> = {
@@ -28,6 +30,8 @@ const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: n
   sv: { latitude: 59.3293, longitude: 18.0686, name: 'Stockholm' },
   it: { latitude: 41.9028, longitude: 12.4964, name: 'Rome'      },
   es: { latitude: 40.4168, longitude: -3.7038, name: 'Madrid'    },
+  tr: { latitude: 39.9334, longitude: 32.8597, name: 'Ankara'    },
+  hu: { latitude: 47.4979, longitude: 19.0402, name: 'Budapest'  },
 };
 
 const FALLBACK_CITY = { latitude: 51.5074, longitude: -0.1278, name: 'London' };
@@ -101,11 +105,33 @@ const WMO: Record<string, Record<number, string>> = {
     85: 'chubascos de nieve', 86: 'chubascos de nieve intensa',
     95: 'tormenta', 96: 'tormenta con granizo', 99: 'tormenta con granizo intenso',
   },
+  tr: {
+    0: 'açık hava',
+    1: 'çoğunlukla açık', 2: 'parçalı bulutlu', 3: 'kapalı',
+    45: 'sis', 48: 'kırağılı sis',
+    51: 'hafif çisenti', 53: 'çisenti', 55: 'yoğun çisenti',
+    61: 'hafif yağmur', 63: 'yağmur', 65: 'şiddetli yağmur',
+    71: 'hafif kar', 73: 'kar', 75: 'yoğun kar', 77: 'kar taneleri',
+    80: 'hafif sağanak', 81: 'sağanak', 82: 'şiddetli sağanak',
+    85: 'kar sağanağı', 86: 'yoğun kar sağanağı',
+    95: 'gök gürültülü fırtına', 96: 'dolu ile fırtına', 99: 'yoğun dolu ile fırtına',
+  },
+  hu: {
+    0: 'derült ég',
+    1: 'többnyire derült', 2: 'részben felhős', 3: 'borult',
+    45: 'köd', 48: 'zúzmarás köd',
+    51: 'enyhe szitálás', 53: 'szitálás', 55: 'sűrű szitálás',
+    61: 'enyhe eső', 63: 'eső', 65: 'erős eső',
+    71: 'enyhe havazás', 73: 'havazás', 75: 'erős havazás', 77: 'hószemcsék',
+    80: 'enyhe zápor', 81: 'zápor', 82: 'erős zápor',
+    85: 'hózápor', 86: 'erős hózápor',
+    95: 'zivatar', 96: 'zivatarjégesővel', 99: 'erős zivatarjégesővel',
+  },
 };
 
 // "in [city]" preposition per language
 export const WEATHER_IN: Partial<Record<LanguageCode, string>> = {
-  en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en',
+  en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en', tr: 'şehrinde', hu: 'városban',
 };
 
 // Cache localized city names for the session to avoid repeated Nominatim calls

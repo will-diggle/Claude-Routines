@@ -200,10 +200,26 @@ export const useBriefingStore = create<BriefingStore>()(
           for (const lang of settings.languages.filter((l) => l.active)) {
             const level = lang.level ?? 'B1';
             const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
-            const briefing = bundle.briefings[lang.code]?.[level]?.[length];
-            if (briefing) {
-              updates[lang.code as LanguageCode] = briefing;
-              clearedErrors[lang.code as LanguageCode] = undefined;
+            if (level === 'Native') {
+              const nativeByLength = (bundle.nativeJournalism ?? {})[lang.code] as Record<string, any[]> | undefined;
+              const nativeArticles = nativeByLength?.[length] ?? nativeByLength?.['longer'] ?? nativeByLength?.['short'];
+              if (Array.isArray(nativeArticles) && nativeArticles.length) {
+                updates[lang.code as LanguageCode] = {
+                  articles: nativeArticles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body })),
+                  date: bundle.date,
+                  language: lang.code as LanguageCode,
+                  level: 'Native' as LanguageLevel,
+                  length,
+                  generatedAt: receivedAt,
+                };
+                clearedErrors[lang.code as LanguageCode] = undefined;
+              }
+            } else {
+              const briefing = bundle.briefings[lang.code]?.[level]?.[length];
+              if (briefing) {
+                updates[lang.code as LanguageCode] = briefing;
+                clearedErrors[lang.code as LanguageCode] = undefined;
+              }
             }
           }
 
@@ -227,18 +243,20 @@ export const useBriefingStore = create<BriefingStore>()(
             const cefrLevels = (Object.keys(levels) as LanguageLevel[])
               .filter((l) => CEFR_ORDER.includes(l as CefrLevel))
               .sort((a, b) => CEFR_ORDER.indexOf(a as CefrLevel) - CEFR_ORDER.indexOf(b as CefrLevel));
-            const hasNative = (bundle.nativeJournalism ?? {})[lang]?.length > 0;
+            const nativeByLength = (bundle.nativeJournalism ?? {})[lang] as Record<string, any[]> | undefined;
+            const hasNative = !!(nativeByLength && Object.values(nativeByLength).some((arr) => Array.isArray(arr) && arr.length > 0));
             const available: LanguageLevel[] = [...cefrLevels, ...(hasNative ? ['Native' as LanguageLevel] : [])];
             if (available.length > 0) {
               availableUpdates[lang as LanguageCode] = available;
             }
-            // Per-length availability: filter CEFR levels to only those with articles for each length.
+            // Per-length availability: CEFR levels filtered to those with articles + Native per length.
             const byLength: Partial<Record<ArticleLength, LanguageLevel[]>> = {};
             for (const length of ['short', 'longer'] as ArticleLength[]) {
               const cefrForLength = cefrLevels.filter(
                 (l) => ((levels as any)[l]?.[length]?.articles?.length ?? 0) > 0
               );
-              const avail: LanguageLevel[] = [...cefrForLength, ...(hasNative ? ['Native' as LanguageLevel] : [])];
+              const hasNativeForLength = Array.isArray(nativeByLength?.[length]) && (nativeByLength![length].length > 0);
+              const avail: LanguageLevel[] = [...cefrForLength, ...(hasNativeForLength ? ['Native' as LanguageLevel] : [])];
               if (avail.length > 0) byLength[length] = avail;
             }
             if (Object.keys(byLength).length > 0) {

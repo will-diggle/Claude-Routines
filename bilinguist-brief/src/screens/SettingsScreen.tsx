@@ -9,6 +9,7 @@ const LENGTH_LABELS: Record<string, readonly [string, string]> = {
   it: ['Conciso', 'Lungo'],
   es: ['Conciso', 'Extenso'],
   tr: ['Kısa',    'Uzun'],
+  hu: ['Rövid',   'Hosszú'],
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
@@ -32,7 +33,7 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
-import { useSettingsStore, LEVELS_BY_LANG, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
+import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
@@ -115,6 +116,7 @@ type CefrLevel = typeof CEFR_ORDER[number];
 const NATIVE_WORD: Record<string, string> = {
   en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
   es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
+  tr: 'Yerel', hu: 'Anyanyelvi',
 };
 
 // Build the "B2 / Native" style label using today's graded CEFR level.
@@ -124,14 +126,6 @@ function nativeLabel(langCode: string, grade?: LanguageLevel): string {
   return `${g} / ${NATIVE_WORD[langCode] ?? 'Native'}`;
 }
 
-// Return the ordered level list for the modal. Uses today's bundle-derived
-// available levels (CEFR levels actually generated + Native if present),
-// falling back to the hardcoded LEVELS_BY_LANG if the bundle hasn't loaded yet.
-// Native is always last. No challenge labels — skipped levels simply don't appear.
-function orderedLevels(langCode: string, available?: LanguageLevel[]): LanguageLevel[] {
-  if (available && available.length > 0) return available;
-  return LEVELS_BY_LANG[langCode] ?? [];
-}
 
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: string }[] = [
   { key: 'white',    label: 'White', color: Colors.white,   ink: Colors.inkDark },
@@ -1172,15 +1166,17 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {orderedLevels(levelModalLang ?? '', (() => {
+            {(() => {
               const code = levelModal?.code;
-              if (!code) return undefined;
+              if (!code) return [];
               const rl = levelModal?.readLength;
-              if (rl === 'short' || rl === 'longer') {
-                return availableLevelsByLangAndLength[code]?.[rl] ?? availableLevelsByLang[code];
-              }
-              return availableLevelsByLang[code];
-            })()).map((level) => {
+              const fromBrief = (rl === 'short' || rl === 'longer')
+                ? availableLevelsByLangAndLength[code]?.[rl] ?? availableLevelsByLang[code]
+                : availableLevelsByLang[code];
+              if (fromBrief && fromBrief.length > 0) return fromBrief;
+              const currentLevel = levelModal?.level;
+              return currentLevel ? [currentLevel] : [];
+            })().map((level) => {
               const langCode = levelModal?.code ?? 'en';
               const grade = nativeGradeByLang[langCode];
               const mainLabel = level === 'Native' ? nativeLabel(langCode, grade) : level;

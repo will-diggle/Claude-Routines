@@ -114,6 +114,7 @@ def validate_story(story: dict) -> dict:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
 
     # 1. Load and prepare the prompt
@@ -235,6 +236,7 @@ def main():
     output = {
         "date": BRIEF_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "pipeline_started_at": pipeline_started_at,
         "model": model,
         "service_tier": winning_tier or "standard",
         "story_count": len(factbase),
