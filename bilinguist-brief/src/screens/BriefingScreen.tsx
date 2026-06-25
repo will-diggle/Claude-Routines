@@ -144,11 +144,14 @@ export function BriefingScreen() {
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt, briefVolume,
+    availableLevelsByLang, availableLevelsByLangAndLength,
   } = useBriefingStore(useShallow((s) => ({
     briefings: s.briefings, generatingFor: s.generatingFor, errorsFor: s.errorsFor,
     weatherByLang: s.weatherByLang, syncFromServer: s.syncFromServer,
     loadBriefing: s.loadBriefing, loadWeather: s.loadWeather, clearError: s.clearError,
     bundleReceivedAt: s.bundleReceivedAt, briefVolume: s.briefVolume,
+    availableLevelsByLang: s.availableLevelsByLang,
+    availableLevelsByLangAndLength: s.availableLevelsByLangAndLength,
   })));
 
   const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
@@ -590,7 +593,18 @@ export function BriefingScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.levelGrid}>
-              {(LEVELS_BY_LANG[levelPickerLang ?? ''] ?? LANGUAGE_LEVELS).map((lvl) => {
+              {(() => {
+                const lang = activeLanguages.find(l => l.code === levelPickerLang);
+                const rl = lang?.readLength;
+                const lc = levelPickerLang as import('../store/useSettingsStore').LanguageCode | null;
+                const perLength = (rl === 'short' || rl === 'longer') && lc
+                  ? availableLevelsByLangAndLength[lc]?.[rl]
+                  : undefined;
+                return (perLength
+                  ?? (lc ? availableLevelsByLang[lc] : undefined)
+                  ?? LEVELS_BY_LANG[levelPickerLang ?? '']
+                  ?? LANGUAGE_LEVELS) as import('../store/useSettingsStore').LanguageLevel[];
+              })().map((lvl) => {
                 const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
                 const isActive = lvl === currentLevel;
                 return (

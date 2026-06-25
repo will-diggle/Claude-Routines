@@ -271,7 +271,7 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const store = useSettingsStore();
-  const { loadBriefing, nativeGradeByLang, availableLevelsByLang } = useBriefingStore();
+  const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const { settingsSection: activeTab, setSettingsSection } = useNavPillStore();
   const [isDragging, setIsDragging] = useState(false);
@@ -519,18 +519,6 @@ export function SettingsScreen() {
                 </View>
                 {lang.active && !isAnyDragging && (
                   <>
-                    <TouchableOpacity
-                      style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
-                      onPress={() => setLevelModalLang(lang.code)}
-                    >
-                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                        Level
-                      </Text>
-                      <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                        {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                    </TouchableOpacity>
                     <View style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}>
                       <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
                         Length
@@ -563,6 +551,18 @@ export function SettingsScreen() {
                         })}
                       </View>
                     </View>
+                    <TouchableOpacity
+                      style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
+                      onPress={() => setLevelModalLang(lang.code)}
+                    >
+                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                        Level
+                      </Text>
+                      <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                        {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                    </TouchableOpacity>
                   </>
                 )}
               </View>
@@ -1172,7 +1172,15 @@ export function SettingsScreen() {
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {levelModal?.name} — Level
             </Text>
-            {orderedLevels(levelModalLang ?? '', levelModal?.code ? availableLevelsByLang[levelModal.code] : undefined).map((level) => {
+            {orderedLevels(levelModalLang ?? '', (() => {
+              const code = levelModal?.code;
+              if (!code) return undefined;
+              const rl = levelModal?.readLength;
+              if (rl === 'short' || rl === 'longer') {
+                return availableLevelsByLangAndLength[code]?.[rl] ?? availableLevelsByLang[code];
+              }
+              return availableLevelsByLang[code];
+            })()).map((level) => {
               const langCode = levelModal?.code ?? 'en';
               const grade = nativeGradeByLang[langCode];
               const mainLabel = level === 'Native' ? nativeLabel(langCode, grade) : level;

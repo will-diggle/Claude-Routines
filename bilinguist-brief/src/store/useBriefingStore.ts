@@ -75,6 +75,9 @@ interface BriefingStore {
   // Levels actually generated today per language — CEFR levels from briefings
   // keys + Native if nativeJournalism exists. Updates each bundle sync.
   availableLevelsByLang: Partial<Record<LanguageCode, LanguageLevel[]>>;
+  // Same as above but split by length — so the UI can show only levels that
+  // actually have content for the user's selected short/longer preference.
+  availableLevelsByLangAndLength: Partial<Record<LanguageCode, Partial<Record<ArticleLength, LanguageLevel[]>>>>;
 
   syncFromServer: (force?: boolean) => Promise<void>;
   loadBriefing: (
@@ -105,6 +108,7 @@ export const useBriefingStore = create<BriefingStore>()(
       lastBundleDate: null,
       nativeGradeByLang: {},
       availableLevelsByLang: {},
+      availableLevelsByLangAndLength: {},
 
       syncFromServer: async (force = false) => {
         const today = todayString();
@@ -218,6 +222,7 @@ export const useBriefingStore = create<BriefingStore>()(
           // Native is appended last if nativeJournalism exists for that language.
           const levelUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
           const availableUpdates: Partial<Record<LanguageCode, LanguageLevel[]>> = {};
+          const availableByLengthUpdates: Partial<Record<LanguageCode, Partial<Record<ArticleLength, LanguageLevel[]>>>> = {};
           for (const [lang, levels] of Object.entries(bundle.briefings ?? {})) {
             const cefrLevels = (Object.keys(levels) as LanguageLevel[])
               .filter((l) => CEFR_ORDER.includes(l as CefrLevel))
@@ -226,6 +231,18 @@ export const useBriefingStore = create<BriefingStore>()(
             const available: LanguageLevel[] = [...cefrLevels, ...(hasNative ? ['Native' as LanguageLevel] : [])];
             if (available.length > 0) {
               availableUpdates[lang as LanguageCode] = available;
+            }
+            // Per-length availability: filter CEFR levels to only those with articles for each length.
+            const byLength: Partial<Record<ArticleLength, LanguageLevel[]>> = {};
+            for (const length of ['short', 'longer'] as ArticleLength[]) {
+              const cefrForLength = cefrLevels.filter(
+                (l) => ((levels as any)[l]?.[length]?.articles?.length ?? 0) > 0
+              );
+              const avail: LanguageLevel[] = [...cefrForLength, ...(hasNative ? ['Native' as LanguageLevel] : [])];
+              if (avail.length > 0) byLength[length] = avail;
+            }
+            if (Object.keys(byLength).length > 0) {
+              availableByLengthUpdates[lang as LanguageCode] = byLength;
             }
           }
 
@@ -245,6 +262,7 @@ export const useBriefingStore = create<BriefingStore>()(
             briefVolume: nextVolume,
             nativeGradeByLang: { ...s.nativeGradeByLang, ...gradeUpdates },
             availableLevelsByLang: { ...s.availableLevelsByLang, ...availableUpdates },
+            availableLevelsByLangAndLength: { ...s.availableLevelsByLangAndLength, ...availableByLengthUpdates },
           }));
         } finally {
           set({ isSyncing: false, syncMessage: null });
