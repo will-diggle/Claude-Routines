@@ -10,13 +10,14 @@ const CONFETTI_COLORS = [Colors.cream, Colors.navyBg, Colors.accentGold, Colors.
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const STREAK_COPY: Record<string, string> = {
-  en: 'Your English streak is on fire',
-  fr: 'Your French streak is on fire',
-  de: 'Your German streak is on fire',
-  sv: 'Your Swedish streak is on fire',
-  it: 'Your Italian streak is on fire',
-  es: 'Your Spanish streak is on fire',
-  tr: 'Your Turkish streak is on fire',
+  en: 'Your streak is on fire!',
+  fr: 'Ta série est en feu !',
+  de: 'Deine Serie brennt!',
+  sv: 'Din serie är på hugget!',
+  it: 'La tua serie è in fiamme!',
+  es: '¡Tu racha está en llamas!',
+  tr: 'Seriniz ateşte!',
+  hu: 'A sorozatod lángol!',
 };
 
 interface Props {
@@ -48,8 +49,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       animationType="fade"
       onRequestClose={onDismiss}
     >
-      <View style={styles.backdrop}>
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss}>
+        <View style={[styles.card, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
           <Text style={styles.flame}>🔥</Text>
           <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             {headline}
@@ -57,17 +58,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           <Text style={[styles.subtext, { color: colors.inkLight, fontFamily: fontFamily.italic }]}>
             {copy}
           </Text>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.inkDark }]}
-            onPress={onDismiss}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.buttonText, { color: colors.surface, fontFamily: fontFamily.bold }]}>
-              Keep it up
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
       {/* Confetti fires from top-centre */}
       <ConfettiCannon
         ref={confettiRef}
@@ -115,16 +107,6 @@ const styles = StyleSheet.create({
   subtext: {
     fontSize: 15,
     textAlign: 'center',
-    marginBottom: 28,
     lineHeight: 22,
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 10,
-  },
-  buttonText: {
-    fontSize: 15,
-    letterSpacing: 0.3,
   },
 });

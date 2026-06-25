@@ -16,7 +16,7 @@ import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { lookupWord } from '../services/wordService';
 import type { WordEntry } from '../services/wordService';
 import { translateWord } from '../services/deepl';
-import { lookupDictionary, writeBackDictionary } from '../services/dictionaryService';
+import { writeBackDictionary } from '../services/dictionaryService';
 import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
@@ -75,54 +75,39 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     const currentLang = language;
 
     (async () => {
-      // Tier 1: instant translation — check Supabase dictionary first.
-      // Falls back to Google Translate only when dictionary misses.
-      const dictEntry = await lookupDictionary(currentLemma, currentLang);
-      analytics.trackWordTapped(currentWord, currentLang, level, !!dictEntry?.translation);
-      if (dictEntry?.translation) {
-        setQuickTranslation(dictEntry.translation);
-        setEntry(dictEntry);
-        setIsLoading(false);
-      } else {
-        // Dictionary miss (rare post-population) — fall back to Google Translate
-        translateWord(currentLemma, currentLang).then((result) => {
-          if (result?.translation) setQuickTranslation(result.translation);
-        }).catch(() => {});
-      }
+      analytics.trackWordTapped(currentWord, currentLang, level, false);
 
-      // Tier 2: full card — skip live AI call if dictionary already has a complete entry
-      if (dictEntry) {
-        setEntry(dictEntry);
+      // Always use Google Translate for instant EN translation
+      translateWord(currentLemma, currentLang).then((result) => {
+        if (result?.translation) setQuickTranslation(result.translation);
+      }).catch(() => {});
+
+      // Always call Haiku — bypass dictionary while dictionary is being fixed
+      lookupWord(currentWord, currentLang, level).then((result) => {
+        setEntry(result);
         setIsLoading(false);
-      } else {
-        // Missing from dictionary — live Haiku call, then write back
-        lookupWord(currentWord, currentLang, level).then((result) => {
-          setEntry(result);
-          setIsLoading(false);
-          if (result) {
-            // Write back so future taps of this word are instant
-            writeBackDictionary(currentLemma, currentLang, result).catch(() => {});
-            // Backfill word bank
-            const stored = useWordBankStore.getState().words.find(
-              w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
-            );
-            if (stored) {
-              backfillWord(currentWord, currentLang, {
-                translation:   result.translation ?? undefined,
-                explanation:   result.explanation ?? undefined,
-                lemma:         result.lemma,
-                pronunciation: result.pronunciation,
-                verbTable:     result.verbTable,
-                verbTablePast: result.verbTablePast,
-                forms:         result.forms,
-                wordType:      result.wordType,
-                tip:           result.tip,
-                meta:          result.meta,
-              });
-            }
+        if (result) {
+          // Write back so future taps are instant once dictionary is restored
+          writeBackDictionary(currentLemma, currentLang, result).catch(() => {});
+          const stored = useWordBankStore.getState().words.find(
+            w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
+          );
+          if (stored) {
+            backfillWord(currentWord, currentLang, {
+              translation:   result.translation ?? undefined,
+              explanation:   result.explanation ?? undefined,
+              lemma:         result.lemma,
+              pronunciation: result.pronunciation,
+              verbTable:     result.verbTable,
+              verbTablePast: result.verbTablePast,
+              forms:         result.forms,
+              wordType:      result.wordType,
+              tip:           result.tip,
+              meta:          result.meta,
+            });
           }
-        }).catch(() => { setIsLoading(false); });
-      }
+        }
+      }).catch(() => { setIsLoading(false); });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word, lookupLemma, language]);
@@ -177,6 +162,9 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           <Text style={[styles.word, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {word}
           </Text>
+          {AUDIO_LANGUAGES_POPUP.includes(language) && (
+            <AudioButton word={word} language={language} level={level} genre={genre} compact />
+          )}
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="close" size={22} color={colors.inkLight} />
           </TouchableOpacity>
@@ -232,11 +220,6 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           <Text style={[styles.sentence, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
             "{sentence}"
           </Text>
-
-          {/* Audio pronunciation */}
-          {entry?.translation && (
-            <AudioButton word={word} language={language} level={level} genre={genre} />
-          )}
 
           {/* Tell me more — paid only; instant if cached, no second API call */}
           {!showExplanation && !isLoading && (
@@ -399,7 +382,7 @@ function buildMetaLine(meta: WordMeta, wordType: string): string {
 
 const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv', 'it', 'es', 'tr'];
 
-function AudioButton({ word, language, level, genre }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string }) {
+function AudioButton({ word, language, level, genre, compact }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string; compact?: boolean }) {
   const { colors, fontFamily } = useTheme();
   const { state, play, stop } = useAudioPlayer();
   const [capInfo, setCapInfo] = React.useState<{ remaining: number; limit: number } | null>(null);
@@ -437,6 +420,28 @@ function AudioButton({ word, language, level, genre }: { word: string; language:
   const isLoading = state === 'loading';
   const isPlaying = state === 'playing';
   const disabled  = capReached || isLoading;
+
+  if (compact) {
+    return (
+      <TouchableOpacity
+        onPress={handlePress}
+        disabled={disabled}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={{ opacity: disabled ? 0.4 : 1, marginRight: 8 }}
+        activeOpacity={0.7}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={colors.inkFaint} />
+        ) : (
+          <Ionicons
+            name={isPlaying ? 'stop-circle-outline' : 'volume-high-outline'}
+            size={20}
+            color={capReached ? colors.inkFaint : colors.inkMid}
+          />
+        )}
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={audioStyles.row}>
