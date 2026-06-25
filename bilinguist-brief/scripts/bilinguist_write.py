@@ -577,9 +577,6 @@ def call_gemini(
                         max_output_tokens=max_output_tokens,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
                     ),
-                    # Hard 120s timeout per call — prevents hung requests
-                    # blocking a worker for the full retry window
-                    request_options=types.RequestOptions(timeout=120),
                 )
             # Accumulate token usage for cost tracking
             if stage and stage in _stage_usage:
