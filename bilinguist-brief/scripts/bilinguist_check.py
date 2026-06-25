@@ -180,6 +180,7 @@ def check(bundle_path: Path) -> int:
     briefings         = bundle.get("briefings", {})
     native_journalism = bundle.get("nativeJournalism", {})
     native_grades     = bundle.get("nativeGrades", {})
+    grading           = bundle.get("grading", {})
     date              = bundle.get("date", "unknown")
     volume            = bundle.get("volume", "?")
     started_at        = bundle.get("startedAt")
@@ -246,7 +247,17 @@ def check(bundle_path: Path) -> int:
     total_native = sum(len(v) for v in native_journalism.values())
     header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
 
-    warnings  = wrong_length + thin
+    # Detect grading stage failures: 4a defaults every language to B2 on failure,
+    # 4b produces no assessments. Neither is visible in article counts alone.
+    grading_warnings: list[str] = []
+    total_gradings = sum(len(v) for v in grading.values())
+    if total_gradings == 0 and briefings:
+        grading_warnings.append("⚠️ Stage 4b (CEFR grading) produced 0 assessments — grading model may have failed")
+    all_native_grades = list(native_grades.values())
+    if all_native_grades and len(set(all_native_grades)) == 1 and all_native_grades[0] == "B2":
+        grading_warnings.append("⚠️ Stage 4a (native grading) defaulted all languages to B2 — grading model may have failed")
+
+    warnings  = wrong_length + thin + grading_warnings
     critical  = len(missing) > 0
 
     # ── Build title and body ───────────────────────────────────────────────────
@@ -282,6 +293,8 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  ⚠️ {w} — long content in short slot (article may not have been written)")
         for t in thin:
             body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
+        for g in grading_warnings:
+            body_parts.append(f"  {g}")
 
     if factcheck_str:
         body_parts += ["", factcheck_str]
