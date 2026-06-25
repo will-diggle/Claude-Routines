@@ -895,16 +895,16 @@ def run_writing_concurrent(
         model = MODEL_BEGINNER if is_beginner else MODEL_2M
         template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
         if is_beginner:
-            n_splits = 2 if (level == "A1" and length == "longer") else 1
+            n_splits = 2 if length == "longer" else 1  # A1 and A2 both split longer
         else:
             n_splits = 3  # longer only — medium removed
         prompt = build_writing_prompt(template, lang, level, length, factbase)
-        # longer articles generate ~4-5k tokens per split part with gemini-2.5-flash;
-        # 8192 is too tight — 16384 gives headroom for verbose languages (German, Swedish)
+        # 32768 cap: model can write verbose articles (especially German/French) that
+        # far exceed the word-count instruction; 16384 was still clipping some split parts
         tasks.append(_WriteTask(
             stage=stage, lang=lang, level=level, length=length,
             model=model, prompt=prompt, schema=_SCHEMA_WRITING,
-            max_output_tokens=16384, template=template, factbase=factbase,
+            max_output_tokens=32768, template=template, factbase=factbase,
             n_splits=n_splits,
         ))
 

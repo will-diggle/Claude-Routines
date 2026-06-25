@@ -159,6 +159,7 @@ def apply_corrections(factbase: list[dict], corrections: list[dict]) -> tuple[li
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    sys.stdout.reconfigure(line_buffering=True)  # prevent GitHub Actions log batching
     script_dir = Path(__file__).parent
     factbase_path = script_dir / f"factbase_{BRIEF_DATE}.json"
 
