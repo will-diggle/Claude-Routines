@@ -24,6 +24,7 @@ import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
 import * as analytics from '../services/analytics';
+import { scheduleStreakReminder } from '../services/notifications';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-cream.png'),
@@ -268,6 +269,13 @@ export function BriefingScreen() {
       const current = store.readingStreaks[langCode] ?? 0;
       const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
       recordRead(langCode);
+      // Reschedule streak reminder — removes this language from the "unread" list,
+      // or cancels the notification entirely if all languages are now read.
+      const { lastReadDates: lrd } = useStreakStore.getState();
+      const activeLangs = useSettingsStore.getState().languages
+        .filter((l) => l.active)
+        .map((l) => ({ code: l.code, name: l.name }));
+      scheduleStreakReminder(activeLangs, lrd).catch(() => {});
       const level = useSettingsStore.getState().languages.find(l => l.code === langCode)?.level ?? 'B1';
       const scrollPct = Math.round((scrollPctRef.current[langCode] ?? 0) * 100);
       analytics.trackBriefCompleted(langCode, level, scrollPct, persisted + session);

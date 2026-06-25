@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import type { LanguageCode } from '../store/useSettingsStore';
+import { fetchTodayBundle } from './briefingSync';
+import type { DailyBundle } from './briefingSync';
 
 try {
   Notifications.setNotificationHandler({
@@ -14,14 +14,34 @@ try {
   });
 } catch {}
 
-const BRIEFING_COPY: Record<LanguageCode, { title: string; body: string }> = {
-  en: { title: '🇬🇧 Good Morning',  body: 'Your daily news briefing is ready.' },
-  fr: { title: '🇫🇷 Bonjour',       body: 'Votre bref d\'actualités quotidien est prêt.' },
-  de: { title: '🇩🇪 Guten Morgen',  body: 'Ihr täglicher Nachrichtenüberblick ist bereit.' },
-  sv: { title: '🇸🇪 God morgon',    body: 'Din dagliga nyhetssammanfattning är redo.' },
-  it: { title: '🇮🇹 Buongiorno',    body: 'Il tuo briefing quotidiano sulle notizie è pronto.' },
-  es: { title: '🇪🇸 Buenos días',   body: 'Tu resumen diario de noticias está listo.' },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MORNING_NOTIFICATION_ID = 'daily-briefing';
+const STREAK_NOTIFICATION_ID = 'streak-reminder';
+
+// Hour/minute (local time) for the streak reminder — change here to make configurable later.
+const STREAK_REMINDER_HOUR = 18;
+const STREAK_REMINDER_MINUTE = 0;
+
+// The pipeline reliably finishes by this time each morning (shown as a hint in Settings UI).
+export const PIPELINE_READY_TIME = '07:00';
+
+// Maps store topic keys to the genre label strings used in brief article data.
+const TOPIC_LABELS: Record<string, string> = {
+  worldNews:   'Global News',
+  ukPolitics:  'UK Politics',
+  politics:    'Politics',
+  business:    'Business',
+  europe:      'Europe',
+  scienceTech: 'Science & Tech',
+  artsCulture: 'Arts & Culture',
+  asia:        'Asia',
+  middleEast:  'Middle East',
+  africa:      'Africa',
+  goodNews:    'Good News',
 };
+
+// ─── Permissions ──────────────────────────────────────────────────────────────
 
 export async function requestNotificationPermission(): Promise<boolean> {
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -29,6 +49,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseTime(hhmm: string): { hour: number; minute: number } | null {
   const parts = hhmm.split(':');
@@ -44,17 +66,15 @@ async function scheduleDaily(
   identifier: string,
   title: string,
   body: string,
-  hhmm: string
+  hhmm: string,
 ): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
-
     const time = parseTime(hhmm);
     if (!time) return;
-
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: { title, body },
+      content: { title, body, data: { screen: 'Briefing' } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: time.hour,
@@ -64,17 +84,116 @@ async function scheduleDaily(
   } catch {}
 }
 
-export async function scheduleBriefingNotification(
+// Find the first headline in the bundle matching a genre label (case-insensitive),
+// checking each active language's nativeJournalism in order.
+function findHeadlineForGenre(
+  bundle: DailyBundle,
+  activeLanguageCodes: string[],
+  genreLabel: string,
+): string | null {
+  const needle = genreLabel.toLowerCase();
+  for (const lang of activeLanguageCodes) {
+    const lengths = bundle.nativeJournalism?.[lang];
+    if (!lengths) continue;
+    for (const articles of Object.values(lengths as Record<string, Array<{ genre: string; headline: string }>>)) {
+      const match = articles.find((a) => a.genre?.toLowerCase() === needle);
+      if (match?.headline) return match.headline;
+    }
+  }
+  return null;
+}
+
+// Build streak reminder body with correct English grammar.
+function buildStreakBody(langNames: string[]): string {
+  if (langNames.length === 1)
+    return `Don't lose your ${langNames[0]} streak 🔥 Today's brief is waiting.`;
+  if (langNames.length === 2)
+    return `Don't lose your ${langNames[0]} and ${langNames[1]} streak 🔥 Today's brief is waiting.`;
+  const head = langNames.slice(0, -1).join(', ');
+  return `Don't lose your ${head} and ${langNames[langNames.length - 1]} streak 🔥 Today's brief is waiting.`;
+}
+
+// ─── Morning brief notification ───────────────────────────────────────────────
+
+export async function scheduleMorningBriefNotification(
   time: string,
-  language: LanguageCode = 'en'
+  options: {
+    topicOrder?: string[];
+    topics?: Record<string, boolean>;
+    activeLanguageCodes?: string[];
+  } = {},
 ): Promise<void> {
   try {
     const granted = await requestNotificationPermission();
     if (!granted) return;
-    const copy = BRIEFING_COPY[language] ?? BRIEFING_COPY.en;
-    await scheduleDaily('daily-briefing', copy.title, copy.body, time);
+
+    let body = "Today's brief is ready.";
+
+    try {
+      const { topicOrder = [], topics = {}, activeLanguageCodes = [] } = options;
+      const topGenreKey = topicOrder.find((k) => topics[k]);
+      if (topGenreKey) {
+        const genreLabel = TOPIC_LABELS[topGenreKey];
+        if (genreLabel) {
+          const result = await fetchTodayBundle();
+          if (result.ok) {
+            const headline = findHeadlineForGenre(result.bundle, activeLanguageCodes, genreLabel);
+            if (headline) body = headline;
+          }
+        }
+      }
+    } catch {}
+
+    await scheduleDaily(MORNING_NOTIFICATION_ID, 'Bilinguist Brief', body, time);
   } catch {}
 }
+
+// ─── Streak reminder notification ─────────────────────────────────────────────
+
+export async function scheduleStreakReminder(
+  activeLanguages: Array<{ code: string; name: string }>,
+  lastReadDates: Record<string, string>,
+): Promise<void> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const unread = activeLanguages.filter((l) => lastReadDates[l.code] !== today);
+
+    if (unread.length === 0 || activeLanguages.length === 0) {
+      await Notifications.cancelScheduledNotificationAsync(STREAK_NOTIFICATION_ID).catch(() => {});
+      return;
+    }
+
+    const body = buildStreakBody(unread.map((l) => l.name));
+    const hhmm = `${String(STREAK_REMINDER_HOUR).padStart(2, '0')}:${String(STREAK_REMINDER_MINUTE).padStart(2, '0')}`;
+    await scheduleDaily(STREAK_NOTIFICATION_ID, 'Bilinguist Brief', body, hhmm);
+  } catch {}
+}
+
+// ─── Combined scheduler ───────────────────────────────────────────────────────
+
+// Call on app open and after completing a brief.
+export async function scheduleAllNotifications(params: {
+  briefingTime: string;
+  topicOrder: string[];
+  topics: Record<string, boolean>;
+  activeLanguages: Array<{ code: string; name: string }>;
+  lastReadDates: Record<string, string>;
+}): Promise<void> {
+  const { briefingTime, topicOrder, topics, activeLanguages, lastReadDates } = params;
+  await Promise.all([
+    scheduleMorningBriefNotification(briefingTime, {
+      topicOrder,
+      topics,
+      activeLanguageCodes: activeLanguages.map((l) => l.code),
+    }),
+    scheduleStreakReminder(activeLanguages, lastReadDates),
+  ]);
+}
+
+// ─── Keep for compatibility (used by practice notification in Settings) ───────
 
 export async function schedulePracticeNotification(time: string): Promise<void> {
   try {
@@ -82,9 +201,9 @@ export async function schedulePracticeNotification(time: string): Promise<void> 
     if (!granted) return;
     await scheduleDaily(
       'daily-practice',
-      'How was today\'s briefing?',
+      "How was today's briefing?",
       'Send your feedback to William — did you like the article?',
-      time
+      time,
     );
   } catch {}
 }

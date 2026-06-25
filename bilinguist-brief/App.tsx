@@ -2,7 +2,7 @@ import React, { useEffect, useState, Component } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -28,7 +28,8 @@ import { useAuthStore } from './src/store/useAuthStore';
 import { supabase } from './src/services/supabase';
 import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
-import { scheduleBriefingNotification, schedulePracticeNotification } from './src/services/notifications';
+import * as Notifications from 'expo-notifications';
+import { scheduleAllNotifications, schedulePracticeNotification } from './src/services/notifications';
 // expo-alternate-app-icons requires a native build — not available in Expo Go.
 // Check executionEnvironment before requiring so we never touch the native module
 // in a store-client (Expo Go) context.
@@ -95,8 +96,10 @@ const ICON_PAIRS: { base: string | null; dark: string }[] = [
 
 function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
+          topics, topicOrder,
           autoNightMode, manualBackground, setEffectiveBackground,
           appIcon, appIconAuto } = useSettingsStore();
+  const lastReadDates = useStreakStore((s) => s.lastReadDates);
   const setSession = useAuthStore((s) => s.setSession);
 
   // Keep auth store in sync with Supabase session changes (no-op when not configured)
@@ -158,6 +161,20 @@ function AppContent() {
   const [splashChecked, setSplashChecked] = useState(false);
 
   useEffect(() => {
+    function runScheduling() {
+      const { briefingNotificationTime: time, topicOrder: order, topics: tpcs, languages } = useSettingsStore.getState();
+      const { lastReadDates: lrd } = useStreakStore.getState();
+      const activeLangs = languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name }));
+      scheduleAllNotifications({
+        briefingTime: time,
+        topicOrder: order ?? [],
+        topics: tpcs as Record<string, boolean>,
+        activeLanguages: activeLangs,
+        lastReadDates: lrd,
+      }).catch(() => {});
+      schedulePracticeNotification(useSettingsStore.getState().practiceNotificationTime).catch(() => {});
+    }
+
     // Check synchronously first — if the store was already hydrated before this
     // effect ran (a common race on fast devices), we'd miss the callback otherwise.
     if (useSettingsStore.persist.hasHydrated()) {
@@ -165,9 +182,7 @@ function AppContent() {
         setShowSplash(show);
         setSplashChecked(true);
       }).catch(() => { setSplashChecked(true); });
-      const topLanguage = activeLanguages()[0]?.code ?? 'en';
-      scheduleBriefingNotification(briefingNotificationTime, topLanguage).catch(() => {});
-      schedulePracticeNotification(practiceNotificationTime).catch(() => {});
+      runScheduling();
       return;
     }
 
@@ -176,14 +191,13 @@ function AppContent() {
         setShowSplash(show);
         setSplashChecked(true);
       }).catch(() => { setSplashChecked(true); });
-      const topLanguage = activeLanguages()[0]?.code ?? 'en';
-      scheduleBriefingNotification(briefingNotificationTime, topLanguage).catch(() => {});
-      schedulePracticeNotification(practiceNotificationTime).catch(() => {});
+      runScheduling();
     });
 
     return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   // Fallback: if hydration never fires (corrupted storage, slow device), show
   // the app after 3 s rather than leaving a permanent blank screen.
@@ -292,10 +306,20 @@ export default function App() {
     );
   }
 
+  const navRef = useNavigationContainerRef();
+  const lastResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!lastResponse) return;
+    const screen = lastResponse.notification.request.content.data?.screen;
+    if (screen === 'Briefing' && navRef.isReady()) {
+      navRef.navigate('Briefing' as never);
+    }
+  }, [lastResponse]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navRef}>
           <AppContent />
         </NavigationContainer>
       </SafeAreaProvider>

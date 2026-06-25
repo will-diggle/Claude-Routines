@@ -41,7 +41,7 @@ import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
-import { scheduleBriefingNotification, schedulePracticeNotification } from '../services/notifications';
+import { scheduleAllNotifications, schedulePracticeNotification, PIPELINE_READY_TIME } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
 import { getTodayFactbase } from '../services/factbase';
 import {
@@ -927,14 +927,21 @@ export function SettingsScreen() {
                   <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                     Daily Briefing Time
                   </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When you'd like to be notified</Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Brief usually ready by {PIPELINE_READY_TIME}</Text>
                 </View>
                 <TimeInput
                   value={store.briefingNotificationTime}
                   onChange={store.setBriefingNotificationTime}
                   onCommit={() => {
-                    const topLanguage = store.activeLanguages()[0]?.code ?? 'en';
-                    scheduleBriefingNotification(store.briefingNotificationTime, topLanguage as any);
+                    const { languages, topicOrder, topics, briefingNotificationTime } = store;
+                    const { lastReadDates } = useStreakStore.getState();
+                    scheduleAllNotifications({
+                      briefingTime: briefingNotificationTime,
+                      topicOrder: topicOrder ?? [],
+                      topics: topics as Record<string, boolean>,
+                      activeLanguages: languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name })),
+                      lastReadDates,
+                    });
                   }}
                   colors={colors}
                   fontFamily={fontFamily}
