@@ -68,6 +68,10 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 MAX_RETRIES   = 4
 RETRY_DELAYS  = [5, 15, 30, 60]   # base seconds; actual sleep = delay × (0.5–1.5)
 
+# If a single-call task returns fewer articles than this, retry (model gave lazy response).
+_MIN_ARTICLES_EXPECTED = 5
+_THIN_RETRY_LIMIT      = 2
+
 # ── Response schemas ──────────────────────────────────────────────────────────
 # Passed as response_schema to GenerateContentConfig on write stages so the API
 # engine enforces output structure — replaces prompt-pressure JSON instructions.
@@ -628,24 +632,37 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
              if task.level else f"{task.stage}/{task.lang}")
 
     if task.n_splits == 1:
-        raw, finish_reason = call_gemini(
-            client, task.model, task.prompt, label,
-            task.stage, task.schema, task.max_output_tokens,
-        )
-        if not raw:
-            print(f"[ERROR] [{task.stage}] {label}: no response — output incomplete", file=sys.stderr)
-            return []
-        if finish_reason == "MAX_TOKENS":
-            print(f"[ERROR] [{label}] MAX_TOKENS on single call — output incomplete", file=sys.stderr)
-            return []
-        parsed = parse_llm_json(raw)
-        if not parsed:
-            print(f"[ERROR] [{task.stage}] {label}: JSON parse failed — output incomplete", file=sys.stderr)
-            return []
-        articles = parsed.get("articles", [])
-        if not articles:
-            print(f"[ERROR] [{task.stage}] {label}: empty articles list — output incomplete", file=sys.stderr)
-        return articles
+        best_articles: list[dict] = []
+        for attempt in range(_THIN_RETRY_LIMIT + 1):
+            attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
+            raw, finish_reason = call_gemini(
+                client, task.model, task.prompt, attempt_label,
+                task.stage, task.schema, task.max_output_tokens,
+            )
+            if not raw:
+                print(f"[ERROR] [{attempt_label}]: no response — output incomplete", file=sys.stderr)
+                break
+            if finish_reason == "MAX_TOKENS":
+                print(f"[ERROR] [{attempt_label}] MAX_TOKENS on single call — output incomplete", file=sys.stderr)
+                break
+            parsed = parse_llm_json(raw)
+            if not parsed:
+                print(f"[ERROR] [{attempt_label}]: JSON parse failed — output incomplete", file=sys.stderr)
+                break
+            articles = parsed.get("articles", [])
+            if len(articles) > len(best_articles):
+                best_articles = articles
+            if len(best_articles) >= _MIN_ARTICLES_EXPECTED:
+                break
+            if attempt < _THIN_RETRY_LIMIT:
+                print(f"[WARN] [{attempt_label}] thin response ({len(articles)} articles < {_MIN_ARTICLES_EXPECTED}) — retrying",
+                      file=sys.stderr)
+        if not best_articles:
+            print(f"[ERROR] [{label}]: empty articles list — output incomplete", file=sys.stderr)
+        elif len(best_articles) < _MIN_ARTICLES_EXPECTED:
+            print(f"[WARN] [{label}] still thin after {_THIN_RETRY_LIMIT} retries: {len(best_articles)} articles",
+                  file=sys.stderr)
+        return best_articles
 
     # Proactive split: divide factbase into n_splits slices
     factbase = task.factbase or []
