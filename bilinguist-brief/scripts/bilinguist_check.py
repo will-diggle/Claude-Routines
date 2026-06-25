@@ -96,30 +96,37 @@ def _cost_summary(output_dir: Path, date: str) -> str:
     return "\n".join(lines)
 
 
-def _factcheck_summary(script_dir: Path, date: str) -> str:
+def _factcheck_summary(script_dir: Path, date: str, total_stories: int = 0) -> tuple[str, str | None]:
+    """Returns (summary_line, warning_str_or_None)."""
     path = script_dir / f"corrections_{date}.json"
     if not path.exists():
-        return ""
+        return "", None
     try:
         with open(path) as f:
             data = json.load(f)
     except Exception:
-        return ""
+        return "", None
 
     if data.get("error"):
-        return f"🔍 Fact-check: skipped ({data['error']})"
+        return f"🔍 Fact-check: skipped ({data['error']})", None
 
     checked = data.get("stories_checked", 0)
     count   = data.get("corrections_count", 0)
-    if count == 0:
-        return f"🔍 Fact-check: {checked} stories — no corrections ✓"
+    warning = None
+    if total_stories > 0 and checked < total_stories:
+        warning = f"⚠️ Fact-check only checked {checked}/{total_stories} stories — model returned partial response"
 
-    lines = [f"🔍 Fact-check: {count} correction(s) across {checked} stories"]
-    for c in data.get("corrections", []):
-        lines.append(f"  [{c.get('slug','?')}] {c.get('original','?')} → {c.get('corrected','?')}")
-        if c.get("reason"):
-            lines.append(f"    ↳ {c['reason']}")
-    return "\n".join(lines)
+    if count == 0:
+        summary = f"🔍 Fact-check: {checked}/{total_stories} stories — no corrections ✓" if total_stories else f"🔍 Fact-check: {checked} stories — no corrections ✓"
+    else:
+        lines = [f"🔍 Fact-check: {count} correction(s) across {checked}/{total_stories} stories" if total_stories else f"🔍 Fact-check: {count} correction(s) across {checked} stories"]
+        for c in data.get("corrections", []):
+            lines.append(f"  [{c.get('slug','?')}] {c.get('original','?')} → {c.get('corrected','?')}")
+            if c.get("reason"):
+                lines.append(f"    ↳ {c['reason']}")
+        summary = "\n".join(lines)
+
+    return summary, warning
 
 
 def _language_table(
@@ -239,13 +246,14 @@ def check(bundle_path: Path) -> int:
     all_issues = set(wrong_length + thin)
     table = _language_table(briefings, native_journalism, native_grades, all_issues)
 
-    script_dir    = bundle_path.parent.parent
-    cost_str      = _cost_summary(bundle_path.parent, date)
-    factcheck_str = _factcheck_summary(script_dir, date)
+    script_dir   = bundle_path.parent.parent
+    cost_str     = _cost_summary(bundle_path.parent, date)
 
     story_count  = len(factbase)
     total_native = sum(len(v) for v in native_journalism.values())
     header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
+
+    factcheck_str, factcheck_warning = _factcheck_summary(script_dir, date, story_count)
 
     # Detect grading stage failures: 4a defaults every language to B2 on failure,
     # 4b produces no assessments. Neither is visible in article counts alone.
@@ -257,7 +265,8 @@ def check(bundle_path: Path) -> int:
     if all_native_grades and len(set(all_native_grades)) == 1 and all_native_grades[0] == "B2":
         grading_warnings.append("⚠️ Stage 4a (native grading) defaulted all languages to B2 — grading model may have failed")
 
-    warnings  = wrong_length + thin + grading_warnings
+    factcheck_warnings = [factcheck_warning] if factcheck_warning else []
+    warnings  = wrong_length + thin + grading_warnings + factcheck_warnings
     critical  = len(missing) > 0
 
     # ── Build title and body ───────────────────────────────────────────────────
@@ -295,6 +304,8 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
         for g in grading_warnings:
             body_parts.append(f"  {g}")
+        for fw in factcheck_warnings:
+            body_parts.append(f"  {fw}")
 
     if factcheck_str:
         body_parts += ["", factcheck_str]
