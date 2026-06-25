@@ -2,8 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { useShallow } from 'zustand/react/shallow';
+import { FlagCircle } from './FlagCircle';
 
 interface Props {
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
@@ -24,20 +23,17 @@ const MONTH_NAMES = [
 function buildDayLanguages(
   readingHistory: Record<string, string[]>,
   filterLang: string | 'all',
-  flagMap: Record<string, string>,
 ): Record<string, string[]> {
-  // date string → array of flags for that day
-  const dayFlags: Record<string, string[]> = {};
+  // date string → array of lang codes for that day
+  const dayLangs: Record<string, string[]> = {};
   for (const [langCode, dates] of Object.entries(readingHistory)) {
     if (filterLang !== 'all' && langCode !== filterLang) continue;
-    const flag = flagMap[langCode];
-    if (!flag) continue;
     for (const date of dates) {
-      if (!dayFlags[date]) dayFlags[date] = [];
-      if (!dayFlags[date].includes(flag)) dayFlags[date].push(flag);
+      if (!dayLangs[date]) dayLangs[date] = [];
+      if (!dayLangs[date].includes(langCode)) dayLangs[date].push(langCode);
     }
   }
-  return dayFlags;
+  return dayLangs;
 }
 
 interface MonthCalendarProps {
@@ -119,10 +115,8 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
                 </View>
                 {displayFlags.length > 0 && (
                   <View style={calStyles.flagRow}>
-                    {displayFlags.map((flag, fi) => (
-                      <Text key={fi} style={calStyles.flagText}>
-                        {flag}
-                      </Text>
+                    {displayFlags.map((langCode, fi) => (
+                      <FlagCircle key={fi} code={langCode} size={10} />
                     ))}
                   </View>
                 )}
@@ -137,18 +131,12 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
 
 export function StreakCalendar({ readingHistory }: Props) {
   const { colors, fontFamily } = useTheme();
-  const languages = useSettingsStore(useShallow((s) => s.languages));
-
-  const flagMap: Record<string, string> = {};
-  for (const lang of languages) {
-    flagMap[lang.code] = lang.flag;
-  }
 
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
 
-  const dayLanguages = buildDayLanguages(readingHistory, 'all', flagMap);
+  const dayLanguages = buildDayLanguages(readingHistory, 'all');
 
   return (
     <MonthCalendar
@@ -163,14 +151,8 @@ export function StreakCalendar({ readingHistory }: Props) {
 
 export function FullStreakCalendar({ readingHistory, filterLang }: FullCalendarProps) {
   const { colors, fontFamily } = useTheme();
-  const languages = useSettingsStore(useShallow((s) => s.languages));
 
-  const flagMap: Record<string, string> = {};
-  for (const lang of languages) {
-    flagMap[lang.code] = lang.flag;
-  }
-
-  const dayLanguages = buildDayLanguages(readingHistory, filterLang, flagMap);
+  const dayLanguages = buildDayLanguages(readingHistory, filterLang);
 
   // Build list of the last 6 months + current month, newest first
   const now = new Date();
@@ -240,9 +222,7 @@ const calStyles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 1,
-  },
-  flagText: {
-    fontSize: 9,
+    marginTop: 2,
+    gap: 1,
   },
 });
