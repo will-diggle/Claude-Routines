@@ -15,6 +15,7 @@ import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import * as analytics from '../services/analytics';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -56,6 +57,9 @@ export function FillBlankScreen() {
     setGameActive(true);
     return () => setGameActive(false);
   }, [setGameActive]));
+  useFocusEffect(useCallback(() => {
+    analytics.trackGameOpened('fill_blank', langFilter ?? 'all');
+  }, [langFilter]));
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const eligible = useMemo(() => {
@@ -126,6 +130,7 @@ export function FillBlankScreen() {
   function handleNext() {
     if (index + 1 >= eligible.length) {
       recordSession();
+      analytics.trackGameCompleted('fill_blank', langFilter ?? 'all', correct);
       setDone(true);
     } else {
       setIndex(index + 1);

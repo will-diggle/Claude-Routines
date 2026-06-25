@@ -68,8 +68,6 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     const linked = tokenEntry?.linked_positions ?? [];
     const allPositions = new Set([wordPosition, ...linked]);
 
-    analytics.trackWordTapped(language, lemma);
-
     setActivePositions(allPositions);
     setActiveWord(word);
     setActiveLemma(lemma);

@@ -46,6 +46,7 @@ function safeSetAppIcon(icon: string | null) {
 import { lookupWord } from './src/services/wordService';
 import * as analytics from './src/services/analytics';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
+import { useStreakStore } from './src/store/useStreakStore';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -106,8 +107,6 @@ function AppContent() {
       if (data.session?.user?.id) {
         analytics.identifyUser(data.session.user.id);
         analytics.setSuperProperties({
-          platform: 'ios',
-          app_version: Constants.expoConfig?.version ?? '0.0.0',
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
@@ -122,8 +121,6 @@ function AppContent() {
       if (session?.user?.id) {
         analytics.identifyUser(session.user.id);
         analytics.setSuperProperties({
-          platform: 'ios',
-          app_version: Constants.expoConfig?.version ?? '0.0.0',
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
@@ -256,7 +253,12 @@ const SPINNER_COLORS: Record<string, string> = {
 export default function App() {
   useEffect(() => {
     analytics.initAnalytics();
-    analytics.trackAppOpened(true);
+    const langs = useSettingsStore.getState().languages.filter(l => l.active);
+    const streaks = useStreakStore.getState().readingStreaks;
+    analytics.trackAppOpened(
+      langs.map(l => l.code),
+      Object.fromEntries(langs.map(l => [l.code, (streaks as Record<string, number>)[l.code] ?? 0])),
+    );
   }, []);
 
   const [fontsLoaded] = useFonts({

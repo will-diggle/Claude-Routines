@@ -505,7 +505,7 @@ export function SettingsScreen() {
                     const wasActive = lang.active;
                     store.toggleLanguage(lang.code);
                     if (wasActive) analytics.trackLanguageRemoved(lang.code);
-                    else analytics.trackLanguageAdded(lang.code);
+                    else analytics.trackLanguageSelected(lang.code);
                   }}
                     trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                     thumbColor="#FFF"
@@ -1188,7 +1188,7 @@ export function SettingsScreen() {
                     if (levelModalLang) {
                       const oldLevel = store.languages.find(l => l.code === levelModalLang)?.level ?? '';
                       store.setLanguageLevel(levelModalLang as any, level);
-                      analytics.trackLevelChanged(levelModalLang, level, oldLevel);
+                      analytics.trackLevelSelected(levelModalLang, level);
                     }
                     setLevelModalLang(null);
                   }}

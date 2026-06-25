@@ -22,6 +22,7 @@ import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordMeta } from '../services/wordLookup';
+import * as analytics from '../services/analytics';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ',
@@ -77,6 +78,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       // Tier 1: instant translation — check Supabase dictionary first.
       // Falls back to Google Translate only when dictionary misses.
       const dictEntry = await lookupDictionary(currentLemma, currentLang);
+      analytics.trackWordTapped(currentWord, currentLang, level, !!dictEntry?.translation);
       if (dictEntry?.translation) {
         setQuickTranslation(dictEntry.translation);
         setEntry(dictEntry);
@@ -130,6 +132,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     // Use AI entry if available, fall back to quickTranslation so the saved word
     // always has at least a translation even if the AI hasn't returned yet.
     // backfillWord() will upgrade the entry with full AI data once it arrives.
+    analytics.trackWordSaved(word, language, level);
     saveWord({
       word,
       language,
@@ -240,7 +243,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             fullAccess ? (
               <TouchableOpacity
                 style={[styles.tellMore, { borderColor: colors.borderMid }]}
-                onPress={() => setShowExplanation(true)}
+                onPress={() => { setShowExplanation(true); analytics.trackTellMeMoreOpened(word, language, level); }}
               >
                 <Ionicons name="sparkles-outline" size={16} color={colors.accentGold} />
                 <Text style={[styles.tellMoreText, { color: colors.accentGold, fontFamily: fontFamily.regular }]}>
@@ -418,6 +421,7 @@ function AudioButton({ word, language, level, genre }: { word: string; language:
       if (state === 'loading' || capReached) return;
       const result = await synthesizeWord(word, language);
       if (result.ok) {
+        analytics.trackAudioPlayed(word, language);
         // Refresh cap counter after playing
         getMonthlyAudioUsage().then((u) => {
           setCapInfo({ remaining: u.remaining, limit: u.limit });

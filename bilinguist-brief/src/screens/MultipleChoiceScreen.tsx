@@ -17,6 +17,7 @@ import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import * as analytics from '../services/analytics';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -67,6 +68,9 @@ export function MultipleChoiceScreen() {
   }, [setGameActive]));
   const route = useRoute<RouteProp<PracticeStackParamList, 'MultipleChoice'>>();
   const langFilter = route.params?.language;
+  useFocusEffect(useCallback(() => {
+    analytics.trackGameOpened('multiple_choice', langFilter ?? 'all');
+  }, [langFilter]));
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
@@ -147,6 +151,7 @@ export function MultipleChoiceScreen() {
   function handleNext() {
     if (index + 1 >= questions.length) {
       recordSession();
+      analytics.trackGameCompleted('multiple_choice', langFilter ?? 'all', correct + (selected === q.correctIndex ? 1 : 0));
       setDone(true);
     } else {
       setIndex(index + 1);

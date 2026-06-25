@@ -20,6 +20,7 @@ import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import * as analytics from '../services/analytics';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const MAX_CARDS = 15;
@@ -54,6 +55,9 @@ export function FlashcardsScreen() {
   }, [setGameActive]));
   const route = useRoute<RouteProp<PracticeStackParamList, 'Flashcards'>>();
   const langFilter = route.params?.language;
+  useFocusEffect(useCallback(() => {
+    analytics.trackGameOpened('flashcards', langFilter ?? 'all');
+  }, [langFilter]));
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
@@ -115,6 +119,7 @@ export function FlashcardsScreen() {
     if (mark === 'no')  recordPractice(card.id, false);
     if (index + 1 >= sessionWords.length) {
       recordSession();
+      analytics.trackGameCompleted('flashcards', langFilter ?? 'all', newTally.correct);
       setDone(newTally);
     } else {
       setTally(newTally);

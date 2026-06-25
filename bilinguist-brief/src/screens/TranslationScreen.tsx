@@ -15,6 +15,7 @@ import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import * as analytics from '../services/analytics';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -49,6 +50,9 @@ export function TranslationScreen() {
     setGameActive(true);
     return () => setGameActive(false);
   }, [setGameActive]));
+  useFocusEffect(useCallback(() => {
+    analytics.trackGameOpened('translation', langFilter ?? 'all');
+  }, [langFilter]));
 
   const [mode, setMode] = useState<Mode>('target-to-en');
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,6 +128,7 @@ export function TranslationScreen() {
   function handleNext() {
     if (index + 1 >= eligible.length) {
       recordSession();
+      analytics.trackGameCompleted('translation', langFilter ?? 'all', correct);
       setDone(true);
     } else {
       setIndex(index + 1);

@@ -17,6 +17,7 @@ import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import * as analytics from '../services/analytics';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -68,6 +69,9 @@ export function MatchingScreen() {
     setGameActive(true);
     return () => setGameActive(false);
   }, [setGameActive]));
+  useFocusEffect(useCallback(() => {
+    analytics.trackGameOpened('matching', langFilter ?? 'all');
+  }, [langFilter]));
 
   const eligibleWords = useMemo(() => {
     const pool = words.filter((w) =>
@@ -132,6 +136,7 @@ export function MatchingScreen() {
     } else {
       setIsNewBest(false);
     }
+    analytics.trackGameCompleted('matching', langFilter ?? 'all', finalScore);
     setPhase('done');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speedSnapHighScore]);

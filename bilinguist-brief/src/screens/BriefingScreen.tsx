@@ -15,7 +15,7 @@ import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { useStreakStore } from '../store/useStreakStore';
-import { StreakBadge } from '../components/StreakBadge';
+
 import { FullStreakCalendar } from '../components/StreakCalendar';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
@@ -98,6 +98,22 @@ const PUBLISHED_PREFIX: Record<string, string> = {
   hu: 'Közzétéve',
 };
 
+// "N-day streak" phrase in each language — {n} is replaced with the count
+const STREAK_PHRASE: Record<string, string> = {
+  en: '{n} DAY STREAK',
+  fr: '{n} JOURS D\'AFFILÉE',
+  de: '{n} TAGE AM STÜCK',
+  es: 'RACHA DE {n} DÍAS',
+  it: '{n} GIORNI DI FILA',
+  sv: '{n} DAGARS SVIT',
+  tr: '{n} GÜNLÜK SERİ',
+  hu: '{n} NAPOS SOROZAT',
+};
+
+function streakPhrase(lang: string, n: number): string {
+  return (STREAK_PHRASE[lang] ?? STREAK_PHRASE.en).replace('{n}', String(n));
+}
+
 // Taglines indexed by [mono=0, bi=1, tri=2, multi=3]
 const TAGLINES: Record<string, [string, string, string, string]> = {
   en: ['Your daily brief',          'Your bilingual brief',        'Your trilingual brief',         'Your multilingual brief'],
@@ -128,16 +144,6 @@ function publishedDateStr(ts: number | null, langCode: string): string {
   return `${prefix} ${datePart} · ${timePart}`;
 }
 
-function toRoman(n: number): string {
-  const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
-  const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
-  let r = '';
-  for (let i = 0; i < vals.length; i++) {
-    while (n >= vals[i]) { r += syms[i]; n -= vals[i]; }
-  }
-  return r;
-}
-
 function chromeColor(background: string): string {
   if (background === 'cream')    return Colors.navyBg;
   if (background === 'softGrey') return Colors.cream;
@@ -164,13 +170,13 @@ export function BriefingScreen() {
   );
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
-    syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt, briefVolume,
+    syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
     availableLevelsByLang, availableLevelsByLangAndLength, nativeGradeByLang,
   } = useBriefingStore(useShallow((s) => ({
     briefings: s.briefings, generatingFor: s.generatingFor, errorsFor: s.errorsFor,
     weatherByLang: s.weatherByLang, syncFromServer: s.syncFromServer,
     loadBriefing: s.loadBriefing, loadWeather: s.loadWeather, clearError: s.clearError,
-    bundleReceivedAt: s.bundleReceivedAt, briefVolume: s.briefVolume,
+    bundleReceivedAt: s.bundleReceivedAt,
     availableLevelsByLang: s.availableLevelsByLang,
     availableLevelsByLangAndLength: s.availableLevelsByLangAndLength,
     nativeGradeByLang: s.nativeGradeByLang,
@@ -196,6 +202,8 @@ export function BriefingScreen() {
   const readTrackedRef = useRef<Record<string, boolean>>({});
   // Per-language: has 80% scroll been reached today?
   const scrollMetRef = useRef<Record<string, boolean>>({});
+  // Per-language: max scroll depth reached (0–1) for analytics
+  const scrollPctRef = useRef<Record<string, number>>({});
   // Seconds accumulated this session (not yet flushed to the store)
   const sessionTimeRef = useRef<Record<string, number>>({});
   // Interval ref for the 1-second reading timer
@@ -213,7 +221,7 @@ export function BriefingScreen() {
           return d.toISOString().split('T')[0];
         })();
         const used = (useStreakStore.getState().freezeDatesUsed[lang.code] ?? []).filter(d => d >= cutoff);
-        analytics.trackStreakFrozen(lang.code, Math.max(0, 2 - used.length));
+        analytics.trackStreakFreezeUsed(lang.code);
       }
     }
   }, [activeLanguages, checkAndConsumeFreeze]);
@@ -260,9 +268,11 @@ export function BriefingScreen() {
       const current = store.readingStreaks[langCode] ?? 0;
       const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
       recordRead(langCode);
-      analytics.trackBriefCompleted(langCode);
+      const level = useSettingsStore.getState().languages.find(l => l.code === langCode)?.level ?? 'B1';
+      const scrollPct = Math.round((scrollPctRef.current[langCode] ?? 0) * 100);
+      analytics.trackBriefCompleted(langCode, level, scrollPct, persisted + session);
       if (newCount === 1 && current > 0) {
-        analytics.trackStreakBroken(langCode, current);
+        analytics.trackStreakLost(langCode, current);
       } else {
         analytics.trackStreakIncremented(langCode, newCount);
       }
@@ -331,7 +341,11 @@ export function BriefingScreen() {
   // Track brief_opened when user navigates between language pages
   useEffect(() => {
     const lang = activeLanguages[briefPageIndex];
-    if (lang) analytics.trackBriefOpened(lang.code);
+    if (lang) {
+      const level = lang.level ?? 'B1';
+      const date = new Date().toISOString().split('T')[0];
+      analytics.trackBriefOpened(lang.code, level, date);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [briefPageIndex]);
 
@@ -403,6 +417,23 @@ export function BriefingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      {/* Fixed page dots — outside pager so they never move with horizontal or vertical scroll */}
+      {langCount > 1 && (
+        <View style={[styles.fixedDots, { top: insets.top + 2 }]} pointerEvents="none">
+          {activeLanguages.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: i === briefPageIndex ? colors.inkMid : colors.borderMid,
+                  width: i === briefPageIndex ? 16 : 5,
+                },
+              ]}
+            />
+          ))}
+        </View>
+      )}
       <ScrollView
         ref={pagerRef}
         horizontal
@@ -455,10 +486,11 @@ export function BriefingScreen() {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
                 }
-                // Gate streak on 80% scroll AND 20 seconds spent on this brief
-                if (!scrollMetRef.current[lang.code] && contentSize.height > 0) {
+                // Track max scroll depth and gate streak on 80% scroll + 20 seconds
+                if (contentSize.height > 0) {
                   const pct = (y + layoutMeasurement.height) / contentSize.height;
-                  if (pct >= 0.8) {
+                  scrollPctRef.current[lang.code] = Math.max(scrollPctRef.current[lang.code] ?? 0, pct);
+                  if (!scrollMetRef.current[lang.code] && pct >= 0.8) {
                     scrollMetRef.current[lang.code] = true;
                     maybeCredit(lang.code);
                   }
@@ -472,36 +504,6 @@ export function BriefingScreen() {
                 />
               }
             >
-              {/* ── Masthead — unique per language page ─────────────────── */}
-              {/* Page dots — above cities, centred */}
-              {langCount > 1 && (
-                <View style={styles.dotsRow}>
-                  {activeLanguages.map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.dot,
-                        {
-                          backgroundColor: i === briefPageIndex ? colors.inkMid : colors.borderMid,
-                          width: i === briefPageIndex ? 16 : 5,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
-
-              {/* Streak above logo — only when 4+ languages crowd the cities row */}
-              {langCount > 3 && (
-                <View style={styles.aboveLogoStreak}>
-                  <StreakBadge
-                    streak={readingStreaks[lang.code] ?? 0}
-                    frozen={isFrozenToday(lang.code)}
-                    onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
-                  />
-                </View>
-              )}
-
               <View style={styles.lockupWrap}>
                 <Image
                   source={MASTHEADS[background] ?? MASTHEADS.cream}
@@ -510,20 +512,11 @@ export function BriefingScreen() {
                 />
               </View>
 
-              {/* Cities row — streak badge floats to the right when ≤3 languages */}
+              {/* Cities row */}
               <View style={styles.citiesWrap}>
                 <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
                   {cityLine}
                 </Text>
-                {langCount <= 3 && (
-                  <View style={styles.citiesStreakAbs}>
-                    <StreakBadge
-                      streak={readingStreaks[lang.code] ?? 0}
-                      frozen={isFrozenToday(lang.code)}
-                      onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
-                    />
-                  </View>
-                )}
               </View>
 
               {/* Thin rule above date/vol — inset from edges */}
@@ -536,9 +529,18 @@ export function BriefingScreen() {
                 >
                   {publishedDateStr(bundleReceivedAt, lang.code)}
                 </Text>
-                <Text style={[styles.metaVol, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                  {briefVolume > 0 ? `Vol. ${toRoman(briefVolume)}` : ''}
-                </Text>
+                {(() => {
+                  const streak = readingStreaks[lang.code] ?? 0;
+                  const isReadToday = lastReadDates[lang.code] === today;
+                  return (
+                    <Text style={[styles.metaStreak, {
+                      color: isReadToday ? '#F97316' : colors.inkFaint,
+                      fontFamily: isReadToday ? fontFamily.bold : fontFamily.regular,
+                    }]}>
+                      {streakPhrase(lang.code, streak)}
+                    </Text>
+                  );
+                })()}
               </View>
 
               {/* Medium rule below date/vol — inset from edges */}
@@ -783,8 +785,8 @@ const styles = StyleSheet.create({
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
-  ruleInset:      { height: 1, marginHorizontal: 20, marginVertical: 3 },
-  ruleOuterInset: { height: 1.5, marginHorizontal: 20 },
+  ruleInset:      { height: 1, marginHorizontal: 8, marginVertical: 3 },
+  ruleOuterInset: { height: 1.5, marginHorizontal: 8 },
 
   citiesWrap: {
     width: SCREEN_WIDTH,
@@ -798,19 +800,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
     paddingVertical: 6,
-  },
-  citiesStreakAbs: {
-    position: 'absolute',
-    right: 18,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  aboveLogoStreak: {
-    width: SCREEN_WIDTH,
-    paddingHorizontal: 18,
-    paddingBottom: 4,
-    alignItems: 'flex-end',
   },
   lockupWrap: {
     width: SCREEN_WIDTH,
@@ -837,9 +826,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     lineHeight: 14,
   },
-  metaVol: {
-    fontSize: 9,
-    letterSpacing: 2.5,
+  metaStreak: {
+    fontSize: 11,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   editionRow: {
@@ -866,13 +855,16 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
 
-  dotsRow: {
+  fixedDots: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 4,
-    paddingTop: 6,
-    paddingBottom: 2,
+    paddingVertical: 5,
+    zIndex: 10,
   },
   dot: {
     height: 5,
@@ -952,6 +944,7 @@ const styles = StyleSheet.create({
   levelGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 10,
     paddingBottom: 20,
   },
