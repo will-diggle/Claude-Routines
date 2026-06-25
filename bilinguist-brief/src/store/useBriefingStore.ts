@@ -425,6 +425,7 @@ export const useBriefingStore = create<BriefingStore>()(
         lastBundleDate: state.lastBundleDate,
         nativeGradeByLang: state.nativeGradeByLang,
         availableLevelsByLang: state.availableLevelsByLang,
+        availableLevelsByLangAndLength: state.availableLevelsByLangAndLength,
       }),
     }
   )
