@@ -13,7 +13,10 @@ interface Props {
 interface FullCalendarProps {
   readingHistory: Record<string, string[]>;
   filterLang: string | 'all';
+  freezeDatesUsed?: Record<string, string[]>;
 }
+
+const FREEZE_BLUE = '#4A90C4';
 
 const DAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -26,7 +29,6 @@ function buildDayLanguages(
   readingHistory: Record<string, string[]>,
   filterLang: string | 'all',
 ): Record<string, string[]> {
-  // date string → array of lang codes for that day
   const dayLangs: Record<string, string[]> = {};
   for (const [langCode, dates] of Object.entries(readingHistory)) {
     if (filterLang !== 'all' && langCode !== filterLang) continue;
@@ -38,16 +40,29 @@ function buildDayLanguages(
   return dayLangs;
 }
 
+function buildFrozenDays(
+  freezeDatesUsed: Record<string, string[]>,
+  filterLang: string | 'all',
+): Set<string> {
+  const frozen = new Set<string>();
+  for (const [langCode, dates] of Object.entries(freezeDatesUsed)) {
+    if (filterLang !== 'all' && langCode !== filterLang) continue;
+    for (const date of dates) frozen.add(date);
+  }
+  return frozen;
+}
+
 interface MonthCalendarProps {
   year: number;
   month: number; // 0-indexed
   dayLanguages: Record<string, string[]>; // 'YYYY-MM-DD' → flags[]
+  frozenDays?: Set<string>;
   activeLanguageCodes: string[];
   colors: any;
   fontFamily: any;
 }
 
-function MonthCalendar({ year, month, dayLanguages, activeLanguageCodes, colors, fontFamily }: MonthCalendarProps) {
+function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCodes, colors, fontFamily }: MonthCalendarProps) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   // Monday-first offset: getDay() returns 0=Sun, so (0+6)%7=6 for Sunday, (1+6)%7=0 for Monday
   const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -92,6 +107,7 @@ function MonthCalendar({ year, month, dayLanguages, activeLanguageCodes, colors,
             const dateStr = `${year}-${mm}-${dd}`;
             const flags = dayLanguages[dateStr] ?? [];
             const isRead = flags.length > 0;
+            const isFrozen = !isRead && (frozenDays?.has(dateStr) ?? false);
             const displayFlags = flags.slice(0, 4);
 
             return (
@@ -101,6 +117,8 @@ function MonthCalendar({ year, month, dayLanguages, activeLanguageCodes, colors,
                     calStyles.circle,
                     isRead
                       ? { backgroundColor: colors.chrome }
+                      : isFrozen
+                      ? { backgroundColor: FREEZE_BLUE }
                       : { backgroundColor: 'transparent' },
                   ]}
                 >
@@ -108,14 +126,17 @@ function MonthCalendar({ year, month, dayLanguages, activeLanguageCodes, colors,
                     style={[
                       calStyles.dayText,
                       {
-                        color: isRead ? colors.bg : colors.inkLight,
-                        fontFamily: isRead ? fontFamily.bold : fontFamily.regular,
+                        color: isRead ? colors.bg : isFrozen ? '#fff' : colors.inkLight,
+                        fontFamily: (isRead || isFrozen) ? fontFamily.bold : fontFamily.regular,
                       },
                     ]}
                   >
                     {cell.day}
                   </Text>
                 </View>
+                {isFrozen && (
+                  <Text style={calStyles.freezeIcon}>❄</Text>
+                )}
                 {displayFlags.length > 0 && (
                   <View style={calStyles.flagRow}>
                     {displayFlags.map((langCode, fi) => (
@@ -156,15 +177,15 @@ export function StreakCalendar({ readingHistory }: Props) {
   );
 }
 
-export function FullStreakCalendar({ readingHistory, filterLang }: FullCalendarProps) {
+export function FullStreakCalendar({ readingHistory, filterLang, freezeDatesUsed = {} }: FullCalendarProps) {
   const { colors, fontFamily } = useTheme();
   const activeLanguageCodes = useSettingsStore(
     useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
   );
 
   const dayLanguages = buildDayLanguages(readingHistory, filterLang);
+  const frozenDays = buildFrozenDays(freezeDatesUsed, filterLang);
 
-  // Build list of the last 6 months + current month, newest first
   const now = new Date();
   const months: Array<{ year: number; month: number }> = [];
   for (let i = 0; i <= 6; i++) {
@@ -180,6 +201,7 @@ export function FullStreakCalendar({ readingHistory, filterLang }: FullCalendarP
           year={year}
           month={month}
           dayLanguages={dayLanguages}
+          frozenDays={frozenDays}
           activeLanguageCodes={activeLanguageCodes}
           colors={colors}
           fontFamily={fontFamily}
@@ -235,5 +257,11 @@ dayText: {
     justifyContent: 'center',
     marginTop: 2,
     gap: 1,
+  },
+  freezeIcon: {
+    fontSize: 8,
+    color: FREEZE_BLUE,
+    marginTop: 1,
+    textAlign: 'center',
   },
 });

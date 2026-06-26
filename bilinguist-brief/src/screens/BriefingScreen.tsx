@@ -203,7 +203,7 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
-  const { recordRead, readingStreaks, readingHistory, lastReadDates, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday } = useStreakStore();
+  const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
@@ -618,13 +618,20 @@ export function BriefingScreen() {
                 {(() => {
                   const streak = readingStreaks[lang.code] ?? 0;
                   const isReadToday = lastReadDates[lang.code] === today;
+                  if (streak === 0) return null;
                   return (
-                    <Text style={[styles.metaStreak, {
-                      color: isReadToday ? '#F97316' : colors.inkFaint,
-                      fontFamily: isReadToday ? fontFamily.bold : fontFamily.regular,
-                    }]}>
-                      {streakPhrase(lang.code, streak)}
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                    >
+                      <Text style={[styles.metaStreak, {
+                        color: isReadToday ? '#F97316' : colors.inkFaint,
+                        fontFamily: isReadToday ? fontFamily.bold : fontFamily.regular,
+                      }]}>
+                        {streakPhrase(lang.code, streak)}
+                      </Text>
+                    </TouchableOpacity>
                   );
                 })()}
               </View>
@@ -839,7 +846,7 @@ export function BriefingScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <FullStreakCalendar readingHistory={readingHistory} filterLang={streakModalLang} />
+              <FullStreakCalendar readingHistory={readingHistory} filterLang={streakModalLang} freezeDatesUsed={freezeDatesUsed} />
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
