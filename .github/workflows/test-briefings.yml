@@ -99,7 +99,7 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: |
           START=$(date +%s)
-          python bilinguist_write.py --date ${{ env.BRIEF_DATE }}
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --test
           echo "WRITE_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
 
       - name: Check completeness
