@@ -950,7 +950,10 @@ def run_writing_concurrent(
         model = MODEL_BEGINNER if is_beginner else MODEL_2M
         template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
         if is_beginner:
-            n_splits = 2 if length == "longer" else 1  # A1 and A2 both split longer
+            # German and French produce verbose articles that exhaust the token budget
+            # at 2-way splits — use 3 slices (~3 stories each) for those languages.
+            _verbose = lang in ("de", "fr")
+            n_splits = (3 if _verbose else 2) if length == "longer" else 1
         else:
             n_splits = 3  # longer only — medium removed
         prompt = build_writing_prompt(template, lang, level, length, factbase)

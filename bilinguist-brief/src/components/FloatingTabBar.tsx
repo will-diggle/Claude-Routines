@@ -12,6 +12,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
+import { FlagCircle } from './FlagCircle';
 import * as Haptics from 'expo-haptics';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -24,11 +25,12 @@ const TABS = [
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H       = 52;
-export const FLOAT_TAB_H_LARGE = 60;
-export const FLOAT_TAB_H_SMALL = 48;
-export const FLOAT_TAB_BOTTOM  = 16;
-export const FLOAT_TAB_INSET   = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
+export const FLOAT_TAB_H        = 58;
+export const FLOAT_TAB_H_LARGE  = 60;
+export const FLOAT_TAB_H_SMALL  = 48;
+export const FLOAT_TAB_H_FLAG   = 64; // taller open state for flag+label stacked chips
+export const FLOAT_TAB_BOTTOM   = 16;
+export const FLOAT_TAB_INSET    = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
@@ -238,10 +240,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    // Only the left pill springs open.
+    // Briefing tab uses flag+label stacked chips — needs extra height.
+    const targetH = currentRouteIndex === 0 ? FLOAT_TAB_H_FLAG : FLOAT_TAB_H_SMALL;
     Animated.parallel([
-      Animated.spring(leftHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...SP_LAYOUT_OPEN }),
-      Animated.spring(leftWidthAnim,  { toValue: targetW,            ...SP_LAYOUT_OPEN }),
+      Animated.spring(leftHeightAnim, { toValue: targetH, ...SP_LAYOUT_OPEN }),
+      Animated.spring(leftWidthAnim,  { toValue: targetW, ...SP_LAYOUT_OPEN }),
     ]).start();
   }
 
@@ -335,8 +338,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         <View style={styles.contextRow}>
           <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
             {activeLanguages.map((lang, i) => (
-              <TouchableOpacity key={lang.code} style={[styles.contextItem, briefPageIndex === i && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }} activeOpacity={0.7}>
-                <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular }]}>
+              <TouchableOpacity key={lang.code} style={[styles.contextItem, styles.contextItemFlag, briefPageIndex === i && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }} activeOpacity={0.7}>
+                <FlagCircle code={lang.code} size={14} />
+                <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                   {showFull ? lang.nativeName : lang.code.toUpperCase()}
                 </Text>
               </TouchableOpacity>
@@ -568,6 +572,11 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  contextItemFlag: {
+    flexDirection: 'column',
+    paddingVertical: 8,
+    gap: 2,
   },
   contextLabel: {
     fontSize: 12,

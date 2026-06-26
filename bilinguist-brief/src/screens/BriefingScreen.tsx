@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
   View, Text, Image, Dimensions, Modal, TouchableOpacity,
-  NativeScrollEvent, NativeSyntheticEvent,
+  NativeScrollEvent, NativeSyntheticEvent, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
@@ -25,6 +25,7 @@ import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
 import * as analytics from '../services/analytics';
 import { scheduleStreakReminder } from '../services/notifications';
+import { useIsFocused } from '@react-navigation/native';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-cream.png'),
@@ -33,7 +34,15 @@ const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   night:    require('../../assets/masthead-black.png'),
 };
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const CRESTS: Record<string, ReturnType<typeof require>> = {
+  cream:    require('../../assets/splash-crest-cream.png'),
+  softGrey: require('../../assets/splash-crest-navy.png'),
+  white:    require('../../assets/splash-crest-white.png'),
+  night:    require('../../assets/splash-crest-black.png'),
+};
+
+const SCREEN_WIDTH  = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 const LOCKUP_PADDING = 4;
 const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
 const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
@@ -160,10 +169,12 @@ function hairlineColor(background: string): string {
 }
 
 function resolveLength(_level: LanguageLevel, readLength: ArticleLength): ArticleLength {
-  return readLength;
+  // 'medium' was a legacy value — normalize to 'longer' so cache keys match the pipeline.
+  return readLength === 'medium' ? 'longer' : readLength;
 }
 
 export function BriefingScreen() {
+  const isFocused = useIsFocused();
   const { colors, fontFamily, background } = useTheme();
   const insets = useSafeAreaInsets();
   const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
@@ -209,6 +220,49 @@ export function BriefingScreen() {
   const sessionTimeRef = useRef<Record<string, number>>({});
   // Interval ref for the 1-second reading timer
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Scroll indicator state ──────────────────────────────────────────────────
+  const SCROLL_PILL_COLORS: Record<string, string> = {
+    white:    '#222222',
+    cream:    '#162032',
+    softGrey: '#F5F0E8',
+    night:    '#F0EDE6',
+  };
+  const scrollIndicatorProgress = useRef<Record<string, Animated.Value>>({});
+  const scrollIndicatorOpacity  = useRef<Record<string, Animated.Value>>({});
+  const scrollFadeTimer = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  function getScrollIndicatorValues(code: string) {
+    if (!scrollIndicatorProgress.current[code]) {
+      scrollIndicatorProgress.current[code] = new Animated.Value(0);
+    }
+    if (!scrollIndicatorOpacity.current[code]) {
+      scrollIndicatorOpacity.current[code] = new Animated.Value(0);
+    }
+    return {
+      progress: scrollIndicatorProgress.current[code],
+      opacity:  scrollIndicatorOpacity.current[code],
+    };
+  }
+
+  function handleScrollIndicator(
+    code: string,
+    contentOffsetY: number,
+    contentHeight: number,
+    visibleHeight: number,
+  ) {
+    const scrollable = contentHeight - visibleHeight;
+    if (scrollable <= 0) return;
+    const pct = Math.min(1, Math.max(0, contentOffsetY / scrollable));
+    const { progress, opacity } = getScrollIndicatorValues(code);
+    progress.setValue(pct);
+    opacity.setValue(1);
+    // Cancel any pending fade
+    if (scrollFadeTimer.current[code]) clearTimeout(scrollFadeTimer.current[code]);
+    scrollFadeTimer.current[code] = setTimeout(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+    }, 500);
+  }
   // Which language page is currently visible
   const currentLangRef = useRef<string | null>(null);
 
@@ -325,7 +379,7 @@ export function BriefingScreen() {
   const programmaticScrollRef = useRef(false);
 
   const activeLangKey =
-    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${l.readLength ?? 'medium'}`).join(',');
+    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${resolveLength(l.level ?? 'B1', (l.readLength ?? 'longer') as ArticleLength)}`).join(',');
 
   const runSync = useCallback(async (force = false) => {
     try {
@@ -334,7 +388,7 @@ export function BriefingScreen() {
       await syncFromServer(force);
       await Promise.all(langs.map((lang) => {
         const level = lang.level ?? 'B1';
-        return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength), true);
+        return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'longer') as ArticleLength), true);
       }));
       await Promise.all(langs.map((lang) => loadWeather(lang.code)));
     } catch {}
@@ -403,6 +457,17 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runSync, briefPageIndex, startTimer, stopTimer]);
 
+  // Stop the timer when the user navigates to another screen; restart on return.
+  useEffect(() => {
+    if (isFocused) {
+      const lang = activeLanguages[briefPageIndex]?.code;
+      if (lang) startTimer(lang);
+    } else {
+      stopTimer();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]);
+
   useEffect(() => {
     const id = setInterval(() => runSync(), 10 * 60 * 1000);
     return () => clearInterval(id);
@@ -455,7 +520,7 @@ export function BriefingScreen() {
       >
         {activeLanguages.map((lang) => {
           const level = lang.level ?? 'B1';
-          const length = resolveLength(level, (lang.readLength ?? 'medium') as ArticleLength);
+          const length = resolveLength(level, (lang.readLength ?? 'longer') as ArticleLength);
           const stored = briefings[lang.code];
           const today = new Date().toISOString().split('T')[0];
           const briefingMatches =
@@ -474,10 +539,21 @@ export function BriefingScreen() {
             .join(' · ');
           const tagline = getTagline(lang.code, langCount);
 
+          const { progress: scrollProgress, opacity: scrollOpacity } = getScrollIndicatorValues(lang.code);
+          const pillColor = SCROLL_PILL_COLORS[background] ?? '#222222';
+          const PILL_H = 40;
+          const PILL_TRACK_TOP    = insets.top + 20;
+          const PILL_TRACK_BOTTOM = SCREEN_HEIGHT - FLOAT_TAB_INSET - PILL_H - 20;
+          const pillTop = scrollProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [PILL_TRACK_TOP, PILL_TRACK_BOTTOM],
+            extrapolate: 'clamp',
+          });
+
           return (
+            <View key={lang.code} style={styles.page}>
             <ScrollView
-              key={lang.code}
-              style={[styles.page, { backgroundColor: colors.bg }]}
+              style={{ flex: 1, backgroundColor: colors.bg }}
               contentContainerStyle={[
                 styles.pageContent,
                 { paddingTop: insets.top + 12, paddingBottom: FLOAT_TAB_INSET },
@@ -503,6 +579,8 @@ export function BriefingScreen() {
                     maybeCredit(lang.code);
                   }
                 }
+                // Scroll indicator
+                handleScrollIndicator(lang.code, y, contentSize.height, layoutMeasurement.height);
               }}
               refreshControl={
                 <RefreshControl
@@ -596,19 +674,31 @@ export function BriefingScreen() {
               {/* ── Page footer ─────────────────────────────────────────── */}
               {displayBriefing && (
                 <View style={styles.articleFooter}>
-                  <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
-                  <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
+                  <View style={[styles.footerRule, { backgroundColor: chrome }]} />
                   <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                     {publishedDateStr(bundleReceivedAt, lang.code)}
                   </Text>
-                  <Text style={[styles.footerMessage, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                    {'Tune in tomorrow for your next daily briefing.\nTo read more today, add a language or open a topic in preferences.'}
-                  </Text>
-                  <View style={[styles.ruleInner, { backgroundColor: hairline }]} />
-                  <View style={[styles.ruleOuter, { backgroundColor: chrome }]} />
+                  <Image
+                    source={CRESTS[background] ?? CRESTS.cream}
+                    style={styles.footerCrest}
+                    resizeMode="contain"
+                  />
                 </View>
               )}
             </ScrollView>
+            {/* Scroll position pill */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.scrollPill,
+                {
+                  backgroundColor: pillColor,
+                  opacity: scrollOpacity,
+                  top: pillTop,
+                },
+              ]}
+            />
+            </View>
           );
         })}
       </ScrollView>
@@ -882,22 +972,31 @@ const styles = StyleSheet.create({
   articleFooter: {
     marginTop: 32,
     paddingHorizontal: 18,
-    paddingBottom: 8,
+    paddingBottom: 16,
     alignItems: 'center',
-    gap: 10,
+    gap: 14,
+  },
+  footerRule: {
+    height: 1,
+    width: '100%',
+    opacity: 0.35,
   },
   footerDate: {
     fontSize: 11,
-    opacity: 0.7,
+    opacity: 0.5,
     textAlign: 'center',
-    paddingTop: 10,
   },
-  footerMessage: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 19,
-    opacity: 0.6,
-    paddingBottom: 10,
+  footerCrest: {
+    width: 48,
+    height: 48,
+    opacity: 0.18,
+  },
+  scrollPill: {
+    position: 'absolute',
+    right: 4,
+    width: 4,
+    height: 40,
+    borderRadius: 2,
   },
 
   modalBackdrop: {

@@ -135,7 +135,7 @@ export const useBriefingStore = create<BriefingStore>()(
               const clearedErrors: Partial<Record<LanguageCode, undefined>> = {};
               for (const lang of settings.languages.filter((l) => l.active)) {
                 const level = lang.level ?? 'B1';
-                const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
+                const length: ArticleLength = (lang.readLength === 'short' ? 'short' : 'longer') as ArticleLength;
                 const key = cacheKey(today, lang.code as LanguageCode, level as LanguageLevel, length);
                 try {
                   const stored = await AsyncStorage.getItem(key);
@@ -199,7 +199,7 @@ export const useBriefingStore = create<BriefingStore>()(
 
           for (const lang of settings.languages.filter((l) => l.active)) {
             const level = lang.level ?? 'B1';
-            const length: ArticleLength = (lang.readLength ?? 'medium') as ArticleLength;
+            const length: ArticleLength = (lang.readLength === 'short' ? 'short' : 'longer') as ArticleLength;
             if (level === 'Native') {
               const nativeByLength = (bundle.nativeJournalism ?? {})[lang.code] as Record<string, any[]> | undefined;
               const nativeArticles = nativeByLength?.[length] ?? nativeByLength?.['longer'] ?? nativeByLength?.['short'];

@@ -73,19 +73,6 @@ import * as analytics from '../services/analytics';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-// Pairs for auto day/night icon switching
-const ICON_PAIRS: { light: string | null; dark: string }[] = [
-  { light: null,     dark: 'Black'  }, // White ↔ Black
-  { light: 'Cream',  dark: 'Navy'   }, // Cream ↔ Navy
-  { light: 'Pride1', dark: 'Pride2' }, // Pride ↔ Pride 2
-];
-
-function getAutoIcon(base: string | null, dark: boolean): string | null {
-  const pair = ICON_PAIRS.find(p => p.light === base || p.dark === base);
-  if (!pair) return base;
-  return dark ? pair.dark : pair.light;
-}
-
 function applyNativeIcon(name: string | null) {
   try {
     setNativeAppIcon(name ?? '');
@@ -313,12 +300,6 @@ export function SettingsScreen() {
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
   }, []);
-
-  // Auto day/night icon — apply the correct variant whenever dark mode or the toggle changes
-  useEffect(() => {
-    if (!store.appIconAuto) return;
-    applyNativeIcon(getAutoIcon(store.appIcon, isDark));
-  }, [store.appIconAuto, store.appIcon, isDark]);
 
   async function handleAppleSignIn() {
     if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
@@ -687,19 +668,17 @@ export function SettingsScreen() {
           />
 
           <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
+              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Switches to a dark theme at night with iOS</Text>
+            </View>
             <Switch
               value={store.autoNightMode}
               onValueChange={store.setAutoNightMode}
-              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-              thumbColor={colors.bg}
+              trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+              thumbColor="#FFF"
             />
           </View>
-          {store.autoNightMode && (
-            <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Switches to Night theme when your iPhone enters dark mode. Set iPhone to Automatic in Settings → Display & Brightness.
-            </Text>
-          )}
 
           <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>App Icon</Text>
           <View style={styles.iconRow}>
@@ -711,7 +690,7 @@ export function SettingsScreen() {
                   style={styles.iconTile}
                   onPress={() => {
                     store.setAppIcon(icon.name);
-                    applyNativeIcon(store.appIconAuto ? getAutoIcon(icon.name, isDark) : icon.name);
+                    applyNativeIcon(icon.name);
                   }}
                   activeOpacity={0.8}
                 >
@@ -725,20 +704,6 @@ export function SettingsScreen() {
               );
             })}
           </View>
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Day / Night Icon</Text>
-            <Switch
-              value={store.appIconAuto}
-              onValueChange={store.setAppIconAuto}
-              trackColor={{ false: colors.borderMid, true: colors.inkDark }}
-              thumbColor={colors.bg}
-            />
-          </View>
-          {store.appIconAuto && (
-            <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Icon switches automatically with your iPhone's light/dark mode. Pairs: White ↔ Black · Cream ↔ Navy · Pride ↔ Pride 2.
-            </Text>
-          )}
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             Requires an installed build. iOS briefly confirms when the icon changes.
           </Text>

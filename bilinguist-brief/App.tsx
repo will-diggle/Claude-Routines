@@ -23,7 +23,7 @@ import {
 } from '@expo-google-fonts/lora';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
-import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
+import type { LanguageCode, LanguageLevel, BackgroundKey } from './src/store/useSettingsStore';
 import { useAuthStore } from './src/store/useAuthStore';
 import { supabase } from './src/services/supabase';
 import { useWordBankStore } from './src/store/useWordBankStore';
@@ -87,18 +87,17 @@ const errStyles = StyleSheet.create({
 
 // ── Main content ──────────────────────────────────────────────────────────────
 
-// Pairs for auto day/night icon switching — same logic as theme pairing.
-const ICON_PAIRS: { base: string | null; dark: string }[] = [
-  { base: null,     dark: 'Black'  }, // White  ↔ Black
-  { base: 'Cream',  dark: 'Navy'   }, // Cream  ↔ Navy
-  { base: 'Pride1', dark: 'Pride2' }, // Pride1 ↔ Pride2
-];
+// Light → dark background pairs for Auto Night Mode.
+const NIGHT_BG_MAP: Partial<Record<BackgroundKey, BackgroundKey>> = {
+  white: 'night',
+  cream: 'softGrey',
+};
 
 function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
           topics, topicOrder,
           autoNightMode, manualBackground, setEffectiveBackground,
-          appIcon, appIconAuto } = useSettingsStore();
+          appIcon } = useSettingsStore();
   const lastReadDates = useStreakStore((s) => s.lastReadDates);
   const setSession = useAuthStore((s) => s.setSession);
 
@@ -137,26 +136,20 @@ function AppContent() {
   const isNight    = background === 'night';
   const colorScheme = useColorScheme();
 
-  // Follow iOS system dark mode (which the user can set to Automatic in
-  // iOS Settings → Display & Brightness → Automatic, tied to sunset/sunrise).
-  // white→night, cream→softGrey (navy); if already on a dark theme, leave it.
+  // Sync app icon with user's manual choice.
+  useEffect(() => {
+    safeSetAppIcon(appIcon);
+  }, [appIcon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto Night Mode — switch background theme with iOS dark mode.
   useEffect(() => {
     if (!autoNightMode) return;
-    const darkPair = manualBackground === 'cream' ? 'softGrey'
-      : (manualBackground === 'night' || manualBackground === 'softGrey') ? manualBackground
-      : 'night';
-    setEffectiveBackground(colorScheme === 'dark' ? darkPair : manualBackground);
+    const isDarkOS = colorScheme === 'dark';
+    const target: BackgroundKey = isDarkOS
+      ? (NIGHT_BG_MAP[manualBackground] ?? manualBackground)
+      : manualBackground;
+    setEffectiveBackground(target);
   }, [colorScheme, autoNightMode, manualBackground]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync app icon — either the user's manual choice, or the auto day/night pair.
-  useEffect(() => {
-    let target: string | null = appIcon;
-    if (appIconAuto) {
-      const pair = ICON_PAIRS.find((p) => p.base === appIcon || p.dark === appIcon);
-      if (pair) target = colorScheme === 'dark' ? pair.dark : pair.base;
-    }
-    safeSetAppIcon(target);
-  }, [colorScheme, appIcon, appIconAuto]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
 
@@ -287,6 +280,8 @@ export default function App() {
     EBGaramond_400Regular_Italic,
   });
   const [storedBg, setStoredBg] = useState('cream');
+  const navRef = useNavigationContainerRef();
+  const lastResponse = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
     AsyncStorage.getItem('bilinguist-settings').then((json) => {
@@ -298,16 +293,6 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG_COLORS[storedBg] ?? '#F5F0E8' }}>
-        <ActivityIndicator color={SPINNER_COLORS[storedBg] ?? '#7D6B4F'} />
-      </View>
-    );
-  }
-
-  const navRef = useNavigationContainerRef();
-  const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (!lastResponse) return;
     const screen = lastResponse.notification.request.content.data?.screen;
@@ -315,6 +300,14 @@ export default function App() {
       navRef.navigate('Briefing' as never);
     }
   }, [lastResponse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG_COLORS[storedBg] ?? '#F5F0E8' }}>
+        <ActivityIndicator color={SPINNER_COLORS[storedBg] ?? '#7D6B4F'} />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
