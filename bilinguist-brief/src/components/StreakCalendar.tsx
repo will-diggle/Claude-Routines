@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { Spacing } from '../theme';
 import { FlagCircle } from './FlagCircle';
 
@@ -40,11 +42,12 @@ interface MonthCalendarProps {
   year: number;
   month: number; // 0-indexed
   dayLanguages: Record<string, string[]>; // 'YYYY-MM-DD' → flags[]
+  activeLanguageCodes: string[];
   colors: any;
   fontFamily: any;
 }
 
-function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthCalendarProps) {
+function MonthCalendar({ year, month, dayLanguages, activeLanguageCodes, colors, fontFamily }: MonthCalendarProps) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   // Monday-first offset: getDay() returns 0=Sun, so (0+6)%7=6 for Sunday, (1+6)%7=0 for Monday
   const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -116,7 +119,7 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
                 {displayFlags.length > 0 && (
                   <View style={calStyles.flagRow}>
                     {displayFlags.map((langCode, fi) => (
-                      <FlagCircle key={fi} code={langCode} size={10} />
+                      <FlagCircle key={fi} code={langCode} size={14} />
                     ))}
                   </View>
                 )}
@@ -131,6 +134,9 @@ function MonthCalendar({ year, month, dayLanguages, colors, fontFamily }: MonthC
 
 export function StreakCalendar({ readingHistory }: Props) {
   const { colors, fontFamily } = useTheme();
+  const activeLanguageCodes = useSettingsStore(
+    useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
+  );
 
   const now = new Date();
   const year = now.getFullYear();
@@ -143,6 +149,7 @@ export function StreakCalendar({ readingHistory }: Props) {
       year={year}
       month={month}
       dayLanguages={dayLanguages}
+      activeLanguageCodes={activeLanguageCodes}
       colors={colors}
       fontFamily={fontFamily}
     />
@@ -151,6 +158,9 @@ export function StreakCalendar({ readingHistory }: Props) {
 
 export function FullStreakCalendar({ readingHistory, filterLang }: FullCalendarProps) {
   const { colors, fontFamily } = useTheme();
+  const activeLanguageCodes = useSettingsStore(
+    useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
+  );
 
   const dayLanguages = buildDayLanguages(readingHistory, filterLang);
 
@@ -170,6 +180,7 @@ export function FullStreakCalendar({ readingHistory, filterLang }: FullCalendarP
           year={year}
           month={month}
           dayLanguages={dayLanguages}
+          activeLanguageCodes={activeLanguageCodes}
           colors={colors}
           fontFamily={fontFamily}
         />
@@ -215,7 +226,7 @@ const calStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayText: {
+dayText: {
     fontSize: 12,
   },
   flagRow: {

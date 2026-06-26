@@ -28,7 +28,8 @@ const TABS = [
 export const FLOAT_TAB_H        = 58;
 export const FLOAT_TAB_H_LARGE  = 60;
 export const FLOAT_TAB_H_SMALL  = 48;
-export const FLOAT_TAB_H_FLAG   = 64; // taller open state for flag+label stacked chips
+export const FLOAT_TAB_H_FLAG      = 64; // taller open state for flag+label stacked chips (1 row)
+export const FLOAT_TAB_H_FLAG_2ROW = 100; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
 export const FLOAT_TAB_INSET    = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
@@ -240,8 +241,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    // Briefing tab uses flag+label stacked chips — needs extra height.
-    const targetH = currentRouteIndex === 0 ? FLOAT_TAB_H_FLAG : FLOAT_TAB_H_SMALL;
+    // Briefing (0) and Practice (1) use flag+label chips. Briefing grows to 2 rows for 5+ langs.
+    const targetH =
+      currentRouteIndex === 0
+        ? (activeLanguages.length >= 5 ? FLOAT_TAB_H_FLAG_2ROW : FLOAT_TAB_H_FLAG)
+        : currentRouteIndex === 1
+        ? FLOAT_TAB_H_FLAG
+        : FLOAT_TAB_H_SMALL;
     Animated.parallel([
       Animated.spring(leftHeightAnim, { toValue: targetH, ...SP_LAYOUT_OPEN }),
       Animated.spring(leftWidthAnim,  { toValue: targetW, ...SP_LAYOUT_OPEN }),
@@ -333,18 +339,38 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function renderLeftContext() {
     // Briefing (index 0) — language switcher for brief pages
     if (currentRouteIndex === 0) {
-      const showFull = activeLanguages.length <= 4;
+      const n = activeLanguages.length;
+      const showFull = n <= 4;
+      const renderBriefChip = (lang: typeof activeLanguages[0], i: number) => (
+        <TouchableOpacity key={lang.code} style={[styles.contextItem, styles.contextItemFlag, briefPageIndex === i && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }} activeOpacity={0.7}>
+          <FlagCircle code={lang.code} size={12} />
+          <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
+            {showFull ? lang.nativeName : lang.code.toUpperCase()}
+          </Text>
+        </TouchableOpacity>
+      );
+
+      if (n <= 4) {
+        return (
+          <View style={styles.contextRow}>
+            <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+              {activeLanguages.map((lang, i) => renderBriefChip(lang, i))}
+            </View>
+          </View>
+        );
+      }
+
+      // 5+ langs: two rows. First row gets ceil(n/2), second row gets the rest.
+      const split = Math.ceil(n / 2);
       return (
         <View style={styles.contextRow}>
-          <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-            {activeLanguages.map((lang, i) => (
-              <TouchableOpacity key={lang.code} style={[styles.contextItem, styles.contextItemFlag, briefPageIndex === i && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }} activeOpacity={0.7}>
-                <FlagCircle code={lang.code} size={14} />
-                <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
-                  {showFull ? lang.nativeName : lang.code.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.chipGroup, styles.chipGroupRows]} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+            <View style={styles.chipGroupRow}>
+              {activeLanguages.slice(0, split).map((lang, i) => renderBriefChip(lang, i))}
+            </View>
+            <View style={styles.chipGroupRow}>
+              {activeLanguages.slice(split).map((lang, i) => renderBriefChip(lang, split + i))}
+            </View>
           </View>
         </View>
       );
@@ -380,8 +406,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>ALL</Text>
           </TouchableOpacity>
           {visibleLangs.map((code) => (
-            <TouchableOpacity key={code} style={[styles.contextItem, practiceLang === code && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setPracticeLang(code as any); }} activeOpacity={0.7}>
-              <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular }]}>
+            <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag, practiceLang === code && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setPracticeLang(code as any); }} activeOpacity={0.7}>
+              <FlagCircle code={code} size={12} />
+              <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                 {langLabel(code)}
               </Text>
             </TouchableOpacity>
@@ -565,6 +592,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flexShrink: 0,
+  },
+  chipGroupRows: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  chipGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   contextItem: {
     paddingHorizontal: 7,
