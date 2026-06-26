@@ -13,6 +13,7 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle } from './FlagCircle';
+import { GlassSurface } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -479,7 +480,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const pillStyle = {
-    backgroundColor: pillBg,
+    // backgroundColor is intentionally omitted — GlassSurface fills the pill background.
+    // On Android (no glass), fall back to pillBg.
+    backgroundColor: Platform.OS === 'android' ? pillBg : 'transparent',
     borderColor: pillBorder,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 10 },
@@ -499,6 +502,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
+        {Platform.OS === 'ios' && <GlassSurface cornerRadius={100} />}
         <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Closed icon */}
@@ -526,6 +530,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
+        {Platform.OS === 'ios' && <GlassSurface cornerRadius={100} />}
         <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Mini icon */}

@@ -1,0 +1,9 @@
+{
+  "name": "liquid-glass",
+  "version": "1.0.0",
+  "description": "iOS Liquid Glass native view for Bilinguist Brief",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}
