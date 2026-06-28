@@ -195,18 +195,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function animOpenRight() {
-    // Snap left pill to mini-circle immediately — prevents layout competition
-    // while the right pill is animating open.
     setLeftOpen(false);
     setRightOpen(true);
     leftContextOp.setValue(0);
-    leftWidthAnim.setValue(FLOAT_TAB_H_SMALL);
-    leftHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    leftWidthAnim.setValue(FLOAT_TAB_H_SMALL); // left collapses to circle width
     iconScaleAnim.setValue(SCALE_SMALL);
     Animated.parallel([
+      // Both pills animate to the same height — left matches right
+      Animated.spring(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...SP_LAYOUT_OPEN }),
       Animated.spring(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...SP_LAYOUT_OPEN }),
       Animated.spring(rightWidthAnim,  { toValue: RIGHT_MAX_W,        ...SP_LAYOUT_OPEN }),
-      // Delay content reveal so icons never appear squished inside a part-open pill.
       Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 160, useNativeDriver: true }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
     ]).start();
@@ -241,12 +239,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function animToLeftOpen(targetW: number) {
     setRightOpen(false);
     setLeftOpen(true);
-    // Right pill: snap shut immediately so it never overflows the screen while
-    // the left pill is animating open. Left pill content is also instant.
     rightFullOp.setValue(0);
     leftContextOp.setValue(1);
-    rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
-    rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    rightWidthAnim.setValue(FLOAT_TAB_H_SMALL); // right collapses to circle width
     iconScaleAnim.setValue(SCALE_SMALL);
     // Briefing (0) and Practice (1) use flag+label chips — always single row.
     const targetH =
@@ -254,8 +249,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         ? FLOAT_TAB_H_FLAG
         : FLOAT_TAB_H_SMALL;
     Animated.parallel([
-      Animated.spring(leftHeightAnim, { toValue: targetH, ...SP_LAYOUT_OPEN }),
-      Animated.spring(leftWidthAnim,  { toValue: targetW, ...SP_LAYOUT_OPEN }),
+      // Both pills animate to the same height — right matches left
+      Animated.spring(leftHeightAnim,  { toValue: targetH, ...SP_LAYOUT_OPEN }),
+      Animated.spring(rightHeightAnim, { toValue: targetH, ...SP_LAYOUT_OPEN }),
+      Animated.spring(leftWidthAnim,   { toValue: targetW, ...SP_LAYOUT_OPEN }),
     ]).start();
   }
 
