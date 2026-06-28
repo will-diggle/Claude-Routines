@@ -40,10 +40,9 @@ export function GlassSurface({ style, cornerRadius = 100, intensity = 1, childre
   // Expo Go fallback: expo-blur
   return (
     <BlurView
-      intensity={85}
+      intensity={80}
       tint="systemUltraThinMaterial"
       style={[StyleSheet.absoluteFillObject, flatStyle]}
-      experimentalBlurMethod="dimezisBlurView"
     >
       {children}
     </BlurView>
