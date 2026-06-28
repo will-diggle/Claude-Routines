@@ -94,17 +94,18 @@ export function FlashcardsScreen() {
   }
 
   function handleFlip() {
-    if (flippedRef.current || lockRef.current) return;
+    if (lockRef.current) return;
     lockRef.current = true;
+    const nowFlipped = flippedRef.current;
     Animated.spring(flipAnim, {
-      toValue: 180,
+      toValue: nowFlipped ? 0 : 180,
       useNativeDriver: true,
       friction: 8,
       tension: 40,
     }).start(() => {
-      flippedRef.current = true;
+      flippedRef.current = !nowFlipped;
       lockRef.current    = false;
-      setFlipped(true);
+      setFlipped(!nowFlipped);
     });
   }
 
@@ -399,9 +400,13 @@ export function FlashcardsScreen() {
                 <Ionicons name="close-circle" size={18} color="#E53935" />
                 <Text style={[styles.swipeHintText, { color: '#E53935', fontFamily: fontFamily.regular }]}>No idea</Text>
               </View>
-              <Text style={[styles.swipeHintMiddle, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                swipe
-              </Text>
+              <TouchableOpacity
+                onPress={handleFlip}
+                hitSlop={{ top: 10, bottom: 10, left: 14, right: 14 }}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="sync-outline" size={18} color={colors.inkFaint} />
+              </TouchableOpacity>
               <View style={styles.swipeHintSide}>
                 <Text style={[styles.swipeHintText, { color: '#43A047', fontFamily: fontFamily.regular }]}>Got it</Text>
                 <Ionicons name="checkmark-circle" size={18} color="#43A047" />
