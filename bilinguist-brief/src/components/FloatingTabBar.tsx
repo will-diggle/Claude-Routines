@@ -62,6 +62,12 @@ function pillContentW(labels: string[]): number {
   return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
 }
 
+// Width for a row of flag-circle-only chips (no text label)
+function pillFlagOnlyW(count: number): number {
+  const chipW = 16 + 6 * 2; // flag size 16 + 6px padding each side
+  return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+}
+
 const SECTION_LABELS: Record<SettingsSection, string> = {
   languages: 'Languages', genres: 'Genres', display: 'Display', profile: 'Profile',
 };
@@ -242,11 +248,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    // Briefing (0) and Practice (1) use flag+label chips. Briefing grows to 2 rows for 5+ langs.
+    // Briefing (0) and Practice (1) use flag+label chips — always single row.
     const targetH =
-      currentRouteIndex === 0
-        ? (activeLanguages.length >= 5 ? FLOAT_TAB_H_FLAG_2ROW : FLOAT_TAB_H_FLAG)
-        : currentRouteIndex === 1
+      currentRouteIndex === 0 || currentRouteIndex === 1
         ? FLOAT_TAB_H_FLAG
         : FLOAT_TAB_H_SMALL;
     Animated.parallel([
@@ -260,10 +264,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function computeLeftExpandedW(): number {
     if (currentRouteIndex === 0) {
       // Briefing — brief language switcher
-      const labels = activeLanguages.length <= 4
-        ? activeLanguages.map((l) => l.nativeName)
-        : activeLanguages.map((l) => l.code.toUpperCase());
-      return pillContentW(labels);
+      // 5+ languages: flag-circle-only chips (no text) in a single row
+      if (activeLanguages.length >= 5) return pillFlagOnlyW(activeLanguages.length);
+      return pillContentW(activeLanguages.map((l) => l.nativeName));
     }
     if (currentRouteIndex === 2) {
       // Preferences — settings section shortcuts
@@ -338,40 +341,31 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Left context content ──────────────────────────────────────────────────
 
   function renderLeftContext() {
-    // Briefing (index 0) — language switcher for brief pages
+    // Briefing (index 0) — language switcher, always a single row
     if (currentRouteIndex === 0) {
       const n = activeLanguages.length;
-      const showFull = n <= 4;
-      const renderBriefChip = (lang: typeof activeLanguages[0], i: number) => (
-        <TouchableOpacity key={lang.code} style={[styles.contextItem, styles.contextItemFlag, briefPageIndex === i && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }} activeOpacity={0.7}>
-          <FlagCircle code={lang.code} size={12} />
-          <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
-            {showFull ? lang.nativeName : lang.code.toUpperCase()}
-          </Text>
-        </TouchableOpacity>
-      );
-
-      if (n <= 4) {
-        return (
-          <View style={styles.contextRow}>
-            <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-              {activeLanguages.map((lang, i) => renderBriefChip(lang, i))}
-            </View>
-          </View>
-        );
-      }
-
-      // 5+ langs: two rows. First row gets ceil(n/2), second row gets the rest.
-      const split = Math.ceil(n / 2);
+      const flagOnly = n >= 5; // 5+ langs: flag circle only, no text label
       return (
         <View style={styles.contextRow}>
-          <View style={[styles.chipGroup, styles.chipGroupRows]} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-            <View style={styles.chipGroupRow}>
-              {activeLanguages.slice(0, split).map((lang, i) => renderBriefChip(lang, i))}
-            </View>
-            <View style={styles.chipGroupRow}>
-              {activeLanguages.slice(split).map((lang, i) => renderBriefChip(lang, split + i))}
-            </View>
+          <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+            {activeLanguages.map((lang, i) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  flagOnly ? styles.contextItemFlagOnly : [styles.contextItem, styles.contextItemFlag],
+                  briefPageIndex === i && activeChipStyle,
+                ]}
+                onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }}
+                activeOpacity={0.7}
+              >
+                <FlagCircle code={lang.code} size={flagOnly ? 16 : 12} />
+                {!flagOnly && (
+                  <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
+                    {lang.nativeName}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       );
@@ -598,16 +592,6 @@ const styles = StyleSheet.create({
     gap: 4,
     flexShrink: 0,
   },
-  chipGroupRows: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 4,
-  },
-  chipGroupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   contextItem: {
     paddingHorizontal: 7,
     paddingVertical: 6,
@@ -619,6 +603,14 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     paddingVertical: 8,
     gap: 2,
+  },
+  // Flag-circle-only chip (no text): used when 5+ languages to fit in one row
+  contextItemFlagOnly: {
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   contextLabel: {
     fontSize: 12,
