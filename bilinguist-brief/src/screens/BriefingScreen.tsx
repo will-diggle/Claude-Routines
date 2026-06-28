@@ -845,9 +845,12 @@ export function BriefingScreen() {
                 <Ionicons name="close" size={20} color={colors.inkFaint} />
               </TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <FullStreakCalendar readingHistory={readingHistory} filterLang={streakModalLang} freezeDatesUsed={freezeDatesUsed} />
-            </ScrollView>
+            <FullStreakCalendar
+              key={streakModalLang}
+              readingHistory={readingHistory}
+              filterLang={streakModalLang}
+              freezeDatesUsed={freezeDatesUsed}
+            />
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -1017,7 +1020,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 20,
     paddingBottom: 36,
-    maxHeight: '75%',
+    maxHeight: '55%',
   },
   modalHeader: {
     flexDirection: 'row',
