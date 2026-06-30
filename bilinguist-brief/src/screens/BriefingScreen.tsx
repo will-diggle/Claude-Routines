@@ -788,7 +788,11 @@ export function BriefingScreen() {
                   <TouchableOpacity
                     key={len}
                     style={[styles.lengthChip, { borderColor: isActive ? colors.inkDark : colors.borderMid }, isActive && { backgroundColor: colors.inkDark }]}
-                    onPress={() => { Haptics.selectionAsync(); setPickerLength(len); }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setPickerLength(len);
+                      if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
@@ -835,14 +839,7 @@ export function BriefingScreen() {
                     onPress={() => {
                       Haptics.selectionAsync();
                       const lc = levelPickerLang;
-                      if (lc) {
-                        const origLength = activeLanguages.find(l => l.code === lc)?.readLength;
-                        // Don't update readLength when selecting Native — it has no length variants
-                        if (lvl !== 'Native' && pickerLength !== origLength) {
-                          setLanguageReadLength(lc as any, pickerLength);
-                        }
-                        setLanguageLevel(lc as any, lvl);
-                      }
+                      if (lc) setLanguageLevel(lc as any, lvl);
                       setLevelPickerLang(null);
                     }}
                     activeOpacity={0.7}
