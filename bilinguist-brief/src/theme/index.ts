@@ -9,7 +9,7 @@ export const Colors = {
   nightSurface: '#1E1E1E',
   nightCard: '#252525',
   creamSurface: '#EDEAE5',
-  creamCard: '#F8F5F0',
+  creamCard: '#F5F0E8',
 
   // Ink
   inkDark: '#1A1A1A',
