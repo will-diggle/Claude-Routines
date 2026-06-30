@@ -173,10 +173,14 @@ def _language_table(
         parts = []
         for level in levels:
             if level == "Native":
-                arts  = native_journalism.get(lang, [])
-                count = len(arts)
+                lang_native = native_journalism.get(lang, {})
+                flat_arts = (
+                    [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
+                    if isinstance(lang_native, dict) else lang_native
+                )
+                count = len(flat_arts)
                 if count:
-                    avg_w = int(_avg_body_words(arts))
+                    avg_w = int(_avg_body_words(flat_arts))
                     grade_label = f"[{native_grade}]" if native_grade else ""
                     parts.append(f"Native✓{count}({avg_w}w){grade_label}")
                 else:
@@ -243,8 +247,12 @@ def check(bundle_path: Path) -> int:
         for level in levels:
             if level == "Native":
                 total += 1
-                arts = native_journalism.get(lang, [])
-                if arts:
+                lang_native = native_journalism.get(lang, {})
+                flat_arts = (
+                    [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
+                    if isinstance(lang_native, dict) else lang_native
+                )
+                if flat_arts:
                     present += 1
                 else:
                     missing.append(f"{lang_name} Native")
@@ -279,7 +287,10 @@ def check(bundle_path: Path) -> int:
     cost_str     = _cost_summary(bundle_path.parent, date)
 
     story_count  = len(factbase)
-    total_native = sum(len(v) for v in native_journalism.values())
+    total_native = sum(
+        sum(len(b) for b in v.values()) if isinstance(v, dict) else len(v)
+        for v in native_journalism.values()
+    )
     header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
 
     factcheck_str, factcheck_warning = _factcheck_summary(script_dir, date, story_count)
