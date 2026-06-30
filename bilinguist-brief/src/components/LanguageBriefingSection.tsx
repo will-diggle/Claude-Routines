@@ -154,17 +154,19 @@ function SectionHeader({
     <>
       <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
         <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
-        <TappableText
-          text={label}
-          style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}
-          activeWord={activeWord}
-          onWordPress={(_pos, word) => setActiveWord(word)}
-        />
-        {briefDisclaimer && (
-          <Text style={[styles.vocabDisclaimer, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            {briefDisclaimer}
-          </Text>
-        )}
+        <View style={{ flex: 1 }}>
+          <TappableText
+            text={label}
+            style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}
+            activeWord={activeWord}
+            onWordPress={(_pos, word) => setActiveWord(word)}
+          />
+          {briefDisclaimer && (
+            <Text style={[styles.vocabDisclaimer, { color: colors.inkFaint, fontFamily: fontFamily.italic ?? fontFamily.regular }]}>
+              {briefDisclaimer}
+            </Text>
+          )}
+        </View>
       </View>
       {activeWord && (
         <WordPopup
@@ -361,11 +363,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    flex: 1,
   },
   vocabDisclaimer: {
     fontSize: 10,
     fontStyle: 'italic',
+    marginTop: 2,
     marginLeft: Spacing.sm,
   },
 
