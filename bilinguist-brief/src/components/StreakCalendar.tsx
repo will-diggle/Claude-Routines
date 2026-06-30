@@ -5,6 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { Spacing } from '../theme';
 import { FlagCircle } from './FlagCircle';
+import { langDisplayCode } from '../store/useSettingsStore';
 
 interface Props {
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
@@ -19,6 +20,11 @@ interface FullCalendarProps {
 const FREEZE_BLUE = '#4A90C4';
 
 const DAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DAY_HEADERS_AR = ['ن', 'ث', 'ر', 'خ', 'ج', 'س', 'ح'];
+
+function toEasternArabic(n: number): string {
+  return String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
+}
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -60,12 +66,14 @@ interface MonthCalendarProps {
   activeLanguageCodes: string[];
   colors: any;
   fontFamily: any;
+  useArabic?: boolean;
 }
 
-function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCodes, colors, fontFamily }: MonthCalendarProps) {
+function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCodes, colors, fontFamily, useArabic }: MonthCalendarProps) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7;
   const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const cells: Array<{ day: number | null }> = [];
   for (let i = 0; i < firstDayOfWeek; i++) cells.push({ day: null });
@@ -77,13 +85,16 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
     rows.push(cells.slice(i, i + 7));
   }
 
+  const headers = useArabic ? DAY_HEADERS_AR : DAY_HEADERS;
+  const fmt = (n: number) => useArabic ? toEasternArabic(n) : String(n);
+
   return (
     <View style={calStyles.monthContainer}>
       <Text style={[calStyles.monthTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
         {monthLabel}
       </Text>
       <View style={calStyles.headerRow}>
-        {DAY_HEADERS.map((h, i) => (
+        {headers.map((h, i) => (
           <View key={i} style={calStyles.headerCell}>
             <Text style={[calStyles.headerText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
               {h}
@@ -103,6 +114,7 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
             const flags = dayLanguages[dateStr] ?? [];
             const isRead = flags.length > 0;
             const isFrozen = !isRead && (frozenDays?.has(dateStr) ?? false);
+            const isToday = dateStr === todayStr;
             const displayFlags = flags.slice(0, 4);
 
             return (
@@ -110,7 +122,9 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
                 <View
                   style={[
                     calStyles.circle,
-                    isRead
+                    isToday
+                      ? { backgroundColor: colors.accentRed }
+                      : isRead
                       ? { backgroundColor: colors.chrome }
                       : isFrozen
                       ? { backgroundColor: FREEZE_BLUE }
@@ -121,12 +135,12 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
                     style={[
                       calStyles.dayText,
                       {
-                        color: isRead ? colors.bg : isFrozen ? '#fff' : colors.inkLight,
-                        fontFamily: (isRead || isFrozen) ? fontFamily.bold : fontFamily.regular,
+                        color: isToday ? '#fff' : isRead ? colors.bg : isFrozen ? '#fff' : colors.inkLight,
+                        fontFamily: (isToday || isRead || isFrozen) ? fontFamily.bold : fontFamily.regular,
                       },
                     ]}
                   >
-                    {cell.day}
+                    {fmt(cell.day)}
                   </Text>
                 </View>
                 {/* Freeze icon — same container size as FlagCircle size={14} */}
@@ -136,11 +150,26 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
                   </View>
                 )}
                 {displayFlags.length > 0 && (
-                  <View style={calStyles.flagRow}>
-                    {displayFlags.map((langCode, fi) => (
-                      <FlagCircle key={fi} code={langCode} size={14} />
-                    ))}
-                  </View>
+                  displayFlags.length === 4 ? (
+                    <View style={calStyles.flagGrid}>
+                      <View style={calStyles.flagRow}>
+                        {displayFlags.slice(0, 2).map((langCode, fi) => (
+                          <FlagCircle key={fi} code={langCode} size={14} />
+                        ))}
+                      </View>
+                      <View style={calStyles.flagRow}>
+                        {displayFlags.slice(2, 4).map((langCode, fi) => (
+                          <FlagCircle key={fi + 2} code={langCode} size={14} />
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={[calStyles.flagRow, { marginTop: 2 }]}>
+                      {displayFlags.map((langCode, fi) => (
+                        <FlagCircle key={fi} code={langCode} size={14} />
+                      ))}
+                    </View>
+                  )
                 )}
               </View>
             );
@@ -178,10 +207,8 @@ export function FullStreakCalendar({ readingHistory, filterLang, freezeDatesUsed
     useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
   );
 
-  // Internal tab state — starts on the lang whose streak was tapped
   const [activeLang, setActiveLang] = useState<string>(filterLang);
 
-  // Languages that have at least one reading history entry
   const langsWithHistory = useMemo(
     () => Object.keys(readingHistory).filter((code) => readingHistory[code].length > 0),
     [readingHistory],
@@ -192,74 +219,59 @@ export function FullStreakCalendar({ readingHistory, filterLang, freezeDatesUsed
 
   const now = new Date();
 
+  // Show 3 months back, current month, and 1 month ahead
+  const months = useMemo(() => {
+    const result: { year: number; month: number }[] = [];
+    for (let offset = -3; offset <= 1; offset++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      result.push({ year: d.getFullYear(), month: d.getMonth() });
+    }
+    return result;
+  }, []);
+
   return (
-    <View>
-      {/* Language filter tab bar */}
+    <View style={{ flex: 1 }}>
+      {/* Language filter tab bar — flags with abbreviations */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={calStyles.tabBar}
         contentContainerStyle={calStyles.tabBarContent}
       >
-        {/* ALL tab */}
-        <TouchableOpacity
-          onPress={() => setActiveLang('all')}
-          style={calStyles.langTab}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity onPress={() => setActiveLang('all')} style={calStyles.langTab} activeOpacity={0.7}>
           <View style={calStyles.allTabCircle}>
-            <Text style={[calStyles.allTabText, { color: activeLang === 'all' ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.bold }]}>
-              ∗
-            </Text>
+            <Text style={[calStyles.allTabText, { color: activeLang === 'all' ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.bold }]}>∗</Text>
           </View>
-          <Text
-            style={[
-              calStyles.langTabLabel,
-              {
-                color: activeLang === 'all' ? colors.inkDark : colors.inkFaint,
-                fontFamily: activeLang === 'all' ? fontFamily.bold : fontFamily.regular,
-                textDecorationLine: activeLang === 'all' ? 'underline' : 'none',
-              },
-            ]}
-          >
+          <Text style={[calStyles.langTabLabel, { color: activeLang === 'all' ? colors.inkDark : colors.inkFaint, fontFamily: activeLang === 'all' ? fontFamily.bold : fontFamily.regular, textDecorationLine: activeLang === 'all' ? 'underline' : 'none' }]}>
             All
           </Text>
         </TouchableOpacity>
-
         {langsWithHistory.map((code) => (
-          <TouchableOpacity
-            key={code}
-            onPress={() => setActiveLang(code)}
-            style={calStyles.langTab}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity key={code} onPress={() => setActiveLang(code)} style={calStyles.langTab} activeOpacity={0.7}>
             <FlagCircle code={code} size={22} />
-            <Text
-              style={[
-                calStyles.langTabLabel,
-                {
-                  color: activeLang === code ? colors.inkDark : colors.inkFaint,
-                  fontFamily: activeLang === code ? fontFamily.bold : fontFamily.regular,
-                  textDecorationLine: activeLang === code ? 'underline' : 'none',
-                },
-              ]}
-            >
-              {code.toUpperCase()}
+            <Text style={[calStyles.langTabLabel, { color: activeLang === code ? colors.inkDark : colors.inkFaint, fontFamily: activeLang === code ? fontFamily.bold : fontFamily.regular, textDecorationLine: activeLang === code ? 'underline' : 'none' }]}>
+              {langDisplayCode(code)}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Single month — no scroll */}
-      <MonthCalendar
-        year={now.getFullYear()}
-        month={now.getMonth()}
-        dayLanguages={dayLanguages}
-        frozenDays={frozenDays}
-        activeLanguageCodes={activeLanguageCodes}
-        colors={colors}
-        fontFamily={fontFamily}
-      />
+      {/* Scrollable months — oldest at top, current near bottom */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing.xl }}>
+        {months.map(({ year, month }) => (
+          <MonthCalendar
+            key={`${year}-${month}`}
+            year={year}
+            month={month}
+            dayLanguages={dayLanguages}
+            frozenDays={frozenDays}
+            activeLanguageCodes={activeLanguageCodes}
+            colors={colors}
+            fontFamily={fontFamily}
+            useArabic={activeLang === 'ar'}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -271,6 +283,8 @@ const calStyles = StyleSheet.create({
   },
   tabBarContent: {
     paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
     gap: 4,
     flexDirection: 'row',
     alignItems: 'center',
@@ -278,7 +292,7 @@ const calStyles = StyleSheet.create({
   langTab: {
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 6,
     gap: 4,
   },
   allTabCircle: {
@@ -341,8 +355,11 @@ const calStyles = StyleSheet.create({
   },
   flagRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
+    gap: 1,
+  },
+  flagGrid: {
+    alignItems: 'center',
     marginTop: 2,
     gap: 1,
   },

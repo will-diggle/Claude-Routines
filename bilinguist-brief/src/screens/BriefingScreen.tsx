@@ -665,6 +665,9 @@ export function BriefingScreen() {
                       <Text style={[styles.metaStreak, {
                         color: isReadToday ? '#F97316' : colors.inkFaint,
                         fontFamily: fontFamily.regular,
+                        // Arabic is a connected script — letter spacing breaks connections
+                        letterSpacing: lang.code === 'ar' ? 0 : undefined,
+                        textTransform: lang.code === 'ar' ? 'none' : undefined,
                       }]}>
                         {streakPhrase(lang.code, streak)}
                       </Text>
