@@ -1,17 +1,22 @@
 import React from 'react';
-import { NativeModules, StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
+import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 
-// Runtime detection: LiquidGlass native module is registered in EAS builds (TestFlight/App Store)
-// but NOT in Expo Go, where expo-blur's BlurView is used instead.
-const hasNativeGlass = !!NativeModules.LiquidGlass;
+// Expo Go can't use expo-blur or local native modules.
+const isExpoGo = Constants.appOwnership === 'expo';
 
+// Always try to load the native view — works in EAS/TestFlight builds.
+// Throws in Expo Go (requireNativeView finds no registered view), which is caught below.
+// NOTE: NativeModules.LiquidGlass is NOT the right check — Expo Modules SDK does not
+// inject into NativeModules. The try-catch on requireNativeView is the correct gate.
 let NativeGlassView: React.ComponentType<any> | null = null;
-if (hasNativeGlass) {
+if (!isExpoGo) {
   try {
-    NativeGlassView = require('../../modules/liquid-glass/src').LiquidGlassView;
+    const mod = require('../../modules/liquid-glass/src');
+    NativeGlassView = mod.LiquidGlassView ?? null;
   } catch {
-    // Module compiled but JS binding failed — fall back gracefully
+    // Module not compiled in this build — fall back to expo-blur
   }
 }
 
@@ -21,6 +26,12 @@ interface Props {
   intensity?: number;
   children?: React.ReactNode;
 }
+
+const styles = StyleSheet.create({
+  expoGoFallback: {
+    backgroundColor: 'rgba(240, 236, 228, 0.82)',
+  },
+});
 
 export function GlassSurface({ style, cornerRadius = 100, intensity = 1, children }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
@@ -37,7 +48,16 @@ export function GlassSurface({ style, cornerRadius = 100, intensity = 1, childre
     );
   }
 
-  // Expo Go fallback: expo-blur
+  // Expo Go — no BlurView support, use a plain semi-transparent background
+  if (isExpoGo) {
+    return (
+      <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback]}>
+        {children}
+      </View>
+    );
+  }
+
+  // EAS build without the native module compiled — expo-blur fallback
   return (
     <BlurView
       intensity={80}
