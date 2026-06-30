@@ -32,6 +32,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Animated,
+  LayoutAnimation,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -693,7 +694,7 @@ export function SettingsScreen() {
                         {item.label}
                       </Text>
                       {isOn && GENRE_SETTINGS_DISCLAIMER[item.key] && (
-                        <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 10, fontStyle: 'italic', marginTop: 2 }}>
+                        <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 10, fontStyle: 'italic', marginTop: 3, textAlign: 'left' }}>
                           {GENRE_SETTINGS_DISCLAIMER[item.key]}
                         </Text>
                       )}
@@ -707,7 +708,10 @@ export function SettingsScreen() {
                     ) : (
                       <Switch
                         value={store.topics[item.key]}
-                        onValueChange={() => store.toggleTopic(item.key)}
+                        onValueChange={() => {
+                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          store.toggleTopic(item.key);
+                        }}
                         trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                         thumbColor="#FFF"
                       />
