@@ -117,20 +117,20 @@ export function MultipleChoiceScreen() {
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
         <View style={styles.center}>
-          <Ionicons name="checkmark-done-outline" size={48} color={colors.accentGold} />
+          <Ionicons name="checkmark-done-outline" size={48} color={colors.accentRed} />
           {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
               {line}
             </Text>
           ))}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{questions.length} correct
           </Text>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
           <TouchableOpacity
-            style={[styles.doneButton, { backgroundColor: colors.accentGold }]}
+            style={[styles.doneButton, { backgroundColor: colors.accentRed }]}
             onPress={() => navigation.goBack()}
           >
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
@@ -171,7 +171,15 @@ export function MultipleChoiceScreen() {
       <GameHeader title="Multiple Choice" current={index + 1} total={questions.length} />
 
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <View style={[styles.questionBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+        <View style={[styles.questionBox, {
+          backgroundColor: colors.card,
+          borderColor: colors.borderLight,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
+        }]}>
           <Text style={[styles.questionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             What is the meaning of
           </Text>
@@ -201,7 +209,7 @@ export function MultipleChoiceScreen() {
 
         {selected !== null && (
           <TouchableOpacity
-            style={[styles.nextButton, { backgroundColor: colors.accentGold }]}
+            style={[styles.nextButton, { backgroundColor: colors.accentRed }]}
             onPress={handleNext}
           >
             <Text style={[styles.nextButtonText, { fontFamily: fontFamily.regular }]}>
@@ -238,6 +246,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.md,
     gap: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
   },
   optionLetter: { fontSize: 13, width: 20, textAlign: 'center' },
   optionText: { flex: 1, lineHeight: 22 },

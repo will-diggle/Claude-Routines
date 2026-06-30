@@ -3,6 +3,11 @@ import type { WordType, WordMeta } from './wordLookup';
 
 const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL || 'https://bilinguist-brief.williamdiggz.workers.dev';
 
+export interface TenseTable {
+  label: string;
+  table: Record<string, string>;
+}
+
 export interface WordEntry {
   word: string;
   language: string;
@@ -12,7 +17,11 @@ export interface WordEntry {
   explanation: string | null;
   example: string | null;
   pronunciation: string | null;
+  /** All tenses in display order. If present, overrides verbTable/verbTablePast. */
+  tenses: TenseTable[] | null;
+  /** Present tense (backward compat — use tenses when available). */
   verbTable: Record<string, string> | null;
+  /** Primary past tense (backward compat — use tenses when available). */
   verbTablePast: Record<string, string> | null;
   forms: Record<string, string> | null;
   tip: string | null;

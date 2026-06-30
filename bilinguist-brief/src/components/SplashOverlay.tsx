@@ -14,29 +14,34 @@ const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
 };
 
 const PHRASE_POOL: Record<string, string[]> = {
-  en: ['Hello', 'Good morning', 'Good afternoon', 'Good evening', 'Welcome', 'Your daily brief', "Today's news", 'Hi there', 'Loading your brief', 'Good to see you'],
-  fr: ['Bonjour', 'Bonsoir', 'Salut', 'Bienvenue', 'Bon après-midi', 'Votre brief du jour', 'Les actualités du jour', 'Ravi de vous voir'],
-  de: ['Hallo', 'Guten Morgen', 'Guten Tag', 'Servus', 'Willkommen', 'Guten Abend', 'Ihr täglicher Brief', 'Schön, Sie zu sehen'],
-  sv: ['Hej', 'God morgon', 'God eftermiddag', 'Välkommen', 'Hej hej', 'Dagens nyheter', 'God kväll'],
-  it: ['Ciao', 'Buongiorno', 'Benvenuto', 'Buona sera', 'Salve', 'Le notizie di oggi', 'Ben trovato'],
-  es: ['Hola', 'Buenos días', 'Buenas tardes', 'Bienvenido', 'Buenas noches', 'Las noticias de hoy', 'Qué tal'],
-  tr: ['Merhaba', 'Günaydın', 'Hoş geldiniz', 'İyi akşamlar', 'Selam', 'Günlük haberler', 'Nasılsınız'],
+  en: ['Hello', 'Good morning', 'Good afternoon', 'Good evening', 'Welcome', 'Your daily brief', "Today's news", 'Hi there', 'Good to see you', 'Breaking news', 'Just in', 'Top stories', "Today's headlines", 'World news', 'Urgent update'],
+  fr: ['Bonjour', 'Bonsoir', 'Salut', 'Bienvenue', 'Bon après-midi', 'Votre brief du jour', 'Les actualités du jour', 'Ravi de vous voir', 'Dernière heure', 'Infos du jour', 'Flash info', 'Actualités mondiales', 'À la une'],
+  de: ['Hallo', 'Guten Morgen', 'Guten Tag', 'Servus', 'Willkommen', 'Guten Abend', 'Ihr täglicher Brief', 'Schön, Sie zu sehen', 'Eilmeldung', 'Aktuelle Nachrichten', 'Tagesschau', 'Wichtige Neuigkeiten', 'Schlagzeilen'],
+  sv: ['Hej', 'God morgon', 'God eftermiddag', 'Välkommen', 'Hej hej', 'Dagens nyheter', 'God kväll', 'Senaste nytt', 'Viktiga nyheter', 'Breaking news', 'Toppnyheter', 'Världsnyheter'],
+  it: ['Ciao', 'Buongiorno', 'Benvenuto', 'Buona sera', 'Salve', 'Le notizie di oggi', 'Ben trovato', 'Ultime notizie', 'Notizie importanti', 'In primo piano', 'Notizie dal mondo', 'Flash notizie'],
+  es: ['Hola', 'Buenos días', 'Buenas tardes', 'Bienvenido', 'Buenas noches', 'Las noticias de hoy', 'Qué tal', 'Noticias de última hora', 'Noticias importantes', 'Titulares del día', 'Noticias del mundo', 'Urgente'],
+  tr: ['Merhaba', 'Günaydın', 'Hoş geldiniz', 'İyi akşamlar', 'Selam', 'Günlük haberler', 'Nasılsınız', 'Son dakika', 'Önemli haberler', 'Günün haberleri', 'Dünya haberleri', 'Acil haber'],
+  hu: ['Helló', 'Jó reggelt', 'Jó napot', 'Üdvözöljük', 'Jó estét', 'A mai hírek', 'Viszontlátásra', 'Friss hírek', 'Fontos hírek', 'Mai főcímek', 'Világhírek'],
+  ar: ['مرحباً', 'صباح الخير', 'مساء الخير', 'أهلاً وسهلاً', 'أخبار اليوم', 'عاجل', 'آخر الأخبار', 'أهم الأخبار', 'عناوين اليوم'],
 };
 
 function pickPhrases(langs: string[]): string[] {
-  return langs.map((l) => {
+  const result: string[] = [];
+  langs.forEach((l) => {
     const pool = PHRASE_POOL[l] ?? PHRASE_POOL.en;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    result.push(shuffled[0], shuffled[1] ?? shuffled[0]);
   });
+  return result.sort(() => Math.random() - 0.5);
 }
 
 const SW = Dimensions.get('window').width;
 const LOGO_W = SW * 0.88;
 const LOGO_H = Math.round(LOGO_W / 5.17);
 
-const FADE_MS  = 220;
-const HOLD_MS  = 380;
-const SPLASH_MS = 3200;
+const FADE_MS  = 160;
+const HOLD_MS  = 260;
+const SPLASH_MS = 3400;
 
 interface Props {
   onDone: () => void;

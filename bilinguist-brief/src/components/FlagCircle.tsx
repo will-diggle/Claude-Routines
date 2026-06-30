@@ -57,6 +57,14 @@ function FlagInterior({ code, size }: { code: string; size: number }) {
           <View style={{ position: 'absolute', width: size * 0.4, height: size * 0.4, borderRadius: size * 0.2, backgroundColor: '#E30A17', top: size * 0.3, left: size * 0.22 }} />
         </View>
       );
+    case 'ar':
+      // Saudi Arabia — green background with simplified white sword
+      return (
+        <View style={{ flex: 1, backgroundColor: '#006C35' }}>
+          <View style={{ position: 'absolute', left: size * 0.15, right: size * 0.15, bottom: size * 0.26, height: size * 0.08, backgroundColor: '#FFFFFF', borderRadius: size * 0.04 }} />
+          <View style={{ position: 'absolute', left: size * 0.72, bottom: size * 0.22, width: size * 0.07, height: size * 0.18, backgroundColor: '#FFFFFF', borderRadius: size * 0.035 }} />
+        </View>
+      );
     case 'en':
     default:
       return (
@@ -74,6 +82,29 @@ export function FlagCircle({ code, size = 28 }: { code: string; size?: number })
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
       <FlagInterior code={code} size={size} />
+    </View>
+  );
+}
+
+export function GlobeCircle({ size = 20 }: { size?: number }) {
+  const s = size;
+  const land = '#77BF4A';
+  return (
+    <View style={{ width: s, height: s, borderRadius: s / 2, overflow: 'hidden', backgroundColor: '#3BAEE8' }}>
+      {/* North America */}
+      <View style={{ position: 'absolute', left: s*0.03, top: s*0.03, width: s*0.30, height: s*0.36, backgroundColor: land, borderRadius: s*0.12 }} />
+      {/* Greenland */}
+      <View style={{ position: 'absolute', left: s*0.24, top: -s*0.02, width: s*0.13, height: s*0.16, backgroundColor: land, borderRadius: s*0.07 }} />
+      {/* Central America connector */}
+      <View style={{ position: 'absolute', left: s*0.14, top: s*0.37, width: s*0.09, height: s*0.10, backgroundColor: land, borderRadius: s*0.04 }} />
+      {/* South America */}
+      <View style={{ position: 'absolute', left: s*0.10, top: s*0.45, width: s*0.26, height: s*0.46, backgroundColor: land, borderRadius: s*0.13 }} />
+      {/* Europe */}
+      <View style={{ position: 'absolute', left: s*0.50, top: s*0.02, width: s*0.20, height: s*0.25, backgroundColor: land, borderRadius: s*0.08 }} />
+      {/* Africa */}
+      <View style={{ position: 'absolute', left: s*0.46, top: s*0.27, width: s*0.25, height: s*0.54, backgroundColor: land, borderRadius: s*0.12 }} />
+      {/* Asia (right edge, partially clipped by circle) */}
+      <View style={{ position: 'absolute', left: s*0.64, top: -s*0.02, width: s*0.40, height: s*0.42, backgroundColor: land, borderRadius: s*0.10 }} />
     </View>
   );
 }

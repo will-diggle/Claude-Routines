@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Animated,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Animated, Modal,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore, type SavedWord, type Pile } from '../store/useWordBankStore';
@@ -15,6 +16,22 @@ import { Spacing } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+
+type WordBankNav = NativeStackNavigationProp<PracticeStackParamList>;
+
+const GAMES: Array<{
+  key: keyof PracticeStackParamList;
+  label: string;
+  icon: any;
+  description: string;
+  tint: string;
+}> = [
+  { key: 'Flashcards',     label: 'Flashcards',            icon: 'layers-outline',          description: 'Flip cards with spaced repetition',           tint: '#4A6FA5' },
+  { key: 'Matching',       label: 'Speed Snap',            icon: 'grid-outline',            description: 'Match words to translations against the clock', tint: '#B5510A' },
+  { key: 'MultipleChoice', label: 'Multiple Choice',       icon: 'list-outline',            description: 'Which word means…? Four options',              tint: '#1E6B3A' },
+  { key: 'FillBlank',      label: 'Fill in the Blank',     icon: 'pencil-outline',          description: 'Complete the original news sentence',          tint: '#6A1B9A' },
+  { key: 'Translation',    label: 'Translation Challenge', icon: 'swap-horizontal-outline', description: 'Translate between languages',                  tint: '#8B1A1A' },
+];
 
 const LANG_NATIVE: Partial<Record<LanguageCode, string>> = {
   fr: 'FR', de: 'DE', sv: 'SV', en: 'EN', it: 'IT', es: 'ES', tr: 'TR',
@@ -31,7 +48,7 @@ const PILE_LABEL: Record<Pile | 'all', string> = {
 
 export function WordBankListScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<WordBankNav>();
   const route = useRoute<RouteProp<PracticeStackParamList, 'WordBankList'>>();
 
   const { pile: initialPile = 'all', language: initialLang = 'all' } = route.params ?? {};
@@ -39,6 +56,7 @@ export function WordBankListScreen() {
   const [selectedPile, setSelectedPile] = useState<Pile | 'all'>(initialPile);
   const [selectedLang, setSelectedLang] = useState<LanguageCode | 'all'>(initialLang);
   const [detailWord, setDetailWord] = useState<SavedWord | null>(null);
+  const [gameModalVisible, setGameModalVisible] = useState(false);
 
   const { words, moveToPile, deleteWord } = useWordBankStore();
 
@@ -65,7 +83,19 @@ export function WordBankListScreen() {
         <Text style={[styles.navTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {PILE_LABEL[selectedPile]} {filtered.length > 0 ? `· ${filtered.length}` : ''}
         </Text>
-        <View style={{ width: 22 }} />
+        {filtered.length > 0 ? (
+          <TouchableOpacity
+            style={[styles.practisePill, { borderColor: colors.chrome }]}
+            onPress={() => setGameModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+              Practise →
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 22 }} />
+        )}
       </View>
 
       {/* Pile filter tabs */}
@@ -190,6 +220,47 @@ export function WordBankListScreen() {
         onClose={() => setDetailWord(null)}
         onMovePile={moveToPile}
       />
+
+      <Modal
+        visible={gameModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGameModalVisible(false)}
+      >
+        <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={() => setGameModalVisible(false)} />
+        <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+          <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
+          <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+            {selectedLang !== 'all'
+              ? `Practise · ${PILE_LABEL[selectedPile]} · ${selectedLang.toUpperCase()}`
+              : `Practise · ${PILE_LABEL[selectedPile]}`}
+          </Text>
+          {GAMES.map((game) => (
+            <TouchableOpacity
+              key={game.key}
+              style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight }]}
+              onPress={() => {
+                setGameModalVisible(false);
+                navigation.navigate(game.key as any, { language: selectedLang });
+              }}
+            >
+              <View style={[modalStyles.gameIcon, { backgroundColor: game.tint + '1a' }]}>
+                <Ionicons name={game.icon} size={20} color={game.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[modalStyles.gameName, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  {game.label}
+                </Text>
+                <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
+            <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -242,4 +313,28 @@ const styles = StyleSheet.create({
   langTag: { fontSize: 10, letterSpacing: 1 },
   pileBadge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   pileBadgeText: { fontSize: 10, letterSpacing: 0.3 },
+  practisePill: {
+    borderWidth: 1, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 5,
+  },
+  practisePillText: { fontSize: 12, letterSpacing: 0.3 },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 34 },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginTop: 12, marginBottom: 4,
+  },
+  title: { fontSize: 16, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  gameRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md,
+  },
+  gameIcon: { width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  gameName: { lineHeight: 22 },
+  gameDesc: { fontSize: 12, marginTop: 1 },
+  cancel: { paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.sm },
+  cancelText: { fontSize: 15 },
 });

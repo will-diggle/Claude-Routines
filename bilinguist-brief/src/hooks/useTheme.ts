@@ -52,7 +52,11 @@ export function useTheme() {
       : Colors.borderMid,
 
     accentGold: Colors.accentGold,
-    accentRed:  Colors.accentRed,
+    // Theme-aware red: dark themes need a lighter rose-red; cream wants a subtler tone
+    accentRed: isCream  ? '#9A2424'   // slightly muted for warm cream background
+             : isNight  ? '#CF5F6A'   // rose-red readable on near-black
+             : isNavy   ? '#CF5F6A'   // same rose-red on dark navy
+             : Colors.accentRed,      // '#8B1A1A' — original dark red on white
 
     // chrome = the paired accent ink for the current background
     // (cream→navy, navy→cream, night→cream, white→inkDark)

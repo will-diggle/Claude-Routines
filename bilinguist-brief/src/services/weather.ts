@@ -21,6 +21,7 @@ const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | '
   es: { morning: 'Buenos días',    afternoon: 'Buenas tardes',   evening: 'Buenas noches' },
   tr: { morning: 'Günaydın',       afternoon: 'İyi günler',      evening: 'İyi akşamlar'  },
   hu: { morning: 'Jó reggelt',     afternoon: 'Jó napot',        evening: 'Jó estét'      },
+  ar: { morning: 'صباح الخير',    afternoon: 'مساء الخير',      evening: 'مساء النور'    },
 };
 
 const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: number; name: string }>> = {
@@ -32,6 +33,7 @@ const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: n
   es: { latitude: 40.4168, longitude: -3.7038, name: 'Madrid'    },
   tr: { latitude: 39.9334, longitude: 32.8597, name: 'Ankara'    },
   hu: { latitude: 47.4979, longitude: 19.0402, name: 'Budapest'  },
+  ar: { latitude: 24.6877, longitude: 46.7219, name: 'الرياض'   },
 };
 
 const FALLBACK_CITY = { latitude: 51.5074, longitude: -0.1278, name: 'London' };
@@ -127,11 +129,22 @@ const WMO: Record<string, Record<number, string>> = {
     85: 'hózápor', 86: 'erős hózápor',
     95: 'zivatar', 96: 'zivatarjégesővel', 99: 'erős zivatarjégesővel',
   },
+  ar: {
+    0: 'سماء صافية',
+    1: 'صافٍ في معظمه', 2: 'غائم جزئياً', 3: 'غائم',
+    45: 'ضباب', 48: 'ضباب متجمد',
+    51: 'رذاذ خفيف', 53: 'رذاذ', 55: 'رذاذ كثيف',
+    61: 'مطر خفيف', 63: 'مطر', 65: 'مطر غزير',
+    71: 'ثلج خفيف', 73: 'ثلج', 75: 'ثلج كثيف', 77: 'حبيبات ثلجية',
+    80: 'زخات خفيفة', 81: 'زخات مطر', 82: 'زخات قوية',
+    85: 'زخات ثلجية', 86: 'زخات ثلجية قوية',
+    95: 'عاصفة رعدية', 96: 'عاصفة رعدية مع برَد', 99: 'عاصفة رعدية مع برَد قوي',
+  },
 };
 
 // "in [city]" preposition per language
 export const WEATHER_IN: Partial<Record<LanguageCode, string>> = {
-  en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en', tr: 'şehrinde', hu: 'városban',
+  en: 'in', fr: 'à', de: 'in', sv: 'i', it: 'a', es: 'en', tr: 'şehrinde', hu: 'városban', ar: 'في',
 };
 
 // Cache localized city names for the session to avoid repeated Nominatim calls

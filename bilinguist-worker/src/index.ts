@@ -16,25 +16,66 @@ const LANGUAGE_NAMES: Record<string, string> = {
   en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
 };
 
-const PAST_TENSE_NAME: Record<string, string> = {
-  fr: 'passé composé',
-  de: 'Präteritum',
-  es: 'pretérito indefinido',
-  it: 'passato prossimo',
-  sv: 'preteritum',
-  en: 'simple past',
-  tr: 'geçmiş zaman',
+const VERB_TENSES: Record<string, Array<{ label: string; pronouns: string[] }>> = {
+  de: [
+    { label: 'PRÄSENS',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'PRÄTERITUM',      pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'PERFEKT',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'PLUSQUAMPERFEKT', pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'FUTUR I',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'KONJUNKTIV II',   pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+  ],
+  fr: [
+    { label: 'PRÉSENT',          pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'PASSÉ COMPOSÉ',    pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'IMPARFAIT',        pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'PASSÉ SIMPLE',     pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'PLUS-QUE-PARFAIT', pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'FUTUR',            pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'CONDITIONNEL',     pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'SUBJONCTIF',       pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+  ],
+  es: [
+    { label: 'PRESENTE',             pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'PRETÉRITO INDEFINIDO', pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'PRETÉRITO IMPERFECTO', pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'FUTURO',               pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'CONDICIONAL',          pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'SUBJUNTIVO PRESENTE',  pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+  ],
+  it: [
+    { label: 'PRESENTE',              pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'PASSATO PROSSIMO',      pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'IMPERFETTO',            pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'FUTURO SEMPLICE',       pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'CONDIZIONALE PRESENTE', pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'CONGIUNTIVO PRESENTE',  pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+  ],
+  sv: [
+    { label: 'PRESENS',    pronouns: ['—'] },
+    { label: 'PRETERITUM', pronouns: ['—'] },
+    { label: 'PERFEKT',    pronouns: ['—'] },
+    { label: 'FUTURUM',    pronouns: ['—'] },
+  ],
+  tr: [
+    { label: 'GENİŞ ZAMAN',               pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+    { label: 'ŞİMDİKİ ZAMAN',            pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+    { label: 'GELECEK ZAMAN',             pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+    { label: 'GEÇMİŞ ZAMAN (-DI)',       pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+    { label: 'ÖĞRENİLEN GEÇMİŞ (-MIŞ)', pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+    { label: 'ŞART KİPİ',                pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
+  ],
 };
 
-const VERB_PRONOUNS: Record<string, string[]> = {
-  fr: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'],
-  de: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'],
-  es: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'],
-  it: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'],
-  sv: ['jag', 'du', 'han/hon', 'vi', 'ni', 'de'],
-  en: ['I', 'you', 'he/she', 'we', 'you (pl)', 'they'],
-  tr: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'],
-};
+function buildTensesInstruction(lang: string): string {
+  const tenses = VERB_TENSES[lang];
+  if (!tenses) return '"tenses": null';
+  const lines = tenses.map((t) => {
+    const cells = t.pronouns.map((p) => `"${p}": "..."`).join(', ');
+    return `  {"label": "${t.label}", "table": {${cells}}}`;
+  });
+  return `"tenses": if wordType is "verb", fill in ALL conjugated forms for the INFINITIVE:\n[\n${lines.join(',\n')}\n] — otherwise null`;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +107,11 @@ interface WordRow {
   lookup_count: number;
 }
 
+interface TenseTable {
+  label: string;
+  table: Record<string, string>;
+}
+
 interface WordData {
   word: string;
   language: string;
@@ -75,6 +121,7 @@ interface WordData {
   explanation: string | null;
   example: string | null;
   pronunciation: string | null;
+  tenses: TenseTable[] | null;
   verbTable: Record<string, string> | null;
   verbTablePast: Record<string, string> | null;
   forms: Record<string, string> | null;
@@ -97,6 +144,16 @@ function json(data: unknown, status = 200): Response {
 }
 
 function rowToWordData(row: WordRow, fromCache: boolean): WordData {
+  const parsedMeta = row.meta ? JSON.parse(row.meta) as Record<string, unknown> : null;
+  const tenses = Array.isArray(parsedMeta?.tenses) ? parsedMeta.tenses as TenseTable[] : null;
+
+  let metaForClient: Record<string, unknown> | null = null;
+  if (parsedMeta) {
+    const copy = { ...parsedMeta };
+    delete copy['tenses'];
+    metaForClient = Object.keys(copy).length > 0 ? copy : null;
+  }
+
   return {
     word:          row.word,
     language:      row.language,
@@ -106,11 +163,12 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     explanation:   row.explanation,
     example:       row.example,
     pronunciation: row.pronunciation,
+    tenses,
     verbTable:     row.verb_present ? JSON.parse(row.verb_present) : null,
     verbTablePast: row.verb_past    ? JSON.parse(row.verb_past)    : null,
     forms:         row.forms        ? JSON.parse(row.forms)        : null,
     tip:           row.tip,
-    meta:          row.meta         ? JSON.parse(row.meta)         : null,
+    meta:          metaForClient,
     level:         row.level,
     fromCache,
   };
@@ -173,27 +231,23 @@ async function generateWordData(
   level: string,
   apiKey: string,
 ): Promise<Partial<WordRow> | null> {
-  const pronouns = VERB_PRONOUNS[lang] ?? VERB_PRONOUNS.fr;
   const langName = LANGUAGE_NAMES[lang] ?? lang;
-  const pastName = PAST_TENSE_NAME[lang] ?? 'simple past';
-  const [p0, p1, p2, p3, p4, p5] = pronouns;
 
   const prompt = `A language learner studying ${langName} at ${level} level wants to learn the word "${word}".
 
 Identify the word type and reply ONLY with a JSON object — no markdown, no preamble:
 {
-  "lemma": "the base dictionary form — for a verb the infinitive (e.g. 'haben' for 'hätte'), for a noun the nominative singular, for an adjective the base form. If '${word}' IS already the base form, repeat it here exactly.",
+  "lemma": "the base dictionary form — for a verb the infinitive (e.g. 'haben' for 'hätte'), for a noun the nominative singular, for an adjective the masculine base form. If '${word}' IS already the base form, repeat it here exactly.",
   "translation": "the primary English meaning in 1-5 words — the most natural translation",
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other",
   "explanation": "Meaning in English, 1-2 sentences, suited to ${level} level",
-  "example": "A ${langName} example sentence using this word",
-  "pronunciation": "IPA pronunciation of ${word}",
-  "verbTable": if verb, present tense of the INFINITIVE FORM {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
-  "verbTablePast": if verb, ${pastName} of the INFINITIVE FORM {"${p0}": "...", "${p1}": "...", "${p2}": "...", "${p3}": "...", "${p4}": "...", "${p5}": "..."} — otherwise null,
-  "forms": if noun {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article"} — if adjective {"feminine": "feminine form", "comparative": "comparative", "superlative": "superlative"} — otherwise null,
-  "tip": a short memorable tip about this word — etymology, common learner mistake, or memory hook — or null,
-  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb for compound tenses e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "-are"/"-ere" for Italian, "Group 1"/"Group 2" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for all other languages)} — otherwise null,
-  "level": the CEFR difficulty level of this specific word: "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+  "example": "A ${langName} example sentence using this word naturally",
+  "pronunciation": "IPA pronunciation of the lemma form",
+  ${buildTensesInstruction(lang)},
+  "forms": if noun {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article", "definite": "article + singular", "indefinite": "indefinite article + singular"} — if adjective {"feminine": "feminine form", "masculine": "masculine form", "comparative": "comparative form", "superlative": "superlative form"} — otherwise null,
+  "tip": a short memorable tip — etymology, common learner mistake, or memory hook — or null,
+  "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "Group 1" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for other languages)} — otherwise null,
+  "level": CEFR level of this word: "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
 }`;
 
   try {
@@ -206,7 +260,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 900,
+        max_tokens: 2500,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -225,13 +279,20 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       explanation?: string;
       example?: string;
       pronunciation?: string;
-      verbTable?: Record<string, string> | null;
-      verbTablePast?: Record<string, string> | null;
+      tenses?: TenseTable[] | null;
       forms?: Record<string, string> | null;
       tip?: string | null;
       meta?: Record<string, unknown> | null;
       level?: string | null;
     };
+
+    const tenses = Array.isArray(parsed.tenses) ? parsed.tenses : null;
+    // Keep verb_present/verb_past populated for backward compat with any legacy readers
+    const verb_present = tenses?.[0]?.table ? JSON.stringify(tenses[0].table) : null;
+    const verb_past    = tenses?.[1]?.table ? JSON.stringify(tenses[1].table) : null;
+    // Pack tenses into meta so we don't need a schema change on D1
+    const metaObj = { ...(parsed.meta ?? {}), ...(tenses ? { tenses } : {}) };
+    const metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : null;
 
     return {
       lemma:         parsed.lemma?.toLowerCase() ?? null,
@@ -240,12 +301,12 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       explanation:   parsed.explanation          ?? null,
       example:       parsed.example              ?? null,
       pronunciation: parsed.pronunciation        ?? null,
-      verb_present:  parsed.verbTable     ? JSON.stringify(parsed.verbTable)     : null,
-      verb_past:     parsed.verbTablePast ? JSON.stringify(parsed.verbTablePast) : null,
-      forms:         parsed.forms         ? JSON.stringify(parsed.forms)         : null,
-      tip:           parsed.tip           ?? null,
-      meta:          parsed.meta          ? JSON.stringify(parsed.meta)          : null,
-      level:         parsed.level         ?? null,
+      verb_present,
+      verb_past,
+      forms:         parsed.forms ? JSON.stringify(parsed.forms) : null,
+      tip:           parsed.tip   ?? null,
+      meta:          metaStr,
+      level:         parsed.level ?? null,
     };
   } catch {
     return null;
@@ -284,7 +345,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   const generated = generatedResult.result;
 
   if (generatedResult.allFailed && env.NTFY_TOPIC) {
-    notifyWordFailure(env.NTFY_TOPIC, word, lang, true);
+    notifyWordFailure(env.NTFY_TOPIC, word, lang);
   }
 
   const translation = generated?.translation ?? null;

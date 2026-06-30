@@ -3,12 +3,7 @@
 
 # Per-level CEFR descriptions. build_writing_prompt injects ONLY the target level.
 LEVEL_DESCRIPTIONS: dict[str, str] = {
-    "A1": "Certified CEFR A1 — the same standard as Goethe-Zertifikat A1, DELF A1, DELE A1. Every article must be assessed by a qualified CEFR examiner as A1, not A2.",
-    "A2": "Certified CEFR A2 — the same standard as official A2 examinations. Every article must be assessed by a qualified CEFR examiner as A2, not A1 or B1.",
-    "B1": "Certified CEFR B1 — the same standard as Goethe B1, DELF B1, DELE B1. Every article must be assessed by a qualified CEFR examiner as B1, not A2 or B2.",
-    "B2": "Certified CEFR B2 — the same standard as Goethe B2, DELF B2, DELE B2. Every article must be assessed by a qualified CEFR examiner as B2, not B1 or C1.",
-    "C1": "Certified CEFR C1 — the same standard as Goethe C1, DALF C1, DELE C1. Every article must be assessed by a qualified CEFR examiner as C1, not B2 or C2.",
-    "C2": "Certified CEFR C2 — the highest learner certification. Every article must be assessed by a qualified CEFR examiner as C2.",
+    "A1": "A1", "A2": "A2", "B1": "B1", "B2": "B2", "C1": "C1", "C2": "C2",
 }
 
 # Per-length instruction. Only the relevant length is shown per call.
@@ -25,17 +20,7 @@ VARIANT_RULES: dict[str, str] = {
 
 # Simplified learner template. build_writing_prompt substitutes all {placeholders}.
 PROMPT_LEARNER_TEMPLATE = """\
-READING LEVEL: {LEVEL_DESCRIPTION}
-
-Write news articles in {LANGUAGE}. Cover every story from the fact-base. Write original prose — never copy source phrasing.
-
-LENGTH ({LENGTH_LABEL}): {WORD_COUNT} words. Never padded. Never truncated mid-thought.
-{LENGTH_INSTRUCTION}
-
-RULES:
-- Numbers, names, organisations: reproduce exactly from the fact-base. Never alter values.
-- Political titles: use exactly as given in the fact-base. Never add "former" or "ex-" unless the fact-base explicitly says the person has left office. If the fact-base says "President Trump", write "President Trump".
-- Contested claims: attribute to the named source. Verified facts: state plainly.
+Write {WORD_COUNT}-word news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
 {VARIANT_RULE}
 [FACTBASE BELOW]
 """

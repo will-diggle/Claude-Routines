@@ -81,7 +81,7 @@ function parseServerJSON(raw: string): any | null {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it';
+type LanguageCode = 'en' | 'fr' | 'de' | 'es' | 'it' | 'ar';
 type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 
 interface BriefingArticle { genre: string; headline: string; body: string; }
@@ -194,6 +194,7 @@ const LANGUAGE_LEVELS: Record<LanguageCode, LanguageLevel[]> = {
   de: ['A1', 'A2', 'B1'],
   es: [],
   it: ['A1', 'Native'],
+  ar: ['A1', 'Native'],
 };
 
 const LANGUAGES = Object.keys(LANGUAGE_LEVELS).filter(

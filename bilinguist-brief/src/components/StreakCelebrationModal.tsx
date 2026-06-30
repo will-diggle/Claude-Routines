@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated,
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../hooks/useTheme';
@@ -30,9 +30,30 @@ interface Props {
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
   const confettiRef = useRef<ConfettiCannon>(null);
+  const scaleAnim = useRef(new Animated.Value(0.7)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      scaleAnim.setValue(0.7);
+      rotateAnim.setValue(0);
+
+      // Spring in with a slight jiggle
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 200,
+          friction: 6,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(rotateAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: 0.5, duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+        ]),
+      ]).start();
+
       const confettiTimer = setTimeout(() => confettiRef.current?.start(), 100);
       const dismissTimer = setTimeout(onDismiss, 4000);
       return () => {
@@ -42,18 +63,34 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
     }
   }, [visible, onDismiss]);
 
+  const rotate = rotateAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-3deg', '0deg', '3deg'],
+  });
+
+  const toArabicNumerals = (n: number) =>
+    String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+  const displayCount = langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount);
+
   const copy = STREAK_COPY[langCode] ?? 'Your streak is on fire';
-  const headline = streakCount === 1 ? '1 day streak!' : `${streakCount} day streak!`;
+  const headline = streakCount === 1 ? `${displayCount} day streak!` : `${displayCount} day streak!`;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onDismiss}
     >
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss}>
-        <View style={[styles.card, { backgroundColor: colors.surface }]} onStartShouldSetResponder={() => true}>
+        <Animated.View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface },
+            { transform: [{ scale: scaleAnim }, { rotate }] },
+          ]}
+          onStartShouldSetResponder={() => true}
+        >
           <Text style={styles.flame}>🔥</Text>
           <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             {headline}
@@ -61,9 +98,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           <Text style={[styles.subtext, { color: colors.inkLight, fontFamily: fontFamily.italic }]}>
             {copy}
           </Text>
-        </View>
+        </Animated.View>
       </TouchableOpacity>
-      {/* Confetti fires from top-centre */}
       <ConfettiCannon
         ref={confettiRef}
         count={80}
@@ -81,23 +117,22 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.30)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 28,
   },
   card: {
     width: '100%',
-    borderRadius: 16,
+    borderRadius: 20,
     paddingVertical: 36,
     paddingHorizontal: 28,
     alignItems: 'center',
-    opacity: 0.92,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 16,
   },
   flame: {
     fontSize: 56,

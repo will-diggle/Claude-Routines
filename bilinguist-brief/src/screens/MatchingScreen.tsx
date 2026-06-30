@@ -21,7 +21,7 @@ import * as analytics from '../services/analytics';
 
 const SCREEN_W = Dimensions.get('window').width;
 
-const TIME_LIMIT       = 30;
+const TIME_LIMIT       = 60;
 const MIN_WORDS        = 24;
 const GRID_COLS        = 3;
 const GRID_ROWS        = 4;
@@ -286,6 +286,7 @@ export function MatchingScreen() {
   }
 
   if (phase === 'done') {
+    const accentColor = isNewBest ? colors.accentGold : colors.accentRed;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Speed Snap" current={TIME_LIMIT} total={TIME_LIMIT} />
@@ -293,7 +294,7 @@ export function MatchingScreen() {
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
         <View style={styles.center}>
-          <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
+          <Ionicons name="trophy-outline" size={48} color={accentColor} />
           {isNewBest && (
             <>
               <Animated.Text style={[styles.congratsLine, { color: colors.accentGold, fontFamily: fontFamily.bold, opacity: congratsFadeAnim }]}>
@@ -304,34 +305,39 @@ export function MatchingScreen() {
               </Text>
             </>
           )}
-          <Text style={[styles.doneLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            YOUR SCORE
+          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+            Session complete
           </Text>
-          <Text style={[styles.doneScore, { color: isNewBest ? colors.accentGold : colors.inkDark, fontFamily: fontFamily.bold }]}>
-            {score}
-          </Text>
-          <Text style={[styles.doneSub, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            pairs matched in 30 seconds
-          </Text>
-          {!isNewBest && speedSnapHighScore > 0 && (
-            <Text style={[styles.doneSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              Best: {speedSnapHighScore}
-            </Text>
-          )}
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+
+          {/* Score tile */}
+          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+              <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
+                <Ionicons name="flash-outline" size={20} color={accentColor} style={{ width: 28 }} />
+                <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Score</Text>
+                <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{score}</Text>
+              </View>
+              {speedSnapHighScore > 0 && (
+                <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
+                  <Ionicons name="trophy-outline" size={20} color={colors.accentGold} style={{ width: 28 }} />
+                  <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Best</Text>
+                  <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{speedSnapHighScore}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
           <TouchableOpacity
-            style={[styles.doneBtn, { backgroundColor: colors.accentGold }]}
+            style={[styles.doneBtn, { backgroundColor: colors.accentRed }]}
             onPress={() => initGame(shuffle([...eligibleWords]))}
           >
             <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Play again</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.backBtn, { borderColor: colors.borderMid }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={[styles.backBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Back to practice</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={[styles.backLink, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -389,13 +395,17 @@ export function MatchingScreen() {
                     ? colors.inkDark
                     : colors.borderLight;
 
+              const borderWidth = (isMatched || isWrong || isSelected)
+                ? 1.5
+                : StyleSheet.hairlineWidth;
+
               return (
                 <Animated.View
                   key={tile.id}
                   style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}
                 >
                   <TouchableOpacity
-                    style={[styles.tile, { backgroundColor: bgColor, borderColor }]}
+                    style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
                     onPress={() => !isMatched && handleTile(tile)}
                     activeOpacity={0.7}
                     disabled={isMatched}
@@ -457,21 +467,35 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     borderRadius: 12,
-    borderWidth: 1.5,
     padding: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
   newBestBadge: { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
-  doneLabel: { fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' },
-  doneScore: { fontSize: 64 },
-  doneSub: { fontSize: 14 },
+  doneTitle: { fontSize: 22, textAlign: 'center' },
+  statsBox: {
+    width: '100%', borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12, shadowRadius: 10, elevation: 6,
+  },
+  statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
+  statLabel: { flex: 1, fontSize: 15 },
+  statValue: { fontSize: 20 },
   streakText: { fontSize: 20 },
-  doneBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneBtn: {
+    borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 10, elevation: 6,
+  },
   doneBtnText: { color: '#FFF', fontSize: 16 },
-  backBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 12, borderWidth: 1 },
-  backBtnText: { fontSize: 15 },
+  backLink: { fontSize: 14, textDecorationLine: 'underline' },
 });

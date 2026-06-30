@@ -2,6 +2,7 @@
   "expo": {
     "name": "Bilinguist Brief",
     "slug": "bilinguist-brief",
+    "scheme": "bilinguistbrief",
     "version": "1.0.0",
     "runtimeVersion": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
-      "buildNumber": "77",
+      "buildNumber": "90",
       "icon": {
         "light": "./assets/icon-white.png",
         "dark": "./assets/icon-black.png",

@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
-export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr' | 'hu';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr' | 'hu' | 'ar';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
@@ -17,7 +17,18 @@ export const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
   es: ['A2'],
   tr: ['A1'],
   hu: ['Native'],
+  ar: ['A1', 'A2'],
 };
+
+// Override the Latin code label for languages with non-Latin scripts.
+export const LANG_DISPLAY_CODE: Partial<Record<LanguageCode, string>> = {
+  ar: 'عر',
+};
+
+/** Returns the short display label for a language code (e.g. "FR", "عر"). */
+export function langDisplayCode(code: string): string {
+  return LANG_DISPLAY_CODE[code as LanguageCode] ?? code.toUpperCase();
+}
 
 export type ReadLength = 'short' | 'medium' | 'longer';
 
@@ -95,6 +106,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
   { code: 'es', name: 'Spanish',          nativeName: 'Español',   flag: '🇪🇸', level: 'A2',     readLength: 'short', active: false },
   { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',    flag: '🇹🇷', level: 'A1',     readLength: 'short', active: false },
   { code: 'hu', name: 'Hungarian',        nativeName: 'Magyar',    flag: '🇭🇺', level: 'Native', readLength: 'short', active: false },
+  { code: 'ar', name: 'Arabic',           nativeName: 'العربية',   flag: '🇸🇦', level: 'A1',     readLength: 'short', active: false },
 ];
 
 const DEFAULT_TOPIC_ORDER = [

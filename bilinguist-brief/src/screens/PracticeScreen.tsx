@@ -5,23 +5,24 @@ import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useShallow } from 'zustand/react/shallow';
-import { useWordBankStore, type Pile } from '../store/useWordBankStore';
+import { useWordBankStore, type Pile, type SavedWord } from '../store/useWordBankStore';
 import type { LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import { TopBar } from '../components/TopBar';
+import { WordDetailSheet } from '../components/WordDetailSheet';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type PracticeNav = NativeStackNavigationProp<PracticeStackParamList, 'PracticeHome'>;
 
-const PILE_META: Array<{ key: Pile; label: string; icon: any; description: string }> = [
-  { key: 'new', label: 'New Words', icon: 'add-circle-outline', description: 'Just saved, never practised' },
-  { key: 'learning', label: 'Learning', icon: 'refresh-outline', description: 'Practised but not yet consistent' },
-  { key: 'mastered', label: 'Mastered', icon: 'checkmark-circle-outline', description: 'Consistently correct' },
-  { key: 'revisit', label: 'Revisit', icon: 'time-outline', description: 'Due for a refresher' },
+const PILE_META: Array<{ key: Pile; label: string; icon: any; description: string; tint: string; iconColor: string }> = [
+  { key: 'new', label: 'New Words', icon: 'add-circle-outline', description: 'Just saved, never practised', tint: 'rgba(45,175,170,0.14)', iconColor: '#2DAFAA' },
+  { key: 'learning', label: 'Learning', icon: 'refresh-outline', description: 'Practised but not yet consistent', tint: 'rgba(210,145,40,0.14)', iconColor: '#D29128' },
+  { key: 'mastered', label: 'Mastered', icon: 'checkmark-circle-outline', description: 'Consistently correct', tint: 'rgba(85,155,95,0.14)', iconColor: '#559B5F' },
+  { key: 'revisit', label: 'Revisit', icon: 'time-outline', description: 'Due for a refresher', tint: 'rgba(200,95,95,0.14)', iconColor: '#C85F5F' },
 ];
 
 const GAMES: Array<{
@@ -47,6 +48,7 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
   es: 'Español',
   tr: 'Türkçe',
   hu: 'Magyar',
+  ar: 'العربية',
 };
 
 export function PracticeScreen() {
@@ -57,6 +59,7 @@ export function PracticeScreen() {
   const selectedLang = useNavPillStore((s) => s.practiceLang);
 
   const [gameModalVisible, setGameModalVisible] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
   const [tipDismissed, setTipDismissed] = useState(false);
 
   const filteredWords = useMemo(
@@ -77,18 +80,27 @@ export function PracticeScreen() {
 
 
   return (
+    <>
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
       <TopBar />
-      <Text style={[styles.pageTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-        Practice
-      </Text>
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
     >
+      <Text style={[styles.pageTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+        Practice
+      </Text>
       {/* Streak */}
-      <View style={[styles.streakBanner, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-        <Text style={[styles.streakNumber, { color: colors.chrome, fontFamily: fontFamily.bold }]}>{streak}</Text>
+      <View style={[styles.streakBanner, {
+        backgroundColor: colors.card,
+        borderColor: colors.borderLight,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 3,
+      }]}>
+        <Text style={[styles.streakNumber, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
 
@@ -115,57 +127,84 @@ export function PracticeScreen() {
           WORD BANK
         </Text>
 
-        <View style={[styles.pilesGrid, { borderColor: colors.borderLight }]}>
-          {PILE_META.map((pile, index) => (
-            <TouchableOpacity
-              key={pile.key}
-              onPress={() => navigation.navigate('WordBankList', { pile: pile.key, language: selectedLang })}
-              activeOpacity={0.7}
-              style={[
-                styles.pileCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.borderLight,
-                  borderRightWidth: index % 2 === 0 ? StyleSheet.hairlineWidth : 0,
-                  borderBottomWidth: index < 2 ? StyleSheet.hairlineWidth : 0,
-                },
-              ]}
-            >
-              <Ionicons name={pile.icon} size={22} color={colors.chrome} style={{ marginBottom: Spacing.xs }} />
-              <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                {filteredCounts[pile.key]}
-              </Text>
-              <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                {pile.label}
-              </Text>
-              <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.pilesGrid}>
+          {PILE_META.map((pile) => {
+            const count = filteredCounts[pile.key];
+            const isEmpty = count === 0;
+            return (
+              <TouchableOpacity
+                key={pile.key}
+                onPress={() => !isEmpty && navigation.navigate('WordBankList', { pile: pile.key, language: selectedLang })}
+                activeOpacity={isEmpty ? 1 : 0.7}
+                style={[
+                  styles.pileCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.borderLight,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.07,
+                    shadowRadius: 6,
+                    elevation: 3,
+                    opacity: isEmpty ? 0.38 : 1,
+                  },
+                ]}
+              >
+                <View style={[styles.pileIconBadge, { backgroundColor: pile.tint }]}>
+                  <Ionicons name={pile.icon} size={18} color={pile.iconColor} />
+                </View>
+                <Text style={[styles.pileCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  {count}
+                </Text>
+                <Text style={[styles.pileLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                  {pile.label}
+                </Text>
+                <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <TouchableOpacity
           onPress={() => navigation.navigate('WordBankList', { pile: 'all', language: selectedLang })}
-          style={[styles.allWordsBtn, { borderColor: colors.borderMid }]}
+          style={[styles.allWordsBtn, {
+            backgroundColor: colors.card,
+            borderColor: colors.borderLight,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 6,
+            elevation: 3,
+          }]}
           activeOpacity={0.7}
         >
-          <Ionicons name="library-outline" size={16} color={colors.inkMid} />
-          <Text style={[styles.allWordsBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+          <Ionicons name="library-outline" size={18} color={colors.inkMid} />
+          <Text style={[styles.allWordsBtnText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
             View all {totalWords} words
           </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.inkFaint} />
+          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
         </TouchableOpacity>
         </>
       )}
 
       {/* Games section */}
-      <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.xl }]}>
+      <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.lg, marginBottom: Spacing.lg }]}>
         PRACTICE GAMES
       </Text>
 
       {GAMES.map((game) => (
         <TouchableOpacity
           key={game.key}
-          style={[styles.gameRow, { borderBottomColor: colors.borderLight }]}
+          style={[styles.gameRow, {
+            backgroundColor: colors.card,
+            borderColor: colors.borderLight,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 6,
+            elevation: 3,
+            opacity: hasWords ? 1 : 0.45,
+          }]}
           disabled={!hasWords}
           activeOpacity={hasWords ? 0.7 : 1}
           onPress={() => hasWords && navigation.navigate(game.key as any, { language: selectedLang })}
@@ -188,8 +227,17 @@ export function PracticeScreen() {
 
       {/* Recent words preview */}
       {hasWords && (
-        <>
-          <View style={[styles.sectionRow, { marginTop: Spacing.xl }]}>
+        <View style={[styles.recentCard, {
+          backgroundColor: colors.card,
+          borderColor: colors.borderLight,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
+          elevation: 3,
+          marginTop: Spacing.xl,
+        }]}>
+          <View style={styles.sectionRow}>
             <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
               RECENTLY SAVED
             </Text>
@@ -203,8 +251,17 @@ export function PracticeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          {recentWords.map((w) => (
-            <View key={w.id} style={[styles.wordRow, { borderBottomColor: colors.borderLight }]}>
+          {recentWords.map((w, idx) => (
+            <TouchableOpacity
+              key={w.id}
+              style={[styles.wordRow, {
+                borderTopColor: idx === 0 ? colors.borderLight : colors.borderLight,
+                borderTopWidth: idx === 0 ? StyleSheet.hairlineWidth : 0,
+                borderBottomColor: colors.borderLight,
+              }]}
+              onPress={() => setSelectedWord(w)}
+              activeOpacity={0.7}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
                   {w.word}
@@ -225,9 +282,10 @@ export function PracticeScreen() {
                   </Text>
                 </View>
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={14} color={colors.inkFaint} />
+            </TouchableOpacity>
           ))}
-        </>
+        </View>
       )}
     </ScrollView>
 
@@ -271,6 +329,13 @@ export function PracticeScreen() {
       </View>
     </Modal>
     </SafeAreaView>
+
+    {/* Word detail popup for recently saved words */}
+    <WordDetailSheet
+      word={selectedWord}
+      onClose={() => setSelectedWord(null)}
+    />
+    </>
   );
 }
 
@@ -278,13 +343,13 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.lg,
+    paddingTop: 0,
     paddingBottom: FLOAT_TAB_INSET,
   },
   streakBanner: {
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
+    paddingVertical: Spacing.md,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: Spacing.lg,
     flexDirection: 'row',
@@ -301,9 +366,8 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 26,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
   },
   sectionLabel: {
     fontSize: 13,
@@ -313,8 +377,9 @@ const styles = StyleSheet.create({
   practisePill: {
     borderWidth: 1,
     borderRadius: 99,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    flexShrink: 0,
   },
   practisePillText: {
     fontSize: 12,
@@ -323,24 +388,40 @@ const styles = StyleSheet.create({
   pilesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: 'hidden',
+    gap: 10,
+    marginTop: Spacing.lg,
   },
   pileCard: {
-    width: '50%',
+    width: '47.5%',
     padding: Spacing.md,
     alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  pileIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
   },
   pileCount: { fontSize: 28, lineHeight: 34 },
   pileLabel: { fontSize: 13, marginTop: 2 },
   pileDesc: { fontSize: 11, textAlign: 'center', marginTop: 2, lineHeight: 15 },
   allWordsBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    marginTop: Spacing.sm, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8, gap: 6,
+    marginTop: Spacing.md, paddingVertical: 14,
+    borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 8,
   },
-  allWordsBtnText: { fontSize: 13 },
+  allWordsBtnText: { fontSize: 14 },
+  recentCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
   tipCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -371,7 +452,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.sm,
     gap: Spacing.md,
   },
   gameIcon: {

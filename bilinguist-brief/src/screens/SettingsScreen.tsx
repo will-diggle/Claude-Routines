@@ -11,8 +11,9 @@ const LENGTH_LABELS: Record<string, readonly [string, string]> = {
   es: ['Conciso', 'Extenso'],
   tr: ['Kısa',    'Uzun'],
   hu: ['Rövid',   'Hosszú'],
+  ar: ['موجز',    'طويل'],
 };
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
   View,
@@ -30,6 +31,7 @@ import {
   Linking,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Animated,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -144,7 +146,7 @@ const DEV_CODE = 'BILDEV';
 
 function SectionHeader({ title, colors, fontFamily }: { title: string; colors: any; fontFamily: any }) {
   return (
-    <View style={[sectionStyles.header, { borderBottomColor: colors.borderMid }]}>
+    <View style={sectionStyles.header}>
       <Text style={[sectionStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
         {title}
       </Text>
@@ -158,15 +160,17 @@ function SegmentedControl({
   onChange,
   colors,
   fontFamily,
+  containerStyle,
 }: {
   options: { label: string; value: string; optionFontSize?: number }[];
   value: string;
   onChange: (v: string) => void;
   colors: any;
   fontFamily: any;
+  containerStyle?: object;
 }) {
   return (
-    <View style={[segStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}>
+    <View style={[segStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }, containerStyle]}>
       {options.map((opt, i) => {
         const selected = opt.value === value;
         return (
@@ -235,9 +239,6 @@ function TimeInput({
 function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFamily: any; fontSize: any }) {
   return (
     <View style={[previewStyles.container, { backgroundColor: colors.bg, borderColor: colors.borderLight }]}>
-      <Text style={[previewStyles.label, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-        PREVIEW
-      </Text>
       <Text style={[previewStyles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 0.75 }]}>
         La politique étrangère en débat
       </Text>
@@ -248,10 +249,144 @@ function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFam
   );
 }
 
+// --- Language card with animated expand ---
+
+interface LangCardProps {
+  lang: { code: string; nativeName: string; active: boolean; readLength?: string; level?: string };
+  isAnyDragging: boolean;
+  isDark: boolean;
+  colors: any;
+  fontFamily: any;
+  fontSize: any;
+  nativeGradeByLang: Record<string, any>;
+  onToggle: () => void;
+  onSetLength: (val: 'short' | 'longer') => void;
+  onPressLevel: () => void;
+}
+
+function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel }: LangCardProps) {
+  const expandAnim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
+  const [expandedHeight, setExpandedHeight] = useState(0);
+
+  useEffect(() => {
+    Animated.spring(expandAnim, {
+      toValue: lang.active ? 1 : 0,
+      useNativeDriver: false,
+      tension: 90,
+      friction: 16,
+    }).start();
+  }, [lang.active]);
+
+  const langLabels = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en);
+
+  return (
+    <View style={[lcStyles.card, {
+      backgroundColor: colors.card,
+      borderColor: colors.borderLight,
+      opacity: lang.active ? 1 : 0.45,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: lang.active ? 4 : 2 },
+      shadowOpacity: lang.active ? 0.12 : 0.07,
+      shadowRadius: lang.active ? 8 : 5,
+      elevation: lang.active ? 5 : 3,
+    }]}>
+      <View style={lcStyles.mainRow}>
+        <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+        <FlagCircle code={lang.code} size={28} />
+        <Text style={[lcStyles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+          {lang.nativeName}
+        </Text>
+        <Switch
+          value={lang.active}
+          onValueChange={onToggle}
+          trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+          thumbColor="#FFF"
+        />
+      </View>
+
+      {/* Animated expand section — always rendered so onLayout fires */}
+      <Animated.View style={{
+        height: expandedHeight > 0
+          ? expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, expandedHeight] })
+          : undefined,
+        overflow: 'hidden',
+      }}>
+        <View onLayout={e => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setExpandedHeight(prev => prev || h);
+        }}>
+          {/* Length */}
+          <View style={[lcStyles.expandRow, { borderTopColor: colors.borderLight }]}>
+            <Text style={[lcStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Length</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {(['short', 'longer'] as const).map((val, i) => {
+                const active = (lang.readLength ?? 'medium') === val;
+                return (
+                  <TouchableOpacity
+                    key={val}
+                    onPress={() => onSetLength(val)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: active ? colors.inkDark : colors.borderMid,
+                      backgroundColor: active ? colors.inkDark : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
+                      {langLabels[i]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          {/* Level */}
+          <TouchableOpacity style={[lcStyles.expandRow, { borderTopColor: colors.borderLight }]} onPress={onPressLevel}>
+            <Text style={[lcStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Level</Text>
+            <Text style={{ fontSize: 14, color: colors.inkDark, fontFamily: fontFamily.bold }}>
+              {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : (lang.level ?? 'B1')}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
+const lcStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  mainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    gap: Spacing.sm,
+  },
+  rowLabel: { flex: 1 },
+  expandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
+  },
+  expandLabel: { flex: 1, fontSize: 13 },
+});
+
 // --- Main screen ---
 
 export function SettingsScreen() {
   const { colors, fontFamily, fontSize, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
@@ -339,7 +474,10 @@ export function SettingsScreen() {
     try {
       const { data } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { skipBrowserRedirect: true },
+        options: {
+          skipBrowserRedirect: true,
+          redirectTo: 'bilinguistbrief://auth',
+        },
       });
       if (data?.url) Linking.openURL(data.url);
       setSignInModalVisible(false);
@@ -467,82 +605,37 @@ export function SettingsScreen() {
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             Toggle languages on to include them in your briefing.
           </Text>
+          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginTop: -4 }]}>
+            Drag to reorder your languages in the brief.
+          </Text>
 
           <DraggableList
             items={store.languages}
             keyExtractor={(lang) => lang.code}
-            itemHeight={56}
+            itemHeight={64}
             onReorder={store.reorderLanguages}
             onDragStateChange={setIsDragging}
             renderItem={(lang, index, isAnyDragging) => (
-              <View>
-                <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                  <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-                  <FlagCircle code={lang.code} size={28} />
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    {lang.nativeName}
-                  </Text>
-                  <Switch
-                    value={lang.active}
-                    onValueChange={() => {
-                    const wasActive = lang.active;
-                    store.toggleLanguage(lang.code);
-                    if (wasActive) analytics.trackLanguageRemoved(lang.code);
-                    else analytics.trackLanguageSelected(lang.code);
-                  }}
-                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-                    thumbColor="#FFF"
-                  />
-                </View>
-                {lang.active && !isAnyDragging && (
-                  <>
-                    <View style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}>
-                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                        Length
-                      </Text>
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        {(['short', 'longer'] as const).map((val, i) => {
-                          const label = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en)[i];
-                          const active = (lang.readLength ?? 'medium') === val;
-                          return (
-                            <TouchableOpacity
-                              key={val}
-                              onPress={() => {
-                              store.setLanguageReadLength(lang.code, val);
-                              analytics.trackBriefLengthChanged(lang.code, val);
-                            }}
-                              style={{
-                                paddingHorizontal: 10,
-                                paddingVertical: 4,
-                                borderRadius: 12,
-                                borderWidth: 1,
-                                borderColor: active ? colors.inkDark : colors.borderMid,
-                                backgroundColor: active ? colors.inkDark : 'transparent',
-                              }}
-                            >
-                              <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
-                                {label}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.levelRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.surface }]}
-                      onPress={() => setLevelModalLang(lang.code)}
-                    >
-                      <Text style={[styles.levelLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                        Level
-                      </Text>
-                      <Text style={[styles.levelValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                        {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : lang.level}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+              <LanguageCard
+                lang={lang}
+                isAnyDragging={isAnyDragging}
+                isDark={isDark}
+                colors={colors}
+                fontFamily={fontFamily}
+                fontSize={fontSize}
+                nativeGradeByLang={nativeGradeByLang}
+                onToggle={() => {
+                  const wasActive = lang.active;
+                  store.toggleLanguage(lang.code);
+                  if (wasActive) analytics.trackLanguageRemoved(lang.code);
+                  else analytics.trackLanguageSelected(lang.code);
+                }}
+                onSetLength={(val) => {
+                  store.setLanguageReadLength(lang.code, val);
+                  analytics.trackBriefLengthChanged(lang.code, val);
+                }}
+                onPressLevel={() => setLevelModalLang(lang.code)}
+              />
             )}
           />
 
@@ -559,34 +652,52 @@ export function SettingsScreen() {
         >
           <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
 
+          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginTop: 4, marginBottom: 4 }]}>
+            Drag to reorder genres in your brief.
+          </Text>
+
           <DraggableList
             items={topicItems}
             keyExtractor={(item) => item.key}
-            itemHeight={56}
+            itemHeight={64}
             onReorder={store.reorderTopics}
             onDragStateChange={setIsDragging}
-            renderItem={(item) => (
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-                <Text style={[styles.rowLabel, { color: item.comingSoon ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  {item.label}
-                </Text>
-                {item.comingSoon ? (
-                  <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
-                    <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                      Coming Soon
+            renderItem={(item) => {
+              const isOn = !item.comingSoon && store.topics[item.key];
+              return (
+                <View style={[lcStyles.card, {
+                  backgroundColor: colors.card,
+                  borderColor: colors.borderLight,
+                  opacity: item.comingSoon ? 0.45 : (isOn ? 1 : 0.45),
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: isOn ? 4 : 2 },
+                  shadowOpacity: isOn ? 0.12 : 0.07,
+                  shadowRadius: isOn ? 8 : 5,
+                  elevation: isOn ? 5 : 3,
+                }]}>
+                  <View style={lcStyles.mainRow}>
+                    <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      {item.label}
                     </Text>
+                    {item.comingSoon ? (
+                      <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                        <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                          Coming Soon
+                        </Text>
+                      </View>
+                    ) : (
+                      <Switch
+                        value={store.topics[item.key]}
+                        onValueChange={() => store.toggleTopic(item.key)}
+                        trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                        thumbColor="#FFF"
+                      />
+                    )}
                   </View>
-                ) : (
-                  <Switch
-                    value={store.topics[item.key]}
-                    onValueChange={() => store.toggleTopic(item.key)}
-                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-                    thumbColor="#FFF"
-                  />
-                )}
-              </View>
-            )}
+                </View>
+              );
+            }}
           />
         </ScrollView>
 
@@ -600,113 +711,114 @@ export function SettingsScreen() {
         >
           <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
 
+          <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Preview</Text>
           <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
 
-          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Background</Text>
-          <View style={[styles.bgContainer, { borderColor: colors.borderMid }]}>
-            {BACKGROUNDS.map((bg, i) => {
-              const selected = store.background === bg.key;
+          {/* Theme tile — colour chips + auto night mode */}
+          <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Theme</Text>
+          <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+            <View style={styles.themeChipsRow}>
+              {BACKGROUNDS.map((bg) => {
+                const selected = store.background === bg.key;
+                return (
+                  <TouchableOpacity
+                    key={bg.key}
+                    onPress={() => store.setBackground(bg.key)}
+                    activeOpacity={0.8}
+                    style={[styles.themeChip, {
+                      backgroundColor: bg.color,
+                      borderColor: selected ? bg.ink : bg.ink + '30',
+                      borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
+                    }]}
+                  >
+                    <Text style={[styles.themeChipLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>
+                      {bg.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight, borderTopWidth: StyleSheet.hairlineWidth }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
+                <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Switches to a dark theme at night with iOS</Text>
+              </View>
+              <Switch
+                value={store.autoNightMode}
+                onValueChange={store.setAutoNightMode}
+                trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                thumbColor="#FFF"
+              />
+            </View>
+          </View>
+
+          {/* Font tile */}
+          <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Font</Text>
+          <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+            {(['lora', 'garamond', 'playfair', 'times'] as FontFamilyKey[]).map((key, i) => {
+              const fam = FontFamilies[key];
+              const selected = store.fontFamily === key;
               return (
                 <TouchableOpacity
-                  key={bg.key}
-                  style={[
-                    styles.bgSegment,
-                    { backgroundColor: bg.color },
-                    i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
-                  ]}
-                  onPress={() => store.setBackground(bg.key)}
+                  key={key}
+                  style={[styles.displayTileRow, { borderTopColor: colors.borderLight }, i === 0 && { borderTopWidth: 0 }]}
+                  onPress={() => store.setFontFamily(key)}
                 >
-                  <Text style={[styles.bgSegmentLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>
-                    {bg.label}
-                  </Text>
-                  {selected && (
-                    <View
-                      pointerEvents="none"
-                      style={[StyleSheet.absoluteFillObject, { borderWidth: 1.5, borderColor: bg.ink }]}
-                    />
-                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>{fam.label}</Text>
+                    <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>The quick brown fox</Text>
+                  </View>
+                  {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Font</Text>
-          {(['lora', 'garamond', 'playfair', 'times'] as FontFamilyKey[]).map((key) => {
-            const fam = FontFamilies[key];
-            const selected = store.fontFamily === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[styles.fontRow, { borderBottomColor: colors.borderLight }]}
-                onPress={() => store.setFontFamily(key)}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>
-                    {fam.label}
-                  </Text>
-                  <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>
-                    The quick brown fox
-                  </Text>
-                </View>
-                {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
-              </TouchableOpacity>
-            );
-          })}
-
-          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Text Size</Text>
-          <SegmentedControl
-            options={[
-              { label: 'A', value: 'small',      optionFontSize: 11 },
-              { label: 'A', value: 'medium',     optionFontSize: 14 },
-              { label: 'A', value: 'large',      optionFontSize: 17 },
-              { label: 'A', value: 'extraLarge', optionFontSize: 20 },
-            ]}
-            value={store.fontSize}
-            onChange={(v) => store.setFontSize(v as FontSizeKey)}
-            colors={colors}
-            fontFamily={fontFamily}
-          />
-
-          <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
-              <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Switches to a dark theme at night with iOS</Text>
-            </View>
-            <Switch
-              value={store.autoNightMode}
-              onValueChange={store.setAutoNightMode}
-              trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-              thumbColor="#FFF"
+          {/* Text Size tile */}
+          <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Text Size</Text>
+          <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+            <SegmentedControl
+              options={[
+                { label: 'A', value: 'small',      optionFontSize: 11 },
+                { label: 'A', value: 'medium',     optionFontSize: 14 },
+                { label: 'A', value: 'large',      optionFontSize: 17 },
+                { label: 'A', value: 'extraLarge', optionFontSize: 20 },
+              ]}
+              value={store.fontSize}
+              onChange={(v) => store.setFontSize(v as FontSizeKey)}
+              colors={colors}
+              fontFamily={fontFamily}
+              containerStyle={{ marginHorizontal: 0, marginBottom: 0, borderWidth: 0, backgroundColor: colors.card }}
             />
           </View>
 
-          <Text style={[styles.fieldLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>App Icon</Text>
-          <View style={styles.iconRow}>
-            {APP_ICONS.map((icon) => {
-              const active = store.appIcon === icon.name;
-              return (
-                <TouchableOpacity
-                  key={icon.name ?? 'default'}
-                  style={styles.iconTile}
-                  onPress={() => {
-                    store.setAppIcon(icon.name);
-                    applyNativeIcon(icon.name);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
-                    <View style={styles.iconFrame}>
-                      <Image source={icon.image} style={styles.iconThumb} />
+          {/* App Icon */}
+          <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>App Icon</Text>
+          <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+            <View style={styles.iconRow}>
+              {APP_ICONS.map((icon) => {
+                const active = store.appIcon === icon.name;
+                return (
+                  <TouchableOpacity
+                    key={icon.name ?? 'default'}
+                    style={styles.iconTile}
+                    onPress={() => {
+                      store.setAppIcon(icon.name);
+                      applyNativeIcon(icon.name);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
+                      <View style={styles.iconFrame}>
+                        <Image source={icon.image} style={styles.iconThumb} />
+                      </View>
+                      <View style={[styles.iconRim, { borderColor: active ? colors.inkDark : 'rgba(255,255,255,0.42)' }]} pointerEvents="none" />
                     </View>
-                    <View style={[styles.iconRim, { borderColor: active ? colors.inkDark : 'rgba(255,255,255,0.42)' }]} pointerEvents="none" />
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            Requires an installed build. iOS briefly confirms when the icon changes.
-          </Text>
 
         </ScrollView>
 
@@ -720,11 +832,20 @@ export function SettingsScreen() {
         >
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>
-            <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
-              <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>
-                {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
-              </Text>
-            </View>
+            <TouchableOpacity
+              onPress={() => setSettingsSheetVisible(true)}
+              activeOpacity={0.8}
+              style={profileStyles.avatarWrap}
+            >
+              <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
+                <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>
+                  {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
+                </Text>
+              </View>
+              <View style={[profileStyles.avatarCameraIcon, { backgroundColor: colors.accentRed }]}>
+                <Ionicons name="camera-outline" size={12} color="#FFF" />
+              </View>
+            </TouchableOpacity>
             {displayName ? (
               <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 {displayName}
@@ -751,7 +872,11 @@ export function SettingsScreen() {
 
           {/* Account Settings button */}
           <TouchableOpacity
-            style={[profileStyles.settingsButton, { backgroundColor: colors.surface, borderColor: colors.borderMid }]}
+            style={[styles.displayTileOuter, profileStyles.settingsButton, {
+              backgroundColor: colors.card,
+              borderColor: colors.borderLight,
+              marginBottom: Spacing.lg,
+            }]}
             onPress={() => setSettingsSheetVisible(true)}
           >
             <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
@@ -760,30 +885,28 @@ export function SettingsScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
           </TouchableOpacity>
 
-          {/* Divider */}
-          <View style={[profileStyles.divider, { backgroundColor: colors.borderLight }]} />
-
-          {/* Daily Streaks section */}
-          <View style={profileStyles.streakHeader}>
-            <View style={profileStyles.streakLeft}>
-              <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                {maxStreak}
+          {/* Daily Streaks tile */}
+          <View style={[styles.displayTileOuter, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+            <View style={profileStyles.streakHeader}>
+              <View style={profileStyles.streakLeft}>
+                <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  {maxStreak}
+                </Text>
+                <Text style={[profileStyles.streakDayLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  {maxStreak === 1 ? 'day' : 'days'}
+                </Text>
+              </View>
+              <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Daily Streaks
               </Text>
-              <Text style={[profileStyles.streakDayLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                {maxStreak === 1 ? 'day' : 'days'}
-              </Text>
+              <TouchableOpacity style={profileStyles.streakRight} onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
+                <Text style={[profileStyles.viewAllText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+                  View All →
+                </Text>
+              </TouchableOpacity>
             </View>
-            <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              Daily Streaks
-            </Text>
-            <TouchableOpacity style={profileStyles.streakRight} onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
-              <Text style={[profileStyles.viewAllText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
-                View All →
-              </Text>
-            </TouchableOpacity>
+            <StreakCalendar readingHistory={readingHistory} />
           </View>
-
-          <StreakCalendar readingHistory={readingHistory} />
         </ScrollView>
       </ScrollView>
 
@@ -846,27 +969,6 @@ export function SettingsScreen() {
                   <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: 16, marginTop: 4 }]}>
                     Sign in to sync your streaks and word bank across devices.
                   </Text>
-                  {appleAvailable && (
-                    <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
-                      <AppleAuthentication.AppleAuthenticationButton
-                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                        buttonStyle={isDark
-                          ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                          : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                        cornerRadius={8}
-                        style={{ height: 44 }}
-                        onPress={handleAppleSignIn}
-                      />
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
-                    onPress={handleGoogleSignIn}
-                  >
-                    <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                      Continue with Google
-                    </Text>
-                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.row, { borderBottomColor: colors.borderLight }]}
                     onPress={() => {
@@ -991,7 +1093,7 @@ export function SettingsScreen() {
                           const calls: Array<() => Promise<void>> = [];
                           for (const lang of active) {
                             const level = lang.level ?? 'B1';
-                            const length = (lang.readLength ?? 'medium') as ArticleLength;
+                            const length = (lang.readLength === 'short' ? 'short' : 'longer') as ArticleLength;
                             calls.push(() => loadBriefing(lang.code, level, length, true));
                           }
                           await Promise.all(calls.map((fn) => fn()));
@@ -1035,7 +1137,7 @@ export function SettingsScreen() {
         animationType="slide"
         onRequestClose={() => setViewAllVisible(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom']}>
+        <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
           {/* Header */}
           <View style={[sheetStyles.fullScreenHeader, { borderBottomColor: colors.borderLight }]}>
             <Text style={[sheetStyles.fullScreenTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
@@ -1046,45 +1148,9 @@ export function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Language filter chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={sheetStyles.chipScroll}
-            contentContainerStyle={sheetStyles.chipContainer}
-          >
-            <TouchableOpacity
-              style={[
-                sheetStyles.chip,
-                { borderColor: filterLang === 'all' ? colors.chrome : colors.borderMid,
-                  backgroundColor: filterLang === 'all' ? colors.chrome : 'transparent' },
-              ]}
-              onPress={() => setFilterLang('all')}
-            >
-              <Text style={[sheetStyles.chipText, { color: filterLang === 'all' ? colors.bg : colors.inkDark, fontFamily: fontFamily.regular }]}>
-                ALL
-              </Text>
-            </TouchableOpacity>
-            {activeLanguages.map((lang) => (
-              <TouchableOpacity
-                key={lang.code}
-                style={[
-                  sheetStyles.chip,
-                  { borderColor: filterLang === lang.code ? colors.chrome : colors.borderMid,
-                    backgroundColor: filterLang === lang.code ? colors.chrome : 'transparent' },
-                ]}
-                onPress={() => setFilterLang(lang.code)}
-              >
-                <Text style={[sheetStyles.chipText, { color: filterLang === lang.code ? colors.bg : colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {lang.flag} {lang.nativeName}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
           {/* Full calendar */}
           <FullStreakCalendar readingHistory={readingHistory} filterLang={filterLang} />
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* ── Username edit modal ── */}
@@ -1198,8 +1264,9 @@ export function SettingsScreen() {
               {authMode === 'signin' ? 'Sign in' : 'Create account'}
             </Text>
 
-            {appleAvailable && (
-              <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md }}>
+            {/* Social sign-in */}
+            {(appleAvailable) && (
+              <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
                 <AppleAuthentication.AppleAuthenticationButton
                   buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
                   buttonStyle={isDark
@@ -1212,13 +1279,21 @@ export function SettingsScreen() {
               </View>
             )}
 
-            {appleAvailable && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
-                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
-                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-              </View>
-            )}
+            <TouchableOpacity
+              style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
+              onPress={handleGoogleSignIn}
+              disabled={authLoading}
+            >
+              <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                Continue with Google
+              </Text>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+              <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
+              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+            </View>
 
             <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
               <TextInput
@@ -1350,26 +1425,45 @@ const styles = StyleSheet.create({
   levelLabel: { flex: 1, fontSize: 13 },
   levelValue: { fontSize: 14 },
   fieldLabel: {
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 13,
+    letterSpacing: 1.8,
+    fontWeight: '600',
     marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
     textTransform: 'uppercase',
   },
-  bgContainer: {
-    flexDirection: 'row',
+  displayTileOuter: {
     marginHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
     marginBottom: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 3,
   },
-  bgSegment: {
+  themeChipsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+  },
+  themeChip: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  themeChipLabel: { fontSize: 13 },
+  displayTileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.sm,
   },
   bgSegmentLabel: { fontSize: 13 },
   fontRow: {
@@ -1384,12 +1478,11 @@ const styles = StyleSheet.create({
   iconRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    marginHorizontal: Spacing.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   iconTile: {
-    width: (SCREEN_WIDTH - Spacing.md * 2 - Spacing.sm * 2) / 3,
+    width: '33.33%',
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1426,12 +1519,10 @@ const styles = StyleSheet.create({
 const sectionStyles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
-    borderBottomWidth: 2,
-    marginBottom: Spacing.xs,
   },
-  title: { fontSize: 18, letterSpacing: 0.3 },
+  title: { fontSize: 26 },
 });
 
 const segStyles = StyleSheet.create({
@@ -1447,6 +1538,7 @@ const segStyles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   label: { fontSize: 13 },
 });
@@ -1468,13 +1560,13 @@ const previewStyles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.md,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  label: {
-    fontSize: 10,
-    letterSpacing: 1.5,
-    marginBottom: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 3,
   },
   headline: {
     lineHeight: 28,
@@ -1547,13 +1639,27 @@ const profileStyles = StyleSheet.create({
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.lg,
   },
+  avatarWrap: {
+    marginBottom: Spacing.sm,
+  },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+  },
+  avatarCameraIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
   avatarInitials: {
     fontSize: 32,
@@ -1568,13 +1674,9 @@ const profileStyles = StyleSheet.create({
   settingsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 14,
-    borderRadius: 100,
-    borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
   },
   settingsButtonText: {
     flex: 1,
@@ -1588,6 +1690,7 @@ const profileStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
   streakLeft: {
