@@ -124,7 +124,16 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: stri
   { key: 'night',    label: 'Night', color: Colors.night,   ink: Colors.cream   },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
-const HARD_TOPIC_KEYS = new Set(['worldNews', 'ukPolitics', 'business', 'europe', 'politics', 'middleEast', 'africa', 'asia']);
+const GENRE_SETTINGS_DISCLAIMER: Record<string, string> = {
+  worldNews:  'This genre may contain technical or international vocabulary beyond A1',
+  ukPolitics: 'This genre may contain political vocabulary beyond A1',
+  politics:   'This genre may contain political vocabulary beyond A1',
+  business:   'This genre may contain financial and economic vocabulary beyond A1',
+  europe:     'This genre may contain geopolitical vocabulary beyond A1',
+  middleEast: 'This genre may contain geopolitical vocabulary beyond A1',
+  africa:     'This genre may contain geopolitical vocabulary beyond A1',
+  asia:       'This genre may contain geopolitical vocabulary beyond A1',
+};
 
 const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean }[] = [
   { key: 'worldNews',   label: 'Global News' },
@@ -683,9 +692,9 @@ export function SettingsScreen() {
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body, flex: 0 }]}>
                         {item.label}
                       </Text>
-                      {isOn && HARD_TOPIC_KEYS.has(item.key) && (
+                      {isOn && GENRE_SETTINGS_DISCLAIMER[item.key] && (
                         <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 10, fontStyle: 'italic', marginTop: 2 }}>
-                          some words may exceed A1
+                          {GENRE_SETTINGS_DISCLAIMER[item.key]}
                         </Text>
                       )}
                     </View>

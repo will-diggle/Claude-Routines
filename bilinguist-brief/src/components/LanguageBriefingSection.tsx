@@ -133,17 +133,23 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
   return groups;
 }
 
-const VOCAB_DISCLAIMER_GENRES = new Set([
-  'GLOBAL NEWS', 'POLITICS', 'UK POLITICS', 'BUSINESS & ECONOMY',
-  'EUROPE', 'MIDDLE EAST', 'AFRICA', 'ASIA',
-]);
+const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
+  'GLOBAL NEWS':         'may contain technical words beyond A1',
+  'UK POLITICS':         'may contain political words beyond A1',
+  'POLITICS':            'may contain political words beyond A1',
+  'BUSINESS & ECONOMY':  'may contain financial words beyond A1',
+  'EUROPE':              'may contain geopolitical words beyond A1',
+  'MIDDLE EAST':         'may contain geopolitical words beyond A1',
+  'AFRICA':              'may contain geopolitical words beyond A1',
+  'ASIA':                'may contain geopolitical words beyond A1',
+};
 
 function SectionHeader({
   label, accent, language, level, genre,
 }: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string }) {
   const { colors, fontFamily } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
-  const showDisclaimer = level === 'A1' && VOCAB_DISCLAIMER_GENRES.has(genre.toUpperCase());
+  const briefDisclaimer = level === 'A1' ? GENRE_BRIEF_DISCLAIMER[genre.toUpperCase()] : undefined;
   return (
     <>
       <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
@@ -154,9 +160,9 @@ function SectionHeader({
           activeWord={activeWord}
           onWordPress={(_pos, word) => setActiveWord(word)}
         />
-        {showDisclaimer && (
+        {briefDisclaimer && (
           <Text style={[styles.vocabDisclaimer, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            some words may exceed A1
+            {briefDisclaimer}
           </Text>
         )}
       </View>
