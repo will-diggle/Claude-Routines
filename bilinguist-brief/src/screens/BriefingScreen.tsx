@@ -49,7 +49,7 @@ const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 
 // "Native" word in each language (for level chip labels like "B2 / Natif")
 const NATIVE_WORD: Record<string, string> = {
-  en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
+  en: 'Native', fr: 'Natif', de: 'Mutterspr.',
   es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål', tr: 'Yerel', hu: 'Anyanyelvi',
 };
 
@@ -63,25 +63,27 @@ const LENGTH_LABELS: Record<string, readonly [string, string]> = {
   es: ['Conciso', 'Extenso'],
   tr: ['Kısa',    'Uzun'],
   hu: ['Rövid',   'Hosszú'],
+  ar: ['موجز',    'طويل'],
 };
 
 // City names in each language's native form (fallback)
 const LANG_CITY_NATIVE: Record<string, string> = {
   en: 'London', fr: 'Paris',  de: 'Berlin', es: 'Madrid',
-  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara', hu: 'Budapest',
+  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara', hu: 'Budapest', ar: 'الرياض',
 };
 
 // Each language's capital city translated into every display language.
 // Row = the language whose city it is; column = the language to display it in.
 const CITY_IN_LANG: Record<string, Partial<Record<string, string>>> = {
-  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra',    hu: 'London'    },
-  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris',     hu: 'Párizs'    },
-  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin',    hu: 'Berlin'    },
-  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid',    hu: 'Madrid'    },
-  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma',      hu: 'Róma'      },
-  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm',  hu: 'Stockholm' },
-  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara',    hu: 'Ankara'    },
-  hu: { en: 'Budapest',  fr: 'Budapest',  de: 'Budapest',  es: 'Budapest',  it: 'Budapest',  sv: 'Budapest',  tr: 'Budapeşte', hu: 'Budapest'  },
+  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra',    hu: 'London',    ar: 'لندن'    },
+  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris',     hu: 'Párizs',    ar: 'باريس'   },
+  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin',    hu: 'Berlin',    ar: 'برلين'   },
+  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid',    hu: 'Madrid',    ar: 'مدريد'   },
+  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma',      hu: 'Róma',      ar: 'روما'    },
+  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm',  hu: 'Stockholm', ar: 'ستوكهولم'},
+  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara',    hu: 'Ankara',    ar: 'أنقرة'   },
+  hu: { en: 'Budapest',  fr: 'Budapest',  de: 'Budapest',  es: 'Budapest',  it: 'Budapest',  sv: 'Budapest',  tr: 'Budapeşte', hu: 'Budapest',  ar: 'بودابست' },
+  ar: { en: 'Riyadh',    fr: 'Riyad',     de: 'Riad',      es: 'Riad',      it: 'Riyad',     sv: 'Riyad',     tr: 'Riyad',     hu: 'Rijád',     ar: 'الرياض'  },
 };
 
 // BCP-47 locale for date/time formatting on each page
@@ -94,6 +96,7 @@ const LANG_LOCALE: Record<string, string> = {
   sv: 'sv-SE',
   tr: 'tr-TR',
   hu: 'hu-HU',
+  ar: 'ar-SA',
 };
 
 // "Published" prefix in each language
@@ -106,6 +109,7 @@ const PUBLISHED_PREFIX: Record<string, string> = {
   sv: 'Publicerad',
   tr: 'Yayınlandı',
   hu: 'Közzétéve',
+  ar: 'نُشر في',
 };
 
 // "N-day streak" phrase in each language — {n} is replaced with the count
@@ -118,6 +122,7 @@ const STREAK_PHRASE: Record<string, string> = {
   sv: '{n} DAGARS SVIT',
   tr: '{n} GÜNLÜK SERİ',
   hu: '{n} NAPOS SOROZAT',
+  ar: 'سلسلة {n} أيام',
 };
 
 function streakPhrase(lang: string, n: number): string {
@@ -126,14 +131,15 @@ function streakPhrase(lang: string, n: number): string {
 
 // Taglines indexed by [mono=0, bi=1, tri=2, multi=3]
 const TAGLINES: Record<string, [string, string, string, string]> = {
-  en: ['Your daily brief',          'Your bilingual brief',        'Your trilingual brief',         'Your multilingual brief'],
-  fr: ['Votre brief quotidien',      'Votre brief bilingue',        'Votre brief trilingue',         'Votre brief multilingue'],
-  de: ['Ihr tägliches Briefing',     'Ihr zweisprachiges Briefing', 'Ihr dreisprachiges Briefing',   'Ihr mehrsprachiges Briefing'],
-  es: ['Su brief diario',            'Su brief bilingüe',           'Su brief trilingüe',            'Su brief multilingüe'],
-  it: ['Il tuo brief quotidiano',    'Il tuo brief bilingue',       'Il tuo brief trilingue',        'Il tuo brief multilingue'],
-  sv: ['Din dagliga brief',          'Din tvåspråkiga brief',       'Din trespråkiga brief',         'Din flerspråkiga brief'],
-  tr: ['Günlük brifinginiz',         'İki dilli brifinginiz',       'Üç dilli brifinginiz',          'Çok dilli brifinginiz'],
-  hu: ['Napi briefinged',            'Kétnyelvű briefinged',        'Háromnyelvű briefinged',        'Többnyelvű briefinged'],
+  en: ['Your daily brief',          'Your bilingual brief',        'Your trilingual brief',         'Your multilingual brief'       ],
+  fr: ['Votre brief quotidien',      'Votre brief bilingue',        'Votre brief trilingue',         'Votre brief multilingue'       ],
+  de: ['Ihr tägliches Briefing',     'Ihr zweisprachiges Briefing', 'Ihr dreisprachiges Briefing',   'Ihr mehrsprachiges Briefing'   ],
+  es: ['Su brief diario',            'Su brief bilingüe',           'Su brief trilingüe',            'Su brief multilingüe'          ],
+  it: ['Il tuo brief quotidiano',    'Il tuo brief bilingue',       'Il tuo brief trilingue',        'Il tuo brief multilingue'      ],
+  sv: ['Din dagliga brief',          'Din tvåspråkiga brief',       'Din trespråkiga brief',         'Din flerspråkiga brief'        ],
+  tr: ['Günlük brifinginiz',         'İki dilli brifinginiz',       'Üç dilli brifinginiz',          'Çok dilli brifinginiz'         ],
+  hu: ['Napi briefinged',            'Kétnyelvű briefinged',        'Háromnyelvű briefinged',        'Többnyelvű briefinged'         ],
+  ar: ['نشرتك اليومية',              'نشرتك الثنائية اللغة',        'نشرتك الثلاثية اللغة',          'نشرتك متعددة اللغات'           ],
 };
 
 function getTagline(langCode: string, count: number): string {
@@ -209,7 +215,7 @@ export function BriefingScreen() {
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
-  const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('short');
+  const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('longer');
   // Per-language flags — reset from store on mount so app restarts don't double-credit
   const readTrackedRef = useRef<Record<string, boolean>>({});
   // Per-language: has 80% scroll been reached today?
@@ -288,7 +294,7 @@ export function BriefingScreen() {
     if (levelPickerLang !== null) {
       const lang = activeLanguages.find(l => l.code === levelPickerLang);
       const rl = lang?.readLength;
-      setPickerLength((rl === 'short' || rl === 'longer') ? rl : 'short');
+      setPickerLength(rl === 'short' ? 'short' : 'longer');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelPickerLang]);
@@ -304,12 +310,12 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Credit streak only when BOTH 80% scroll AND 20 seconds have been met
+  // Credit streak only when BOTH 90% scroll AND 30 seconds have been met
   const maybeCredit = useCallback((langCode: string) => {
     if (readTrackedRef.current[langCode]) return;
     const persisted = getReadingTimeToday(langCode);
     const session = sessionTimeRef.current[langCode] ?? 0;
-    if (scrollMetRef.current[langCode] && (persisted + session) >= 20) {
+    if (scrollMetRef.current[langCode] && (persisted + session) >= 30) {
       readTrackedRef.current[langCode] = true;
       if (session > 0) {
         addReadingTime(langCode, session);
@@ -338,7 +344,16 @@ export function BriefingScreen() {
       } else {
         analytics.trackStreakIncremented(langCode, newCount);
       }
-      setCelebration({ langCode, streakCount: newCount });
+      // Full-sweep check: if this completes all languages, skip streak modal and show Full Sweep directly
+      const activeCodes = useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code);
+      const { allReadToday: ard, fullSweepShownToday: fst, recordFullSweep: rfs } = useStreakStore.getState();
+      if (activeCodes.length >= 2 && !fst() && ard(activeCodes)) {
+        rfs();
+        analytics.trackAllLanguagesRead(activeCodes.length);
+        setFullSweepVisible(true);
+      } else {
+        setCelebration({ langCode, streakCount: newCount });
+      }
       // Full-sweep check: if 2+ languages active and all are now read, queue it
       // (shown after individual streak modal is dismissed)
     }
@@ -490,9 +505,30 @@ export function BriefingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Fixed page dots — outside pager so they never move with horizontal or vertical scroll */}
+      {/* Fixed page dots — outside pager so they never move with horizontal or vertical scroll.
+          Fade out + slide up as the user scrolls down so they don't obscure content. */}
       {langCount > 1 && (
-        <View style={[styles.fixedDots, { top: insets.top + 2 }]} pointerEvents="none">
+        <Animated.View
+          style={[
+            styles.fixedDots,
+            { top: insets.top + 2 },
+            {
+              opacity: briefingScrollY.interpolate({
+                inputRange: [0, 60],
+                outputRange: [1, 0],
+                extrapolate: 'clamp',
+              }),
+              transform: [{
+                translateY: briefingScrollY.interpolate({
+                  inputRange: [0, 60],
+                  outputRange: [0, -10],
+                  extrapolate: 'clamp',
+                }),
+              }],
+            },
+          ]}
+          pointerEvents="none"
+        >
           {activeLanguages.map((_, i) => (
             <View
               key={i}
@@ -505,7 +541,7 @@ export function BriefingScreen() {
               ]}
             />
           ))}
-        </View>
+        </Animated.View>
       )}
       <ScrollView
         ref={pagerRef}
@@ -570,11 +606,11 @@ export function BriefingScreen() {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
                 }
-                // Track max scroll depth and gate streak on 80% scroll + 20 seconds
+                // Track max scroll depth and gate streak on 90% scroll + 30 seconds
                 if (contentSize.height > 0) {
                   const pct = (y + layoutMeasurement.height) / contentSize.height;
                   scrollPctRef.current[lang.code] = Math.max(scrollPctRef.current[lang.code] ?? 0, pct);
-                  if (!scrollMetRef.current[lang.code] && pct >= 0.8) {
+                  if (!scrollMetRef.current[lang.code] && pct >= 0.9) {
                     scrollMetRef.current[lang.code] = true;
                     maybeCredit(lang.code);
                   }
@@ -624,13 +660,15 @@ export function BriefingScreen() {
                       onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
                       activeOpacity={0.7}
                       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
                     >
                       <Text style={[styles.metaStreak, {
                         color: isReadToday ? '#F97316' : colors.inkFaint,
-                        fontFamily: isReadToday ? fontFamily.bold : fontFamily.regular,
+                        fontFamily: fontFamily.regular,
                       }]}>
                         {streakPhrase(lang.code, streak)}
                       </Text>
+                      <Ionicons name="chevron-down" size={11} color={isReadToday ? '#F97316' : colors.inkFaint} />
                     </TouchableOpacity>
                   );
                 })()}
@@ -664,6 +702,7 @@ export function BriefingScreen() {
                 langCode={lang.code}
                 nativeName={lang.nativeName}
                 level={level}
+                length={length}
                 briefing={displayBriefing}
                 isGenerating={generatingFor.includes(lang.code)}
                 error={errorsFor[lang.code]}
@@ -833,7 +872,7 @@ export function BriefingScreen() {
           activeOpacity={1}
           onPress={() => setStreakModalVisible(false)}
         >
-          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+          <TouchableOpacity activeOpacity={1} style={[styles.calendarSheet, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Reading History
@@ -1021,6 +1060,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 36,
     maxHeight: '55%',
+  },
+  calendarSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    height: '75%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',

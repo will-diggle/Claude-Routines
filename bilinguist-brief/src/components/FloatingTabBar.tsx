@@ -8,11 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
-import { useSettingsStore } from '../store/useSettingsStore';
+import { useSettingsStore, langDisplayCode } from '../store/useSettingsStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
-import { FlagCircle } from './FlagCircle';
+import { FlagCircle, GlobeCircle } from './FlagCircle';
 import { GlassSurface } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
@@ -28,8 +28,8 @@ const TABS = [
 
 export const FLOAT_TAB_H        = 58;
 export const FLOAT_TAB_H_LARGE  = 60;
-export const FLOAT_TAB_H_SMALL  = 48;
-export const FLOAT_TAB_H_FLAG      = 64; // taller open state for flag+label stacked chips (1 row)
+export const FLOAT_TAB_H_SMALL  = 60; // unified — same height on all pages
+export const FLOAT_TAB_H_FLAG      = 60; // unified with LARGE
 export const FLOAT_TAB_H_FLAG_2ROW = 100; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
 export const FLOAT_TAB_INSET    = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
@@ -37,7 +37,7 @@ export const FLOAT_TAB_INSET    = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
 const RIGHT_MINI_W = FLOAT_TAB_H;
-const RIGHT_MAX_W  = 248;
+const RIGHT_MAX_W  = 250;
 const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
 
 // Icon scale targets (relative to default 62px)
@@ -64,7 +64,7 @@ function pillContentW(labels: string[]): number {
 
 // Width for a row of flag-circle-only chips (no text label)
 function pillFlagOnlyW(count: number): number {
-  const chipW = 16 + 6 * 2; // flag size 16 + 6px padding each side
+  const chipW = 24 + 7 * 2; // flag size 24 + 7px padding each side
   return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
 }
 
@@ -274,8 +274,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     const plFull   = plCodes.length <= 3;
     const plOver   = plCodes.length - 4;
     const plLabels = plFull
-      ? plCodes.map(c => allLanguages.find(l => l.code === c)?.nativeName ?? c.toUpperCase())
-      : plCodes.slice(0, 4).map(c => c.toUpperCase());
+      ? plCodes.map(c => allLanguages.find(l => l.code === c)?.nativeName ?? langDisplayCode(c))
+      : plCodes.slice(0, 4).map(c => langDisplayCode(c));
     return Math.max(pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]), 100);
   }
 
@@ -355,7 +355,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 onPress={() => { Haptics.selectionAsync(); setBriefPageIndex(i); }}
                 activeOpacity={0.7}
               >
-                <FlagCircle code={lang.code} size={flagOnly ? 16 : 12} />
+                <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} />
                 {!flagOnly && (
                   <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                     {lang.nativeName}
@@ -390,16 +390,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     const visibleLangs = savedLangCodes.slice(0, 4);
     const overflow     = savedLangCodes.length - 4;
     const langLabel    = (code: string) =>
-      showFull ? (allLanguages.find(l => l.code === code)?.nativeName ?? code.toUpperCase()) : code.toUpperCase();
+      showFull ? (allLanguages.find(l => l.code === code)?.nativeName ?? langDisplayCode(code)) : langDisplayCode(code);
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-          <TouchableOpacity style={[styles.contextItem, practiceLang === 'all' && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setPracticeLang('all'); }} activeOpacity={0.7}>
-            <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>ALL</Text>
+          <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag, practiceLang === 'all' && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setPracticeLang('all'); }} activeOpacity={0.7}>
+            <GlobeCircle size={20} />
+            <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
           </TouchableOpacity>
           {visibleLangs.map((code) => (
             <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag, practiceLang === code && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); setPracticeLang(code as any); }} activeOpacity={0.7}>
-              <FlagCircle code={code} size={12} />
+              <FlagCircle code={code} size={20} />
               <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                 {langLabel(code)}
               </Text>
@@ -471,13 +472,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const pillStyle = {
-    // backgroundColor is intentionally omitted — GlassSurface fills the pill background.
-    // On Android (no glass), fall back to pillBg.
-    backgroundColor: Platform.OS === 'android' ? pillBg : 'transparent',
+    backgroundColor: colors.card,
     borderColor: pillBorder,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.28 : 0,
+    shadowOpacity: 0.14,
     shadowRadius: 24,
     elevation: 18,
   };
@@ -493,7 +492,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {Platform.OS === 'ios' && <GlassSurface cornerRadius={100} />}
         <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Closed icon */}
@@ -521,7 +519,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        {Platform.OS === 'ios' && <GlassSurface cornerRadius={100} />}
         <View style={[styles.pillRim, { borderColor: pillRimColor }]} pointerEvents="none" />
 
         {/* Mini icon */}
@@ -577,7 +574,7 @@ const styles = StyleSheet.create({
   contextRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     flexGrow: 1,
     paddingLeft: 10,
     paddingRight: 10,
@@ -603,8 +600,8 @@ const styles = StyleSheet.create({
   },
   // Flag-circle-only chip (no text): used when 5+ languages to fit in one row
   contextItemFlagOnly: {
-    paddingHorizontal: 6,
-    paddingVertical: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 9,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
@@ -631,13 +628,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
   },
   navTabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 5,
     paddingTop: 2,
   },
   navDot: {
@@ -647,7 +644,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 11,
-    letterSpacing: 0.3,
+    fontSize: 10,
+    letterSpacing: 0,
   },
 });
