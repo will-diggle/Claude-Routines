@@ -8,8 +8,8 @@ LEVEL_DESCRIPTIONS: dict[str, str] = {
 
 # Per-length instruction. Only the relevant length is shown per call.
 LENGTH_INSTRUCTIONS: dict[str, str] = {
-    "short":  "1–2 paragraphs. Lead with the core fact. One key detail. Omit statistics and contested claims unless central to the story.",
-    "longer": "2–3 paragraphs. Lead with the core fact. Second paragraph: key context and figures. Third paragraph (if needed): attributed contested claims or wider significance.",
+    "short":  "",
+    "longer": "Write 2–3 paragraphs.",
 }
 
 # Per-language rules injected only when relevant. Fixes the "IF German is English" bug.
@@ -21,6 +21,7 @@ VARIANT_RULES: dict[str, str] = {
 # Simplified learner template. build_writing_prompt substitutes all {placeholders}.
 PROMPT_LEARNER_TEMPLATE = """\
 Write {WORD_COUNT}-word news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
+{LENGTH_INSTRUCTION}
 {VARIANT_RULE}
 [FACTBASE BELOW]
 """
