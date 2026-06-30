@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { LanguageCode } from './useSettingsStore';
 import type { WordMeta } from '../services/wordLookup';
+import type { TenseTable } from '../services/wordService';
 
 export type Pile = 'new' | 'learning' | 'mastered' | 'revisit';
 
@@ -21,6 +22,7 @@ export interface SavedWord {
   // Rich data from worker dictionary (optional — older saves won't have these)
   lemma?: string | null;
   pronunciation?: string | null;
+  tenses?: TenseTable[] | null;
   verbTable?: Record<string, string> | null;
   verbTablePast?: Record<string, string> | null;
   forms?: Record<string, string> | null;
@@ -32,7 +34,7 @@ export interface SavedWord {
 
 export type BackfillData = Partial<Pick<SavedWord,
   'translation' | 'explanation' | 'lemma' | 'pronunciation' |
-  'verbTable' | 'verbTablePast' | 'forms' | 'wordType' | 'tip' | 'meta'
+  'tenses' | 'verbTable' | 'verbTablePast' | 'forms' | 'wordType' | 'tip' | 'meta'
 >>;
 
 interface WordBankStore {
@@ -110,6 +112,7 @@ export const useWordBankStore = create<WordBankStore>()(
               explanation:   w.explanation   || data.explanation   || w.explanation,
               lemma:         w.lemma         ?? data.lemma,
               pronunciation: w.pronunciation ?? data.pronunciation,
+              tenses:        w.tenses        ?? data.tenses,
               verbTable:     w.verbTable     ?? data.verbTable,
               verbTablePast: w.verbTablePast ?? data.verbTablePast,
               forms:         w.forms         ?? data.forms,

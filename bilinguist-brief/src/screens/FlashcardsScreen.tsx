@@ -18,6 +18,7 @@ import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
+import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
@@ -27,8 +28,13 @@ const MAX_CARDS = 15;
 const CARD_W = SW - 48;
 const CARD_H = Math.min(Math.round(CARD_W * 1.42), Math.round(SH * 0.60));
 const SWIPE_THRESHOLD = 80;
-const STACK_OFFSET = 20;
+const STACK_STRIP = 9;  // visible px of each stacked card below the one in front
 const STACK_SCALE = 0.04;
+
+const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
+  fr: 'PASSÉ COMPOSÉ', de: 'PRÄTERITUM', es: 'PRETÉRITO',
+  it: 'PASSATO PROSSIMO', sv: 'PRETERITUM', en: 'SIMPLE PAST', tr: 'GEÇMİŞ ZAMAN',
+};
 
 function levelColor(level?: string | null): string {
   if (!level) return '#888';
@@ -79,6 +85,9 @@ export function FlashcardsScreen() {
   const [flipped, setFlipped] = useState(false);
   const [done, setDone]     = useState<{ correct: number; missed: number } | null>(null);
   const [tally, setTally]   = useState({ correct: 0, missed: 0 });
+  const [activeTenseIdx, setActiveTenseIdx] = useState(0);
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const flipAnim    = useRef(new Animated.Value(0)).current;
   const pan         = useRef(new Animated.ValueXY()).current;
@@ -91,6 +100,7 @@ export function FlashcardsScreen() {
     flippedRef.current = false;
     lockRef.current    = false;
     setFlipped(false);
+    setActiveTenseIdx(0);
   }
 
   function handleFlip() {
@@ -138,7 +148,7 @@ export function FlashcardsScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gs) =>
-        flippedRef.current && !lockRef.current && Math.abs(gs.dx) > 8,
+        !lockRef.current && Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 10,
       onPanResponderMove: (_, gs) => {
         pan.setValue({ x: gs.dx, y: gs.dy * 0.15 });
       },
@@ -169,10 +179,17 @@ export function FlashcardsScreen() {
   const frontRotate = flipAnim.interpolate({ inputRange: [0, 180], outputRange: ['0deg', '180deg'] });
   const backRotate  = flipAnim.interpolate({ inputRange: [0, 180], outputRange: ['180deg', '360deg'] });
 
-  // Swipe tints
-  const rightTint = pan.x.interpolate({ inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 0.28], extrapolate: 'clamp' });
-  const leftTint  = pan.x.interpolate({ inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [0.28, 0], extrapolate: 'clamp' });
+  // Swipe tints — subtle, so they don't obscure card text
+  const rightTint = pan.x.interpolate({ inputRange: [0, SWIPE_THRESHOLD], outputRange: [0, 0.12], extrapolate: 'clamp' });
+  const leftTint  = pan.x.interpolate({ inputRange: [-SWIPE_THRESHOLD, 0], outputRange: [0.12, 0], extrapolate: 'clamp' });
   const cardRot   = pan.x.interpolate({ inputRange: [-SW, SW], outputRange: ['-12deg', '12deg'] });
+
+  // Dynamic shadow — fades in as card is lifted/tilted during a swipe
+  const dynamicShadowOpacity = pan.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
+    outputRange: [1, 0, 1],
+    extrapolate: 'clamp',
+  });
 
   // ── Empty state ───────────────────────────────────────────────────────────────
 
@@ -200,9 +217,9 @@ export function FlashcardsScreen() {
           <ConfettiCannon count={180} origin={{ x: SW / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
         <View style={styles.center}>
-          <Ionicons name="trophy-outline" size={48} color={colors.accentGold} />
+          <Ionicons name="trophy-outline" size={48} color={colors.accentRed} />
           {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
               {line}
             </Text>
           ))}
@@ -210,13 +227,15 @@ export function FlashcardsScreen() {
             Session complete
           </Text>
           <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <StatRow label="Got it"  icon="checkmark-circle-outline" tint="#43A047" value={done.correct} colors={colors} fontFamily={fontFamily} />
-            <StatRow label="No idea" icon="close-circle-outline"     tint="#E53935" value={done.missed}  colors={colors} fontFamily={fontFamily} />
+            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+              <StatRow label="Got it"  icon="checkmark-circle-outline" tint="#43A047" value={done.correct} colors={colors} fontFamily={fontFamily} />
+              <StatRow label="No idea" icon="close-circle-outline"     tint="#E53935" value={done.missed}  colors={colors} fontFamily={fontFamily} />
+            </View>
           </View>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
-          <TouchableOpacity style={[styles.doneBtn, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={[styles.doneBtn, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
           </TouchableOpacity>
         </View>
@@ -228,15 +247,42 @@ export function FlashcardsScreen() {
 
   const card = sessionWords[index];
   const remaining = sessionWords.length - index;
+  const reversed = gameSettings.direction === 'translation-to-word';
+  const frontText = reversed ? (card?.translation || '—') : card?.word;
+  const backText  = reversed ? card?.word : (card?.translation || '—');
+
+  // Build tense list for the active card — prefer full tenses array, fall back to legacy fields
+  const cardTenses: Array<{ label: string; table: Record<string, string> }> = [];
+  if (card?.tenses && card.tenses.length > 0) {
+    cardTenses.push(...card.tenses);
+  } else {
+    if (card?.verbTable && Object.keys(card.verbTable).length > 0) {
+      cardTenses.push({ label: 'PRESENT', table: card.verbTable });
+    }
+    if (card?.verbTablePast && Object.keys(card.verbTablePast).length > 0) {
+      cardTenses.push({ label: PAST_TENSE_LABEL[card.language as LanguageCode] ?? 'PAST', table: card.verbTablePast });
+    }
+  }
+  const activeTense = cardTenses[activeTenseIdx] ?? null;
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Flashcards" current={index + 1} total={sessionWords.length} />
+      <GameHeader
+        title="Flashcards"
+        current={index + 1}
+        total={sessionWords.length}
+        onSettingsPress={() => setSettingsVisible(true)}
+      />
 
       <View style={styles.deckArea}>
-        {/* Background stack cards */}
+        {/* Background stack cards — computed translateY gives equal visible strips between cards */}
         {Array.from({ length: Math.min(3, remaining - 1) }, (_, i) => {
           const depth = i + 1;
+          const s = 1 - depth * STACK_SCALE;
+          // To get a uniform STACK_STRIP px visible per depth level:
+          // bottom_depth = layout_center + s*(T + CARD_H/2) = layout_center + CARD_H/2 + depth*STACK_STRIP
+          // => T = (CARD_H/2 + depth*STACK_STRIP) / s - CARD_H/2
+          const translateY = (CARD_H / 2 + depth * STACK_STRIP) / s - CARD_H / 2;
           return (
             <View
               key={`stack-${index + depth}`}
@@ -247,10 +293,12 @@ export function FlashcardsScreen() {
                   borderColor: colors.borderLight,
                   position: 'absolute',
                   zIndex: 10 - depth,
-                  transform: [
-                    { scale: 1 - depth * STACK_SCALE },
-                    { translateY: depth * STACK_OFFSET },
-                  ],
+                  transform: [{ scale: s }, { translateY }],
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.10,
+                  shadowRadius: 8,
+                  elevation: 4,
                 },
               ]}
             />
@@ -272,6 +320,12 @@ export function FlashcardsScreen() {
           ]}
           {...panResponder.panHandlers}
         >
+          {/* Dynamic shadow — body hidden behind faces, shadow extends outward */}
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.cardShadowLayer, { backgroundColor: colors.card, opacity: dynamicShadowOpacity }]}
+          />
+
           {/* ── Front face ──────────────────────────────────────────────── */}
           <Animated.View
             style={[
@@ -299,9 +353,9 @@ export function FlashcardsScreen() {
 
               <View style={styles.frontBody}>
                 <Text style={[styles.frontWord, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                  {card.word}
+                  {frontText}
                 </Text>
-                <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />
+                {!reversed && <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />}
               </View>
 
               <View style={[styles.tapHint, { borderTopColor: colors.borderLight }]}>
@@ -331,29 +385,73 @@ export function FlashcardsScreen() {
             <ScrollView
               contentContainerStyle={styles.backContent}
               showsVerticalScrollIndicator={false}
+              directionalLockEnabled
             >
-              {/* Translation */}
+              {/* Translation / answer — large centered */}
               <Text style={[styles.backTranslation, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-                {card.translation || '—'}
+                {backText}
               </Text>
+              {reversed && <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />}
 
-              {/* Badges */}
-              <View style={styles.badgeRow}>
-                {card.level ? (
-                  <View style={[styles.levelCircle, { backgroundColor: levelColor(card.level) }]}>
-                    <Text style={[styles.levelCircleText, { fontFamily: fontFamily.bold }]}>
-                      {card.level}
-                    </Text>
-                  </View>
-                ) : null}
-                {card.wordType ? (
-                  <View style={[styles.badge, { backgroundColor: colors.chrome }]}>
-                    <Text style={[styles.badgeText, { color: colors.bg, fontFamily: fontFamily.regular }]}>
-                      {card.wordType}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+              <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
+
+              {/* Grammar chips row — wordType filled + meta outline chips + level pill */}
+              {(card.wordType || card.level || card.meta || card.forms?.gender) ? (
+                <View style={styles.backChipsRow}>
+                  {card.wordType ? (
+                    <View style={[styles.backChip, { backgroundColor: colors.accentRed }]}>
+                      <Text style={[styles.backChipText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
+                        {card.wordType.charAt(0).toUpperCase() + card.wordType.slice(1)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {card.forms?.gender ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {(card.forms.gender as string).charAt(0).toUpperCase() + (card.forms.gender as string).slice(1)}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {card.meta?.isRegular === true ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Regular</Text>
+                    </View>
+                  ) : null}
+                  {card.meta?.isRegular === false ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Irregular</Text>
+                    </View>
+                  ) : null}
+                  {card.meta?.auxiliary ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {card.meta.auxiliary as string}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {card.meta?.isSeparable ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Separable</Text>
+                    </View>
+                  ) : null}
+                  {card.meta?.verbClass ? (
+                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
+                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {card.meta.verbClass as string}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {card.level ? (
+                    <View style={[styles.backLevelPill, { borderColor: levelColor(card.level) }]}>
+                      <Text style={[styles.backLevelText, { color: levelColor(card.level), fontFamily: fontFamily.bold }]}>
+                        {card.level}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
 
               {card.explanation ? (
                 <Text style={[styles.backExplanation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
@@ -367,26 +465,68 @@ export function FlashcardsScreen() {
                 </Text>
               ) : null}
 
-              {card.verbTable ? (
-                <VerbTable title="Present" table={card.verbTable} colors={colors} fontFamily={fontFamily} />
-              ) : null}
-              {card.verbTablePast ? (
-                <VerbTable title="Past" table={card.verbTablePast} colors={colors} fontFamily={fontFamily} />
-              ) : null}
-
               {card.forms ? (
                 <FormsView forms={card.forms} colors={colors} fontFamily={fontFamily} />
               ) : null}
 
               {card.exampleSentence ? (
-                <Text style={[styles.backExample, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                  "{card.exampleSentence}"
-                </Text>
+                <View style={[styles.backBlockquote, { borderLeftColor: colors.accentRed }]}>
+                  <Text style={[styles.backBlockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
+                    „{card.exampleSentence}"
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Verb tenses with circular nav arrows — arrows captured by inner Touchable, don't flip card */}
+              {cardTenses.length > 0 && activeTense ? (
+                <>
+                  <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
+                  <View style={styles.tenseSectionCenter}>
+                    <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      VERB TENSES
+                    </Text>
+                    {cardTenses.length > 1 ? (
+                      <View style={styles.tenseNav}>
+                        <TouchableOpacity
+                          onPress={() => setActiveTenseIdx((i) => Math.max(0, i - 1))}
+                          disabled={activeTenseIdx === 0}
+                          style={[styles.tenseNavBtn, {
+                            backgroundColor: activeTenseIdx === 0 ? colors.borderLight : colors.borderMid,
+                          }]}
+                        >
+                          <Ionicons name="chevron-back" size={16} color={activeTenseIdx === 0 ? colors.borderMid : colors.inkDark} />
+                        </TouchableOpacity>
+                        <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                          {activeTense.label}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setActiveTenseIdx((i) => Math.min(cardTenses.length - 1, i + 1))}
+                          disabled={activeTenseIdx === cardTenses.length - 1}
+                          style={[styles.tenseNavBtn, {
+                            backgroundColor: activeTenseIdx === cardTenses.length - 1 ? colors.borderLight : colors.borderMid,
+                          }]}
+                        >
+                          <Ionicons name="chevron-forward" size={16} color={activeTenseIdx === cardTenses.length - 1 ? colors.borderMid : colors.inkDark} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                        {activeTense.label}
+                      </Text>
+                    )}
+                  </View>
+                  {Object.entries(activeTense.table).map(([pronoun, form]) => (
+                    <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                      <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{pronoun}</Text>
+                      <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{form}</Text>
+                    </View>
+                  ))}
+                </>
               ) : null}
 
               {card.tip ? (
-                <View style={[styles.tipBox, { backgroundColor: colors.accentGold + '15', borderColor: colors.accentGold + '44' }]}>
-                  <Ionicons name="bulb-outline" size={13} color={colors.accentGold} />
+                <View style={[styles.tipBox, { backgroundColor: colors.accentRed + '15', borderColor: colors.accentRed + '44' }]}>
+                  <Ionicons name="bulb-outline" size={13} color={colors.accentRed} />
                   <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
                     {card.tip}
                   </Text>
@@ -425,25 +565,18 @@ export function FlashcardsScreen() {
           {remaining} {remaining === 1 ? 'card' : 'cards'} remaining
         </Text>
       </View>
+
+      <GameSettingsSheet
+        visible={settingsVisible}
+        settings={gameSettings}
+        onClose={() => setSettingsVisible(false)}
+        onChange={setGameSettings}
+      />
     </View>
   );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function VerbTable({ title, table, colors, fontFamily }: { title: string; table: Record<string, string>; colors: any; fontFamily: any }) {
-  return (
-    <View style={vStyles.wrap}>
-      <Text style={[vStyles.title, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{title}</Text>
-      {Object.entries(table).map(([pronoun, form]) => (
-        <View key={pronoun} style={[vStyles.row, { borderBottomColor: colors.borderLight }]}>
-          <Text style={[vStyles.pronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{pronoun}</Text>
-          <Text style={[vStyles.form, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{form}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 function FormsView({ forms, colors, fontFamily }: { forms: Record<string, string>; colors: any; fontFamily: any }) {
   return (
@@ -479,25 +612,38 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: STACK_OFFSET * 3,
+    paddingBottom: STACK_STRIP * 6,
   },
 
   cardContainer: {
     width: CARD_W,
     height: CARD_H,
+    // Shadow lives here (not on card) so overflow:hidden on face views doesn't clip it
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
   },
 
   card: {
     width: CARD_W,
     height: CARD_H,
     borderRadius: 16,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  cardShadowLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: CARD_W,
+    height: CARD_H,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.32,
+    shadowRadius: 24,
+    elevation: 20,
   },
 
   face: {
@@ -506,7 +652,9 @@ const styles = StyleSheet.create({
     left: 0,
     width: CARD_W,
     height: CARD_H,
+    borderRadius: 16,
     backfaceVisibility: 'hidden',
+    overflow: 'hidden',
   },
 
   faceTouchable: { flex: 1 },
@@ -552,16 +700,34 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   backTranslation: { textAlign: 'center', marginBottom: 2 },
-  badgeRow: { flexDirection: 'row', gap: Spacing.sm, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' },
-  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontSize: 11, letterSpacing: 0.5 },
-  levelCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  levelCircleText: { fontSize: 10, color: '#FFF', letterSpacing: 0.3 },
+  backDivider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
+  backChipsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    justifyContent: 'center', alignItems: 'center',
+    paddingVertical: Spacing.xs,
+  },
+  backChip: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  backChipText: { fontSize: 13, letterSpacing: 0.3 },
+  backOutlineChip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
+  backOutlineChipText: { fontSize: 13 },
+  backLevelPill: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  backLevelText: { fontSize: 13, letterSpacing: 0.5 },
   backExplanation: { lineHeight: 22, textAlign: 'center' },
   pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7 },
-  backExample: { fontSize: 12, lineHeight: 19, textAlign: 'center' },
-  tipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start' },
+  backBlockquote: { borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 8, marginTop: Spacing.sm },
+  backBlockquoteText: { lineHeight: 20 },
+  tipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start', marginTop: Spacing.xs },
   tipText: { flex: 1, fontSize: 11, lineHeight: 17 },
+
+  // Verb tense nav (matches WordPopup design)
+  tenseSectionCenter: { alignItems: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
+  tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
+  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  tenseNavBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  tenseLabel: { fontSize: 11, letterSpacing: 1, minWidth: 110, textAlign: 'center' },
+  conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
+  conjForm: { fontSize: 13, flex: 1, textAlign: 'right' },
 
   swipeHints: {
     flexDirection: 'row',
@@ -587,19 +753,28 @@ const styles = StyleSheet.create({
 
   // Done screen
   doneTitle: { textAlign: 'center' },
-  statsBox: { width: '100%', borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
+  statsBox: {
+    width: '100%', borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12, shadowRadius: 10, elevation: 6,
+  },
   statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
   statLabel: { flex: 1, fontSize: 15 },
   statValue: { fontSize: 20 },
   streakText: { fontSize: 20 },
-  doneBtn: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneBtn: {
+    borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 10, elevation: 6,
+  },
   doneBtnText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });
 
 const vStyles = StyleSheet.create({
   wrap: { marginTop: Spacing.xs },
-  title: { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3 },
+  title: { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, textAlign: 'center' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: StyleSheet.hairlineWidth },
   pronoun: { fontSize: 12 },
   form: { fontSize: 12 },

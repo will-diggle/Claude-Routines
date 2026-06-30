@@ -16,7 +16,8 @@ import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { lookupWord } from '../services/wordService';
-import type { WordEntry } from '../services/wordService';
+import type { WordEntry, TenseTable } from '../services/wordService';
+import { verifyTenses } from '../services/wordLookup';
 import { translateWord } from '../services/deepl';
 import { writeBackDictionary } from '../services/dictionaryService';
 import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
@@ -61,6 +62,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   const [isLoading, setIsLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
+  const [verifiedTenses, setVerifiedTenses] = useState<TenseTable[] | null>(null);
 
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
@@ -91,6 +93,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     setIsLoading(true);
     setSaved(false);
     setActiveTenseIdx(0);
+    setVerifiedTenses(null);
 
     const currentWord = word;
     const currentLemma = lookupLemma;
@@ -117,6 +120,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
               explanation:   result.explanation ?? undefined,
               lemma:         result.lemma,
               pronunciation: result.pronunciation,
+              tenses:        result.tenses,
               verbTable:     result.verbTable,
               verbTablePast: result.verbTablePast,
               forms:         result.forms,
@@ -125,15 +129,22 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
               meta:          result.meta,
             });
           }
+          // Background verification — show tenses immediately, silently correct if needed
+          if (result.wordType === 'verb' && result.tenses?.length && result.lemma) {
+            verifyTenses(result.tenses, result.lemma, currentLang).then((verified) => {
+              if (verified) setVerifiedTenses(verified);
+            }).catch(() => {});
+          }
         }
       }).catch(() => { setIsLoading(false); });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word, lookupLemma, language]);
 
-  // Build ordered tense list — prefer rich tenses array from new schema
+  // Build ordered tense list — verified > rich array > legacy two-field fallback
   const tenses = useMemo(() => {
     if (!entry) return [];
+    if (verifiedTenses && verifiedTenses.length > 0) return verifiedTenses;
     if (entry.tenses && entry.tenses.length > 0) return entry.tenses;
     const list: Array<{ label: string; table: Record<string, string> }> = [];
     if (entry.verbTable && Object.keys(entry.verbTable).length > 0) {
@@ -143,7 +154,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       list.push({ label: PAST_TENSE_LABEL[language] ?? 'PAST', table: entry.verbTablePast });
     }
     return list;
-  }, [entry, language]);
+  }, [entry, verifiedTenses, language]);
 
   function handleSave() {
     if (!word || alreadySaved || saved) return;
@@ -157,6 +168,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       originalSentence: sentence,
       lemma: entry?.lemma ?? null,
       pronunciation: entry?.pronunciation ?? null,
+      tenses: verifiedTenses ?? entry?.tenses ?? null,
       verbTable: entry?.verbTable ?? null,
       verbTablePast: entry?.verbTablePast ?? null,
       forms: entry?.forms ?? null,

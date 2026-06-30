@@ -1,7 +1,7 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const LANGUAGE_NAMES: Record<LanguageCode, string> = {
-  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian',
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian', ar: 'Arabic',
 };
 
 const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {
@@ -13,6 +13,53 @@ const PAST_TENSE_NAME: Partial<Record<LanguageCode, string>> = {
   en: 'simple past',
   tr: 'geçmiş zaman',
 };
+
+/**
+ * Haiku verification layer — sits between the dictionary and the UI.
+ * Sends the conjugation tables for a verb to Haiku and asks it to
+ * correct any wrong forms. Returns corrected tenses, or null on failure.
+ * Called asynchronously after the initial lookup so it never blocks display.
+ */
+export async function verifyTenses(
+  tenses: Array<{ label: string; table: Record<string, string> }>,
+  lemma: string,
+  language: LanguageCode,
+): Promise<Array<{ label: string; table: Record<string, string> }> | null> {
+  const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+  if (!apiKey || !tenses.length || !lemma) return null;
+
+  const langName = LANGUAGE_NAMES[language] ?? language;
+  const prompt = `You are a ${langName} grammar expert. Below are the conjugation tables for the verb "${lemma}". Verify every form and correct any errors. Return ONLY the corrected JSON array — same structure, same tenses in the same order, same pronouns as keys. Fix wrong forms silently. If everything is correct, return the data unchanged. No explanation, no markdown, no preamble.
+
+${JSON.stringify(tenses)}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = (data.content?.[0]?.text ?? '') as string;
+    const start = raw.indexOf('[');
+    const end = raw.lastIndexOf(']');
+    if (start === -1 || end === -1) return null;
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    if (!Array.isArray(parsed) || parsed.length !== tenses.length) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 const VERB_PRONOUNS: Partial<Record<LanguageCode, string[]>> = {
   fr: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'],
