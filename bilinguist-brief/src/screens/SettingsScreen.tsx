@@ -124,6 +124,8 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: stri
   { key: 'night',    label: 'Night', color: Colors.night,   ink: Colors.cream   },
 ];
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
+const HARD_TOPIC_KEYS = new Set(['worldNews', 'ukPolitics', 'business', 'europe', 'politics', 'middleEast', 'africa', 'asia']);
+
 const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean }[] = [
   { key: 'worldNews',   label: 'Global News' },
   { key: 'ukPolitics',  label: 'UK Politics' },
@@ -659,7 +661,7 @@ export function SettingsScreen() {
           <DraggableList
             items={topicItems}
             keyExtractor={(item) => item.key}
-            itemHeight={64}
+            itemHeight={80}
             onReorder={store.reorderTopics}
             onDragStateChange={setIsDragging}
             renderItem={(item) => {
@@ -677,9 +679,16 @@ export function SettingsScreen() {
                 }]}>
                   <View style={lcStyles.mainRow}>
                     <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
-                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                      {item.label}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body, flex: 0 }]}>
+                        {item.label}
+                      </Text>
+                      {isOn && HARD_TOPIC_KEYS.has(item.key) && (
+                        <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 10, fontStyle: 'italic', marginTop: 2 }}>
+                          some words may exceed A1
+                        </Text>
+                      )}
+                    </View>
                     {item.comingSoon ? (
                       <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
                         <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
