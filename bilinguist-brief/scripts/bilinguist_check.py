@@ -23,18 +23,19 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "es": ["A2"],
     "tr": ["A1"],
     "hu": ["Native"],
+    "ar": ["A1", "Native"],
 }
 
 LENGTHS = ["short", "longer"]
 
 LANG_FLAGS = {
     "fr": "🇫🇷", "de": "🇩🇪", "sv": "🇸🇪", "en": "🇬🇧",
-    "it": "🇮🇹", "es": "🇪🇸", "tr": "🇹🇷", "hu": "🇭🇺",
+    "it": "🇮🇹", "es": "🇪🇸", "tr": "🇹🇷", "hu": "🇭🇺", "ar": "🇸🇦",
 }
 LANG_NAMES = {
     "fr": "French", "de": "German", "sv": "Swedish",
     "en": "English", "it": "Italian", "es": "Spanish",
-    "tr": "Turkish", "hu": "Hungarian",
+    "tr": "Turkish", "hu": "Hungarian", "ar": "Arabic",
 }
 
 MIN_ARTICLES   = 5     # fewer than this is suspiciously thin

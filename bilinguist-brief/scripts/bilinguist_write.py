@@ -219,6 +219,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "es": ["A2"],
     "tr": ["A1"],
     "hu": ["Native"],  # Hungarian — native journalism only; CEFR levels added after P4a validation
+    "ar": ["A1", "Native"],
 }
 
 LANGUAGE_NAMES: dict[str, str] = {
@@ -230,6 +231,7 @@ LANGUAGE_NAMES: dict[str, str] = {
     "it": "Italian",
     "tr": "Turkish",
     "hu": "Hungarian",
+    "ar": "Arabic (Modern Standard)",
 }
 
 LEVEL_LABELS: dict[str, str] = {
@@ -242,27 +244,14 @@ LEVEL_LABELS: dict[str, str] = {
     "Native": "Native",
 }
 
-WORDS_PER_ARTICLE_BEGINNER: dict[str, str] = {  # A1 / A2
-    "short":  "65–85",
-    "longer": "170–220",
-}
-WORDS_PER_ARTICLE_ADVANCED: dict[str, str] = {  # B1+
-    "short":  "75–105",
-    "longer": "270–340",
-}
-
-# Sentence count targets per length.
-# A1 uses very short sentences so needs more of them to hit the word count.
-# These OVERRIDE the per-level sentence counts in the reading level descriptions.
-SENTENCES_PER_ARTICLE_A1: dict[str, str] = {
-    "short":  "6–8",
-    "medium": "12–16",
-    "longer": "20–26",
-}
-SENTENCES_PER_ARTICLE_STANDARD: dict[str, str] = {  # A2 and above
-    "short":  "3–4",
-    "medium": "6–8",
-    "longer": "11–15",
+WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
+    "A1":     {"short": "60–70",   "longer": "130–180"},
+    "A2":     {"short": "65–80",   "longer": "140–185"},
+    "B1":     {"short": "75–90",   "longer": "160–250"},
+    "B2":     {"short": "75–95",   "longer": "170–270"},
+    "C1":     {"short": "75–100",  "longer": "200–270"},
+    "C2":     {"short": "75–100",  "longer": "200–270"},
+    "Native": {"short": "75–100",  "longer": "180–270"},
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.
@@ -353,11 +342,7 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     """Build a complete prompt by injecting variables and appending the factbase."""
     level_display = NATIVE_WRITING_LEVEL if level == "Native" else level
     label = LEVEL_LABELS.get(level, level)
-    is_beginner = level in ("A1", "A2")
-    words_table = WORDS_PER_ARTICLE_BEGINNER if is_beginner else WORDS_PER_ARTICLE_ADVANCED
-    word_count = words_table[length]
-    sentence_table = SENTENCES_PER_ARTICLE_A1 if level == "A1" else SENTENCES_PER_ARTICLE_STANDARD
-    sentence_count = sentence_table[length]
+    word_count = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
 
     length_labels = {"short": "Concise", "medium": "Balanced", "longer": "Long-form"}
@@ -368,7 +353,6 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     prompt = prompt.replace("{LEVEL}", level_display)
     prompt = prompt.replace("{LEVEL_LABEL}", label)
     prompt = prompt.replace("{WORD_COUNT}", str(word_count))
-    prompt = prompt.replace("{SENTENCE_COUNT}", sentence_count)
     prompt = prompt.replace("{LENGTH_LABEL}", length_label)
 
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))

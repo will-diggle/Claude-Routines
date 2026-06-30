@@ -47,10 +47,20 @@ TODAY'S DATE: {DATE}
 
 WHAT TO CHECK for each story — search actively:
 
+KNOWN POLITICAL FACTS — apply these corrections WITHOUT searching, they are verified:
+- Donald Trump IS the current President of the United States (re-elected November 2024, \
+serving January 2025 – January 2029). If the factbase says "Former President Trump" or \
+"ex-President Trump", CORRECT IT to "President Trump". This is a common model error — fix it.
+- A head of government who has ANNOUNCED resignation but has NOT yet been replaced by a \
+confirmed successor is still the CURRENT incumbent. For example, a Prime Minister who said \
+they will resign is still "Prime Minister [Name]" until their successor is formally appointed. \
+Do not add "former" or "outgoing" unless a successor has already taken office.
+
 1. POLITICAL TITLES — any person named who holds (or is described as holding) a \
 political role. Search "[name] current role {DATE}" and verify their title is \
-accurate TODAY. Common failure: a model may write "Former President" for someone \
-who is currently serving again.
+accurate TODAY using SEARCH RESULTS ONLY — not your training data, which may be \
+outdated. If search results are ambiguous or absent, leave the title alone. \
+ALWAYS apply the KNOWN POLITICAL FACTS above regardless of search results.
 
 2. KEY NUMBERS — at least one figure per story from the "numbers" array. \
 Cross-check against a second source. Flag if the figure differs materially.
@@ -59,8 +69,9 @@ Cross-check against a second source. Flag if the figure differs materially.
 and occurred within the last 48 hours. Flag if it appears to be a recycled \
 older story.
 
-IMPORTANT: Only record a correction if you found clear search evidence the \
-current text is wrong. Do not guess. If you cannot verify a fact, leave it alone.
+IMPORTANT: Only record a correction if you found EXPLICIT search evidence (not \
+training knowledge) that the current text is wrong. If you cannot find a recent \
+search result confirming the error, leave it alone. When in doubt, do not correct.
 
 FACTBASE TO CHECK:
 {FACTBASE}

@@ -16,6 +16,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   es: 'Spanish (Español)',
   it: 'Italian (Italiano)',
   sv: 'Swedish (Svenska)',
+  ar: 'Arabic (العربية)',
 };
 
 export const WORDS_PER_ARTICLE_BEGINNER: Record<ArticleLength, number> = {
@@ -177,6 +178,12 @@ JSON SAFETY — follow exactly inside every tool call:
   English: "…"
 - Never use the straight double-quote character (") inside any field's text.
 
+POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Do not alter political titles based on your training data — training data is always out of date. Common errors to avoid:
+- Never add "former" or "ex-" to a title unless the fact-base explicitly says the person has left office.
+- A head of government who has announced they will resign is still the incumbent until a successor is confirmed. "Prime Minister X announced resignation" ≠ "former Prime Minister X".
+- If the fact-base says "President Trump", write "President Trump" — do not write "former President" or "ex-President".
+- If the fact-base says "Prime Minister [Name]", write "Prime Minister [Name]" — do not change to "former".
+
 WRITING RULES:
 - Write every article in the target language specified in the user message.
 - Write every story from the fact-base — do not skip any. Every genre, every story appears in the output.
@@ -187,7 +194,7 @@ WRITING RULES:
   • LITERAL constants (numbers, specific names of people, places, organisations): reproduce the value exactly. Numbers may use the target language's formatting conventions but the value must not change. Specific names are not translated.
   • SEMANTIC constants (descriptive terms, generic descriptors such as "the regional government", "flood"): translate naturally into the target language, but choose one translation and use it consistently throughout. Never leave an English phrase inside a non-English article.
   The test: if it is a label or name, keep it literal. If it is a description, translate it consistently.
-- Match the journalistic register of a prestige outlet in that language (French → Le Monde, German → Der Spiegel, English → in the style of The Guardian) — adjusted to the reading level below. These are STYLE references only, not sources.
+- Match the journalistic register of a prestige outlet in that language (French → Le Monde, German → Der Spiegel, English → in the style of The Economist) — adjusted to the reading level below. These are STYLE references only, not sources.
 - ENGLISH VARIANT: IF the target language is English, write exclusively in British English (-ise not -ize, colour, centre, programme). Never American English. This applies ONLY when the target language is English.
 - HEADLINE: the headline must express the same core event and key noun across all versions — strongly parallel between levels and languages. Scaled to reading level (simpler at A1, richer at C1) but always recognisably the same story. Punchy and informative, never clickbait.
 
@@ -199,19 +206,19 @@ THE READING LEVEL IS THE MASTER CONSTRAINT. If word count and the reading level 
 
 READING LEVEL — specified in the user message. Write with absolute precision to this level:
 
-A1 — Beginner: Subject-verb-object sentences only. Present tense only. The ~500 most common words in the language. No subordinate clauses. One plain fact per sentence. Scale sentence count to reach the target word length. Skip contested nuance entirely.
+A1 — Write at certified CEFR A1 level. The same standard as official language examinations (Goethe-Zertifikat A1, DELF A1, DELE A1, etc.). A qualified CEFR examiner reading this article should assess it as A1 — not A2, not B1. If you can assess whether text is A1, you can write it. Apply that knowledge exactly.
 
-A2 — Elementary: 4–5 sentences. Present and simple past tense. ~1,000 common words. Simple connectors (and, but, because, so). Minimal attribution, kept simple ("officials say").
+A2 — Write at certified CEFR A2 level. The same standard as official A2 examinations. A qualified CEFR examiner should assess this as A2 — not B1. Apply your full knowledge of what A2 entails.
 
-B1 — Intermediate: 5–6 sentences. Mixed tenses. Moderate vocabulary. One or two topic-specific words explained by context. Simple attribution. No idioms.
+B1 — Write at certified CEFR B1 level. The same standard as official B1 examinations (Goethe B1, DELF B1, DELE B1, etc.). A qualified CEFR examiner should assess this article as B1 — not A2, not B2. Apply your full knowledge of what B1 entails.
 
-B2 — Upper Intermediate: 6–7 sentences. Full range of tenses. Varied sentence structure. Some idiomatic language. Proper attribution of contested claims. Vocabulary of a well-read adult. Writing is clear, confident, and purposeful.
+B2 — Write at certified CEFR B2 level. The same standard as official B2 examinations (Goethe B2, DELF B2, DELE B2, etc.). A qualified CEFR examiner should assess this article as B2 — not B1, not C1. Apply your full knowledge of what B2 entails.
 
-C1 — Advanced: 7–8 sentences. Write with the precision and authority of a senior journalist at a prestige outlet. Complex syntax, rich vocabulary, full journalistic register — subordinate clauses, nominalisations, passive constructions where natural. Always clear and purposeful prose. Never obscure for its own sake. Difficulty comes from sophistication, not complexity for its own sake.
+C1 — Write at certified CEFR C1 level. The same standard as official C1 examinations (Goethe C1, DALF C1, DELE C1, etc.). A qualified CEFR examiner should assess this article as C1 — not B2, not C2. Apply your full knowledge of what C1 entails.
 
-C2 — Challenge: 8–10 sentences. Push beyond standard journalistic register into the densest, most demanding educated native prose — complex subordination, abstract nominalisations, precise and varied vocabulary, layered sentence structures. Still excellent, considered writing. Difficulty comes from sophistication, not obscurity or deliberate obfuscation. This is a deliberate challenge tier for advanced learners who want to stretch beyond everyday journalism.
+C2 — Write at certified CEFR C2 level. The same standard as official C2 examinations (Goethe C2, DALF C2, DELE C2, etc.). A qualified CEFR examiner should assess this article as C2 — not C1. The most demanding educated native prose: complex subordination, precise elevated vocabulary, layered sentence structures. Apply your full knowledge of what C2 entails.
 
-C2 / Scholar: 10–14 sentences. Significantly harder than journalistic prose — the register of a serious long-form essayist, cultural critic, or intellectual commentator. Dense, multi-clause sentence architecture with embedded subordination and apposition. Deliberate rhetorical devices: inversion, ellipsis, parallelism, antithesis. Precise, elevated vocabulary that is accurate rather than accessible — favour the exact term over the common one. Analytical meta-commentary woven into the reporting: contextualise the story within broader political, economic, or cultural currents; draw explicit connections to precedent or pattern. The reader should be pushed and occasionally challenged. This is prose that assumes a well-read, intellectually engaged native speaker who enjoys being stretched.`;
+Native — Write as a native-level journalist with no level constraints. Full journalistic register, rich vocabulary, complex syntax. The standard of a senior staff writer at a prestige outlet in the target language.`;
 
 // IMPORTANT: typographic characters below are intentional Unicode — do not convert to ASCII.
 // French guillemets: « »  German: „ opening (U+201E), " closing (U+201C)
@@ -219,7 +226,7 @@ C2 / Scholar: 10–14 sentences. Significantly harder than journalistic prose �
 // Prompt 3 — Native journalism call. Runs once per language (3 calls/day).
 // Model: claude-sonnet-4-6. Web search OFF. Output: raw JSON (no tool use).
 // {LANGUAGE} injected at runtime — replaces the target language name.
-export const NATIVE_JOURNALISM_SYSTEM = `You are a staff journalist writing for the most respected news outlet in {LANGUAGE}. French → Le Monde. German → Der Spiegel. English → The Guardian (British English throughout).
+export const NATIVE_JOURNALISM_SYSTEM = `You are a staff journalist writing for the most respected news outlet in {LANGUAGE}. French → Le Monde. German → Der Spiegel. English → The Economist (British English throughout).
 
 You receive a pre-gathered fact-base of today's news and write every story as a complete, polished news article — exactly as you would publish it. No level constraints. No concessions to learners. Write as the best version of yourself: clear, authoritative, vivid, precise. This is real journalism.
 
