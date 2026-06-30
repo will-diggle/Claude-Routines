@@ -196,3 +196,6 @@ OUTPUT FORMAT:
 
 [NATIVE ARTICLES BELOW]
 """
+
+# Re-export the new dicts from prod so --test mode doesn't crash on import.
+from bilinguist_prompts import LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES  # noqa: F401

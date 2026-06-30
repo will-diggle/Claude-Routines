@@ -1,80 +1,49 @@
 # Production prompts — locked. Edit bilinguist_prompts_test.py instead.
 # bilinguist_write.py imports from here unless --test is passed.
 
-_PROMPT_SHARED_CORE = """\
-OUTPUT FORMAT:
-{"articles":[{"genre":"...","headline":"...","body":"..."}]}
+# Per-level CEFR descriptions. build_writing_prompt injects ONLY the target level.
+LEVEL_DESCRIPTIONS: dict[str, str] = {
+    "A1": "Certified CEFR A1 — the same standard as Goethe-Zertifikat A1, DELF A1, DELE A1. Every article must be assessed by a qualified CEFR examiner as A1, not A2.",
+    "A2": "Certified CEFR A2 — the same standard as official A2 examinations. Every article must be assessed by a qualified CEFR examiner as A2, not A1 or B1.",
+    "B1": "Certified CEFR B1 — the same standard as Goethe B1, DELF B1, DELE B1. Every article must be assessed by a qualified CEFR examiner as B1, not A2 or B2.",
+    "B2": "Certified CEFR B2 — the same standard as Goethe B2, DELF B2, DELE B2. Every article must be assessed by a qualified CEFR examiner as B2, not B1 or C1.",
+    "C1": "Certified CEFR C1 — the same standard as Goethe C1, DALF C1, DELE C1. Every article must be assessed by a qualified CEFR examiner as C1, not B2 or C2.",
+    "C2": "Certified CEFR C2 — the highest learner certification. Every article must be assessed by a qualified CEFR examiner as C2.",
+}
 
-JSON SAFETY:
-- Each "body" is a SINGLE continuous string. No literal line breaks. Flowing prose in one unbroken string.
-- Use the target language's typographic quotation marks — never straight ASCII quotes:
-  French: « … » with non-breaking spaces
-  German: „…" (low curly opening U+201E, high curly closing U+201C)
-  Spanish: «…»
-  Italian: «…»
-  English: "…"
-  Swedish: "…"
-  Turkish: "…"
-  Hungarian: „…" (same low-high curly style as German)
-  Arabic: «…» (guillemets, as used by Al Jazeera and Arabic press)
+# Per-length instruction. Only the relevant length is shown per call.
+LENGTH_INSTRUCTIONS: dict[str, str] = {
+    "short":  "1–2 paragraphs. Lead with the core fact. One key detail. Omit statistics and contested claims unless central to the story.",
+    "longer": "2–3 paragraphs. Lead with the core fact. Second paragraph: key context and figures. Third paragraph (if needed): attributed contested claims or wider significance.",
+}
 
-POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Do not alter political titles based on your training data.
-- Never add "former" or "ex-" to a title unless the fact-base explicitly says the person has left office.
-- If the fact-base says "President Trump", write "President Trump" — never "former President".
-- A head of government who announced resignation is still the incumbent until a named successor has taken office.
+# Per-language rules injected only when relevant. Fixes the "IF German is English" bug.
+VARIANT_RULES: dict[str, str] = {
+    "ar": "Write exclusively in Modern Standard Arabic (الفصحى). No dialect. No transliteration. Western numerals (0–9).",
+    "en": "Write in British English throughout.",
+}
 
-WRITING RULES:
-- Write every article in {LANGUAGE}.
-- Write every story from the fact-base — do not skip any. Every genre, every story appears in the output.
-- Write original prose. Do not translate the fact-base word-for-word. Never copy phrasing from any source.
-- Use only facts from the fact-base. Do not add events, figures, or claims not present. Preserve all attributions exactly.
-- FACT ORDER: follow the "what_happened" order from the fact-base. At A1/A2, sentence clarity takes precedence; at B1 and above, follow the order exactly. Do not reorder for stylistic effect.
-- GLOSSARY:
-  * LITERAL (numbers, specific names of people/places/orgs): reproduce exactly. Numbers may use target language formatting but value must not change. Names not translated.
-  * SEMANTIC (descriptive terms, generic descriptors): translate naturally and consistently. Never leave English inside a non-English article.
-- Match the journalistic register of a prestige outlet: French→Le Monde, German→Der Spiegel, English→The Guardian (British), Swedish→Dagens Nyheter, Spanish→El País, Italian→Corriere della Sera, Arabic→Al Jazeera (الجزيرة). STYLE references only. EXCEPTION: at A1 and A2 level, DO NOT match this register — write simply and directly, like a news summary for a young learner, not like a newspaper.
-- ARABIC ONLY: Write exclusively in Modern Standard Arabic (الفصحى / MSA). Never use dialect. Never include transliteration. Use Western numerals (0 1 2 3 4 5 6 7 8 9) — this matches the Al Jazeera digital standard.
-- ENGLISH VARIANT: IF {LANGUAGE} is English, write exclusively in British English. This applies ONLY to English.
-- HEADLINE: same core event and key noun across all versions — strongly parallel, scaled to level, never clickbait.
+# Simplified learner template. build_writing_prompt substitutes all {placeholders}.
+PROMPT_LEARNER_TEMPLATE = """\
+READING LEVEL: {LEVEL_DESCRIPTION}
 
-NEUTRALITY: honour the verified/contested separation. State verified facts plainly; attribute contested ones to their named source. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
+Write news articles in {LANGUAGE}. Cover every story from the fact-base. Write original prose — never copy source phrasing.
 
-ARTICLE LENGTH — {LENGTH_LABEL}: {WORD_COUNT} words. Never padded. Never truncated mid-thought.
-  Concise: 1–2 paragraphs. Cover facts 1–2 from "what_happened". Skip numbers, attribution, and contested claims unless essential.
-  Long-form: At least 2 paragraphs. Cover facts 1–6 from "what_happened" (or all if fewer). Add key numbers, main attributions, and contested claims with named sourcing.
+LENGTH ({LENGTH_LABEL}): {WORD_COUNT} words. Never padded. Never truncated mid-thought.
+{LENGTH_INSTRUCTION}
 
-THE READING LEVEL IS THE MASTER CONSTRAINT for vocabulary, grammar, and register. Level governs HOW you write each sentence. The article length above governs HOW MANY sentences you write.
-
-READING LEVEL — {LEVEL} ({LEVEL_LABEL}):
+RULES:
+- Numbers, names, organisations: reproduce exactly from the fact-base. Never alter values.
+- Political titles: use exactly as given in the fact-base. Never add "former" or "ex-" unless the fact-base explicitly says the person has left office. If the fact-base says "President Trump", write "President Trump".
+- Contested claims: attribute to the named source. Verified facts: state plainly.
+{VARIANT_RULE}
+[FACTBASE BELOW]
 """
 
-_LEVELS_BEGINNER = """\
-A1 — Write at certified CEFR A1 level. This is the same standard used in official language examinations (Goethe-Zertifikat A1, DELF A1, DELE A1, etc.). A qualified CEFR examiner reading this article should assess it as A1 — not A2, not B1. If you can assess whether text is A1, you can write it. Apply that knowledge exactly.
-
-A2 — Write at certified CEFR A2 level. The same standard as official A2 examinations. A qualified CEFR examiner should assess this article as A2 — not B1. Apply your full knowledge of what A2 entails.
-
-"""
-
-_LEVELS_B1_PLUS = """\
-B1 — Write at certified CEFR B1 level. The same standard as official B1 examinations (Goethe B1, DELF B1, DELE B1, etc.). A qualified CEFR examiner should assess this article as B1 — not A2, not B2. Apply your full knowledge of what B1 entails.
-
-B2 — Write at certified CEFR B2 level. The same standard as official B2 examinations (Goethe B2, DELF B2, DELE B2, etc.). A qualified CEFR examiner should assess this article as B2 — not B1, not C1. Apply your full knowledge of what B2 entails.
-
-C1 — Write at certified CEFR C1 level. The same standard as official C1 examinations (Goethe C1, DALF C1, DELE C1, etc.). A qualified CEFR examiner should assess this article as C1 — not B2, not C2. Apply your full knowledge of what C1 entails.
-
-Native — Write as a native-level journalist. No level constraints. Full journalistic register, rich vocabulary, complex syntax. The standard of a senior staff writer at a prestige outlet in {LANGUAGE}.
-
-"""
-
-_PROMPT_INTRO = (
-    "You are the editorial writer for Bilinguist Brief, a language-learning news app. "
-    "You receive a pre-gathered fact-base of today's news in British English and rewrite "
-    "every story as an original news article in a target language, at the specified "
-    "article length and reading level.\n\n"
-)
-
-PROMPT_2S_HEADER = _PROMPT_INTRO + _PROMPT_SHARED_CORE + _LEVELS_BEGINNER + _LEVELS_B1_PLUS + "[FACTBASE BELOW]\n"
-PROMPT_2M_HEADER = _PROMPT_INTRO + _PROMPT_SHARED_CORE + _LEVELS_B1_PLUS + "[FACTBASE BELOW]\n"
+# Keep these aliases so call sites that still reference them don't break.
+# Both now point to the same unified template.
+PROMPT_2S_HEADER = PROMPT_LEARNER_TEMPLATE
+PROMPT_2M_HEADER = PROMPT_LEARNER_TEMPLATE
 
 PROMPT_3_HEADER = """\
 You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.

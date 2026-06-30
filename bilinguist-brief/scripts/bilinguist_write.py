@@ -325,6 +325,7 @@ if '--test' in _sys.argv:
         PROMPT_2S_HEADER, PROMPT_2M_HEADER,
         PROMPT_3_HEADER, PROMPT_3_SHORT_HEADER,
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
+        LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -332,6 +333,7 @@ else:
         PROMPT_2S_HEADER, PROMPT_2M_HEADER,
         PROMPT_3_HEADER, PROMPT_3_SHORT_HEADER,
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
+        LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -340,20 +342,23 @@ else:
 
 def build_writing_prompt(template: str, lang: str, level: str, length: str, factbase: list) -> str:
     """Build a complete prompt by injecting variables and appending the factbase."""
-    level_display = NATIVE_WRITING_LEVEL if level == "Native" else level
-    label = LEVEL_LABELS.get(level, level)
     word_count = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
 
     length_labels = {"short": "Concise", "medium": "Balanced", "longer": "Long-form"}
     length_label = length_labels.get(length, length)
 
+    level_desc = LEVEL_DESCRIPTIONS.get(level, f"Certified CEFR {level}.")
+    length_instr = LENGTH_INSTRUCTIONS.get(length, "")
+    variant_rule = VARIANT_RULES.get(lang, "")
+
     prompt = template
     prompt = prompt.replace("{LANGUAGE}", lang_name)
-    prompt = prompt.replace("{LEVEL}", level_display)
-    prompt = prompt.replace("{LEVEL_LABEL}", label)
     prompt = prompt.replace("{WORD_COUNT}", str(word_count))
     prompt = prompt.replace("{LENGTH_LABEL}", length_label)
+    prompt = prompt.replace("{LEVEL_DESCRIPTION}", level_desc)
+    prompt = prompt.replace("{LENGTH_INSTRUCTION}", length_instr)
+    prompt = prompt.replace("{VARIANT_RULE}", variant_rule)
 
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"

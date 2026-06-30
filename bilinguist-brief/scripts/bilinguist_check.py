@@ -38,8 +38,30 @@ LANG_NAMES = {
     "tr": "Turkish", "hu": "Hungarian", "ar": "Arabic",
 }
 
-MIN_ARTICLES   = 5     # fewer than this is suspiciously thin
-SHORT_MAX_WORDS = 250  # avg body words above this in a "short" slot = wrong article
+MIN_ARTICLES = 5  # fewer than this is suspiciously thin
+
+# Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
+# Stored as (min, max) tuples parsed from the "X–Y" strings.
+WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
+    "A1":     {"short": (60, 70),    "longer": (130, 180)},
+    "A2":     {"short": (65, 80),    "longer": (140, 185)},
+    "B1":     {"short": (75, 90),    "longer": (160, 250)},
+    "B2":     {"short": (75, 95),    "longer": (170, 270)},
+    "C1":     {"short": (75, 100),   "longer": (200, 270)},
+    "C2":     {"short": (75, 100),   "longer": (200, 270)},
+    "Native": {"short": (75, 100),   "longer": (180, 270)},
+}
+
+def _length_status(articles: list, level: str, length: str) -> tuple[str, bool]:
+    """Return (display_str, is_bad). is_bad = outside target range."""
+    avg = _avg_body_words(articles)
+    target = WORD_TARGETS.get(level, {}).get(length)
+    avg_str = f"{int(avg)}w"
+    if not target:
+        return avg_str, False
+    lo, hi = target
+    is_bad = avg < lo * 0.85 or avg > hi * 1.25
+    return avg_str, is_bad
 
 
 def _fmt_duration(ms: int) -> str:
@@ -153,9 +175,12 @@ def _language_table(
             if level == "Native":
                 arts  = native_journalism.get(lang, [])
                 count = len(arts)
-                mark  = f"✓{count}" if count else "✗"
-                grade_label = f" [{native_grade}]" if native_grade else ""
-                parts.append(f"Native{mark}{grade_label}")
+                if count:
+                    avg_w = int(_avg_body_words(arts))
+                    grade_label = f"[{native_grade}]" if native_grade else ""
+                    parts.append(f"Native✓{count}({avg_w}w){grade_label}")
+                else:
+                    parts.append("Native✗")
             elif level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
                 continue  # intentionally skipped — P3 covers it
             else:
@@ -171,10 +196,10 @@ def _language_table(
                     count = len(articles)
                     if count == 0:
                         row.append("✗")
-                    elif key in issues:
-                        row.append(f"⚠{count}")
                     else:
-                        row.append(f"✓{count}")
+                        avg_str, is_bad = _length_status(articles, level, length)
+                        flag_char = "⚠" if (key in issues or is_bad) else "✓"
+                        row.append(f"{flag_char}{count}({avg_str})")
                 parts.append(f"{level}[{'/'.join(row)}]")
 
         lines.append(f"  {flag} {lang_name}: {' '.join(parts)}")
@@ -239,8 +264,11 @@ def check(bundle_path: Path) -> int:
                         missing.append(key)
                         continue
                     present += 1
-                    if length == "short" and _avg_body_words(articles) > SHORT_MAX_WORDS:
-                        wrong_length.append(key)
+                    _, is_bad = _length_status(articles, level, length)
+                    if is_bad:
+                        avg = int(_avg_body_words(articles))
+                        target = WORD_TARGETS.get(level, {}).get(length, (0, 999))
+                        wrong_length.append(f"{key} (avg {avg}w, target {target[0]}–{target[1]}w)")
                     if len(articles) < MIN_ARTICLES:
                         thin.append(key)
 
@@ -300,7 +328,7 @@ def check(bundle_path: Path) -> int:
             f"Warnings ({len(warnings)}):",
         ]
         for w in wrong_length:
-            body_parts.append(f"  ⚠️ {w} — long content in short slot (article may not have been written)")
+            body_parts.append(f"  ⚠️ {w} — word count outside target range")
         for t in thin:
             body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
         for g in grading_warnings:
