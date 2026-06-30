@@ -133,11 +133,17 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
   return groups;
 }
 
+const VOCAB_DISCLAIMER_GENRES = new Set([
+  'GLOBAL NEWS', 'POLITICS', 'UK POLITICS', 'BUSINESS & ECONOMY',
+  'EUROPE', 'MIDDLE EAST', 'AFRICA', 'ASIA',
+]);
+
 function SectionHeader({
-  label, accent, language, level,
-}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel }) {
+  label, accent, language, level, genre,
+}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string }) {
   const { colors, fontFamily } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
+  const showDisclaimer = level === 'A1' && VOCAB_DISCLAIMER_GENRES.has(genre.toUpperCase());
   return (
     <>
       <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
@@ -148,6 +154,11 @@ function SectionHeader({
           activeWord={activeWord}
           onWordPress={(_pos, word) => setActiveWord(word)}
         />
+        {showDisclaimer && (
+          <Text style={[styles.vocabDisclaimer, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            some words may exceed A1
+          </Text>
+        )}
       </View>
       {activeWord && (
         <WordPopup
@@ -251,7 +262,7 @@ export function LanguageBriefingSection({
             return (
               <View key={`${group.genre}-${groupIndex}`}>
                 {/* Section header — words are tappable */}
-                <SectionHeader label={label} accent={accent} language={langCode} level={level} />
+                <SectionHeader label={label} accent={accent} language={langCode} level={level} genre={group.genre} />
 
                 {/* Articles in this genre group */}
                 {group.articles.map((article, articleIndex) => (
@@ -344,6 +355,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+    flex: 1,
+  },
+  vocabDisclaimer: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginLeft: Spacing.sm,
   },
 
   sectionFooter: {
