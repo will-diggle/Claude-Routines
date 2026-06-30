@@ -654,7 +654,6 @@ export function BriefingScreen() {
                 {(() => {
                   const streak = readingStreaks[lang.code] ?? 0;
                   const isReadToday = lastReadDates[lang.code] === today;
-                  if (streak === 0) return null;
                   return (
                     <TouchableOpacity
                       onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
@@ -662,15 +661,18 @@ export function BriefingScreen() {
                       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
                     >
-                      <Text style={[styles.metaStreak, {
-                        color: isReadToday ? '#F97316' : colors.inkFaint,
-                        fontFamily: fontFamily.regular,
-                        // Arabic is a connected script — letter spacing breaks connections
-                        letterSpacing: lang.code === 'ar' ? 0 : undefined,
-                        textTransform: lang.code === 'ar' ? 'none' : undefined,
-                      }]}>
-                        {streakPhrase(lang.code, streak)}
-                      </Text>
+                      {streak === 0 ? (
+                        <Ionicons name="calendar-outline" size={13} color={colors.inkFaint} />
+                      ) : (
+                        <Text style={[styles.metaStreak, {
+                          color: isReadToday ? '#F97316' : colors.inkFaint,
+                          fontFamily: fontFamily.regular,
+                          letterSpacing: lang.code === 'ar' ? 0 : undefined,
+                          textTransform: lang.code === 'ar' ? 'none' : undefined,
+                        }]}>
+                          {streakPhrase(lang.code, streak)}
+                        </Text>
+                      )}
                       <Ionicons name="chevron-down" size={11} color={isReadToday ? '#F97316' : colors.inkFaint} />
                     </TouchableOpacity>
                   );
