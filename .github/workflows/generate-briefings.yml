@@ -67,14 +67,8 @@ jobs:
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 
-      - name: Stage 5 - Enrich word dictionary
-        working-directory: bilinguist-brief/scripts
-        env:
-          GEMINI_DICTIONARY_API_KEY: ${{ secrets.GEMINI_DICTIONARY_API_KEY }}
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        run: python bilinguist_dictionary.py --date ${{ env.BRIEF_DATE }}
+      # Stage 5 - dictionary enrichment disabled until new API source is wired up
+      # - name: Stage 5 - Enrich word dictionary
 
       - name: Push bundle to data repo
         env:
