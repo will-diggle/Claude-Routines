@@ -21,6 +21,10 @@ import {
   Lora_700Bold,
   Lora_400Regular_Italic,
 } from '@expo-google-fonts/lora';
+import {
+  NotoNaskhArabic_400Regular,
+  NotoNaskhArabic_700Bold,
+} from '@expo-google-fonts/noto-naskh-arabic';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
 import type { LanguageCode, LanguageLevel, BackgroundKey } from './src/store/useSettingsStore';
@@ -278,6 +282,8 @@ export default function App() {
     EBGaramond_400Regular,
     EBGaramond_700Bold,
     EBGaramond_400Regular_Italic,
+    NotoNaskhArabic_400Regular,
+    NotoNaskhArabic_700Bold,
   });
   const [storedBg, setStoredBg] = useState('cream');
   const navRef = useNavigationContainerRef();

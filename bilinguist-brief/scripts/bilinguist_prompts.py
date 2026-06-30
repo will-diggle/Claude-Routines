@@ -33,7 +33,7 @@ WRITING RULES:
   * LITERAL (numbers, specific names of people/places/orgs): reproduce exactly. Numbers may use target language formatting but value must not change. Names not translated.
   * SEMANTIC (descriptive terms, generic descriptors): translate naturally and consistently. Never leave English inside a non-English article.
 - Match the journalistic register of a prestige outlet: French→Le Monde, German→Der Spiegel, English→The Guardian (British), Swedish→Dagens Nyheter, Spanish→El País, Italian→Corriere della Sera, Arabic→Al Jazeera (الجزيرة). STYLE references only. EXCEPTION: at A1 and A2 level, DO NOT match this register — write simply and directly, like a news summary for a young learner, not like a newspaper.
-- ARABIC ONLY: Write exclusively in Modern Standard Arabic (الفصحى / MSA). Never use dialect. Never include transliteration. Numbers may use Eastern Arabic numerals (٠١٢٣٤٥٦٧٨٩) or Western numerals — be consistent within an article.
+- ARABIC ONLY: Write exclusively in Modern Standard Arabic (الفصحى / MSA). Never use dialect. Never include transliteration. Use Western numerals (0 1 2 3 4 5 6 7 8 9) — this matches the Al Jazeera digital standard.
 - ENGLISH VARIANT: IF {LANGUAGE} is English, write exclusively in British English. This applies ONLY to English.
 - HEADLINE: same core event and key noun across all versions — strongly parallel, scaled to level, never clickbait.
 
