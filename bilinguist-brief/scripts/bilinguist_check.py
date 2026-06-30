@@ -52,10 +52,24 @@ WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     "Native": {"short": (75, 100),   "longer": (180, 270)},
 }
 
-def _length_status(articles: list, level: str, length: str) -> tuple[str, bool]:
+# Turkish and Arabic words carry more information per word (agglutination / attached
+# particles), so the same content naturally produces fewer words than in European languages.
+WORD_TARGETS_LANG: dict[str, dict[str, dict[str, tuple[int, int]]]] = {
+    "tr": {
+        "A1": {"short": (38, 52), "longer": (80, 125)},
+        "A2": {"short": (42, 58), "longer": (90, 135)},
+    },
+    "ar": {
+        "A1": {"short": (40, 55), "longer": (85, 130)},
+        "A2": {"short": (45, 60), "longer": (95, 140)},
+    },
+}
+
+def _length_status(articles: list, level: str, length: str, lang: str = "") -> tuple[str, bool]:
     """Return (display_str, is_bad). is_bad = outside target range."""
     avg = _avg_body_words(articles)
-    target = WORD_TARGETS.get(level, {}).get(length)
+    lang_override = WORD_TARGETS_LANG.get(lang, {}).get(level, {})
+    target = lang_override.get(length) or WORD_TARGETS.get(level, {}).get(length)
     avg_str = f"{int(avg)}w"
     if not target:
         return avg_str, False
@@ -201,7 +215,7 @@ def _language_table(
                     if count == 0:
                         row.append("✗")
                     else:
-                        avg_str, is_bad = _length_status(articles, level, length)
+                        avg_str, is_bad = _length_status(articles, level, length, lang)
                         flag_char = "⚠" if (key in issues or is_bad) else "✓"
                         row.append(f"{flag_char}{count}({avg_str})")
                 parts.append(f"{level}[{'/'.join(row)}]")
@@ -272,10 +286,11 @@ def check(bundle_path: Path) -> int:
                         missing.append(key)
                         continue
                     present += 1
-                    _, is_bad = _length_status(articles, level, length)
+                    _, is_bad = _length_status(articles, level, length, lang)
                     if is_bad:
                         avg = int(_avg_body_words(articles))
-                        target = WORD_TARGETS.get(level, {}).get(length, (0, 999))
+                        lang_override = WORD_TARGETS_LANG.get(lang, {}).get(level, {})
+                        target = lang_override.get(length) or WORD_TARGETS.get(level, {}).get(length, (0, 999))
                         wrong_length.append(f"{key} (avg {avg}w, target {target[0]}–{target[1]}w)")
                     if len(articles) < MIN_ARTICLES:
                         thin.append(key)
