@@ -23,6 +23,8 @@ PROMPT_LEARNER_TEMPLATE = """\
 Write {WORD_COUNT}-word news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
 {LENGTH_INSTRUCTION}
 {VARIANT_RULE}
+OUTPUT FORMAT: {{"articles":[{{"genre":"...","slug":"...","headline":"...","body":"..."}}]}}
+Include the "slug" from the corresponding fact-base story in each article's slug field.
 [FACTBASE BELOW]
 """
 

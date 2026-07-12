@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet, Dimensions } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  Keyboard, StyleSheet, Dimensions, Modal,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -11,6 +14,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GlassSurface } from '../components/GlassSurface';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
@@ -20,6 +24,8 @@ import * as analytics from '../services/analytics';
 const SCREEN_W = Dimensions.get('window').width;
 
 type Mode = 'target-to-en' | 'en-to-target';
+
+const COUNTS = [5, 10, 15, 20] as const;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -34,6 +40,21 @@ function normalize(s: string) {
   return s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+function buildPool(words: SavedWord[], lang: string): SavedWord[] {
+  const base = lang && lang !== 'all'
+    ? words.filter((w) => w.language === lang && w.language !== 'en')
+    : words.filter((w) => w.language !== 'en');
+  return base.filter((w) => w.translation);
+}
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.11,
+  shadowRadius: 10,
+  elevation: 6,
+} as const;
+
 export function TranslationScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
@@ -46,6 +67,7 @@ export function TranslationScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
   const setGameActive = useNavPillStore((s) => s.setGameActive);
+
   useFocusEffect(useCallback(() => {
     setGameActive(true);
     return () => setGameActive(false);
@@ -54,68 +76,107 @@ export function TranslationScreen() {
     analytics.trackGameOpened('translation', langFilter ?? 'all');
   }, [langFilter]));
 
-  const [mode, setMode] = useState<Mode>('target-to-en');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const eligible = useMemo(() => {
-    const pool = langFilter && langFilter !== 'all'
-      ? words.filter((w) => w.language === langFilter && w.language !== 'en')
-      : words.filter((w) => w.language !== 'en');
-    return shuffle(pool.filter((w) => w.translation)).slice(0, 10);
-  }, []);
+  // ── Game settings ─────────────────────────────────────────────────────────
+  const [mode, setMode]           = useState<Mode>('target-to-en');
+  const [count, setCount]         = useState(10);
+  const [localLang, setLocalLang] = useState<string>(langFilter ?? 'all');
 
-  const [index, setIndex] = useState(0);
-  const [input, setInput] = useState('');
-  const [checked, setChecked] = useState(false);
+  // ── Deal ──────────────────────────────────────────────────────────────────
+  const [eligible, setEligible] = useState<SavedWord[]>(() =>
+    shuffle(buildPool(words, langFilter ?? 'all')).slice(0, 10),
+  );
+
+  const langsWithWords = useMemo(
+    () => [...new Set(buildPool(words, 'all').map((w) => w.language))],
+    [words],
+  );
+
+  // ── Game state ────────────────────────────────────────────────────────────
+  const [index,    setIndex]    = useState(0);
+  const [input,    setInput]    = useState('');
+  const [checked,  setChecked]  = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [correct, setCorrect] = useState(0);
-  const [done, setDone] = useState(false);
+  const [correct,  setCorrect]  = useState(0);
+  const [done,     setDone]     = useState(false);
 
+  // ── Settings modal ────────────────────────────────────────────────────────
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [draftMode,  setDraftMode]  = useState<Mode>('target-to-en');
+  const [draftCount, setDraftCount] = useState(10);
+  const [draftLang,  setDraftLang]  = useState<string>(langFilter ?? 'all');
+
+  function openSettings() {
+    setDraftMode(mode);
+    setDraftCount(count);
+    setDraftLang(localLang);
+    setSettingsVisible(true);
+  }
+
+  function applySettings() {
+    setSettingsVisible(false);
+    const newEligible = shuffle(buildPool(words, draftLang)).slice(0, draftCount);
+    setEligible(newEligible);
+    setMode(draftMode);
+    setCount(draftCount);
+    setLocalLang(draftLang);
+    setIndex(0);
+    setInput('');
+    setChecked(false);
+    setCorrect(0);
+    setDone(false);
+  }
+
+  // ── Empty state ───────────────────────────────────────────────────────────
   if (eligible.length === 0) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-        <GameHeader title="Translation Challenge" current={0} total={0} />
+        <GameHeader title="Translation Challenge" current={0} total={0} onSettingsPress={openSettings} />
         <View style={styles.center}>
           <Text style={[styles.emptyText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             Save words with translations to play Translation Challenge.
           </Text>
         </View>
+        {renderSettingsModal()}
       </View>
     );
   }
 
   const card: SavedWord = eligible[index];
-  const prompt = mode === 'target-to-en' ? card.word : card.translation;
-  const answer = mode === 'target-to-en' ? card.translation : card.word;
+  const prompt      = mode === 'target-to-en' ? card.word        : card.translation!;
+  const answer      = mode === 'target-to-en' ? card.translation! : card.word;
   const promptLabel = mode === 'target-to-en' ? card.language.toUpperCase() : 'EN';
   const answerLabel = mode === 'target-to-en' ? 'EN' : card.language.toUpperCase();
 
+  // ── Done screen ───────────────────────────────────────────────────────────
   if (done) {
     const isPerfect = correct === eligible.length && eligible.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} />
+        <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} onSettingsPress={openSettings} />
         {isPerfect && (
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
         <View style={styles.center}>
-          <Ionicons name="repeat-outline" size={48} color={colors.accentGold} />
+          <Ionicons name="repeat-outline" size={48} color={colors.accentRed} />
           {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
               {line}
             </Text>
           ))}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{eligible.length} correct
           </Text>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
+          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
           </TouchableOpacity>
         </View>
+        {renderSettingsModal()}
       </View>
     );
   }
 
+  // ── Game actions ──────────────────────────────────────────────────────────
   function handleCheck() {
     Keyboard.dismiss();
     const right = normalize(input) === normalize(answer);
@@ -137,29 +198,166 @@ export function TranslationScreen() {
     }
   }
 
-  return (
-    <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Translation Challenge" current={index + 1} total={eligible.length} />
+  // ── Settings modal renderer ───────────────────────────────────────────────
+  function renderSettingsModal() {
+    return (
+      <Modal
+        visible={settingsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setSettingsVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.settingsSheet, { ...CARD_SHADOW, overflow: 'hidden' }]}
+          >
+            <GlassSurface cornerRadius={20} intensity={0.9} />
+            {/* Header */}
+            <View style={styles.settingsHeader}>
+              <Text style={[styles.settingsTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Game Settings
+              </Text>
+              <TouchableOpacity onPress={() => setSettingsVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={20} color={colors.inkFaint} />
+              </TouchableOpacity>
+            </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]} keyboardShouldPersistTaps="handled">
-        {/* Mode toggle */}
-        <View style={[styles.modeRow, { backgroundColor: colors.borderLight, borderRadius: 8 }]}>
-          {(['target-to-en', 'en-to-target'] as Mode[]).map((m) => (
+            {/* Direction */}
+            <Text style={[styles.settingsLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+              Direction
+            </Text>
+            <View style={styles.pillRow}>
+              {(['target-to-en', 'en-to-target'] as Mode[]).map((m) => {
+                const active = draftMode === m;
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.pill, { flex: 1, overflow: 'hidden' }]}
+                    onPress={() => setDraftMode(m)}
+                    activeOpacity={0.75}
+                  >
+                    {active
+                      ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
+                      : <GlassSurface cornerRadius={10} />
+                    }
+                    <Text style={[styles.pillText, {
+                      color: active ? '#fff' : colors.inkMid,
+                      fontFamily: active ? fontFamily.bold : fontFamily.regular,
+                    }]}>
+                      {m === 'target-to-en' ? 'Foreign → EN' : 'EN → Foreign'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Card count */}
+            <Text style={[styles.settingsLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+              Cards
+            </Text>
+            <View style={styles.pillRow}>
+              {COUNTS.map((n) => {
+                const active = draftCount === n;
+                return (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.pill, { flex: 1, overflow: 'hidden' }]}
+                    onPress={() => setDraftCount(n)}
+                    activeOpacity={0.75}
+                  >
+                    {active
+                      ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
+                      : <GlassSurface cornerRadius={10} />
+                    }
+                    <Text style={[styles.pillText, {
+                      color: active ? '#fff' : colors.inkMid,
+                      fontFamily: active ? fontFamily.bold : fontFamily.regular,
+                    }]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Language */}
+            {langsWithWords.length > 1 && (
+              <>
+                <Text style={[styles.settingsLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                  Language
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.md }}>
+                  <View style={[styles.pillRow, { paddingHorizontal: Spacing.md }]}>
+                    {['all', ...langsWithWords].map((code) => {
+                      const active = draftLang === code;
+                      return (
+                        <TouchableOpacity
+                          key={code}
+                          style={[styles.pill, { overflow: 'hidden' }]}
+                          onPress={() => setDraftLang(code)}
+                          activeOpacity={0.75}
+                        >
+                          {active
+                            ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
+                            : <GlassSurface cornerRadius={10} />
+                          }
+                          <Text style={[styles.pillText, {
+                            color: active ? '#fff' : colors.inkMid,
+                            fontFamily: active ? fontFamily.bold : fontFamily.regular,
+                          }]}>
+                            {code === 'all' ? 'All' : code.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {/* Apply */}
             <TouchableOpacity
-              key={m}
-              style={[styles.modeOption, m === mode && { backgroundColor: colors.accentGold }]}
-              onPress={() => setMode(m)}
+              style={[styles.applyButton, { backgroundColor: colors.accentRed }]}
+              onPress={applySettings}
+              activeOpacity={0.85}
             >
-              <Text style={[styles.modeText, { color: m === mode ? '#FFF' : colors.inkLight, fontFamily: fontFamily.regular }]}>
-                {m === 'target-to-en' ? `${card.language.toUpperCase()} → EN` : `EN → ${card.language.toUpperCase()}`}
+              <Text style={[styles.applyButtonText, { fontFamily: fontFamily.bold }]}>
+                Start New Game
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  }
 
-        {/* Prompt */}
-        <View style={[styles.promptBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-          <Text style={[styles.promptLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+  // ── Main game ─────────────────────────────────────────────────────────────
+  return (
+    <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+      <GameHeader
+        title="Translation Challenge"
+        current={index + 1}
+        total={eligible.length}
+        onSettingsPress={openSettings}
+      />
+
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Prompt tile */}
+        <View style={[styles.promptBox, {
+          backgroundColor: colors.card,
+          borderColor: colors.borderLight,
+          ...CARD_SHADOW,
+        }]}>
+          <Text style={[styles.promptLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
             {promptLabel}
           </Text>
           <Text style={[styles.promptWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
@@ -167,14 +365,21 @@ export function TranslationScreen() {
           </Text>
         </View>
 
-        {/* Answer input */}
+        {/* Answer section */}
         <Text style={[styles.answerLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           Translate to {answerLabel}
         </Text>
 
         {!checked ? (
           <TextInput
-            style={[styles.input, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.card, fontSize: fontSize.body }]}
+            style={[styles.input, {
+              color: colors.inkDark,
+              borderColor: colors.borderMid,
+              fontFamily: fontFamily.regular,
+              backgroundColor: colors.card,
+              fontSize: fontSize.body,
+              ...CARD_SHADOW,
+            }]}
             value={input}
             onChangeText={setInput}
             placeholder="Your translation…"
@@ -184,7 +389,11 @@ export function TranslationScreen() {
             onSubmitEditing={handleCheck}
           />
         ) : (
-          <View style={[styles.result, { backgroundColor: isCorrect ? '#43A04715' : '#E5393515', borderColor: isCorrect ? '#43A047' : '#E53935' }]}>
+          <View style={[styles.result, {
+            backgroundColor: isCorrect ? '#43A04715' : '#E5393515',
+            borderColor: isCorrect ? '#43A047' : '#E53935',
+            ...CARD_SHADOW,
+          }]}>
             <Text style={[styles.resultMark, { color: isCorrect ? '#43A047' : '#E53935', fontFamily: fontFamily.bold }]}>
               {isCorrect ? 'Correct!' : `Answer: ${answer}`}
             </Text>
@@ -196,18 +405,23 @@ export function TranslationScreen() {
           </View>
         )}
 
-        {!checked ? (
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accentGold }]} onPress={handleCheck} disabled={!input.trim()}>
-            <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>Check</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accentGold }]} onPress={handleNext}>
-            <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>
-              {index + 1 >= eligible.length ? 'Finish' : 'Next'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.actionButton, {
+            backgroundColor: !input.trim() && !checked ? colors.borderMid : colors.accentRed,
+          }]}
+          onPress={checked ? handleNext : handleCheck}
+          disabled={!checked && !input.trim()}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>
+            {checked
+              ? (index + 1 >= eligible.length ? 'Finish' : 'Next')
+              : 'Check'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {renderSettingsModal()}
     </View>
   );
 }
@@ -216,29 +430,104 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
-  content: { padding: Spacing.lg, gap: Spacing.md },
-  modeRow: { flexDirection: 'row', padding: 4, gap: 4 },
-  modeOption: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
-  modeText: { fontSize: 13 },
+  content: { padding: Spacing.md, gap: Spacing.md },
+
   promptBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: Spacing.xl,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 40,
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   promptLabel: { fontSize: 11, letterSpacing: 1.5 },
   promptWord: { textAlign: 'center', lineHeight: 44 },
+
   answerLabel: { fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase' },
-  input: { borderWidth: 1, borderRadius: 8, padding: Spacing.md },
-  result: { borderWidth: 1, borderRadius: 8, padding: Spacing.md, gap: 4 },
+
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: Spacing.md,
+    paddingVertical: 16,
+  },
+  result: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: Spacing.md,
+    paddingVertical: 16,
+    gap: 4,
+  },
   resultMark: { fontSize: 15 },
   yourAnswer: { fontSize: 13 },
-  actionButton: { borderRadius: 8, padding: 14, alignItems: 'center' },
+
+  actionButton: {
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
+  },
   actionButtonText: { color: '#FFF', fontSize: 16 },
+
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
-  doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
+
+  // ── Settings modal ──────────────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  settingsSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 36,
+    gap: Spacing.sm,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  settingsTitle: { fontSize: 16 },
+  settingsLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pill: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    minWidth: 48,
+  },
+  pillText: { fontSize: 13 },
+  applyButton: {
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  applyButtonText: { color: '#FFF', fontSize: 15 },
 });

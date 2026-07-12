@@ -58,11 +58,15 @@ function FlagInterior({ code, size }: { code: string; size: number }) {
         </View>
       );
     case 'ar':
-      // Saudi Arabia — green background with simplified white sword
+      // UAE — red left stripe, then green/white/black horizontal bands
       return (
-        <View style={{ flex: 1, backgroundColor: '#006C35' }}>
-          <View style={{ position: 'absolute', left: size * 0.15, right: size * 0.15, bottom: size * 0.26, height: size * 0.08, backgroundColor: '#FFFFFF', borderRadius: size * 0.04 }} />
-          <View style={{ position: 'absolute', left: size * 0.72, bottom: size * 0.22, width: size * 0.07, height: size * 0.18, backgroundColor: '#FFFFFF', borderRadius: size * 0.035 }} />
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={{ width: size * 0.25, backgroundColor: '#EF3340' }} />
+          <View style={{ flex: 1, flexDirection: 'column' }}>
+            <View style={{ flex: 1, backgroundColor: '#009A44' }} />
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
+            <View style={{ flex: 1, backgroundColor: '#231F20' }} />
+          </View>
         </View>
       );
     case 'en':

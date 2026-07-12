@@ -1,14 +1,17 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { TappableText, countWordTokens, findWordPosition } from './TappableText';
+import { TappableText, countWordTokens, findWordPositionNear } from './TappableText';
 import { lookupSeparableInfo } from '../services/dictionaryService';
 import { WordPopup } from './WordPopup';
 import type { BriefingArticle as Article, TokenMapEntry } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
+import SEPARABLE_DE from '../data/separable_de.json';
+
+// Unique prefixes present in the lookup table — used to scan sentences.
+const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -77,34 +80,67 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     // Separable verb detection — de and sv only, fails silently
     if (language === 'de' || language === 'sv') {
       (async () => {
-        // 1. Direct lookup — works when lemma is already the full separable verb (e.g. "andauern")
-        let sep = await lookupSeparableInfo(lemma, language).catch(() => null);
+        let separablePrefix: string | null = null;
 
-        // 2. Fallback: lemma is just the stem (e.g. "dauern"). Scan the sentence for
-        //    known German separable prefixes; test prefix+stem against the dictionary.
-        //    This fires only once at most — we stop at the first hit.
-        if (!sep?.separablePrefix && language === 'de') {
-          const DE_PREFIXES = [
-            'an','ab','auf','aus','bei','durch','ein','los','mit',
-            'nach','um','vor','weg','zu','zurück',
-          ];
-          // Strip punctuation from sentence words so "an," matches "an"
-          const sentenceWords = sentence
-            .split(/\s+/)
-            .map((w) => w.toLowerCase().replace(/[^a-zäöüß]/gi, ''));
-          const found = DE_PREFIXES.filter((p) => sentenceWords.includes(p));
-          for (const prefix of found) {
-            const candidate = await lookupSeparableInfo(prefix + lemma, language).catch(() => null);
-            if (candidate?.separablePrefix) { sep = candidate; break; }
+        let compoundLemma: string | null = null;
+
+        if (language === 'de') {
+          // 1. Static lookup — instant, offline, covers 1,500+ German separable verbs.
+          //    Check if the lemma itself is a known separable verb (e.g. "aufstehen").
+          const directPrefix = (SEPARABLE_DE as Record<string, string>)[lemma.toLowerCase()];
+          if (directPrefix) {
+            separablePrefix = directPrefix;
+            compoundLemma = lemma.toLowerCase();
+          } else {
+            // 2. Lemma is the base verb (e.g. "stehen"). Scan the sentence for any prefix
+            //    that forms a known compound (e.g. "auf" + "stehen" = "aufstehen").
+            const sentenceWords = sentence
+              .split(/\s+/)
+              .map((w) => w.toLowerCase().replace(/[^a-zäöüß]/gi, ''));
+            for (const prefix of SEPARABLE_DE_PREFIXES) {
+              if (!sentenceWords.includes(prefix)) continue;
+              const compound = prefix + lemma.toLowerCase();
+              if ((SEPARABLE_DE as Record<string, string>)[compound]) {
+                separablePrefix = prefix;
+                compoundLemma = compound;
+                break;
+              }
+            }
           }
+
+          // 3. Fallback to Supabase for rare verbs not in the static table.
+          if (!separablePrefix) {
+            const dbResult = await lookupSeparableInfo(lemma, language).catch(() => null);
+            if (dbResult?.separablePrefix) {
+              separablePrefix = dbResult.separablePrefix;
+              compoundLemma = dbResult.separablePrefix + lemma.toLowerCase();
+            }
+          }
+        } else {
+          // Swedish: DB-only (no static table yet)
+          const dbResult = await lookupSeparableInfo(lemma, language).catch(() => null);
+          if (dbResult?.separablePrefix) separablePrefix = dbResult.separablePrefix;
         }
 
-        if (!sep?.separablePrefix) return;
-        const partnerPos =
-          findWordPosition(article.headline, sep.separablePrefix, 0) ??
-          findWordPosition(article.body, sep.separablePrefix, headlineWordCount);
+        if (!separablePrefix) return;
+
+        // Find the particle occurrence CLOSEST to the tapped word — not the first in
+        // the article, which is often an unrelated preposition or article (e.g. "ein").
+        const partnerPos = findWordPositionNear(
+          article.headline,
+          article.body,
+          separablePrefix,
+          headlineWordCount,
+          wordPosition,
+        );
         if (partnerPos !== null) {
           setActivePositions((prev) => new Set([...prev, partnerPos]));
+        }
+
+        // Update the lemma to the full compound form so the popup looks up
+        // "einsteigen" rather than just "steigen".
+        if (compoundLemma) {
+          setActiveLemma(compoundLemma);
         }
       })().catch(() => {});
     }
@@ -163,17 +199,6 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         })
       )}
 
-      {/* Share row */}
-      <TouchableOpacity
-        style={styles.shareRow}
-        onPress={() => Share.share({ message: `${article.headline}\n\n${article.body}` })}
-        activeOpacity={0.6}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="share-social-outline" size={15} color={colors.inkFaint} />
-        <Text style={[styles.shareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Share</Text>
-      </TouchableOpacity>
-
       {!isLast && <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />}
 
       {activeWord && (
@@ -215,17 +240,6 @@ const styles = StyleSheet.create({
   rtlText: {
     textAlign: 'right',
     writingDirection: 'rtl',
-  },
-  shareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: Spacing.md,
-    alignSelf: 'flex-start',
-  },
-  shareLabel: {
-    fontSize: 12,
-    letterSpacing: 0.2,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

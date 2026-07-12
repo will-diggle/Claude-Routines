@@ -23,6 +23,7 @@ export interface SavedWord {
   lemma?: string | null;
   pronunciation?: string | null;
   tenses?: TenseTable[] | null;
+  declensions?: TenseTable[] | null;
   verbTable?: Record<string, string> | null;
   verbTablePast?: Record<string, string> | null;
   forms?: Record<string, string> | null;
@@ -34,7 +35,7 @@ export interface SavedWord {
 
 export type BackfillData = Partial<Pick<SavedWord,
   'translation' | 'explanation' | 'lemma' | 'pronunciation' |
-  'tenses' | 'verbTable' | 'verbTablePast' | 'forms' | 'wordType' | 'tip' | 'meta'
+  'tenses' | 'declensions' | 'verbTable' | 'verbTablePast' | 'forms' | 'wordType' | 'tip' | 'meta'
 >>;
 
 interface WordBankStore {

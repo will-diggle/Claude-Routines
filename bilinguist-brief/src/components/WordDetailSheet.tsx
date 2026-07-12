@@ -7,15 +7,43 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { WordAudioButton } from './WordAudioButton';
 import { Spacing } from '../theme';
-import type { SavedWord, Pile } from '../store/useWordBankStore';
-import type { LanguageCode } from '../store/useSettingsStore';
+import { useWordBankStore, type SavedWord, type Pile } from '../store/useWordBankStore';
+import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import { verifyTenses } from '../services/wordLookup';
-import type { TenseTable } from '../services/wordService';
+import { lookupWord, type TenseTable } from '../services/wordService';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ', de: 'PRÄTERITUM', es: 'PRETÉRITO',
   it: 'PASSATO PROSSIMO', sv: 'PRETERITUM', en: 'SIMPLE PAST', tr: 'GEÇMİŞ ZAMAN',
 };
+
+const CASE_EXPAND_DS: Record<string, string> = {
+  NOM: 'Nominative', AKK: 'Accusative', DAT: 'Dative', GEN: 'Genitive',
+  ACC: 'Accusative', LOC: 'Locative', ABL: 'Ablative',
+};
+function expandKeyDS(raw: string): string {
+  const u = raw.toUpperCase().trim();
+  return CASE_EXPAND_DS[u] ?? (raw.charAt(0).toUpperCase() + raw.slice(1));
+}
+type SplitDeclDS =
+  | { mode: 'split'; singular: Record<string, string>; plural: Record<string, string> }
+  | { mode: 'flat';  table: Record<string, string> };
+function splitDeclTableDS(table: Record<string, string>): SplitDeclDS {
+  const hasSg = Object.keys(table).some((k) => / sg$/i.test(k));
+  const hasPl = Object.keys(table).some((k) => / pl$/i.test(k));
+  if (hasSg && hasPl) {
+    const singular: Record<string, string> = {};
+    const plural: Record<string, string> = {};
+    for (const [k, v] of Object.entries(table)) {
+      if (/ sg$/i.test(k)) singular[expandKeyDS(k.replace(/ sg$/i, '').trim())] = v;
+      else if (/ pl$/i.test(k)) plural[expandKeyDS(k.replace(/ pl$/i, '').trim())] = v;
+    }
+    return { mode: 'split', singular, plural };
+  }
+  const expanded: Record<string, string> = {};
+  for (const [k, v] of Object.entries(table)) expanded[expandKeyDS(k)] = v;
+  return { mode: 'flat', table: expanded };
+}
 
 const PILE_COLOR: Record<Pile, string> = {
   new: '#4A6FA5', learning: '#F9A825', mastered: '#43A047', revisit: '#E53935',
@@ -32,15 +60,53 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   const insets = useSafeAreaInsets();
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
   const [verifiedTenses, setVerifiedTenses] = useState<TenseTable[] | null>(null);
+  const [activeDeclIdx, setActiveDeclIdx] = useState(0);
+  const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
+  const [liveDecl, setLiveDecl] = useState<TenseTable[] | null>(null);
+
+  const backfillWord = useWordBankStore((s) => s.backfillWord);
 
   useEffect(() => {
     if (!word) return;
     setVerifiedTenses(null);
     setActiveTenseIdx(0);
-    if (word.wordType !== 'verb' || !word.tenses?.length || !word.lemma) return;
-    verifyTenses(word.tenses, word.lemma, word.language as LanguageCode)
-      .then((v) => { if (v) setVerifiedTenses(v); })
-      .catch(() => {});
+    setActiveDeclIdx(0);
+    setDeclNumber('sg');
+    setLiveDecl(null);
+    const isVerb = word.wordType === 'verb' || !!word.verbTable;
+    const hasTenses = Array.isArray(word.tenses) && word.tenses.length > 2;
+
+    if (isVerb && hasTenses && word.lemma) {
+      // Existing full tenses — just verify them
+      verifyTenses(word.tenses!, word.lemma, word.language as LanguageCode)
+        .then((v) => { if (v) setVerifiedTenses(v); })
+        .catch(() => {});
+    } else if (isVerb) {
+      // Missing or legacy 2-tense data — bypass in-memory cache, hit worker for backfilled tenses
+      lookupWord(word.word, word.language as LanguageCode, (word.level as LanguageLevel) ?? 'B1', { forceRefresh: true })
+        .then((result) => {
+          if (result?.tenses && result.tenses.length > 0) {
+            setVerifiedTenses(result.tenses);
+            backfillWord(word.word, word.language as LanguageCode, { tenses: result.tenses });
+          }
+        })
+        .catch(() => {});
+    } else {
+      // Non-verb — use stored declensions or fetch from worker if missing
+      const hasDeclensions = Array.isArray(word.declensions) && word.declensions.length > 0;
+      if (hasDeclensions) {
+        setLiveDecl(word.declensions!);
+      } else {
+        lookupWord(word.word, word.language as LanguageCode, (word.level as LanguageLevel) ?? 'B1', { forceRefresh: true })
+          .then((result) => {
+            if (result?.declensions && result.declensions.length > 0) {
+              setLiveDecl(result.declensions);
+              backfillWord(word.word, word.language as LanguageCode, { declensions: result.declensions });
+            }
+          })
+          .catch(() => {});
+      }
+    }
   }, [word?.id]);
 
   const dragY = useRef(new Animated.Value(0)).current;
@@ -82,7 +148,19 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   })();
   const activeTense = tenses[activeTenseIdx] ?? null;
 
-  const showLemma = word.lemma && word.lemma !== word.word.toLowerCase();
+  // Subtitle: lemma · /IPA/ for all word types
+  const dsSubtitleLemma = (() => {
+    const wt = word.wordType;
+    const f = word.forms;
+    if (wt === 'noun' && f) {
+      if (f.article && word.lemma) return `${f.article} ${word.lemma}`;
+    }
+    if (word.lemma && word.lemma !== word.word.toLowerCase()) return word.lemma;
+    return null;
+  })();
+  const dsSubtitle = dsSubtitleLemma
+    ? (word.pronunciation ? `${dsSubtitleLemma}  ·  ${word.pronunciation}` : dsSubtitleLemma)
+    : (word.pronunciation ? word.pronunciation : null);
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
@@ -101,28 +179,25 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
           </View>
 
-          {/* Word row: word · 🔊 · /IPA/ · ✕ */}
+          {/* Word row: stub · [mirror·word·🔊 centered] · ✕ */}
           <View style={styles.wordRow}>
-            <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold }]} numberOfLines={1} adjustsFontSizeToFit>
-              {word.word}
-            </Text>
-            <View style={styles.wordRight}>
+            <View style={styles.wordStub} />
+            <View style={styles.wordCenterZone}>
+              <View style={styles.wordSpeakerMirror} />
+              <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold }]} numberOfLines={1} adjustsFontSizeToFit>
+                {word.word}
+              </Text>
               <WordAudioButton word={word.word} language={lang} size="md" />
-              {word.pronunciation ? (
-                <Text style={[styles.ipaInline, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  /{word.pronunciation}/
-                </Text>
-              ) : null}
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                <Ionicons name="close" size={26} color={colors.inkLight} />
-              </TouchableOpacity>
             </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={26} color={colors.inkLight} />
+            </TouchableOpacity>
           </View>
 
-        {/* Subtitle: lemma */}
-        {showLemma && (
-          <Text style={[styles.subtitle, { color: colors.accentRed, fontFamily: fontFamily.italic }]}>
-            ← {word.lemma}
+        {/* Subtitle: lemma · /IPA/ */}
+        {dsSubtitle && (
+          <Text style={[styles.subtitle, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {dsSubtitle}
           </Text>
         )}
 
@@ -164,15 +239,27 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             </Text>
           ) : null}
 
-          {/* Noun / adjective forms grid */}
+          {/* Example sentence — directly under definition */}
+          {word.exampleSentence ? (
+            <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
+              <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
+                „{word.exampleSentence}"
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Noun / adjective forms — plain rows with centered header */}
           {word.forms && Object.keys(word.forms).length > 0 && (
-            <View style={styles.formsGrid}>
+            <View style={styles.formsList}>
+              <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginBottom: 4 }]}>
+                FORMS
+              </Text>
               {Object.entries(word.forms).map(([key, value]) => (
-                <View key={key} style={[styles.formBox, { backgroundColor: colors.borderLight }]}>
-                  <Text style={[styles.formBoxLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    {key.replace(/_/g, ' ').toUpperCase()}
+                <View key={key} style={[styles.formsRow, { borderTopColor: colors.borderLight }]}>
+                  <Text style={[styles.formsRowLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {key.replace(/_/g, ' ')}
                   </Text>
-                  <Text style={[styles.formBoxValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  <Text style={[styles.formsRowValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                     {String(value)}
                   </Text>
                 </View>
@@ -180,14 +267,101 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             </View>
           )}
 
-          {/* Example sentence (above verb tenses) */}
-          {word.exampleSentence ? (
-            <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
-              <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
-                „{word.exampleSentence}"
-              </Text>
-            </View>
-          ) : null}
+          {/* Declension / inflection table — nouns, adjectives, adverbs */}
+          {liveDecl && liveDecl.length > 0 && (() => {
+            const allDecl = liveDecl;
+            const activeDecl = allDecl[activeDeclIdx];
+            if (!activeDecl) return null;
+            const split = splitDeclTableDS(activeDecl.table);
+            const INLINE_THRESHOLD = 13;
+            const useInline = split.mode === 'split' && [
+              ...Object.values(split.singular),
+              ...Object.values(split.plural),
+            ].every(v => v.length <= INLINE_THRESHOLD);
+            const sectionLabel = split.mode === 'split' ? activeDecl.label : 'FORMS';
+
+            if (useInline) {
+              const caseKeys = Object.keys(split.singular);
+              return (
+                <>
+                  <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginTop: Spacing.sm, marginBottom: 4 }]}>
+                    {sectionLabel}
+                  </Text>
+                  <View style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                    <View style={styles.declCaseCol} />
+                    <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>SG</Text>
+                    <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>PL</Text>
+                  </View>
+                  {caseKeys.map((caseKey) => (
+                    <View key={caseKey} style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                      <Text style={[styles.declCaseLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{caseKey}</Text>
+                      <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.singular[caseKey] ?? '—'}</Text>
+                      <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.plural[caseKey] ?? '—'}</Text>
+                    </View>
+                  ))}
+                </>
+              );
+            }
+
+            const rows = split.mode === 'split'
+              ? (declNumber === 'sg' ? split.singular : split.plural)
+              : split.table;
+            const navLabel = split.mode === 'split'
+              ? (declNumber === 'sg' ? 'SINGULAR' : 'PLURAL')
+              : activeDecl.label;
+            return (
+              <>
+                <View style={styles.tenseSectionCenter}>
+                  <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {sectionLabel}
+                  </Text>
+                  <View style={styles.tenseNav}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (split.mode === 'split' && declNumber === 'pl') { setDeclNumber('sg'); }
+                        else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
+                      }}
+                      disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
+                      style={[styles.tenseNavBtn, {
+                        backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                          ? colors.borderLight : colors.borderMid,
+                      }]}
+                    >
+                      <Ionicons name="chevron-back" size={16} color={
+                        (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                          ? colors.borderMid : colors.inkDark
+                      } />
+                    </TouchableOpacity>
+                    <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                      {navLabel}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (split.mode === 'split' && declNumber === 'sg') { setDeclNumber('pl'); }
+                        else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
+                      }}
+                      disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
+                      style={[styles.tenseNavBtn, {
+                        backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                          ? colors.borderLight : colors.borderMid,
+                      }]}
+                    >
+                      <Ionicons name="chevron-forward" size={16} color={
+                        (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                          ? colors.borderMid : colors.inkDark
+                      } />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {Object.entries(rows).map(([key, value]) => (
+                  <View key={key} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                    <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{key}</Text>
+                    <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{value}</Text>
+                  </View>
+                ))}
+              </>
+            );
+          })()}
 
           {/* Verb tenses with centered label and circular nav arrows */}
           {tenses.length > 0 && activeTense && (
@@ -291,10 +465,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs, gap: 8,
   },
-  wordText: { fontSize: 34, flex: 1 },
-  wordRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+  wordStub: { width: 36 },
+  wordCenterZone: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  wordSpeakerMirror: { width: 34 },
+  wordText: { fontSize: 34, flexShrink: 1 },
   ipaInline: { fontSize: 13, letterSpacing: 0.5 },
-  subtitle: { fontSize: 15, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  subtitle: { fontSize: 14, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
 
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: Spacing.sm },
 
@@ -317,29 +493,30 @@ const styles = StyleSheet.create({
   scrollArea: { paddingHorizontal: Spacing.lg },
   explanationCentered: { lineHeight: 24, textAlign: 'center', paddingVertical: Spacing.sm },
 
-  // Forms grid
-  formsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.md },
-  formBox: {
-    width: '47.5%', borderRadius: 10, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25, shadowRadius: 6, elevation: 5,
-  },
-  formBoxLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 8 },
-  formBoxValue: { fontSize: 18 },
+  // Forms plain rows (replaces old grid tiles)
+  formsList: { marginBottom: 4 },
+  formsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  formsRowLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 },
+  formsRowValue: { fontSize: 15 },
 
   // Blockquote
   blockquote: { borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 10, marginTop: Spacing.sm, marginBottom: Spacing.xs },
   blockquoteText: { lineHeight: 22 },
 
   // Verb tenses — centered
-  tenseSectionCenter: { alignItems: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
+  tenseSectionCenter: { alignItems: 'center', marginTop: Spacing.sm, marginBottom: Spacing.xs },
   tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
-  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  tenseNavBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  tenseLabel: { fontSize: 11, letterSpacing: 1, minWidth: 110, textAlign: 'center' },
+  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tenseNavBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  tenseLabel: { fontSize: 11, letterSpacing: 1, width: 160, textAlign: 'center' },
   conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
   conjForm: { fontSize: 13, flex: 1, textAlign: 'right' },
+  declRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
+  declCaseCol: { flex: 1.2 },
+  declCaseLabel: { flex: 1.2, fontSize: 12 },
+  declColHeader: { flex: 1, fontSize: 10, letterSpacing: 1, textAlign: 'right' },
+  declValue: { flex: 1, fontSize: 13, textAlign: 'right' },
 
   originalSentence: { fontSize: 12, lineHeight: 18, marginTop: Spacing.sm, opacity: 0.6 },
 

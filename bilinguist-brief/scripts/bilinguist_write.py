@@ -85,10 +85,11 @@ _SCHEMA_WRITING = {
                 "type": "object",
                 "properties": {
                     "genre":    {"type": "string"},
+                    "slug":     {"type": "string"},
                     "headline": {"type": "string"},
                     "body":     {"type": "string"},
                 },
-                "required": ["genre", "headline", "body"],
+                "required": ["genre", "slug", "headline", "body"],
             },
         },
     },

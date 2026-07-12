@@ -1,8 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface CrossReferenceScore {
+  total: number;
+  outlets_covering: string[];
+  rank: number;
+}
+
 export interface FactbaseStory {
   genre: string;
   slug: string;
+  cross_reference_score?: CrossReferenceScore;
   what_happened: string[];
   attribution: string[];
   verified: string[];

@@ -41,6 +41,15 @@ function normalize(s: string) {
   return s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+// Shared card shadow — matches Flashcard / word detail tiles
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.11,
+  shadowRadius: 10,
+  elevation: 6,
+} as const;
+
 export function FillBlankScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
@@ -100,18 +109,18 @@ export function FillBlankScreen() {
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
         <View style={styles.center}>
-          <Ionicons name="pencil-outline" size={48} color={colors.accentGold} />
+          <Ionicons name="pencil-outline" size={48} color={colors.accentRed} />
           {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentGold, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
+            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
               {line}
             </Text>
           ))}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             {correct}/{eligible.length} correct
           </Text>
-          <Text style={[styles.streakText, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentGold }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
+          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -144,19 +153,36 @@ export function FillBlankScreen() {
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
       <GameHeader title="Fill in the Blank" current={index + 1} total={eligible.length} />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={[styles.instruction, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           Complete the sentence with the missing word
         </Text>
 
-        <View style={[styles.sentenceBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+        {/* Sentence card — same tile style as the rest of the app */}
+        <View style={[styles.sentenceBox, {
+          backgroundColor: colors.card,
+          borderColor: colors.borderLight,
+          ...CARD_SHADOW,
+        }]}>
           {blanked.split('___').map((part, i, arr) => (
             <React.Fragment key={i}>
               <Text style={[styles.sentenceText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
                 {part}
               </Text>
               {i < arr.length - 1 && (
-                <Text style={[styles.blank, { color: colors.accentGold, fontFamily: fontFamily.bold, borderBottomColor: colors.accentGold }]}>
+                <Text style={[styles.blank, {
+                  color: checked
+                    ? (isCorrect ? '#43A047' : '#E53935')
+                    : colors.accentRed,
+                  borderBottomColor: checked
+                    ? (isCorrect ? '#43A047' : '#E53935')
+                    : colors.accentRed,
+                  fontFamily: fontFamily.bold,
+                }]}>
                   {checked ? card.word : '________'}
                 </Text>
               )}
@@ -166,7 +192,7 @@ export function FillBlankScreen() {
 
         {card.translation ? (
           <TouchableOpacity
-            style={[styles.hintButton, { borderColor: colors.borderMid }]}
+            style={[styles.hintButton, { borderColor: colors.borderMid, backgroundColor: colors.card, ...CARD_SHADOW }]}
             onPress={() => setHintVisible((v) => !v)}
             activeOpacity={0.7}
           >
@@ -179,7 +205,14 @@ export function FillBlankScreen() {
 
         {!checked ? (
           <TextInput
-            style={[styles.input, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.card, fontSize: fontSize.body }]}
+            style={[styles.input, {
+              color: colors.inkDark,
+              borderColor: colors.borderMid,
+              fontFamily: fontFamily.regular,
+              backgroundColor: colors.card,
+              fontSize: fontSize.body,
+              ...CARD_SHADOW,
+            }]}
             value={input}
             onChangeText={setInput}
             placeholder="Type the missing word…"
@@ -189,24 +222,31 @@ export function FillBlankScreen() {
             onSubmitEditing={handleCheck}
           />
         ) : (
-          <View style={[styles.result, { backgroundColor: isCorrect ? '#43A04715' : '#E5393515', borderColor: isCorrect ? '#43A047' : '#E53935' }]}>
+          <View style={[styles.result, {
+            backgroundColor: isCorrect ? '#43A04715' : '#E5393515',
+            borderColor: isCorrect ? '#43A047' : '#E53935',
+            ...CARD_SHADOW,
+          }]}>
             <Text style={[styles.resultText, { color: isCorrect ? '#43A047' : '#E53935', fontFamily: fontFamily.bold }]}>
               {isCorrect ? 'Correct!' : `The answer was: ${card.word}`}
             </Text>
           </View>
         )}
 
-        {!checked ? (
-          <TouchableOpacity style={[styles.checkButton, { backgroundColor: colors.accentGold }]} onPress={handleCheck} disabled={!input.trim()}>
-            <Text style={[styles.buttonText, { fontFamily: fontFamily.regular }]}>Check</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.checkButton, { backgroundColor: colors.accentGold }]} onPress={handleNext}>
-            <Text style={[styles.buttonText, { fontFamily: fontFamily.regular }]}>
-              {index + 1 >= eligible.length ? 'Finish' : 'Next'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.actionButton, {
+            backgroundColor: !input.trim() && !checked ? colors.borderMid : colors.accentRed,
+          }]}
+          onPress={checked ? handleNext : handleCheck}
+          disabled={!checked && !input.trim()}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>
+            {checked
+              ? (index + 1 >= eligible.length ? 'Finish' : 'Next')
+              : 'Check'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -216,59 +256,73 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
-  content: { padding: Spacing.lg, gap: Spacing.md },
+  content: { padding: Spacing.md, gap: Spacing.md },
   instruction: { fontSize: 13, letterSpacing: 0.3, textAlign: 'center' },
+
   sentenceBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: Spacing.lg,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.xl,
+    paddingVertical: 28,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'baseline',
     gap: 2,
   },
-  sentenceText: { lineHeight: 28 },
+  sentenceText: { lineHeight: 30 },
   blank: {
     borderBottomWidth: 2,
     paddingHorizontal: 4,
     fontSize: 17,
-    lineHeight: 28,
+    lineHeight: 30,
     letterSpacing: 1,
   },
+
   hintButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     alignSelf: 'center',
   },
   hint: { fontSize: 13, fontStyle: 'italic' },
+
   input: {
-    borderWidth: 1,
-    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
     padding: Spacing.md,
+    paddingVertical: 16,
     fontSize: 17,
   },
+
   result: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     padding: Spacing.md,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   resultText: { fontSize: 15 },
-  checkButton: {
-    borderRadius: 8,
-    padding: 14,
+
+  actionButton: {
+    borderRadius: 12,
+    paddingVertical: 15,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  buttonText: { color: '#FFF', fontSize: 16 },
+  actionButtonText: { color: '#FFF', fontSize: 16 },
+
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
-  doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });

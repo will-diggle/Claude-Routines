@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Animated, PanResponder, Dimensions,
@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
+import { lookupWord } from '../services/wordService';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { getCongratsLines } from '../utils/congrats';
@@ -26,7 +27,7 @@ import * as analytics from '../services/analytics';
 const { width: SW, height: SH } = Dimensions.get('window');
 const MAX_CARDS = 15;
 const CARD_W = SW - 48;
-const CARD_H = Math.min(Math.round(CARD_W * 1.42), Math.round(SH * 0.60));
+const CARD_H = Math.min(Math.round(CARD_W * 1.55), Math.round(SH * 0.68));
 const SWIPE_THRESHOLD = 80;
 const STACK_STRIP = 9;  // visible px of each stacked card below the one in front
 const STACK_SCALE = 0.04;
@@ -34,6 +35,46 @@ const STACK_SCALE = 0.04;
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ', de: 'PRÄTERITUM', es: 'PRETÉRITO',
   it: 'PASSATO PROSSIMO', sv: 'PRETERITUM', en: 'SIMPLE PAST', tr: 'GEÇMİŞ ZAMAN',
+};
+
+const CASE_EXPAND_FC: Record<string, string> = {
+  NOM: 'Nominative', AKK: 'Accusative', DAT: 'Dative', GEN: 'Genitive',
+  ACC: 'Accusative', LOC: 'Locative', ABL: 'Ablative',
+};
+function expandKeyFC(raw: string): string {
+  const u = raw.toUpperCase().trim();
+  return CASE_EXPAND_FC[u] ?? (raw.charAt(0).toUpperCase() + raw.slice(1));
+}
+type SplitDeclFC =
+  | { mode: 'split'; singular: Record<string, string>; plural: Record<string, string> }
+  | { mode: 'flat';  table: Record<string, string> };
+function splitDeclFC(table: Record<string, string>): SplitDeclFC {
+  const hasSg = Object.keys(table).some((k) => / sg$/i.test(k));
+  const hasPl = Object.keys(table).some((k) => / pl$/i.test(k));
+  if (hasSg && hasPl) {
+    const singular: Record<string, string> = {};
+    const plural: Record<string, string> = {};
+    for (const [k, v] of Object.entries(table)) {
+      if (/ sg$/i.test(k)) singular[expandKeyFC(k.replace(/ sg$/i, '').trim())] = v;
+      else if (/ pl$/i.test(k)) plural[expandKeyFC(k.replace(/ pl$/i, '').trim())] = v;
+    }
+    return { mode: 'split', singular, plural };
+  }
+  const expanded: Record<string, string> = {};
+  for (const [k, v] of Object.entries(table)) expanded[expandKeyFC(k)] = v;
+  return { mode: 'flat', table: expanded };
+}
+
+const FLAG_COLORS: Record<string, string[]> = {
+  de: ['#000000', '#DD0000', '#FFCE00'],
+  fr: ['#002395', '#FFFFFF', '#ED2939'],
+  es: ['#AA151B', '#F1BF00'],
+  it: ['#009246', '#FFFFFF', '#CE2B37'],
+  sv: ['#006AA7', '#FECC02'],
+  tr: ['#E30A17', '#FFFFFF'],
+  hu: ['#CE2939', '#FFFFFF', '#477050'],
+  ar: ['#007A3D', '#FFFFFF', '#000000', '#CE1126'],
+  en: ['#012169', '#FFFFFF', '#C8102E'],
 };
 
 function levelColor(level?: string | null): string {
@@ -64,7 +105,7 @@ export function FlashcardsScreen() {
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('flashcards', langFilter ?? 'all');
   }, [langFilter]));
-  const { words, recordPractice } = useWordBankStore();
+  const { words, recordPractice, backfillWord } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,11 +122,34 @@ export function FlashcardsScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Refreshed tenses keyed by word id — backfill updates the store but sessionWords is frozen,
+  // so we keep a local map that the render path can read immediately.
+  const [refreshedTenses, setRefreshedTenses] = useState<Record<string, import('../services/wordService').TenseTable[]>>({});
+
+  useEffect(() => {
+    const verbs = sessionWords.filter(
+      (w) => w.wordType === 'verb' && (!w.tenses || w.tenses.length < 3),
+    );
+    verbs.forEach((w) => {
+      lookupWord(w.word, w.language, (w.level as any) ?? 'B1', { forceRefresh: true })
+        .then((result) => {
+          if (result?.tenses && result.tenses.length > 0) {
+            backfillWord(w.word, w.language, { tenses: result.tenses });
+            setRefreshedTenses((prev) => ({ ...prev, [w.id]: result.tenses! }));
+          }
+        })
+        .catch(() => {});
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [index, setIndex]   = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [done, setDone]     = useState<{ correct: number; missed: number } | null>(null);
   const [tally, setTally]   = useState({ correct: 0, missed: 0 });
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
+  const [activeDeclIdx, setActiveDeclIdx] = useState(0);
+  const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
@@ -101,6 +165,8 @@ export function FlashcardsScreen() {
     lockRef.current    = false;
     setFlipped(false);
     setActiveTenseIdx(0);
+    setActiveDeclIdx(0);
+    setDeclNumber('sg');
   }
 
   function handleFlip() {
@@ -214,7 +280,20 @@ export function FlashcardsScreen() {
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} />
         {isPerfect && (
-          <ConfettiCannon count={180} origin={{ x: SW / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
+          <ConfettiCannon
+            count={180}
+            origin={{ x: SW / 2, y: -20 }}
+            autoStart fadeOut fallSpeed={2800}
+            colors={(() => {
+              // Derive colours from the actual session words — more reliable than langFilter
+              const sessionLangs = [...new Set(sessionWords.map((w) => w.language))];
+              if (sessionLangs.length === 1 && FLAG_COLORS[sessionLangs[0]]) {
+                return FLAG_COLORS[sessionLangs[0]];
+              }
+              const mixed = [...new Set(sessionLangs.flatMap((l) => FLAG_COLORS[l] ?? []))];
+              return mixed.length > 0 ? mixed : ['#E53935', '#43A047', '#1E88E5', '#FFB300'];
+            })()}
+          />
         )}
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentRed} />
@@ -236,7 +315,7 @@ export function FlashcardsScreen() {
             {streak} day streak
           </Text>
           <TouchableOpacity style={[styles.doneBtn, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -253,8 +332,9 @@ export function FlashcardsScreen() {
 
   // Build tense list for the active card — prefer full tenses array, fall back to legacy fields
   const cardTenses: Array<{ label: string; table: Record<string, string> }> = [];
-  if (card?.tenses && card.tenses.length > 0) {
-    cardTenses.push(...card.tenses);
+  const liveTenses = card?.id ? (refreshedTenses[card.id] ?? card?.tenses) : card?.tenses;
+  if (liveTenses && liveTenses.length > 0) {
+    cardTenses.push(...liveTenses);
   } else {
     if (card?.verbTable && Object.keys(card.verbTable).length > 0) {
       cardTenses.push({ label: 'PRESENT', table: card.verbTable });
@@ -395,60 +475,20 @@ export function FlashcardsScreen() {
 
               <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
 
-              {/* Grammar chips row — wordType filled + meta outline chips + level pill */}
+              {/* Grammar tags — dot-separated plain text, all red */}
               {(card.wordType || card.level || card.meta || card.forms?.gender) ? (
-                <View style={styles.backChipsRow}>
-                  {card.wordType ? (
-                    <View style={[styles.backChip, { backgroundColor: colors.accentRed }]}>
-                      <Text style={[styles.backChipText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
-                        {card.wordType.charAt(0).toUpperCase() + card.wordType.slice(1)}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {card.forms?.gender ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                        {(card.forms.gender as string).charAt(0).toUpperCase() + (card.forms.gender as string).slice(1)}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {card.meta?.isRegular === true ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Regular</Text>
-                    </View>
-                  ) : null}
-                  {card.meta?.isRegular === false ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Irregular</Text>
-                    </View>
-                  ) : null}
-                  {card.meta?.auxiliary ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                        {card.meta.auxiliary as string}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {card.meta?.isSeparable ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Separable</Text>
-                    </View>
-                  ) : null}
-                  {card.meta?.verbClass ? (
-                    <View style={[styles.backOutlineChip, { borderColor: colors.inkFaint }]}>
-                      <Text style={[styles.backOutlineChipText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                        {card.meta.verbClass as string}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {card.level ? (
-                    <View style={[styles.backLevelPill, { borderColor: levelColor(card.level) }]}>
-                      <Text style={[styles.backLevelText, { color: levelColor(card.level), fontFamily: fontFamily.bold }]}>
-                        {card.level}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                  {[
+                    card.wordType ? card.wordType.charAt(0).toUpperCase() + card.wordType.slice(1) : null,
+                    card.forms?.gender ? (card.forms.gender as string).charAt(0).toUpperCase() + (card.forms.gender as string).slice(1) : null,
+                    card.meta?.isRegular === true  ? 'Regular'   : null,
+                    card.meta?.isRegular === false ? 'Irregular' : null,
+                    card.meta?.auxiliary   ? card.meta.auxiliary   as string : null,
+                    card.meta?.isSeparable ? 'Separable'                    : null,
+                    card.meta?.verbClass   ? card.meta.verbClass   as string : null,
+                    card.level ?? null,
+                  ].filter(Boolean).join('  ·  ')}
+                </Text>
               ) : null}
 
               <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
@@ -459,23 +499,136 @@ export function FlashcardsScreen() {
                 </Text>
               ) : null}
 
-              {card.pronunciation ? (
-                <Text style={[styles.pronunciation, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  /{card.pronunciation}/
-                </Text>
-              ) : null}
-
-              {card.forms ? (
-                <FormsView forms={card.forms} colors={colors} fontFamily={fontFamily} />
-              ) : null}
-
+              {/* Example sentence — directly under explanation */}
               {card.exampleSentence ? (
                 <View style={[styles.backBlockquote, { borderLeftColor: colors.accentRed }]}>
-                  <Text style={[styles.backBlockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
+                  <Text style={[styles.backBlockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
                     „{card.exampleSentence}"
                   </Text>
                 </View>
               ) : null}
+
+              {/* Pronunciation — no slashes, grey italic */}
+              {card.pronunciation ? (
+                <Text style={[styles.pronunciation, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                  {card.pronunciation}
+                </Text>
+              ) : null}
+
+              {/* Forms — plain rows with centered FORMS header */}
+              {card.forms && Object.keys(card.forms).length > 0 ? (
+                <View style={styles.formsList}>
+                  <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginBottom: 4 }]}>
+                    FORMS
+                  </Text>
+                  {Object.entries(card.forms).map(([key, value]) => (
+                    <View key={key} style={[styles.formsRow, { borderTopColor: colors.borderLight }]}>
+                      <Text style={[styles.formsRowLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {key.replace(/_/g, ' ')}
+                      </Text>
+                      <Text style={[styles.formsRowValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                        {String(value)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {/* Declension / inflection table — three-column with 13-char arrow fallback */}
+              {card.declensions && card.declensions.length > 0 && (() => {
+                const allDecl = card.declensions!;
+                const activeDecl = allDecl[activeDeclIdx];
+                if (!activeDecl) return null;
+                const split = splitDeclFC(activeDecl.table);
+                const INLINE_THRESHOLD = 13;
+                const useInline = split.mode === 'split' && [
+                  ...Object.values(split.singular),
+                  ...Object.values(split.plural),
+                ].every(v => v.length <= INLINE_THRESHOLD);
+                const sectionLabel = split.mode === 'split' ? activeDecl.label : 'FORMS';
+
+                if (useInline) {
+                  const caseKeys = Object.keys(split.singular);
+                  return (
+                    <>
+                      <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginTop: Spacing.sm, marginBottom: 4 }]}>
+                        {sectionLabel}
+                      </Text>
+                      <View style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                        <View style={styles.declCaseCol} />
+                        <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>SG</Text>
+                        <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>PL</Text>
+                      </View>
+                      {caseKeys.map((caseKey) => (
+                        <View key={caseKey} style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                          <Text style={[styles.declCaseLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{caseKey}</Text>
+                          <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.singular[caseKey] ?? '—'}</Text>
+                          <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.plural[caseKey] ?? '—'}</Text>
+                        </View>
+                      ))}
+                    </>
+                  );
+                }
+
+                const rows = split.mode === 'split'
+                  ? (declNumber === 'sg' ? split.singular : split.plural)
+                  : split.table;
+                const navLabel = split.mode === 'split'
+                  ? (declNumber === 'sg' ? 'SINGULAR' : 'PLURAL')
+                  : activeDecl.label;
+                return (
+                  <>
+                    <View style={styles.tenseSectionCenter}>
+                      <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {sectionLabel}
+                      </Text>
+                      <View style={styles.tenseNav}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (split.mode === 'split' && declNumber === 'pl') { setDeclNumber('sg'); }
+                            else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
+                          }}
+                          disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
+                          style={[styles.tenseNavBtn, {
+                            backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                              ? colors.borderLight : colors.borderMid,
+                          }]}
+                        >
+                          <Ionicons name="chevron-back" size={16} color={
+                            (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                              ? colors.borderMid : colors.inkDark
+                          } />
+                        </TouchableOpacity>
+                        <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                          {navLabel}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (split.mode === 'split' && declNumber === 'sg') { setDeclNumber('pl'); }
+                            else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
+                          }}
+                          disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
+                          style={[styles.tenseNavBtn, {
+                            backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                              ? colors.borderLight : colors.borderMid,
+                          }]}
+                        >
+                          <Ionicons name="chevron-forward" size={16} color={
+                            (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                              ? colors.borderMid : colors.inkDark
+                          } />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    {Object.entries(rows).map(([key, value]) => (
+                      <View key={key} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                        <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{key}</Text>
+                        <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{value}</Text>
+                      </View>
+                    ))}
+                  </>
+                );
+              })()}
 
               {/* Verb tenses with circular nav arrows — arrows captured by inner Touchable, don't flip card */}
               {cardTenses.length > 0 && activeTense ? (
@@ -577,19 +730,6 @@ export function FlashcardsScreen() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function FormsView({ forms, colors, fontFamily }: { forms: Record<string, string>; colors: any; fontFamily: any }) {
-  return (
-    <View style={vStyles.wrap}>
-      {Object.entries(forms).map(([key, val]) => (
-        <View key={key} style={[vStyles.row, { borderBottomColor: colors.borderLight }]}>
-          <Text style={[vStyles.pronoun, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{key}</Text>
-          <Text style={[vStyles.form, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{val}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 function StatRow({ label, icon, tint, value, colors, fontFamily }: any) {
   return (
@@ -701,23 +841,28 @@ const styles = StyleSheet.create({
   },
   backTranslation: { textAlign: 'center', marginBottom: 2 },
   backDivider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
-  backChipsRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-    justifyContent: 'center', alignItems: 'center',
-    paddingVertical: Spacing.xs,
-  },
-  backChip: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  backChipText: { fontSize: 13, letterSpacing: 0.3 },
-  backOutlineChip: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
-  backOutlineChipText: { fontSize: 13 },
-  backLevelPill: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  backLevelText: { fontSize: 13, letterSpacing: 0.5 },
   backExplanation: { lineHeight: 22, textAlign: 'center' },
-  pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7 },
+  pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7, marginTop: 4 },
   backBlockquote: { borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 8, marginTop: Spacing.sm },
   backBlockquoteText: { lineHeight: 20 },
   tipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start', marginTop: Spacing.xs },
   tipText: { flex: 1, fontSize: 11, lineHeight: 17 },
+
+  // Grammar tags — dot-separated plain text
+  grammarTags: { fontSize: 13, textAlign: 'center', letterSpacing: 0.2, paddingVertical: Spacing.xs },
+
+  // Forms plain list
+  formsList: { marginBottom: 4 },
+  formsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth },
+  formsRowLabel: { fontSize: 13, fontStyle: 'italic' },
+  formsRowValue: { fontSize: 15 },
+
+  // Three-column declension layout
+  declRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
+  declCaseCol: { flex: 1.2 },
+  declCaseLabel: { flex: 1.2, fontSize: 12 },
+  declColHeader: { flex: 1, fontSize: 10, letterSpacing: 1, textAlign: 'right' },
+  declValue: { flex: 1, fontSize: 13, textAlign: 'right' },
 
   // Verb tense nav (matches WordPopup design)
   tenseSectionCenter: { alignItems: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
@@ -772,10 +917,3 @@ const styles = StyleSheet.create({
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });
 
-const vStyles = StyleSheet.create({
-  wrap: { marginTop: Spacing.xs },
-  title: { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 3, textAlign: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: StyleSheet.hairlineWidth },
-  pronoun: { fontSize: 12 },
-  form: { fontSize: 12 },
-});

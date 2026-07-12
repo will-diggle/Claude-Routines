@@ -247,7 +247,7 @@ export function PracticeScreen() {
               activeOpacity={0.7}
             >
               <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
-                Practise →
+                Practice →
               </Text>
             </TouchableOpacity>
           </View>
@@ -300,7 +300,7 @@ export function PracticeScreen() {
       <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
         <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
         <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-          {selectedLang !== 'all' ? `Practise · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
+          {selectedLang !== 'all' ? `Practice · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
         </Text>
         {GAMES.map((game) => (
           <TouchableOpacity

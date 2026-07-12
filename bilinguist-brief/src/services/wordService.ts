@@ -19,6 +19,8 @@ export interface WordEntry {
   pronunciation: string | null;
   /** All tenses in display order. If present, overrides verbTable/verbTablePast. */
   tenses: TenseTable[] | null;
+  /** Declension/inflection tables for nouns, adjectives, adverbs. */
+  declensions: TenseTable[] | null;
   /** Present tense (backward compat — use tenses when available). */
   verbTable: Record<string, string> | null;
   /** Primary past tense (backward compat — use tenses when available). */
@@ -38,19 +40,25 @@ export async function lookupWord(
   word: string,
   language: LanguageCode,
   level: LanguageLevel,
+  options?: { forceRefresh?: boolean; sentence?: string },
 ): Promise<WordEntry | null> {
   const cacheKey = `${word.toLowerCase()}:${language}:${level}`;
-  const cached = lookupCache.get(cacheKey);
-  if (cached) return cached;
+  if (!options?.forceRefresh) {
+    const cached = lookupCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
-  const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`;
+  const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`
+    + (options?.sentence ? `&ctx=${encodeURIComponent(options.sentence)}` : '');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     const entry = await res.json() as WordEntry;
-    lookupCache.set(cacheKey, entry);
+    // Don't cache verbs that came back without full tenses — next lookup will backfill via worker
+    const isIncompleteVerb = entry.wordType === 'verb' && (!entry.tenses || entry.tenses.length < 3);
+    if (!isIncompleteVerb) lookupCache.set(cacheKey, entry);
     return entry;
   } catch {
     return null;

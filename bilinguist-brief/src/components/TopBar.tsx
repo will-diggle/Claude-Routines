@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../hooks/useTheme';
 import type { BackgroundKey } from '../theme';
 
@@ -37,6 +38,7 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 export function TopBar({ routeName }: Props) {
   const insets = useSafeAreaInsets();
   const { colors, fontFamily, isNight, background } = useTheme();
+  const navigation = useNavigation<any>();
   const isBriefing = routeName === 'Briefing';
   const dateStr = new Date().toLocaleDateString('en-GB', DATE_OPTIONS).toUpperCase();
   const imageStyle = isNight ? { opacity: 0.85 } : undefined;
@@ -90,11 +92,17 @@ export function TopBar({ routeName }: Props) {
   const bg = (background as BackgroundKey) in MASTHEADS ? (background as BackgroundKey) : 'cream';
   return (
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
-      <Image
-        source={MASTHEADS[bg]}
-        style={[styles.compactLockup, imageStyle]}
-        resizeMode="contain"
-      />
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('Briefing')}
+        hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+      >
+        <Image
+          source={MASTHEADS[bg]}
+          style={[styles.compactLockup, imageStyle]}
+          resizeMode="contain"
+        />
+      </TouchableOpacity>
       <View style={[styles.compactRule, { backgroundColor: colors.borderLight }]} />
     </View>
   );

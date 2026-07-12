@@ -57,6 +57,15 @@ function buildQuestions(words: SavedWord[]): Question[] {
   });
 }
 
+// Shared card shadow style — matches Flashcard / word detail tiles
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.11,
+  shadowRadius: 10,
+  elevation: 6,
+} as const;
+
 export function MultipleChoiceScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
@@ -133,7 +142,7 @@ export function MultipleChoiceScreen() {
             style={[styles.doneButton, { backgroundColor: colors.accentRed }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practice</Text>
+            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -160,10 +169,11 @@ export function MultipleChoiceScreen() {
   }
 
   function optionStyle(i: number) {
-    if (selected === null) return [styles.option, { borderColor: colors.borderMid, backgroundColor: colors.card }];
-    if (i === q.correctIndex) return [styles.option, { borderColor: '#43A047', backgroundColor: '#43A04715' }];
-    if (i === selected && selected !== q.correctIndex) return [styles.option, { borderColor: '#E53935', backgroundColor: '#E5393515' }];
-    return [styles.option, { borderColor: colors.borderLight, backgroundColor: colors.card, opacity: 0.5 }];
+    const base = [styles.option, { backgroundColor: colors.card, borderColor: colors.borderLight }] as any[];
+    if (selected === null) return base;
+    if (i === q.correctIndex) return [...base, { borderColor: '#43A047', backgroundColor: '#43A04715', borderWidth: 1.5 }];
+    if (i === selected && selected !== q.correctIndex) return [...base, { borderColor: '#E53935', backgroundColor: '#E5393515', borderWidth: 1.5 }];
+    return [...base, { opacity: 0.42 }];
   }
 
   return (
@@ -171,14 +181,11 @@ export function MultipleChoiceScreen() {
       <GameHeader title="Multiple Choice" current={index + 1} total={questions.length} />
 
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        {/* Question tile — grows to fill available space */}
         <View style={[styles.questionBox, {
           backgroundColor: colors.card,
           borderColor: colors.borderLight,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 4,
+          ...CARD_SHADOW,
         }]}>
           <Text style={[styles.questionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             What is the meaning of
@@ -189,20 +196,37 @@ export function MultipleChoiceScreen() {
             </Text>
             <WordAudioButton word={q.word.word} language={q.word.language as LanguageCode} size="sm" />
           </View>
-          <Text style={[styles.questionLang, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+          <Text style={[styles.questionLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
             {q.word.language.toUpperCase()}
           </Text>
         </View>
 
+        {/* Options */}
         <View style={styles.options}>
           {q.options.map((opt, i) => (
-            <TouchableOpacity key={i} style={optionStyle(i)} onPress={() => handleSelect(i)}>
-              <Text style={[styles.optionLetter, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            <TouchableOpacity
+              key={i}
+              style={optionStyle(i)}
+              onPress={() => handleSelect(i)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.optionLetter, {
+                color: selected !== null && i === q.correctIndex ? '#43A047'
+                  : selected !== null && i === selected ? '#E53935'
+                  : colors.accentRed,
+                fontFamily: fontFamily.bold,
+              }]}>
                 {['A', 'B', 'C', 'D'][i]}
               </Text>
               <Text style={[styles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                 {opt}
               </Text>
+              {selected !== null && i === q.correctIndex && (
+                <Ionicons name="checkmark-circle" size={18} color="#43A047" />
+              )}
+              {selected !== null && i === selected && selected !== q.correctIndex && (
+                <Ionicons name="close-circle" size={18} color="#E53935" />
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -211,6 +235,7 @@ export function MultipleChoiceScreen() {
           <TouchableOpacity
             style={[styles.nextButton, { backgroundColor: colors.accentRed }]}
             onPress={handleNext}
+            activeOpacity={0.8}
           >
             <Text style={[styles.nextButtonText, { fontFamily: fontFamily.regular }]}>
               {index + 1 >= questions.length ? 'Finish' : 'Next'}
@@ -226,39 +251,63 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
-  content: { flex: 1, paddingHorizontal: Spacing.md, paddingTop: Spacing.lg, gap: Spacing.md },
-  questionBox: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.xs,
+
+  // Full-screen layout: column with question box growing + options pinned to bottom
+  content: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    gap: Spacing.md,
   },
-  questionLabel: { fontSize: 13 },
-  questionWordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+
+  questionBox: {
+    flex: 1,                         // ← fills available vertical space
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',        // centre content vertically in the tall box
+    gap: Spacing.sm,
+  },
+  questionLabel: { fontSize: 13, letterSpacing: 0.2 },
+  questionWordRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: Spacing.sm },
   questionWord: { lineHeight: 44, textAlign: 'center' },
   questionLang: { fontSize: 11, letterSpacing: 1.5 },
+
   options: { gap: Spacing.sm },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: Spacing.md,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.md,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.09,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  optionLetter: { fontSize: 13, width: 20, textAlign: 'center' },
+  optionLetter: { fontSize: 13, width: 22, textAlign: 'center' },
   optionText: { flex: 1, lineHeight: 22 },
-  nextButton: { borderRadius: 8, padding: 14, alignItems: 'center', marginTop: Spacing.sm },
+
+  nextButton: {
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
+  },
   nextButtonText: { color: '#FFF', fontSize: 16 },
+
   doneTitle: { textAlign: 'center' },
   streakText: { fontSize: 20 },
-  doneButton: { borderRadius: 8, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
+  doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });

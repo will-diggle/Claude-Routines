@@ -16,7 +16,7 @@ interface Props {
 
 export function GameHeader({ title, current, total, onSettingsPress }: Props) {
   const navigation = useNavigation();
-  const { colors, fontFamily } = useTheme();
+  const { colors, fontFamily, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   const progress = total > 0 ? current / total : 0;
@@ -26,7 +26,7 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
       <View style={styles.row}>
         {/* X — left glass button */}
         <GlassButton onPress={() => navigation.goBack()} size={40}>
-          <Ionicons name="close" size={22} color={colors.inkMid} />
+          <Ionicons name="chevron-back" size={24} color={isDark ? colors.bg : colors.inkMid} />
         </GlassButton>
 
         {/* Progress bar — center */}
@@ -42,7 +42,7 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
         {/* Settings gear — right glass button (or counter when no settings) */}
         {onSettingsPress ? (
           <GlassButton onPress={onSettingsPress} size={40}>
-            <Ionicons name="settings-outline" size={20} color={colors.inkMid} />
+            <Ionicons name="settings-outline" size={20} color={isDark ? colors.bg : colors.inkMid} />
           </GlassButton>
         ) : (
           <View style={styles.counter}>

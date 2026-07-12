@@ -20,12 +20,43 @@ import type { WordEntry, TenseTable } from '../services/wordService';
 import { verifyTenses } from '../services/wordLookup';
 import { translateWord } from '../services/deepl';
 import { writeBackDictionary } from '../services/dictionaryService';
-import { synthesizeWord, getMonthlyAudioUsage } from '../services/elevenlabs';
-import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
 import { GlassButton } from './GlassButton';
+import { WordAudioButton } from './WordAudioButton';
+
+// Expand abbreviated case labels to full words
+const CASE_EXPAND: Record<string, string> = {
+  NOM: 'Nominative', AKK: 'Accusative', DAT: 'Dative', GEN: 'Genitive',
+  ACC: 'Accusative', LOC: 'Locative', ABL: 'Ablative',
+};
+function expandKey(raw: string): string {
+  const u = raw.toUpperCase().trim();
+  return CASE_EXPAND[u] ?? (raw.charAt(0).toUpperCase() + raw.slice(1));
+}
+
+// If a declension table has "X sg" / "X pl" keys, split into two sub-tables
+type SplitDecl =
+  | { mode: 'split'; singular: Record<string, string>; plural: Record<string, string> }
+  | { mode: 'flat';  table: Record<string, string> };
+
+function splitDeclTable(table: Record<string, string>): SplitDecl {
+  const hasSg = Object.keys(table).some((k) => / sg$/i.test(k));
+  const hasPl = Object.keys(table).some((k) => / pl$/i.test(k));
+  if (hasSg && hasPl) {
+    const singular: Record<string, string> = {};
+    const plural: Record<string, string> = {};
+    for (const [k, v] of Object.entries(table)) {
+      if (/ sg$/i.test(k)) singular[expandKey(k.replace(/ sg$/i, '').trim())] = v;
+      else if (/ pl$/i.test(k)) plural[expandKey(k.replace(/ pl$/i, '').trim())] = v;
+    }
+    return { mode: 'split', singular, plural };
+  }
+  const expanded: Record<string, string> = {};
+  for (const [k, v] of Object.entries(table)) expanded[expandKey(k)] = v;
+  return { mode: 'flat', table: expanded };
+}
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ',
@@ -46,12 +77,14 @@ interface Props {
   level: LanguageLevel;
   genre?: string;
   onClose: () => void;
+  /** When true, shows a back arrow (←) instead of close (✕) — used for nested infinitive popup */
+  isNested?: boolean;
 }
 
-export function WordPopup({ word, lemma, sentence, language, level, genre, onClose }: Props) {
+export function WordPopup({ word, lemma, sentence, language, level, genre, onClose, isNested = false }: Props) {
   const lookupLemma = lemma ?? word ?? '';
 
-  const { colors, fontFamily, fontSize } = useTheme();
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { saveWord, isWordSaved, backfillWord } = useWordBankStore();
   const { isFullAccess } = useSubscriptionStore();
@@ -63,11 +96,15 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   const [saved, setSaved] = useState(false);
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
   const [verifiedTenses, setVerifiedTenses] = useState<TenseTable[] | null>(null);
+  const [activeDeclIdx, setActiveDeclIdx] = useState(0);
+  const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
+  const [nestedWord, setNestedWord] = useState<string | null>(null);
 
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
   // Draggable handle — sheet physically follows finger, springs back or closes
   const dragY = useRef(new Animated.Value(0)).current;
+  const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.45, 0], extrapolate: 'clamp' });
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -93,6 +130,8 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     setIsLoading(true);
     setSaved(false);
     setActiveTenseIdx(0);
+    setActiveDeclIdx(0);
+    setDeclNumber('sg');
     setVerifiedTenses(null);
 
     const currentWord = word;
@@ -106,32 +145,37 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
         if (result?.translation) setQuickTranslation(result.translation);
       }).catch(() => {});
 
-      lookupWord(currentWord, currentLang, level).then((result) => {
-        setEntry(result);
+      lookupWord(currentWord, currentLang, level, { sentence }).then(async (result) => {
+        // If we got a verb back with only legacy 2-tense data, force-refresh to hit the worker backfill
+        let finalResult = result;
+        if (result?.wordType === 'verb' && (!result.tenses || result.tenses.length < 3)) {
+          finalResult = await lookupWord(currentWord, currentLang, level, { forceRefresh: true, sentence }).catch(() => result);
+        }
+        setEntry(finalResult);
         setIsLoading(false);
-        if (result) {
-          writeBackDictionary(currentLemma, currentLang, result).catch(() => {});
+        if (finalResult) {
+          writeBackDictionary(currentLemma, currentLang, finalResult).catch(() => {});
           const stored = useWordBankStore.getState().words.find(
             w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
           );
           if (stored) {
             backfillWord(currentWord, currentLang, {
-              translation:   result.translation ?? undefined,
-              explanation:   result.explanation ?? undefined,
-              lemma:         result.lemma,
-              pronunciation: result.pronunciation,
-              tenses:        result.tenses,
-              verbTable:     result.verbTable,
-              verbTablePast: result.verbTablePast,
-              forms:         result.forms,
-              wordType:      result.wordType,
-              tip:           result.tip,
-              meta:          result.meta,
+              translation:   finalResult.translation ?? undefined,
+              explanation:   finalResult.explanation ?? undefined,
+              lemma:         finalResult.lemma,
+              pronunciation: finalResult.pronunciation,
+              tenses:        finalResult.tenses,
+              verbTable:     finalResult.verbTable,
+              verbTablePast: finalResult.verbTablePast,
+              forms:         finalResult.forms,
+              wordType:      finalResult.wordType,
+              tip:           finalResult.tip,
+              meta:          finalResult.meta,
             });
           }
           // Background verification — show tenses immediately, silently correct if needed
-          if (result.wordType === 'verb' && result.tenses?.length && result.lemma) {
-            verifyTenses(result.tenses, result.lemma, currentLang).then((verified) => {
+          if (finalResult.wordType === 'verb' && finalResult.tenses?.length && finalResult.lemma) {
+            verifyTenses(finalResult.tenses, finalResult.lemma, currentLang).then((verified) => {
               if (verified) setVerifiedTenses(verified);
             }).catch(() => {});
           }
@@ -169,6 +213,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       lemma: entry?.lemma ?? null,
       pronunciation: entry?.pronunciation ?? null,
       tenses: verifiedTenses ?? entry?.tenses ?? null,
+      declensions: entry?.declensions ?? null,
       verbTable: entry?.verbTable ?? null,
       verbTablePast: entry?.verbTablePast ?? null,
       forms: entry?.forms ?? null,
@@ -185,32 +230,27 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   const displayTranslation = entry?.translation ?? quickTranslation;
   const activeTense = tenses[activeTenseIdx] ?? null;
 
-  // Subtitle line: article forms for nouns, variants for adjectives
-  const subtitle = (() => {
-    if (!entry?.wordType) return null;
+  // Subtitle: lemma part (article+lemma for nouns, lemma/infinitive for all others)
+  const subtitleLemma = (() => {
+    if (!entry) return lookupLemma && lookupLemma.toLowerCase() !== word.toLowerCase() ? lookupLemma : null;
     const wt = entry.wordType;
     const f = entry.forms;
     if (wt === 'noun' && f) {
-      const parts: string[] = [];
-      if (f.article && entry.lemma) parts.push(`${f.article} ${entry.lemma}`);
-      else if (entry.lemma) parts.push(entry.lemma);
-      if (f.plural) parts.push(f.plural);
-      return parts.length > 1 ? parts.join(' · ') : null;
+      if (f.article && entry.lemma) return `${f.article} ${entry.lemma}`;
     }
-    if (wt === 'adjective' && f) {
-      const parts: string[] = [entry.lemma ?? word];
-      if (f.feminine) parts.push(f.feminine);
-      if (f.comparative) parts.push(f.comparative);
-      return parts.length > 1 ? parts.join(' · ') : null;
-    }
+    const lemma = entry.lemma ?? lookupLemma;
+    if (lemma && lemma.toLowerCase() !== word.toLowerCase()) return lemma;
     return null;
   })();
+  const subtitle = subtitleLemma
+    ? (entry?.pronunciation ? `${subtitleLemma}  ·  ${entry.pronunciation}` : subtitleLemma)
+    : (entry?.pronunciation ? entry.pronunciation : null);
 
-  const showLemmaFallback = !subtitle && lookupLemma && lookupLemma.toLowerCase() !== word.toLowerCase();
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      {/* Single bg container — corners of sheet blend into same overlay colour */}
+      {/* Dimming overlay — fades out as sheet drags down */}
+      <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', opacity: overlayOpacity }]} pointerEvents="none" />
       <View style={styles.modalContainer}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
 
@@ -226,35 +266,52 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
           </View>
 
-          {/* Word row: word (flex:1) · 🔊 · /IPA/ · ✕ */}
+          {/* Word row: [← back (nested only)] · [mirror·word·🔊 centred] · [✕ close] */}
           <View style={styles.wordRow}>
-            <Text
-              style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {word}
-            </Text>
-            <View style={styles.wordRight}>
-              {AUDIO_LANGUAGES_POPUP.includes(language) && (
-                <AudioButton word={word} language={language} level={level} genre={genre} compact />
-              )}
-              {entry?.pronunciation && (
-                <Text style={[styles.ipaInline, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  /{entry.pronunciation}/
-                </Text>
-              )}
+            {isNested ? (
               <GlassButton onPress={onClose} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={20} color={colors.inkMid} />
+                <Ionicons name="arrow-back" size={20} color={isDark ? colors.bg : colors.inkMid} />
               </GlassButton>
+            ) : (
+              <View style={styles.wordStub} />
+            )}
+            <View style={styles.wordCenterZone}>
+              <View style={styles.wordSpeakerMirror} />
+              <Text
+                style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {word}
+              </Text>
+              <WordAudioButton word={word} language={language} size="md" />
             </View>
+            {isNested ? (
+              <View style={styles.wordStub} />
+            ) : (
+              <GlassButton onPress={onClose} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={20} color={isDark ? colors.bg : colors.inkMid} />
+              </GlassButton>
+            )}
           </View>
 
-        {/* Subtitle: article/lemma variants */}
-        {(subtitle || showLemmaFallback) && (
-          <Text style={[styles.subtitle, { color: colors.accentRed, fontFamily: fontFamily.italic }]}>
-            {subtitle ?? `← ${lookupLemma}`}
-          </Text>
+        {/* Subtitle: lemma · /IPA/ — tappable if it's the infinitive/lemma (not just IPA) */}
+        {subtitle && (
+          subtitleLemma && !isNested ? (
+            <TouchableOpacity
+              onPress={() => setNestedWord(subtitleLemma)}
+              activeOpacity={0.6}
+              hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+            >
+              <Text style={[styles.subtitle, styles.subtitleTappable, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                {subtitle}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.subtitle, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+              {subtitle}
+            </Text>
+          )
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
@@ -276,70 +333,36 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-        {/* Grammar chips + level pill on the same row */}
+        {/* Grammar tags — dot-separated: word type in red, rest in inkFaint */}
         {entry?.wordType && (
           <View style={styles.chipsRow}>
-            <View style={[styles.chipFilled, { backgroundColor: colors.accentRed }]}>
-              <Text style={[styles.chipFilledText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
-                {entry.wordType.charAt(0).toUpperCase() + entry.wordType.slice(1)}
-              </Text>
-            </View>
-            {entry.wordType === 'noun' && entry.forms?.gender && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {entry.forms.gender.charAt(0).toUpperCase() + entry.forms.gender.slice(1)}
-                </Text>
-              </View>
-            )}
-            {entry.wordType === 'verb' && entry.meta?.isRegular === true && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Regular</Text>
-              </View>
-            )}
-            {entry.wordType === 'verb' && entry.meta?.isRegular === false && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Irregular</Text>
-              </View>
-            )}
-            {entry.wordType === 'verb' && entry.meta?.auxiliary && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {entry.meta.auxiliary as string}
-                </Text>
-              </View>
-            )}
-            {entry.wordType === 'verb' && entry.meta?.isSeparable && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Separable</Text>
-              </View>
-            )}
-            {entry.meta?.verbClass && (
-              <View style={[styles.chipOutline, { borderColor: colors.inkFaint }]}>
-                <Text style={[styles.chipOutlineText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {entry.meta.verbClass as string}
-                </Text>
-              </View>
-            )}
-            {/* Level pill on same row as grammar chips */}
-            {entry?.level && (
-              <View style={[styles.levelBadge, { borderColor: colors.accentRed }]}>
-                <Text style={[styles.levelText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
-                  {entry.level}
-                </Text>
-              </View>
-            )}
+            <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+              {[
+                entry.wordType.charAt(0).toUpperCase() + entry.wordType.slice(1),
+                entry.wordType === 'noun' && entry.forms?.gender
+                  ? entry.forms.gender.charAt(0).toUpperCase() + entry.forms.gender.slice(1)
+                  : null,
+                entry.wordType === 'verb' && entry.meta?.isRegular === true  ? 'Regular'   : null,
+                entry.wordType === 'verb' && entry.meta?.isRegular === false ? 'Irregular' : null,
+                entry.wordType === 'verb' && entry.meta?.auxiliary ? entry.meta.auxiliary as string : null,
+                entry.wordType === 'verb' && entry.meta?.isSeparable ? 'Separable' : null,
+                entry.meta?.verbClass ? entry.meta.verbClass as string : null,
+                entry.level ?? null,
+              ].filter(Boolean).join('  ·  ')}
+            </Text>
           </View>
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+        {/* Loading spinner — above scroll area so it's always visible */}
+        {isLoading && !entry && (
+          <View style={styles.loadingBody}>
+            <ActivityIndicator size="small" color={colors.inkFaint} />
+          </View>
+        )}
 
-          {isLoading && !entry && (
-            <View style={styles.loadingBody}>
-              <ActivityIndicator size="small" color={colors.inkFaint} />
-            </View>
-          )}
+        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
 
           {/* Explanation */}
           {entry?.explanation && (
@@ -348,15 +371,27 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             </Text>
           )}
 
-          {/* Forms grid — nouns / adjectives / adverbs / other */}
+          {/* Example sentence — directly under definition */}
+          {entry?.example && (
+            <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
+              <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
+                „{entry.example}"
+              </Text>
+            </View>
+          )}
+
+          {/* Forms — plain rows with centered header */}
           {entry?.forms && Object.keys(entry.forms).length > 0 && (
-            <View style={styles.formsGrid}>
+            <View style={styles.formsList}>
+              <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginBottom: 4 }]}>
+                FORMS
+              </Text>
               {Object.entries(entry.forms).map(([key, value]) => (
-                <View key={key} style={[styles.formBox, { backgroundColor: colors.borderLight }]}>
-                  <Text style={[styles.formBoxLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    {key.replace(/_/g, ' ').toUpperCase()}
+                <View key={key} style={[styles.formsRow, { borderTopColor: colors.borderLight }]}>
+                  <Text style={[styles.formsRowLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {key.replace(/_/g, ' ')}
                   </Text>
-                  <Text style={[styles.formBoxValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  <Text style={[styles.formsRowValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                     {String(value)}
                   </Text>
                 </View>
@@ -364,13 +399,120 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             </View>
           )}
 
-          {/* Example — blockquote (moved ABOVE verb tenses) */}
-          {entry?.example && (
-            <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
-              <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: fontSize.body }]}>
-                „{entry.example}"
-              </Text>
-            </View>
+          {/* Declension / inflection table — nouns, adjectives, adverbs */}
+          {entry?.declensions && entry.declensions.length > 0 && (() => {
+            const allDecl = entry.declensions;
+            const activeDecl = allDecl[activeDeclIdx];
+            if (!activeDecl) return null;
+            const split = splitDeclTable(activeDecl.table);
+
+            // Three-column layout when sg+pl fit — fall back to arrow nav if any value > 13 chars
+            const INLINE_THRESHOLD = 13;
+            const useInline = split.mode === 'split' && [
+              ...Object.values(split.singular),
+              ...Object.values(split.plural),
+            ].every(v => v.length <= INLINE_THRESHOLD);
+
+            const sectionLabel = split.mode === 'split' ? activeDecl.label : 'FORMS';
+
+            if (useInline) {
+              const caseKeys = Object.keys(split.singular);
+              return (
+                <>
+                  <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, textAlign: 'center', marginTop: Spacing.sm, marginBottom: 4 }]}>
+                    {sectionLabel}
+                  </Text>
+                  {/* Header row */}
+                  <View style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                    <View style={styles.declCaseCol} />
+                    <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>SG</Text>
+                    <Text style={[styles.declColHeader, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>PL</Text>
+                  </View>
+                  {caseKeys.map((caseKey) => (
+                    <View key={caseKey} style={[styles.declRow, { borderTopColor: colors.borderLight }]}>
+                      <Text style={[styles.declCaseLabel, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{caseKey}</Text>
+                      <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.singular[caseKey] ?? '—'}</Text>
+                      <Text style={[styles.declValue, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{split.plural[caseKey] ?? '—'}</Text>
+                    </View>
+                  ))}
+                </>
+              );
+            }
+
+            // Arrow nav fallback for long words
+            const rows = split.mode === 'split'
+              ? (declNumber === 'sg' ? split.singular : split.plural)
+              : split.table;
+            const navLabel = split.mode === 'split'
+              ? (declNumber === 'sg' ? 'SINGULAR' : 'PLURAL')
+              : activeDecl.label;
+            return (
+              <>
+                <View style={styles.tenseSectionCenter}>
+                  <Text style={[styles.tenseSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {sectionLabel}
+                  </Text>
+                  <View style={styles.tenseNav}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (split.mode === 'split' && declNumber === 'pl') { setDeclNumber('sg'); }
+                        else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
+                      }}
+                      disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
+                      style={[styles.tenseNavBtn, {
+                        backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                          ? colors.borderLight : colors.borderMid,
+                      }]}
+                    >
+                      <Ionicons name="chevron-back" size={16} color={
+                        (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
+                          ? colors.borderMid : colors.inkDark
+                      } />
+                    </TouchableOpacity>
+                    <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                      {navLabel}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (split.mode === 'split' && declNumber === 'sg') { setDeclNumber('pl'); }
+                        else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
+                      }}
+                      disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
+                      style={[styles.tenseNavBtn, {
+                        backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                          ? colors.borderLight : colors.borderMid,
+                      }]}
+                    >
+                      <Ionicons name="chevron-forward" size={16} color={
+                        (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
+                          ? colors.borderMid : colors.inkDark
+                      } />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {Object.entries(rows).map(([key, value]) => (
+                  <View key={key} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
+                    <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{key}</Text>
+                    <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{value}</Text>
+                  </View>
+                ))}
+              </>
+            );
+          })()}
+
+          {/* Infinitive row — tappable when the lemma differs from tapped word */}
+          {tenses.length > 0 && subtitleLemma && !isNested && (
+            <TouchableOpacity
+              onPress={() => setNestedWord(subtitleLemma)}
+              activeOpacity={0.6}
+              style={[styles.conjRow, { borderTopColor: colors.borderLight }]}
+            >
+              <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>Infinitive</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{subtitleLemma}</Text>
+                <Ionicons name="chevron-forward" size={12} color={colors.accentRed} />
+              </View>
+            </TouchableOpacity>
           )}
 
           {/* Verb tenses — circular nav with CENTERED tense title */}
@@ -456,126 +598,27 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           </TouchableOpacity>
         </Animated.View>
       </View>
+
+      {/* Nested popup for the infinitive/lemma — opens on top of this sheet */}
+      {nestedWord && !isNested && (
+        <WordPopup
+          word={nestedWord}
+          lemma={nestedWord}
+          sentence={word ?? ''}
+          language={language}
+          level={level}
+          genre={genre}
+          isNested
+          onClose={() => setNestedWord(null)}
+        />
+      )}
     </Modal>
   );
 }
 
-const AUDIO_LANGUAGES_POPUP: LanguageCode[] = ['fr', 'en', 'de', 'sv', 'it', 'es', 'tr'];
-
-function AudioButton({ word, language, level, genre, compact }: { word: string; language: LanguageCode; level: LanguageLevel; genre?: string; compact?: boolean }) {
-  const { colors, fontFamily } = useTheme();
-  const { state, play, stop } = useAudioPlayer();
-  const [capInfo, setCapInfo] = React.useState<{ remaining: number; limit: number } | null>(null);
-  const [capReached, setCapReached] = React.useState(false);
-
-  React.useEffect(() => {
-    getMonthlyAudioUsage().then((u) => {
-      setCapInfo({ remaining: u.remaining, limit: u.limit });
-      setCapReached(u.remaining <= 0);
-    }).catch(() => {});
-  }, []);
-
-  if (!AUDIO_LANGUAGES_POPUP.includes(language)) return null;
-
-  async function handlePress() {
-    try {
-      if (state === 'playing') { await stop(); return; }
-      if (state === 'loading' || capReached) return;
-      const result = await synthesizeWord(word, language);
-      if (result.ok) {
-        analytics.trackAudioPlayed(word, language);
-        getMonthlyAudioUsage().then((u) => {
-          setCapInfo({ remaining: u.remaining, limit: u.limit });
-          setCapReached(u.remaining <= 0);
-        }).catch(() => {});
-        await play(result.audioUri);
-      } else if (result.reason === 'cap_reached') {
-        setCapReached(true);
-      }
-    } catch {}
-  }
-
-  const isLoading = state === 'loading';
-  const isPlaying = state === 'playing';
-  const disabled  = capReached || isLoading;
-
-  if (compact) {
-    return (
-      <TouchableOpacity
-        onPress={handlePress}
-        disabled={disabled}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={{ opacity: disabled ? 0.4 : 1 }}
-        activeOpacity={0.7}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={colors.inkFaint} />
-        ) : (
-          <Ionicons
-            name={isPlaying ? 'stop-circle-outline' : 'volume-high-outline'}
-            size={24}
-            color={capReached ? colors.inkFaint : colors.inkMid}
-          />
-        )}
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <View style={audioStyles.row}>
-      <TouchableOpacity
-        onPress={handlePress}
-        disabled={disabled}
-        style={[
-          audioStyles.button,
-          { borderColor: colors.borderMid },
-          disabled && audioStyles.buttonDisabled,
-        ]}
-        activeOpacity={0.7}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={colors.inkFaint} />
-        ) : (
-          <Ionicons
-            name={isPlaying ? 'stop-circle-outline' : 'volume-high-outline'}
-            size={18}
-            color={capReached ? colors.inkFaint : colors.inkMid}
-          />
-        )}
-        <Text
-          style={[
-            audioStyles.label,
-            { color: capReached ? colors.inkFaint : colors.inkMid, fontFamily: fontFamily.regular },
-          ]}
-        >
-          {capReached ? 'Monthly limit reached' : isPlaying ? 'Stop' : 'Hear pronunciation'}
-        </Text>
-      </TouchableOpacity>
-
-      {capInfo && !capReached && (
-        <Text style={[audioStyles.usage, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-          {capInfo.remaining} / {capInfo.limit} plays left today
-        </Text>
-      )}
-    </View>
-  );
-}
-
-const audioStyles = StyleSheet.create({
-  row: { width: '100%', gap: 6, marginBottom: 12 },
-  button: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: StyleSheet.hairlineWidth, borderRadius: 8,
-    paddingVertical: 10, paddingHorizontal: 14,
-  },
-  buttonDisabled: { opacity: 0.45 },
-  label: { fontSize: 14 },
-  usage: { fontSize: 11, paddingLeft: 2 },
-});
 
 const styles = StyleSheet.create({
-  // The overlay colour is the container background so rounded corners blend in
-  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalContainer: { flex: 1 },
   sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%' },
 
   // Handle + drag area — wider hit target so it's easy to grab
@@ -590,55 +633,39 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
     gap: 8,
   },
-  wordText: { fontSize: 34, flex: 1 },
-  wordRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
-  ipaInline: { fontSize: 13, letterSpacing: 0.5 },
+  wordStub: { width: 36 },
+  wordCenterZone: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  wordSpeakerMirror: { width: 34 },
+  wordText: { fontSize: 34, flexShrink: 1 },
 
-  subtitle: { fontSize: 15, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  subtitle: { fontSize: 14, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
+  subtitleTappable: { textDecorationLine: 'underline' },
 
   // Dividers
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: Spacing.sm },
 
   // Translation block (above chips)
-  translationBlock: { alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
+  translationBlock: { alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
   translationLarge: { fontSize: 26, textAlign: 'center' },
   translationError: { fontSize: 14, textAlign: 'center' },
 
-  // Chips row (grammar + level pill)
+  // Grammar tags — dot-separated plain text row
   chipsRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs,
-    justifyContent: 'center',
   },
-  chipFilled: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  chipFilledText: { fontSize: 13, letterSpacing: 0.3 },
-  chipOutline: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
-  chipOutlineText: { fontSize: 13 },
-  levelBadge: {
-    height: 32, minWidth: 32, paddingHorizontal: 10,
-    borderRadius: 16, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  levelText: { fontSize: 12, letterSpacing: 0.5 },
+  grammarTags: { fontSize: 13, textAlign: 'center', letterSpacing: 0.2 },
 
   // Scroll body
-  scrollArea: { paddingHorizontal: Spacing.lg },
+  scrollArea: { paddingHorizontal: Spacing.lg, minHeight: 80 },
   loadingBody: { paddingVertical: Spacing.xl, alignItems: 'center' },
   explanationCentered: { lineHeight: 24, textAlign: 'center', paddingVertical: Spacing.sm },
 
-  // Forms grid
-  formsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Spacing.md },
-  formBox: {
-    width: '47.5%',
-    borderRadius: 10, padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  formBoxLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 8 },
-  formBoxValue: { fontSize: 18 },
+  // Forms plain list
+  formsList: { marginBottom: 4 },
+  formsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth },
+  formsRowLabel: { fontSize: 13, fontStyle: 'italic' },
+  formsRowValue: { fontSize: 15 },
 
   // Blockquote example (now above verb tenses)
   blockquote: { borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 10, marginTop: Spacing.sm, marginBottom: Spacing.xs },
@@ -647,15 +674,21 @@ const styles = StyleSheet.create({
   // Verb tenses — centered layout
   tenseSectionCenter: {
     alignItems: 'center',
-    marginTop: Spacing.md, marginBottom: Spacing.xs,
+    marginTop: Spacing.sm, marginBottom: Spacing.xs,
   },
   tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
-  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  tenseNavBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  tenseLabel: { fontSize: 11, letterSpacing: 1, minWidth: 110, textAlign: 'center' },
+  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tenseNavBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  tenseLabel: { fontSize: 11, letterSpacing: 1, width: 160, textAlign: 'center' },
   conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
   conjForm: { fontSize: 13, flex: 1, textAlign: 'right' },
+  // Three-column declension layout
+  declRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
+  declCaseCol: { flex: 1.2 },
+  declCaseLabel: { flex: 1.2, fontSize: 12 },
+  declColHeader: { flex: 1, fontSize: 10, letterSpacing: 1, textAlign: 'right' },
+  declValue: { flex: 1, fontSize: 13, textAlign: 'right' },
 
   // Tip box
   tipBox: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 14, marginTop: Spacing.sm, marginBottom: Spacing.md },

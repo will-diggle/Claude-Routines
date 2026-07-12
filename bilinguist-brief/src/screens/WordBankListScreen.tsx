@@ -90,7 +90,7 @@ export function WordBankListScreen() {
             activeOpacity={0.7}
           >
             <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
-              Practise →
+              Practice →
             </Text>
           </TouchableOpacity>
         ) : (
@@ -232,8 +232,8 @@ export function WordBankListScreen() {
           <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
           <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             {selectedLang !== 'all'
-              ? `Practise · ${PILE_LABEL[selectedPile]} · ${selectedLang.toUpperCase()}`
-              : `Practise · ${PILE_LABEL[selectedPile]}`}
+              ? `Practice · ${PILE_LABEL[selectedPile]} · ${selectedLang.toUpperCase()}`
+              : `Practice · ${PILE_LABEL[selectedPile]}`}
           </Text>
           {GAMES.map((game) => (
             <TouchableOpacity

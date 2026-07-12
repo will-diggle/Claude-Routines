@@ -55,6 +55,39 @@ export function findWordPosition(
   return null;
 }
 
+/**
+ * Find the occurrence of `targetToken` in headline+body that is CLOSEST to
+ * `nearPosition`. Needed for separable verb particles like "ein" or "an" which
+ * may appear many times in an article as prepositions or articles — we want the
+ * instance in the same sentence as the tapped verb, not the first in the file.
+ */
+export function findWordPositionNear(
+  headline: string,
+  body: string,
+  targetToken: string,
+  headlineWordCount: number,
+  nearPosition: number,
+): number | null {
+  const lower = targetToken.toLowerCase();
+  const candidates: number[] = [];
+
+  for (const token of tokenise(headline)) {
+    if (token.isWord && token.text.toLowerCase() === lower) {
+      candidates.push(token.wordIndex);
+    }
+  }
+  for (const token of tokenise(body)) {
+    if (token.isWord && token.text.toLowerCase() === lower) {
+      candidates.push(token.wordIndex + headlineWordCount);
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, pos) =>
+    Math.abs(pos - nearPosition) < Math.abs(best - nearPosition) ? pos : best
+  );
+}
+
 export function findContainingSentence(text: string, word: string): string {
   const sentences = text.split(/(?<=[.!?»])\s+/);
   const hit = sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()));

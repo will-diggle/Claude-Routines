@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { FlagCircle } from '../components/FlagCircle';
+import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
+
 
 // Length picker labels localised to each target language
 const LENGTH_LABELS: Record<string, readonly [string, string]> = {
@@ -32,19 +33,22 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Animated,
+  Easing,
   LayoutAnimation,
+  KeyboardAvoidingView,
+  PanResponder,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 import { DraggableList } from '../components/DraggableList';
-import { useSettingsStore, LanguageLevel, type ReadLength } from '../store/useSettingsStore';
+import { useSettingsStore, LanguageLevel, langDisplayCode, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
-import { scheduleAllNotifications, schedulePracticeNotification, PIPELINE_READY_TIME } from '../services/notifications';
+import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, PIPELINE_READY_TIME } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
 import { getTodayFactbase } from '../services/factbase';
 import {
@@ -64,12 +68,12 @@ import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
 import { useShallow } from 'zustand/react/shallow';
-// expo-dynamic-app-icon is not available in Expo Go — lazy require so it fails
+// expo-alternate-app-icons is not available in Expo Go — lazy require so it fails
 // gracefully rather than crashing the whole module on load.
-let setNativeAppIcon: (icon: string) => void = () => {};
+let setNativeAppIcon: (icon: string | null) => Promise<void> = async () => {};
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  setNativeAppIcon = require('expo-dynamic-app-icon').setAppIcon;
+  setNativeAppIcon = require('expo-alternate-app-icons').setAlternateAppIcon;
 } catch { /* not available in Expo Go */ }
 import * as analytics from '../services/analytics';
 
@@ -77,11 +81,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 function applyNativeIcon(name: string | null) {
-  try {
-    setNativeAppIcon(name ?? '');
-  } catch {
-    // Silently ignore — icon stays unchanged if native call fails
-  }
+  setNativeAppIcon(name).catch(() => {});
 }
 
 const APP_ICONS: { name: string | null; label: string; image: ReturnType<typeof require> }[] = [
@@ -274,36 +274,47 @@ interface LangCardProps {
   onToggle: () => void;
   onSetLength: (val: 'short' | 'longer') => void;
   onPressLevel: () => void;
+  isDraggable?: boolean;
 }
 
-function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel }: LangCardProps) {
-  const expandAnim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
+function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, isDraggable = true }: LangCardProps) {
+  const anim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
   const [expandedHeight, setExpandedHeight] = useState(0);
 
   useEffect(() => {
-    Animated.spring(expandAnim, {
+    Animated.timing(anim, {
       toValue: lang.active ? 1 : 0,
+      duration: 240,
+      easing: Easing.inOut(Easing.ease),
       useNativeDriver: false,
-      tension: 90,
-      friction: 16,
     }).start();
   }, [lang.active]);
 
   const langLabels = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en);
 
+  // Derive opacity and shadow from the same animated value — no separate re-render flash
+  const cardOpacity      = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
+  const cardShadowOp     = anim.interpolate({ inputRange: [0, 1], outputRange: [0.07, 0.12] });
+  const cardElevation    = anim.interpolate({ inputRange: [0, 1], outputRange: [3, 5] });
+
   return (
-    <View style={[lcStyles.card, {
+    <Animated.View style={[lcStyles.card, {
       backgroundColor: colors.card,
       borderColor: colors.borderLight,
-      opacity: lang.active ? 1 : 0.45,
+      opacity: cardOpacity,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: lang.active ? 4 : 2 },
-      shadowOpacity: lang.active ? 0.12 : 0.07,
-      shadowRadius: lang.active ? 8 : 5,
-      elevation: lang.active ? 5 : 3,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: cardShadowOp,
+      shadowRadius: 8,
+      elevation: cardElevation,
     }]}>
       <View style={lcStyles.mainRow}>
-        <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+        <Ionicons
+          name="reorder-three-outline"
+          size={20}
+          color={colors.inkFaint}
+          style={{ marginRight: 4, opacity: isDraggable ? 1 : 0 }}
+        />
         <FlagCircle code={lang.code} size={28} />
         <Text style={[lcStyles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
           {lang.nativeName}
@@ -319,7 +330,7 @@ function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSiz
       {/* Animated expand section — always rendered so onLayout fires */}
       <Animated.View style={{
         height: expandedHeight > 0
-          ? expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, expandedHeight] })
+          ? anim.interpolate({ inputRange: [0, 1], outputRange: [0, expandedHeight] })
           : undefined,
         overflow: 'hidden',
       }}>
@@ -342,11 +353,15 @@ function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSiz
                       paddingVertical: 4,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: active ? colors.inkDark : colors.borderMid,
-                      backgroundColor: active ? colors.inkDark : 'transparent',
+                      borderColor: active
+                        ? (isDark ? colors.inkFaint : colors.inkDark)
+                        : colors.borderMid,
+                      backgroundColor: active
+                        ? (isDark ? colors.borderMid : colors.inkDark)
+                        : 'transparent',
                     }}
                   >
-                    <Text style={{ fontSize: 12, color: active ? colors.surface : colors.inkLight, fontFamily: fontFamily.regular }}>
+                    <Text style={{ fontSize: 12, color: active ? colors.bg : colors.inkLight, fontFamily: fontFamily.regular }}>
                       {langLabels[i]}
                     </Text>
                   </TouchableOpacity>
@@ -364,7 +379,7 @@ function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSiz
           </TouchableOpacity>
         </View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -412,7 +427,25 @@ export function SettingsScreen() {
 
   // Profile page state
   const [settingsSheetVisible, setSettingsSheetVisible] = useState(false);
-  const [viewAllVisible, setViewAllVisible] = useState(false);
+  const sheetDragY = useRef(new Animated.Value(0)).current;
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) => gs.dy > 8 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy > 0) sheetDragY.setValue(gs.dy);
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 80 || gs.vy > 0.5) {
+          Animated.timing(sheetDragY, { toValue: 600, duration: 200, useNativeDriver: true }).start(() => {
+            sheetDragY.setValue(0);
+            setSettingsSheetVisible(false);
+          });
+        } else {
+          Animated.spring(sheetDragY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
   const [usernameModalVisible, setUsernameModalVisible] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [filterLang, setFilterLang] = useState<string>('all');
@@ -624,9 +657,10 @@ export function SettingsScreen() {
           <DraggableList
             items={store.languages}
             keyExtractor={(lang) => lang.code}
-            itemHeight={64}
+            itemHeight={152}
             onReorder={store.reorderLanguages}
             onDragStateChange={setIsDragging}
+            draggableCount={store.languages.filter((l) => l.active).length}
             renderItem={(lang, index, isAnyDragging) => (
               <LanguageCard
                 lang={lang}
@@ -636,11 +670,18 @@ export function SettingsScreen() {
                 fontFamily={fontFamily}
                 fontSize={fontSize}
                 nativeGradeByLang={nativeGradeByLang}
+                isDraggable={lang.active}
                 onToggle={() => {
                   const wasActive = lang.active;
                   store.toggleLanguage(lang.code);
                   if (wasActive) analytics.trackLanguageRemoved(lang.code);
                   else analytics.trackLanguageSelected(lang.code);
+                  // Reschedule streak reminder so it reflects the new active-language set
+                  const { lastReadDates } = useStreakStore.getState();
+                  const activeLangs = useSettingsStore.getState().languages
+                    .filter((l) => l.active)
+                    .map((l) => ({ code: l.code, name: l.name }));
+                  scheduleStreakReminder(activeLangs, lastReadDates).catch(() => {});
                 }}
                 onSetLength={(val) => {
                   store.setLanguageReadLength(lang.code, val);
@@ -674,6 +715,7 @@ export function SettingsScreen() {
             itemHeight={80}
             onReorder={store.reorderTopics}
             onDragStateChange={setIsDragging}
+            draggableCount={topicItems.filter((t) => !t.comingSoon && store.topics[t.key]).length}
             renderItem={(item) => {
               const isOn = !item.comingSoon && store.topics[item.key];
               return (
@@ -688,7 +730,7 @@ export function SettingsScreen() {
                   elevation: isOn ? 5 : 3,
                 }]}>
                   <View style={lcStyles.mainRow}>
-                    <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4 }} />
+                    <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4, opacity: isOn ? 1 : 0 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body, flex: 0 }]}>
                         {item.label}
@@ -897,7 +939,7 @@ export function SettingsScreen() {
             style={[styles.displayTileOuter, profileStyles.settingsButton, {
               backgroundColor: colors.card,
               borderColor: colors.borderLight,
-              marginBottom: Spacing.lg,
+              marginBottom: Spacing.md,
             }]}
             onPress={() => setSettingsSheetVisible(true)}
           >
@@ -906,6 +948,37 @@ export function SettingsScreen() {
             </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
           </TouchableOpacity>
+
+          {/* Language filter tile — between Account Settings and Daily Streaks */}
+          {Object.keys(readingHistory).some(c => readingHistory[c].length > 0) && (
+            <View style={[styles.displayTileOuter, profileStyles.langFilterTile, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.langFilterContent}>
+                <TouchableOpacity
+                  style={[profileStyles.langFilterChip, filterLang === 'all' && { backgroundColor: colors.inkDark }]}
+                  onPress={() => setFilterLang('all')}
+                  activeOpacity={0.7}
+                >
+                  <GlobeCircle size={18} />
+                  <Text style={[profileStyles.langFilterLabel, { color: filterLang === 'all' ? colors.bg : colors.inkFaint, fontFamily: filterLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {Object.keys(readingHistory).filter(c => readingHistory[c].length > 0).map(code => (
+                  <TouchableOpacity
+                    key={code}
+                    style={[profileStyles.langFilterChip, filterLang === code && { backgroundColor: colors.inkDark }]}
+                    onPress={() => setFilterLang(code)}
+                    activeOpacity={0.7}
+                  >
+                    <FlagCircle code={code} size={18} />
+                    <Text style={[profileStyles.langFilterLabel, { color: filterLang === code ? colors.bg : colors.inkFaint, fontFamily: filterLang === code ? fontFamily.bold : fontFamily.regular }]}>
+                      {langDisplayCode(code)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Daily Streaks tile */}
           <View style={[styles.displayTileOuter, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
@@ -921,13 +994,28 @@ export function SettingsScreen() {
               <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Daily Streaks
               </Text>
-              <TouchableOpacity style={profileStyles.streakRight} onPress={() => { setFilterLang('all'); setViewAllVisible(true); }}>
-                <Text style={[profileStyles.viewAllText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
-                  View All →
-                </Text>
-              </TouchableOpacity>
+              <View style={profileStyles.streakRight}>
+                {filterLang === 'all' ? <GlobeCircle size={14} /> : <FlagCircle code={filterLang} size={14} />}
+                {(() => {
+                  const n = filterLang === 'all' ? maxStreak : (readingStreaks[filterLang] ?? 0);
+                  return (
+                    <Text style={[profileStyles.streakBadgeText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
+                      {n} day{n !== 1 ? 's' : ''}
+                    </Text>
+                  );
+                })()}
+              </View>
             </View>
-            <StreakCalendar readingHistory={readingHistory} />
+            <FullStreakCalendar
+              readingHistory={readingHistory}
+              filterLang={filterLang}
+              activeLang={filterLang}
+              onLangChange={setFilterLang}
+              readingStreaks={readingStreaks}
+              hideTabs
+              headerStyle="subtle"
+              hideStreakLabel
+            />
           </View>
         </ScrollView>
       </ScrollView>
@@ -937,12 +1025,19 @@ export function SettingsScreen() {
         visible={settingsSheetVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setSettingsSheetVisible(false)}
+        onRequestClose={() => { sheetDragY.setValue(0); setSettingsSheetVisible(false); }}
       >
         <View style={modalStyles.overlay}>
-          <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
-            {/* Drag handle + title + close */}
-            <View style={sheetStyles.handleRow}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => { sheetDragY.setValue(0); setSettingsSheetVisible(false); }}
+          />
+          <Animated.View
+            style={[modalStyles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: sheetDragY }] }]}
+          >
+            {/* Drag handle */}
+            <View style={sheetStyles.handleRow} {...sheetPanResponder.panHandlers}>
               <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
             </View>
             <View style={sheetStyles.titleRow}>
@@ -1149,29 +1244,7 @@ export function SettingsScreen() {
                 )}
               </View>
             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── View All (Reading History) modal ── */}
-      <Modal
-        visible={viewAllVisible}
-        animationType="slide"
-        onRequestClose={() => setViewAllVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
-          {/* Header */}
-          <View style={[sheetStyles.fullScreenHeader, { borderBottomColor: colors.borderLight }]}>
-            <Text style={[sheetStyles.fullScreenTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              Reading History
-            </Text>
-            <TouchableOpacity onPress={() => setViewAllVisible(false)}>
-              <Ionicons name="close" size={22} color={colors.inkDark} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Full calendar */}
-          <FullStreakCalendar readingHistory={readingHistory} filterLang={filterLang} />
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1280,94 +1353,103 @@ export function SettingsScreen() {
         animationType="slide"
         onRequestClose={() => setSignInModalVisible(false)}
       >
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
-            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              {authMode === 'signin' ? 'Sign in' : 'Create account'}
-            </Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity
+            style={modalStyles.overlay}
+            activeOpacity={1}
+            onPress={() => setSignInModalVisible(false)}
+          >
+            <TouchableOpacity activeOpacity={1} style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+              <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {authMode === 'signin' ? 'Sign in' : 'Create account'}
+              </Text>
 
-            {/* Social sign-in */}
-            {(appleAvailable) && (
-              <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
-                <AppleAuthentication.AppleAuthenticationButton
-                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                  buttonStyle={isDark
-                    ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                    : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                  cornerRadius={22}
-                  style={{ height: 44 }}
-                  onPress={handleAppleSignIn}
+              {/* Social sign-in */}
+              {appleAvailable && (
+                <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={isDark
+                      ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                      : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={22}
+                    style={{ height: 44 }}
+                    onPress={handleAppleSignIn}
+                  />
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
+                onPress={handleGoogleSignIn}
+                disabled={authLoading}
+              >
+                <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  Continue with Google
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
+                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
+              </View>
+
+              <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
+                <TextInput
+                  style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
+                  value={authEmail}
+                  onChangeText={setAuthEmail}
+                  placeholder="Email"
+                  placeholderTextColor={colors.inkFaint}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                />
+                <TextInput
+                  style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
+                  value={authPassword}
+                  onChangeText={setAuthPassword}
+                  placeholder="Password"
+                  placeholderTextColor={colors.inkFaint}
+                  secureTextEntry
+                  autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
+                  onSubmitEditing={handleEmailAuth}
                 />
               </View>
-            )}
 
-            <TouchableOpacity
-              style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
-              onPress={handleGoogleSignIn}
-              disabled={authLoading}
-            >
-              <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                Continue with Google
-              </Text>
+              {authError ? (
+                <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, paddingHorizontal: Spacing.lg, marginTop: 4, marginBottom: -4 }}>
+                  {authError}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity
+                style={[modalStyles.codeButton, { backgroundColor: colors.accentRed, marginHorizontal: Spacing.lg, marginTop: Spacing.md, opacity: authLoading ? 0.6 : 1 }]}
+                onPress={handleEmailAuth}
+                disabled={authLoading}
+              >
+                <Text style={modalStyles.codeButtonText}>{authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[modalStyles.cancel]}
+                onPress={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+              >
+                <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+                  {authMode === 'signin' ? "Don't have an account? Create one" : 'Already have an account? Sign in'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={modalStyles.cancel} onPress={() => setSignInModalVisible(false)}>
+                <Text style={[modalStyles.cancelText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Cancel</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
-              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-              <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
-              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-            </View>
-
-            <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
-              <TextInput
-                style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
-                value={authEmail}
-                onChangeText={setAuthEmail}
-                placeholder="Email"
-                placeholderTextColor={colors.inkFaint}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-              <TextInput
-                style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
-                value={authPassword}
-                onChangeText={setAuthPassword}
-                placeholder="Password"
-                placeholderTextColor={colors.inkFaint}
-                secureTextEntry
-                autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
-                onSubmitEditing={handleEmailAuth}
-              />
-            </View>
-
-            {authError ? (
-              <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, paddingHorizontal: Spacing.lg, marginTop: 4, marginBottom: -4 }}>
-                {authError}
-              </Text>
-            ) : null}
-
-            <TouchableOpacity
-              style={[modalStyles.codeButton, { backgroundColor: colors.accentGold, marginHorizontal: Spacing.lg, marginTop: Spacing.md, opacity: authLoading ? 0.6 : 1 }]}
-              onPress={handleEmailAuth}
-              disabled={authLoading}
-            >
-              <Text style={modalStyles.codeButtonText}>{authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[modalStyles.cancel]}
-              onPress={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-            >
-              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                {authMode === 'signin' ? "Don't have an account? Create one" : 'Already have an account? Sign in'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={modalStyles.cancel} onPress={() => setSignInModalVisible(false)}>
-              <Text style={[modalStyles.cancelText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Dev code modal */}
@@ -1708,6 +1790,28 @@ const profileStyles = StyleSheet.create({
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.md,
   },
+  langFilterTile: {
+    marginBottom: Spacing.md,
+  },
+  langFilterContent: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  langFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  langFilterLabel: {
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
   streakHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1734,10 +1838,13 @@ const profileStyles = StyleSheet.create({
   },
   streakRight: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 5,
   },
-  viewAllText: {
-    fontSize: 14,
+  streakBadgeText: {
+    fontSize: 13,
   },
 });
 
@@ -1745,7 +1852,7 @@ const sheetStyles = StyleSheet.create({
   handleRow: {
     alignItems: 'center',
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.md,
   },
   handle: {
     width: 36,

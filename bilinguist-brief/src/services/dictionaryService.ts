@@ -107,6 +107,7 @@ function mapRow(row: Record<string, unknown>): WordEntry {
     verbTable,
     verbTablePast,
     forms:         _buildForms(data, wordType),
+    declensions:   null,
     tip:           row.tip as string | null,
     meta:          _buildMeta(data, wordType),
     level:         (row.level as string) ?? null,

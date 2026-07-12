@@ -23,9 +23,7 @@ const SCREEN_W = Dimensions.get('window').width;
 
 const TIME_LIMIT       = 60;
 const MIN_WORDS        = 24;
-const GRID_COLS        = 3;
-const GRID_ROWS        = 4;
-const PAIRS_PER_SCREEN = (GRID_COLS * GRID_ROWS) / 2; // 6 pairs × 2 tiles = 12 tiles
+const PAIRS_PER_SCREEN = 6; // 6 pairs → 6 rows, 2 columns (foreign | translation)
 const EXIT_DURATION    = 320;
 
 interface Tile {
@@ -337,7 +335,7 @@ export function MatchingScreen() {
             <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Play again</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={[styles.backLink, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Back to practice</Text>
+            <Text style={[styles.backLink, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Back to practise</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -370,66 +368,55 @@ export function MatchingScreen() {
         </Text>
       </View>
 
-      <View style={[styles.grid, { paddingBottom: insets.bottom + Spacing.md }]}>
-        {Array.from({ length: GRID_ROWS }).map((_, rowIdx) => (
-          <View key={rowIdx} style={styles.gridRow}>
-            {tiles.slice(rowIdx * GRID_COLS, (rowIdx + 1) * GRID_COLS).map((tile) => {
-              const isMatched  = matched.has(tile.pairId);
-              const isSelected = selected === tile.id;
-              const isWrong    = wrong?.includes(tile.id);
-              const { y: exitY, op: exitOp } = getExitAnim(tile.id);
+      {(() => {
+        // Split tiles into two columns: foreign words (left) and translations (right)
+        const leftTiles  = tiles.filter((t) => t.isNative);   // foreign language
+        const rightTiles = tiles.filter((t) => !t.isNative);  // native translation
+        const numRows = Math.max(leftTiles.length, rightTiles.length);
 
-              const bgColor = isMatched
-                ? '#43A04730'
-                : isWrong
-                  ? '#E5393522'
-                  : isSelected
-                    ? colors.inkDark + '14'
-                    : colors.card;
-
-              const borderColor = isMatched
-                ? '#43A047'
-                : isWrong
-                  ? '#E53935'
-                  : isSelected
-                    ? colors.inkDark
-                    : colors.borderLight;
-
-              const borderWidth = (isMatched || isWrong || isSelected)
-                ? 1.5
-                : StyleSheet.hairlineWidth;
-
-              return (
-                <Animated.View
-                  key={tile.id}
-                  style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}
+        function renderTile(tile: Tile | undefined) {
+          if (!tile) return <View style={{ flex: 1 }} />;
+          const isMatched  = matched.has(tile.pairId);
+          const isSelected = selected === tile.id;
+          const isWrong    = wrong?.includes(tile.id);
+          const { y: exitY, op: exitOp } = getExitAnim(tile.id);
+          const bgColor = isMatched ? '#43A04730' : isWrong ? '#E5393522' : isSelected ? colors.inkDark + '14' : colors.card;
+          const borderColor = isMatched ? '#43A047' : isWrong ? '#E53935' : isSelected ? colors.inkDark : colors.borderLight;
+          const borderWidth = (isMatched || isWrong || isSelected) ? 1.5 : StyleSheet.hairlineWidth;
+          return (
+            <Animated.View key={tile.id} style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}>
+              <TouchableOpacity
+                style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
+                onPress={() => !isMatched && handleTile(tile)}
+                activeOpacity={0.7}
+                disabled={isMatched}
+              >
+                <Text
+                  style={[styles.tileText, {
+                    color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
+                    fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
+                  }]}
+                  numberOfLines={3}
+                  adjustsFontSizeToFit
                 >
-                  <TouchableOpacity
-                    style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
-                    onPress={() => !isMatched && handleTile(tile)}
-                    activeOpacity={0.7}
-                    disabled={isMatched}
-                  >
-                    <Text
-                      style={[
-                        styles.tileText,
-                        {
-                          color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
-                          fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
-                        },
-                      ]}
-                      numberOfLines={3}
-                      adjustsFontSizeToFit
-                    >
-                      {tile.text}
-                    </Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              );
-            })}
+                  {tile.text}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        }
+
+        return (
+          <View style={[styles.grid, { paddingBottom: insets.bottom + Spacing.md }]}>
+            {Array.from({ length: numRows }).map((_, rowIdx) => (
+              <View key={rowIdx} style={styles.gridRow}>
+                {renderTile(leftTiles[rowIdx])}
+                {renderTile(rightTiles[rowIdx])}
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        );
+      })()}
     </View>
   );
 }

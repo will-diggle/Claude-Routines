@@ -22,6 +22,7 @@ export interface TokenMapEntry {
 
 export interface BriefingArticle {
   genre: string;
+  slug?: string;
   headline: string;
   body: string;
   tokenMap?: TokenMapEntry[]; // P5 token analysis — undefined for older bundles

@@ -161,9 +161,16 @@ export const useSettingsStore = create<SettingsStore>()(
         const activeCount = languages.filter((l) => l.active).length;
         if (!target.active && activeCount >= MAX_ACTIVE_LANGUAGES) return;
 
-        const updated = languages.map((l) =>
+        const toggled = languages.map((l) =>
           l.code === code ? { ...l, active: !l.active } : l
         );
+
+        // Active languages float to the top (preserving their relative order),
+        // inactive ones sink below — so the list always stays neat.
+        const updated = [
+          ...toggled.filter((l) => l.active),
+          ...toggled.filter((l) => !l.active),
+        ];
 
         const displayLanguage = get().displayLanguage;
         const displayStillActive = updated.find((l) => l.code === displayLanguage)?.active;
@@ -199,8 +206,14 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ languages });
       },
 
-      toggleTopic: (topic) =>
-        set({ topics: { ...get().topics, [topic]: !get().topics[topic] } }),
+      toggleTopic: (topic) => {
+        const newTopics = { ...get().topics, [topic]: !get().topics[topic] };
+        const currentOrder = get().topicOrder ?? DEFAULT_TOPIC_ORDER;
+        // Active genres float to the top; inactive ones sink below.
+        const active   = currentOrder.filter((k) => newTopics[k]);
+        const inactive = currentOrder.filter((k) => !newTopics[k]);
+        set({ topics: newTopics, topicOrder: [...active, ...inactive] });
+      },
 
       reorderTopics: (from, to) => {
         const order = [...(get().topicOrder ?? DEFAULT_TOPIC_ORDER)];

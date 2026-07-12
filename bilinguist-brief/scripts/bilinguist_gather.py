@@ -215,11 +215,14 @@ def main():
     # 7. Validate every story
     factbase = [validate_story(story) for story in factbase]
 
-    # 8. Log cross-reference scores for Global News stories (editorial audit)
-    global_stories = [s for s in factbase if s.get("genre") == "GLOBAL NEWS"]
-    if global_stories:
-        print(f"[gather] Global News cross-reference scores:")
-        for s in sorted(global_stories, key=lambda x: x.get("cross_reference_score", {}).get("rank", 99)):
+    # 8. Log cross-reference scores for all genres (editorial audit)
+    scored_genres = ["GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY", "EUROPE"]
+    for genre in scored_genres:
+        genre_stories = [s for s in factbase if s.get("genre") == genre]
+        if not genre_stories:
+            continue
+        print(f"[gather] {genre} cross-reference scores:")
+        for s in sorted(genre_stories, key=lambda x: x.get("cross_reference_score", {}).get("rank", 99)):
             score = s.get("cross_reference_score", {})
             print(
                 f"  Rank {score.get('rank', '?')}: {s.get('slug', '?')} "

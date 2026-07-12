@@ -18,44 +18,41 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 const VERB_TENSES: Record<string, Array<{ label: string; pronouns: string[] }>> = {
   de: [
-    { label: 'PRÄSENS',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
-    { label: 'PRÄTERITUM',      pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
-    { label: 'PERFEKT',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
-    { label: 'PLUSQUAMPERFEKT', pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
-    { label: 'FUTUR I',         pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
-    { label: 'KONJUNKTIV II',   pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'PRÄSENS',       pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'IMPERATIV',     pronouns: ['du', 'ihr', 'Sie'] },
+    { label: 'PERFEKT',       pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'PRÄTERITUM',    pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
+    { label: 'KONJUNKTIV II', pronouns: ['ich', 'du', 'er/sie/es', 'wir', 'ihr', 'sie/Sie'] },
   ],
   fr: [
-    { label: 'PRÉSENT',          pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'PASSÉ COMPOSÉ',    pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'IMPARFAIT',        pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'PASSÉ SIMPLE',     pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'PLUS-QUE-PARFAIT', pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'FUTUR',            pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'CONDITIONNEL',     pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
-    { label: 'SUBJONCTIF',       pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'PRÉSENT',       pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'PASSÉ COMPOSÉ', pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'IMPARFAIT',     pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'FUTUR SIMPLE',  pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'CONDITIONNEL',  pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
+    { label: 'SUBJONCTIF',    pronouns: ['je', 'tu', 'il/elle', 'nous', 'vous', 'ils/elles'] },
   ],
   es: [
     { label: 'PRESENTE',             pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
     { label: 'PRETÉRITO INDEFINIDO', pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
-    { label: 'PRETÉRITO IMPERFECTO', pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'IMPERFECTO',           pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
     { label: 'FUTURO',               pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
     { label: 'CONDICIONAL',          pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
-    { label: 'SUBJUNTIVO PRESENTE',  pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
+    { label: 'SUBJUNTIVO',           pronouns: ['yo', 'tú', 'él/ella', 'nosotros', 'vosotros', 'ellos/ellas'] },
   ],
   it: [
-    { label: 'PRESENTE',              pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
-    { label: 'PASSATO PROSSIMO',      pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
-    { label: 'IMPERFETTO',            pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
-    { label: 'FUTURO SEMPLICE',       pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
-    { label: 'CONDIZIONALE PRESENTE', pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
-    { label: 'CONGIUNTIVO PRESENTE',  pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'PRESENTE',         pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'PASSATO PROSSIMO', pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'IMPERFETTO',       pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'FUTURO',           pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'CONDIZIONALE',     pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
+    { label: 'CONGIUNTIVO',      pronouns: ['io', 'tu', 'lui/lei', 'noi', 'voi', 'loro'] },
   ],
   sv: [
     { label: 'PRESENS',    pronouns: ['—'] },
     { label: 'PRETERITUM', pronouns: ['—'] },
-    { label: 'PERFEKT',    pronouns: ['—'] },
-    { label: 'FUTURUM',    pronouns: ['—'] },
+    { label: 'SUPINUM',    pronouns: ['har/hade'] },
+    { label: 'KONJUNKTIV', pronouns: ['—'] },
   ],
   tr: [
     { label: 'GENİŞ ZAMAN',               pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
@@ -66,6 +63,50 @@ const VERB_TENSES: Record<string, Array<{ label: string; pronouns: string[] }>> 
     { label: 'ŞART KİPİ',                pronouns: ['ben', 'sen', 'o', 'biz', 'siz', 'onlar'] },
   ],
 };
+
+function buildDeclensionsInstruction(lang: string): string {
+  const wrap = (s: string) =>
+    `"declensions": array of {label, table} objects or null —\n${s}`;
+  switch (lang) {
+    case 'de': return wrap(
+      `noun → [{"label":"DEKLINIERT","table":{"NOM sg":"definite article+noun","AKK sg":"...","DAT sg":"...","GEN sg":"...","NOM pl":"...","AKK pl":"...","DAT pl":"...","GEN pl":"..."}}]\n` +
+      `adjective → [{"label":"STARK","table":{"NOM m":"...","AKK m":"...","DAT m":"...","GEN m":"...","NOM f":"...","AKK f":"...","DAT f":"...","GEN f":"...","NOM n":"...","AKK n":"...","DAT n":"...","GEN n":"..."}},{"label":"SCHWACH","table":{same 12 keys, weak inflection}}]\n` +
+      `adverb → [{"label":"STEIGERUNG","table":{"Positiv":"...","Komparativ":"...","Superlativ":"..."}}]\n` +
+      `verb or other → null`
+    );
+    case 'fr': return wrap(
+      `noun → [{"label":"FORMES","table":{"sg":"article+noun","pl":"article+noun"}}]\n` +
+      `adjective → [{"label":"FORMES","table":{"m sg":"...","f sg":"...","m pl":"...","f pl":"..."}},{"label":"COMPARAISON","table":{"positif":"...","comparatif":"...","superlatif":"..."}}]\n` +
+      `adverb → [{"label":"COMPARAISON","table":{"positif":"...","comparatif":"...","superlatif":"..."}}]\n` +
+      `verb or other → null`
+    );
+    case 'es': return wrap(
+      `noun → [{"label":"FORMAS","table":{"sg":"article+noun","pl":"article+noun"}}]\n` +
+      `adjective → [{"label":"FORMAS","table":{"m sg":"...","f sg":"...","m pl":"...","f pl":"..."}},{"label":"COMPARACIÓN","table":{"positivo":"...","comparativo":"...","superlativo":"..."}}]\n` +
+      `adverb → [{"label":"COMPARACIÓN","table":{"positivo":"...","comparativo":"...","superlativo":"..."}}]\n` +
+      `verb or other → null`
+    );
+    case 'it': return wrap(
+      `noun → [{"label":"FORME","table":{"sg":"article+noun","pl":"article+noun"}}]\n` +
+      `adjective → [{"label":"FORME","table":{"m sg":"...","f sg":"...","m pl":"...","f pl":"..."}},{"label":"COMPARAZIONE","table":{"positivo":"...","comparativo":"...","superlativo":"..."}}]\n` +
+      `adverb → [{"label":"COMPARAZIONE","table":{"positivo":"...","comparativo":"...","superlativo":"..."}}]\n` +
+      `verb or other → null`
+    );
+    case 'sv': return wrap(
+      `noun → [{"label":"FORMER","table":{"obestämd sg":"...","bestämd sg":"...","obestämd pl":"...","bestämd pl":"..."}}]\n` +
+      `adjective → [{"label":"BÖJNING","table":{"grundform":"...","bestämd/pl":"...","komparativ":"...","superlativ":"..."}}]\n` +
+      `adverb → [{"label":"JÄMFÖRELSE","table":{"positiv":"...","komparativ":"...","superlativ":"..."}}]\n` +
+      `verb or other → null`
+    );
+    case 'tr': return wrap(
+      `noun → [{"label":"ÇEKİM","table":{"NOM sg":"...","GEN sg":"...","DAT sg":"...","ACC sg":"...","LOC sg":"...","ABL sg":"...","NOM pl":"...","GEN pl":"...","DAT pl":"...","ACC pl":"...","LOC pl":"...","ABL pl":"..."}}]\n` +
+      `adjective → [{"label":"KARŞILAŞTIRMA","table":{"olumlu":"...","karşılaştırmalı":"...","en üstün":"..."}}]\n` +
+      `adverb → [{"label":"KARŞILAŞTIRMA","table":{"olumlu":"...","karşılaştırmalı":"...","en üstün":"..."}}]\n` +
+      `verb or other → null`
+    );
+    default: return '"declensions": null';
+  }
+}
 
 function buildTensesInstruction(lang: string): string {
   const tenses = VERB_TENSES[lang];
@@ -122,6 +163,7 @@ interface WordData {
   example: string | null;
   pronunciation: string | null;
   tenses: TenseTable[] | null;
+  declensions: TenseTable[] | null;
   verbTable: Record<string, string> | null;
   verbTablePast: Record<string, string> | null;
   forms: Record<string, string> | null;
@@ -145,12 +187,14 @@ function json(data: unknown, status = 200): Response {
 
 function rowToWordData(row: WordRow, fromCache: boolean): WordData {
   const parsedMeta = row.meta ? JSON.parse(row.meta) as Record<string, unknown> : null;
-  const tenses = Array.isArray(parsedMeta?.tenses) ? parsedMeta.tenses as TenseTable[] : null;
+  const tenses      = Array.isArray(parsedMeta?.tenses)      ? parsedMeta.tenses      as TenseTable[] : null;
+  const declensions = Array.isArray(parsedMeta?.declensions) ? parsedMeta.declensions as TenseTable[] : null;
 
   let metaForClient: Record<string, unknown> | null = null;
   if (parsedMeta) {
     const copy = { ...parsedMeta };
     delete copy['tenses'];
+    delete copy['declensions'];
     metaForClient = Object.keys(copy).length > 0 ? copy : null;
   }
 
@@ -164,6 +208,7 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     example:       row.example,
     pronunciation: row.pronunciation,
     tenses,
+    declensions,
     verbTable:     row.verb_present ? JSON.parse(row.verb_present) : null,
     verbTablePast: row.verb_past    ? JSON.parse(row.verb_past)    : null,
     forms:         row.forms        ? JSON.parse(row.forms)        : null,
@@ -230,10 +275,12 @@ async function generateWordData(
   lang: string,
   level: string,
   apiKey: string,
+  ctx?: string | null,
 ): Promise<Partial<WordRow> | null> {
   const langName = LANGUAGE_NAMES[lang] ?? lang;
+  const ctxHint = ctx ? `\n\nContext — this word appeared in the sentence: "${ctx}"\nUse this to resolve any ambiguity (e.g. proper nouns vs common nouns).` : '';
 
-  const prompt = `A language learner studying ${langName} at ${level} level wants to learn the word "${word}".
+  const prompt = `A language learner studying ${langName} at ${level} level wants to learn the word "${word}".${ctxHint}
 
 Identify the word type and reply ONLY with a JSON object — no markdown, no preamble:
 {
@@ -244,6 +291,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "example": "A ${langName} example sentence using this word naturally",
   "pronunciation": "IPA pronunciation of the lemma form",
   ${buildTensesInstruction(lang)},
+  ${buildDeclensionsInstruction(lang)},
   "forms": if noun {"gender": "masculine/feminine/neuter", "plural": "plural form", "article": "definite article", "definite": "article + singular", "indefinite": "indefinite article + singular"} — if adjective {"feminine": "feminine form", "masculine": "masculine form", "comparative": "comparative form", "superlative": "superlative form"} — otherwise null,
   "tip": a short memorable tip — etymology, common learner mistake, or memory hook — or null,
   "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "Group 1" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for other languages)} — otherwise null,
@@ -260,7 +308,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2500,
+        max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -280,18 +328,24 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       example?: string;
       pronunciation?: string;
       tenses?: TenseTable[] | null;
+      declensions?: TenseTable[] | null;
       forms?: Record<string, string> | null;
       tip?: string | null;
       meta?: Record<string, unknown> | null;
       level?: string | null;
     };
 
-    const tenses = Array.isArray(parsed.tenses) ? parsed.tenses : null;
+    const tenses      = Array.isArray(parsed.tenses)      ? parsed.tenses      : null;
+    const declensions = Array.isArray(parsed.declensions) ? parsed.declensions : null;
     // Keep verb_present/verb_past populated for backward compat with any legacy readers
     const verb_present = tenses?.[0]?.table ? JSON.stringify(tenses[0].table) : null;
     const verb_past    = tenses?.[1]?.table ? JSON.stringify(tenses[1].table) : null;
-    // Pack tenses into meta so we don't need a schema change on D1
-    const metaObj = { ...(parsed.meta ?? {}), ...(tenses ? { tenses } : {}) };
+    // Pack tenses + declensions into meta — no D1 schema change needed
+    const metaObj = {
+      ...(parsed.meta ?? {}),
+      ...(tenses      ? { tenses }      : {}),
+      ...(declensions ? { declensions } : {}),
+    };
     const metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : null;
 
     return {
@@ -313,12 +367,125 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   }
 }
 
+// ── Tense backfill for legacy cached verbs ────────────────────────────────────
+
+async function backfillVerbTenses(
+  row: WordRow,
+  lang: string,
+  apiKey: string,
+  db: D1Database,
+): Promise<TenseTable[] | null> {
+  const lemma    = row.lemma ?? row.word;
+  const langName = LANGUAGE_NAMES[lang] ?? lang;
+
+  const prompt = `Conjugate the ${langName} verb "${lemma}" and reply ONLY with a JSON object — no markdown, no preamble:
+{
+  ${buildTensesInstruction(lang)}
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+
+    const data   = await res.json() as { content: { text: string }[] };
+    const raw    = data.content?.[0]?.text ?? '';
+    const start  = raw.indexOf('{');
+    const end    = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { tenses?: TenseTable[] | null };
+    const tenses = Array.isArray(parsed.tenses) && parsed.tenses.length > 0 ? parsed.tenses : null;
+    if (!tenses) return null;
+
+    // Update the D1 meta column with the new tenses, preserving other meta fields
+    const existing = row.meta ? JSON.parse(row.meta) as Record<string, unknown> : {};
+    const newMeta  = JSON.stringify({ ...existing, tenses });
+    await db
+      .prepare('UPDATE words SET meta = ?1 WHERE word = ?2 AND language = ?3')
+      .bind(newMeta, row.word, lang)
+      .run();
+
+    return tenses;
+  } catch {
+    return null;
+  }
+}
+
+// ── Declension backfill for legacy cached nouns/adjectives/adverbs ────────────
+
+async function backfillDeclensions(
+  row: WordRow,
+  lang: string,
+  apiKey: string,
+  db: D1Database,
+): Promise<TenseTable[] | null> {
+  const lemma    = row.lemma ?? row.word;
+  const langName = LANGUAGE_NAMES[lang] ?? lang;
+  const wordType = row.word_type ?? 'noun';
+
+  const prompt = `Give the declension/inflection forms for the ${langName} ${wordType} "${lemma}" and reply ONLY with a JSON object — no markdown, no preamble:
+{
+  ${buildDeclensionsInstruction(lang)}
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return null;
+
+    const data   = await res.json() as { content: { text: string }[] };
+    const raw    = data.content?.[0]?.text ?? '';
+    const start  = raw.indexOf('{');
+    const end    = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { declensions?: TenseTable[] | null };
+    const declensions = Array.isArray(parsed.declensions) && parsed.declensions.length > 0 ? parsed.declensions : null;
+    if (!declensions) return null;
+
+    const existing = row.meta ? JSON.parse(row.meta) as Record<string, unknown> : {};
+    const newMeta  = JSON.stringify({ ...existing, declensions });
+    await db
+      .prepare('UPDATE words SET meta = ?1 WHERE word = ?2 AND language = ?3')
+      .bind(newMeta, row.word, lang)
+      .run();
+
+    return declensions;
+  } catch {
+    return null;
+  }
+}
+
 // ── Route: GET /word ──────────────────────────────────────────────────────────
 
 async function handleWordGet(url: URL, env: Env): Promise<Response> {
   const rawWord = url.searchParams.get('w')?.trim();
   const lang    = url.searchParams.get('lang')?.trim().toLowerCase() ?? 'fr';
   const level   = url.searchParams.get('level')?.trim() ?? 'B1';
+  const ctx     = url.searchParams.get('ctx')?.trim() ?? null;
 
   if (!rawWord) return json({ error: 'missing_word' }, 400);
   const word = rawWord.toLowerCase();
@@ -335,12 +502,35 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
       .prepare('UPDATE words SET lookup_count = lookup_count + 1 WHERE word = ?1 AND language = ?2')
       .bind(word, lang)
       .run();
-    return json(rowToWordData(hit, true));
+
+    // Backfill tenses for verbs cached before the full-tenses feature was added
+    const parsedMeta  = hit.meta ? JSON.parse(hit.meta) as Record<string, unknown> : null;
+    const hasTenses   = Array.isArray(parsedMeta?.tenses) && (parsedMeta.tenses as unknown[]).length > 0;
+    const isVerb      = hit.word_type === 'verb' || hit.verb_present !== null;
+    const needsDecl   = !isVerb && ['noun', 'adjective', 'adverb'].includes(hit.word_type ?? '');
+    const hasDeclensions = Array.isArray(parsedMeta?.declensions) && (parsedMeta.declensions as unknown[]).length > 0;
+
+    let updatedHit = hit;
+    if (isVerb && !hasTenses) {
+      const newTenses = await backfillVerbTenses(hit, lang, env.ANTHROPIC_API_KEY, env.WORDS_DB);
+      if (newTenses) {
+        const m = JSON.stringify({ ...(parsedMeta ?? {}), tenses: newTenses });
+        updatedHit = { ...hit, meta: m };
+      }
+    } else if (needsDecl && !hasDeclensions) {
+      const newDecl = await backfillDeclensions(hit, lang, env.ANTHROPIC_API_KEY, env.WORDS_DB);
+      if (newDecl) {
+        const m = JSON.stringify({ ...(parsedMeta ?? {}), declensions: newDecl });
+        updatedHit = { ...hit, meta: m };
+      }
+    }
+
+    return json(rowToWordData(updatedHit, true));
   }
 
   // ── Step 2: cache miss — call Claude (provides translation + full word data) ───
   const generatedResult = await withRetry(
-    () => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY), 3,
+    () => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY, ctx), 3,
   );
   const generated = generatedResult.result;
 
@@ -614,9 +804,117 @@ async function handleBriefing(filePath: string, env: Env): Promise<Response> {
   });
 }
 
+// ── DB warm-up (runs on cron schedule) ───────────────────────────────────────
+
+const NO_DB_LANGS = new Set(['tr', 'ar', 'hu']);
+const MIN_WORD_LEN = 3;
+
+function tokenise(text: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const raw of text.split(/[\s ]+/)) {
+    const tok = raw.replace(/^[^\w]+|[^\w]+$/gu, '');
+    for (const part of tok.split('-')) {
+      const w = part.toLowerCase();
+      if (w.length >= MIN_WORD_LEN && !/^\d+$/.test(w) && /[a-zA-ZÀ-ÿ]/.test(w)) {
+        tokens.add(w);
+      }
+    }
+  }
+  return tokens;
+}
+
+async function warmDb(env: Env): Promise<void> {
+  const WORKER_BASE = 'https://bilinguist-brief.williamdiggz.workers.dev';
+
+  // 1. Fetch today's brief via the internal handler
+  const briefRes = await handleBriefing('latest.json', env);
+  if (!briefRes.ok) { console.error('[warm] failed to fetch brief:', briefRes.status); return; }
+  const brief = await briefRes.json() as { date?: string; briefings?: Record<string, unknown> };
+  const date = brief.date ?? 'unknown';
+  console.log(`[warm] date=${date}`);
+
+  // 2. Extract unique (word, lang, level) pairs
+  const LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1'];
+  const seen = new Map<string, string>(); // key="word|lang" → level
+
+  const briefings = brief.briefings as Record<string, Record<string, Record<string, { articles?: { headline?: string; body?: string }[] }>>> ?? {};
+  for (const [lang, levels] of Object.entries(briefings)) {
+    if (NO_DB_LANGS.has(lang)) continue;
+    for (const [level, lengths] of Object.entries(levels)) {
+      for (const section of Object.values(lengths)) {
+        for (const article of section.articles ?? []) {
+          for (const word of tokenise((article.headline ?? '') + ' ' + (article.body ?? ''))) {
+            const key = `${word}|${lang}`;
+            const cur = seen.get(key);
+            if (!cur || LEVEL_ORDER.indexOf(level) > LEVEL_ORDER.indexOf(cur)) {
+              seen.set(key, level);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`[warm] ${seen.size} unique (word, lang) pairs`);
+
+  // 3. Look up each word — handleWordGet auto-generates via Haiku on cache miss
+  const CONCURRENCY = 6;
+  const entries = Array.from(seen.entries()).map(([key, level]) => {
+    const [word, lang] = key.split('|');
+    return { word, lang, level };
+  });
+
+  let cached = 0, generated = 0, errors = 0;
+  const newByLang: Record<string, number> = {};
+
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const batch = entries.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async ({ word, lang, level }) => {
+      try {
+        const u = new URL(`${WORKER_BASE}/word`);
+        u.searchParams.set('w', word);
+        u.searchParams.set('lang', lang);
+        u.searchParams.set('level', level);
+        const res = await handleWordGet(u, env);
+        if (!res.ok) { errors++; return; }
+        const data = await res.json() as { fromCache?: boolean };
+        if (data.fromCache) { cached++; }
+        else { generated++; newByLang[lang] = (newByLang[lang] ?? 0) + 1; }
+      } catch { errors++; }
+    }));
+  }
+
+  console.log(`[warm] done — cached=${cached} generated=${generated} errors=${errors}`);
+
+  // 4. Send ntfy summary
+  if (!env.NTFY_TOPIC) return;
+  const lines: string[] = [];
+  if (generated === 0) {
+    lines.push('All words already cached — nothing new to generate.');
+  } else {
+    const LANG_FLAGS: Record<string, string> = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', sv: '🇸🇪', nl: '🇳🇱' };
+    const LANG_NAMES: Record<string, string> = { de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', sv: 'Swedish', nl: 'Dutch' };
+    for (const lang of Object.keys(newByLang).sort((a, b) => newByLang[b] - newByLang[a])) {
+      lines.push(`${LANG_FLAGS[lang] ?? ''} ${LANG_NAMES[lang] ?? lang.toUpperCase()}: ${newByLang[lang]} new`);
+    }
+  }
+  lines.push('');
+  lines.push(`Total: ${generated} new · ${cached} cached${errors ? ` · ${errors} errors` : ''}`);
+
+  await fetch(`https://ntfy.sh/${env.NTFY_TOPIC}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: `Bilinguist DB warmed — ${date}`, message: lines.join('\n') }),
+  });
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default {
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(warmDb(env));
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url      = new URL(request.url);
     const pathname = url.pathname;

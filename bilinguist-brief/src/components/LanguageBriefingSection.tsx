@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
@@ -133,6 +133,28 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
   return groups;
 }
 
+const SHARE_WORD: Partial<Record<LanguageCode, string>> = {
+  en: 'Share', fr: 'Partager', de: 'Teilen', es: 'Compartir',
+  it: 'Condividi', sv: 'Dela', tr: 'Paylaş', hu: 'Megosztás', ar: 'مشاركة',
+};
+
+const SHARE_INTRO: Partial<Record<LanguageCode, string>> = {
+  en: 'The Bilinguist Brief reported:',
+  fr: 'Le Bilinguist Brief a rapporté :',
+  de: 'Das Bilinguist Brief berichtete:',
+  es: 'El Bilinguist Brief informó:',
+  it: 'Il Bilinguist Brief ha riportato:',
+  sv: 'Bilinguist Brief rapporterade:',
+  tr: "Bilinguist Brief'te bildirildi:",
+  hu: 'A Bilinguist Brief közölte:',
+  ar: ':أفادت نشرة Bilinguist Brief',
+};
+
+const LANG_NAME_EN: Partial<Record<LanguageCode, string>> = {
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish',
+  it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian', ar: 'Arabic',
+};
+
 const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
   'GLOBAL NEWS':         'may contain technical words beyond A1',
   'UK POLITICS':         'may contain political words beyond A1',
@@ -145,11 +167,23 @@ const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
 };
 
 function SectionHeader({
-  label, accent, language, level, genre,
-}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string }) {
+  label, accent, language, level, genre, articles,
+}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string; articles: Article[] }) {
   const { colors, fontFamily } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const briefDisclaimer = level === 'A1' ? GENRE_BRIEF_DISCLAIMER[genre.toUpperCase()] : undefined;
+
+  function handleShare() {
+    const intro = SHARE_INTRO[language] ?? SHARE_INTRO.en!;
+    const langName = LANG_NAME_EN[language] ?? language.toUpperCase();
+    const footer = `For more ${level} ${langName} stories, download the Bilinguist Brief.`;
+    const body = articles
+      .map(a => `${a.headline}\n\n${a.body}`)
+      .join('\n\n─\n\n');
+    const message = `${intro}\n\n${label}\n\n${body}\n\n─\n\n${footer}`;
+    Share.share({ message });
+  }
+
   return (
     <>
       <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
@@ -167,6 +201,17 @@ function SectionHeader({
             </Text>
           )}
         </View>
+        <TouchableOpacity
+          onPress={handleShare}
+          activeOpacity={0.6}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.sectionShareBtn}
+        >
+          <Ionicons name="share-social-outline" size={14} color={colors.inkFaint} />
+          <Text style={[styles.sectionShareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            {SHARE_WORD[language] ?? 'Share'}
+          </Text>
+        </TouchableOpacity>
       </View>
       {activeWord && (
         <WordPopup
@@ -269,8 +314,8 @@ export function LanguageBriefingSection({
             const label = translateGenre(group.genre, langCode);
             return (
               <View key={`${group.genre}-${groupIndex}`}>
-                {/* Section header — words are tappable */}
-                <SectionHeader label={label} accent={accent} language={langCode} level={level} genre={group.genre} />
+                {/* Section header — words are tappable, share button right */}
+                <SectionHeader label={label} accent={accent} language={langCode} level={level} genre={group.genre} articles={group.articles} />
 
                 {/* Articles in this genre group */}
                 {group.articles.map((article, articleIndex) => (
@@ -369,6 +414,16 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 2,
     marginLeft: Spacing.sm,
+  },
+  sectionShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 8,
+  },
+  sectionShareLabel: {
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
 
   sectionFooter: {

@@ -4,11 +4,12 @@ import {
   View, Text, Image, Dimensions, Modal, TouchableOpacity,
   NativeScrollEvent, NativeSyntheticEvent, Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
-import { useSettingsStore } from '../store/useSettingsStore';
+import { useSettingsStore, langDisplayCode } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
@@ -17,6 +18,7 @@ import { LanguageBriefingSection } from '../components/LanguageBriefingSection';
 import { useStreakStore } from '../store/useStreakStore';
 
 import { FullStreakCalendar } from '../components/StreakCalendar';
+import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
@@ -181,7 +183,7 @@ function resolveLength(_level: LanguageLevel, readLength: ArticleLength): Articl
 
 export function BriefingScreen() {
   const isFocused = useIsFocused();
-  const { colors, fontFamily, background } = useTheme();
+  const { colors, fontFamily, background, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
     useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength }))
@@ -212,6 +214,8 @@ export function BriefingScreen() {
   const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday } = useStreakStore();
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
+  const [calModalActiveLang, setCalModalActiveLang] = useState('all');
+  const calSlideAnim = useRef(new Animated.Value(-400)).current;
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
@@ -298,6 +302,23 @@ export function BriefingScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelPickerLang]);
+
+  const langsWithHistory = useMemo(
+    () => Object.keys(readingHistory).filter(code => readingHistory[code].length > 0),
+    [readingHistory],
+  );
+
+  function openStreakModal(lang: string) {
+    setStreakModalLang(lang);
+    setCalModalActiveLang(lang);
+    calSlideAnim.setValue(-400);
+    setStreakModalVisible(true);
+    Animated.spring(calSlideAnim, { toValue: 0, damping: 22, stiffness: 220, mass: 0.8, useNativeDriver: true }).start();
+  }
+
+  function closeStreakModal() {
+    setStreakModalVisible(false);
+  }
 
   // Initialize readTracked from store so returning users don't get double credit
   useEffect(() => {
@@ -644,6 +665,7 @@ export function BriefingScreen() {
               {/* Thin rule above date/vol — inset from edges */}
               <View style={[styles.ruleInset, { backgroundColor: hairline }]} />
 
+              {/* Row 1: date (left) · tagline (right) */}
               <View style={styles.metaRow}>
                 <Text
                   style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
@@ -651,38 +673,15 @@ export function BriefingScreen() {
                 >
                   {publishedDateStr(bundleReceivedAt, lang.code)}
                 </Text>
-                {(() => {
-                  const streak = readingStreaks[lang.code] ?? 0;
-                  const isReadToday = lastReadDates[lang.code] === today;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => { setStreakModalLang(lang.code); setStreakModalVisible(true); }}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
-                    >
-                      {streak === 0 ? (
-                        <Ionicons name="calendar-outline" size={13} color={colors.inkFaint} />
-                      ) : (
-                        <Text style={[styles.metaStreak, {
-                          color: isReadToday ? '#F97316' : colors.inkFaint,
-                          fontFamily: fontFamily.regular,
-                          letterSpacing: lang.code === 'ar' ? 0 : undefined,
-                          textTransform: lang.code === 'ar' ? 'none' : undefined,
-                        }]}>
-                          {streakPhrase(lang.code, streak)}
-                        </Text>
-                      )}
-                      <Ionicons name="chevron-down" size={11} color={isReadToday ? '#F97316' : colors.inkFaint} />
-                    </TouchableOpacity>
-                  );
-                })()}
+                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                  {tagline}
+                </Text>
               </View>
 
-              {/* Medium rule below date/vol — inset from edges */}
+              {/* Medium rule between rows */}
               <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
-              {/* Edition row: language·level left (tappable), tagline right */}
+              {/* Row 2: language·level (left) · streak (right) */}
               <View style={styles.editionRow}>
                 <TouchableOpacity
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLevelPickerLang(lang.code); }}
@@ -697,9 +696,32 @@ export function BriefingScreen() {
                   </Text>
                   <Ionicons name="chevron-down" size={11} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
                 </TouchableOpacity>
-                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                  {tagline}
-                </Text>
+                {(() => {
+                  const streak = readingStreaks[lang.code] ?? 0;
+                  const isReadToday = lastReadDates[lang.code] === today;
+                  const streakColor = isReadToday ? '#F97316' : colors.inkFaint;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => { openStreakModal(lang.code); }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                    >
+                      {streak === 0 ? (
+                        <Ionicons name="calendar-outline" size={13} color={colors.inkFaint} />
+                      ) : (
+                        <Text style={[styles.editionLabel, {
+                          color: streakColor,
+                          fontFamily: fontFamily.regular,
+                          letterSpacing: lang.code === 'ar' ? 0 : 1.5,
+                        }]}>
+                          {streakPhrase(lang.code, streak)}
+                        </Text>
+                      )}
+                      <Ionicons name="chevron-down" size={11} color={streakColor} />
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
 
               {/* ── Language content ────────────────────────────────────── */}
@@ -737,6 +759,12 @@ export function BriefingScreen() {
                 </View>
               )}
             </ScrollView>
+            {/* Status-bar fade — text disappears cleanly as it scrolls under the notch */}
+            <LinearGradient
+              pointerEvents="none"
+              colors={[colors.bg, colors.bg + 'CC', colors.bg + '00']}
+              style={[styles.statusFade, { height: insets.top + 32 }]}
+            />
             {/* Scroll position pill */}
             <Animated.View
               pointerEvents="none"
@@ -835,8 +863,8 @@ export function BriefingScreen() {
                     key={lvl}
                     style={[
                       styles.levelChip,
-                      { borderColor: isActive ? colors.inkDark : colors.borderMid },
-                      isActive && { backgroundColor: colors.inkDark },
+                      { borderColor: isActive ? (isDark ? colors.inkFaint : colors.inkDark) : colors.borderMid },
+                      isActive && { backgroundColor: isDark ? colors.borderMid : colors.inkDark },
                     ]}
                     onPress={() => {
                       Haptics.selectionAsync();
@@ -848,7 +876,7 @@ export function BriefingScreen() {
                   >
                     <Text style={[
                       styles.levelChipText,
-                      { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
+                      { color: isActive ? colors.inkDark : colors.inkMid, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
                     ]}>
                       {chipLabel}
                     </Text>
@@ -867,32 +895,67 @@ export function BriefingScreen() {
         visible={streakModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setStreakModalVisible(false)}
+        onRequestClose={closeStreakModal}
       >
         <TouchableOpacity
-          style={styles.modalBackdrop}
+          style={styles.calendarBackdrop}
           activeOpacity={1}
-          onPress={() => setStreakModalVisible(false)}
+          onPress={closeStreakModal}
         >
-          <TouchableOpacity activeOpacity={1} style={[styles.calendarSheet, { backgroundColor: colors.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                Reading History
-              </Text>
+          <Animated.View style={{ transform: [{ translateY: calSlideAnim }] }}>
+            {/* Language flags tile — only shown when there's more than one language */}
+            {langsWithHistory.length > 1 && (
               <TouchableOpacity
-                onPress={() => setStreakModalVisible(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={1}
+                style={[styles.flagsTile, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
               >
-                <Ionicons name="close" size={20} color={colors.inkFaint} />
+                {/* Inner clip view — keeps shadow on parent while clipping chip highlights at border radius */}
+                <View style={styles.flagsTileClip}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.flagsTileContent}>
+                  <TouchableOpacity
+                    style={[styles.calFlagChip, calModalActiveLang === 'all' && { backgroundColor: colors.inkDark }]}
+                    onPress={() => setCalModalActiveLang('all')}
+                    activeOpacity={0.7}
+                  >
+                    <GlobeCircle size={24} />
+                    <Text style={[styles.calFlagLabel, { color: calModalActiveLang === 'all' ? colors.bg : colors.inkFaint, fontFamily: calModalActiveLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>All</Text>
+                  </TouchableOpacity>
+                  {langsWithHistory.map(code => (
+                    <TouchableOpacity
+                      key={code}
+                      style={[styles.calFlagChip, calModalActiveLang === code && { backgroundColor: colors.inkDark }]}
+                      onPress={() => setCalModalActiveLang(code)}
+                      activeOpacity={0.7}
+                    >
+                      <FlagCircle code={code} size={24} />
+                      <Text style={[styles.calFlagLabel, { color: calModalActiveLang === code ? colors.bg : colors.inkFaint, fontFamily: calModalActiveLang === code ? fontFamily.bold : fontFamily.regular }]}>
+                        {langDisplayCode(code)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                </View>
               </TouchableOpacity>
-            </View>
-            <FullStreakCalendar
-              key={streakModalLang}
-              readingHistory={readingHistory}
-              filterLang={streakModalLang}
-              freezeDatesUsed={freezeDatesUsed}
-            />
-          </TouchableOpacity>
+            )}
+            {langsWithHistory.length > 1 && <View style={{ height: 8 }} />}
+
+            {/* Calendar tile */}
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
+            >
+              <FullStreakCalendar
+                readingHistory={readingHistory}
+                filterLang={streakModalLang}
+                activeLang={calModalActiveLang}
+                onLangChange={setCalModalActiveLang}
+                freezeDatesUsed={freezeDatesUsed}
+                readingStreaks={readingStreaks}
+                hideTabs
+                headerStyle="tile"
+              />
+            </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
 
@@ -934,8 +997,8 @@ const styles = StyleSheet.create({
   ruleOuter: { height: 2, width: SCREEN_WIDTH },
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
-  ruleInset:      { height: 1, marginHorizontal: 8, marginVertical: 3 },
-  ruleOuterInset: { height: 1.5, marginHorizontal: 8 },
+  ruleInset:      { height: 1, marginHorizontal: 8, marginVertical: 5, borderRadius: 1 },
+  ruleOuterInset: { height: 1.5, marginHorizontal: 8, marginVertical: 2, borderRadius: 1 },
 
   citiesWrap: {
     width: SCREEN_WIDTH,
@@ -948,7 +1011,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingVertical: 6,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   lockupWrap: {
     width: SCREEN_WIDTH,
@@ -966,8 +1030,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 2,
-    paddingBottom: 6,
+    paddingTop: 5,
+    paddingBottom: 8,
   },
   metaDate: {
     flex: 1,
@@ -985,8 +1049,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 6,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   editionRight: {
     flexDirection: 'row',
@@ -1042,6 +1106,12 @@ const styles = StyleSheet.create({
     height: 48,
     opacity: 0.18,
   },
+  statusFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   scrollPill: {
     position: 'absolute',
     right: 4,
@@ -1052,7 +1122,7 @@ const styles = StyleSheet.create({
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     justifyContent: 'flex-end',
   },
   modalSheet: {
@@ -1063,20 +1133,58 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
     maxHeight: '55%',
   },
-  calendarSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-    height: '75%',
+  calendarBackdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  calendarCard: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.13,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  flagsTile: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.13,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  flagsTileClip: {
     overflow: 'hidden',
+    borderRadius: 19,
+  },
+  flagsTileContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  calFlagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  calFlagLabel: {
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   modalTitle: {
     fontSize: 16,

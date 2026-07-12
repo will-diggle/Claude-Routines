@@ -20,19 +20,22 @@ Use the CROSS-REFERENCE SCORING METHOD below to identify them.
 ─────────────────────────────────────────────
 UK POLITICS — 2 stories
 Significant UK and international political developments, with particular attention to UK politics.
-Search primarily: Reuters, AP, BBC News, Financial Times, The Times, Politico, The Guardian, Le Monde, Der Spiegel
+Search primarily: Reuters, AP, BBC News, Financial Times, The Times, Politico, The Guardian, Le Monde, Der Spiegel (9 outlets)
+For each story, count how many of these 9 outlets are independently covering it and record as cross_reference_score.
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
 BUSINESS & ECONOMY — 2 stories
 Significant market, economic, or corporate developments.
-Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal, Reuters Business, AP Business
+Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal, Reuters, AP (6 outlets)
+For each story, count how many of these 6 outlets are independently covering it and record as cross_reference_score.
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
 EUROPE — 2 stories
 Significant European political, economic, social, or institutional developments — EU policy, elections, intra-European disputes, major national stories with continental relevance.
-Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, Euractiv, Euronews, The Guardian Europe, Financial Times Europe
+Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, Euractiv, Euronews, The Guardian, Financial Times (9 outlets)
+For each story, count how many of these 9 outlets are independently covering it and record as cross_reference_score.
 ─────────────────────────────────────────────
 
 
@@ -128,7 +131,7 @@ Schema:
 FIELD RULES:
 
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
-- "cross_reference_score" applies to GLOBAL NEWS stories only. For all other genres, include the key with an empty object {} as its value — never omit it, and never use null. A missing key crashes the downstream parser, and null breaks the Python .get() chain.
+- "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, Business & Economy, and Europe. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
 - "what_happened" must be in deliberate narrative order.
 - Keep each story tight — enough to write a 300-word article from, no more.
-- CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty; cross_reference_score uses {} for non-Global News stories. Never omit a key. A missing key will crash the downstream parser.
+- CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty. Never omit a key. A missing key will crash the downstream parser.

@@ -6,8 +6,19 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 
-const CONFETTI_COLORS = [Colors.cream, Colors.navyBg, Colors.accentGold, Colors.accentRed, '#C8C4BC'];
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+// Flag palette per language — falls back to app palette if not defined
+const FLAG_CONFETTI_COLORS: Record<string, string[]> = {
+  it: ['#009246', '#FFFFFF', '#CE2B37', '#009246', '#CE2B37'],
+  fr: ['#002395', '#FFFFFF', '#ED2939', '#002395', '#ED2939'],
+  de: ['#000000', '#DD0000', '#FFCE00', '#DD0000', '#FFCE00'],
+  es: ['#AA151B', '#F1BF00', '#AA151B', '#F1BF00', '#C60B1E'],
+  sv: ['#006AA7', '#FECC02', '#006AA7', '#FECC02', '#FFFFFF'],
+  tr: ['#E30A17', '#FFFFFF', '#E30A17', '#FFFFFF', '#E30A17'],
+  hu: ['#CE2939', '#FFFFFF', '#477050', '#CE2939', '#477050'],
+  ar: ['#EF3340', '#FFFFFF', '#009A44', '#231F20', '#EF3340'],
+  en: ['#C8102E', '#FFFFFF', '#012169', '#C8102E', '#FFFFFF'],
+};
+const DEFAULT_CONFETTI_COLORS = [Colors.cream, Colors.accentGold, Colors.accentRed, '#C8C4BC', Colors.navyBg];
 
 const STREAK_COPY: Record<string, string> = {
   en: 'Your streak is on fire!',
@@ -27,9 +38,12 @@ interface Props {
   onDismiss: () => void;
 }
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
-  const confettiRef = useRef<ConfettiCannon>(null);
+  const confettiLeftRef = useRef<ConfettiCannon>(null);
+  const confettiRightRef = useRef<ConfettiCannon>(null);
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
@@ -54,8 +68,11 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         ]),
       ]).start();
 
-      const confettiTimer = setTimeout(() => confettiRef.current?.start(), 100);
-      const dismissTimer = setTimeout(onDismiss, 4000);
+      const confettiTimer = setTimeout(() => {
+        confettiLeftRef.current?.start();
+        confettiRightRef.current?.start();
+      }, 100);
+      const dismissTimer = setTimeout(onDismiss, 5000);
       return () => {
         clearTimeout(confettiTimer);
         clearTimeout(dismissTimer);
@@ -101,14 +118,26 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         </Animated.View>
       </TouchableOpacity>
       <ConfettiCannon
-        ref={confettiRef}
-        count={80}
-        origin={{ x: Dimensions.get('window').width / 2, y: -20 }}
-        colors={CONFETTI_COLORS}
-        fallSpeed={2500}
+        ref={confettiLeftRef}
+        count={100}
+        origin={{ x: -10, y: -60 }}
+        spread={70}
+        colors={FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS}
+        fallSpeed={3200}
         fadeOut
         autoStart={false}
-        explosionSpeed={350}
+        explosionSpeed={500}
+      />
+      <ConfettiCannon
+        ref={confettiRightRef}
+        count={100}
+        origin={{ x: SCREEN_WIDTH + 10, y: -60 }}
+        spread={70}
+        colors={FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS}
+        fallSpeed={3200}
+        fadeOut
+        autoStart={false}
+        explosionSpeed={500}
       />
     </Modal>
   );

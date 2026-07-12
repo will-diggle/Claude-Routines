@@ -25,15 +25,17 @@ interface Props {
   cornerRadius?: number;
   intensity?: number;
   children?: React.ReactNode;
+  /** Overrides the Expo Go fallback colour — use this to match tile/card backgrounds */
+  fallbackColor?: string;
 }
 
 const styles = StyleSheet.create({
   expoGoFallback: {
-    backgroundColor: 'rgba(240, 236, 228, 0.82)',
+    backgroundColor: 'rgba(252, 251, 250, 0.90)',
   },
 });
 
-export function GlassSurface({ style, cornerRadius = 100, intensity = 1, children }: Props) {
+export function GlassSurface({ style, cornerRadius = 100, intensity = 1, children, fallbackColor }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
   if (NativeGlassView) {
@@ -48,10 +50,10 @@ export function GlassSurface({ style, cornerRadius = 100, intensity = 1, childre
     );
   }
 
-  // Expo Go — no BlurView support, use a plain semi-transparent background
+  // Expo Go — no BlurView support, use a plain background
   if (isExpoGo) {
     return (
-      <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback]}>
+      <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback, fallbackColor ? { backgroundColor: fallbackColor } : undefined]}>
         {children}
       </View>
     );

@@ -195,17 +195,9 @@ export async function scheduleAllNotifications(params: {
 
 // ─── Keep for compatibility (used by practice notification in Settings) ───────
 
-export async function schedulePracticeNotification(time: string): Promise<void> {
-  try {
-    const granted = await requestNotificationPermission();
-    if (!granted) return;
-    await scheduleDaily(
-      'daily-practice',
-      "How was today's briefing?",
-      'Send your feedback to William — did you like the article?',
-      time,
-    );
-  } catch {}
+export async function schedulePracticeNotification(_time: string): Promise<void> {
+  // Practice notification removed — was sending personal feedback request
+  await Notifications.cancelScheduledNotificationAsync('daily-practice').catch(() => {});
 }
 
 export async function cancelAllNotifications(): Promise<void> {

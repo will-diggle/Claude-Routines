@@ -74,7 +74,7 @@ def _length_status(articles: list, level: str, length: str, lang: str = "") -> t
     if not target:
         return avg_str, False
     lo, hi = target
-    is_bad = avg < lo * 0.85 or avg > hi * 1.25
+    is_bad = avg < lo * 0.70 or avg > hi * 1.25
     return avg_str, is_bad
 
 
