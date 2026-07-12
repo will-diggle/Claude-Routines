@@ -10,6 +10,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "liquid-glass": "file:./modules/liquid-glass",
     "@expo-google-fonts/eb-garamond": "^0.4.2",
     "@expo-google-fonts/lora": "^0.4.2",
     "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",

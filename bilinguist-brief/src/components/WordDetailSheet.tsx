@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { WordAudioButton } from './WordAudioButton';
+import { WordPopup } from './WordPopup';
 import { Spacing } from '../theme';
 import { useWordBankStore, type SavedWord, type Pile } from '../store/useWordBankStore';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -63,6 +64,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   const [activeDeclIdx, setActiveDeclIdx] = useState(0);
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
   const [liveDecl, setLiveDecl] = useState<TenseTable[] | null>(null);
+  const [nestedWord, setNestedWord] = useState<string | null>(null);
 
   const backfillWord = useWordBankStore((s) => s.backfillWord);
 
@@ -363,6 +365,21 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             );
           })()}
 
+          {/* Tappable infinitive row — verbs only */}
+          {tenses.length > 0 && word.lemma && (
+            <TouchableOpacity
+              onPress={() => setNestedWord(word.lemma!)}
+              activeOpacity={0.6}
+              style={[styles.conjRow, { borderTopColor: colors.borderLight }]}
+            >
+              <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>Infinitive</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{word.lemma}</Text>
+                <Ionicons name="chevron-forward" size={12} color={colors.accentRed} />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Verb tenses with centered label and circular nav arrows */}
           {tenses.length > 0 && activeTense && (
             <>
@@ -449,6 +466,19 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
         </ScrollView>
         </Animated.View>
       </View>
+
+      {nestedWord && (
+        <WordPopup
+          word={nestedWord}
+          lemma={nestedWord}
+          sentence={word.exampleSentence ?? word.word}
+          language={lang}
+          level={(word.level as LanguageLevel) ?? 'B1'}
+          genre=""
+          isNested
+          onClose={() => setNestedWord(null)}
+        />
+      )}
     </Modal>
   );
 }
