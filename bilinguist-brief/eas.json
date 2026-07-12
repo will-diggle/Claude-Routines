@@ -9,6 +9,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "image": "macos-sequoia-15.4-xcode-16.3",
       "ios": {
         "simulator": false
       },
