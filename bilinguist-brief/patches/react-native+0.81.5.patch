@@ -1,0 +1,35 @@
+diff --git a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.cpp b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.cpp
+index d44721f..f1428cf 100644
+--- a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.cpp
++++ b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.cpp
+@@ -7,6 +7,7 @@
+
+ #include "jsireact/JSIExecutor.h"
+
++#include <utility>
+ #include <cxxreact/ErrorUtils.h>
+ #include <cxxreact/JSBigString.h>
+ #include <cxxreact/ModuleRegistry.h>
+diff --git a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.h b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.h
+index 6464d53..900bd29 100644
+--- a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.h
++++ b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSIExecutor.h
+@@ -7,6 +7,7 @@
+
+ #pragma once
+
++#include <utility>
+ #include <cxxreact/JSBigString.h>
+ #include <cxxreact/JSExecutor.h>
+ #include <cxxreact/RAMBundleRegistry.h>
+diff --git a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSINativeModules.cpp b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSINativeModules.cpp
+index 18332c7..67178b7 100644
+--- a/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSINativeModules.cpp
++++ b/node_modules/react-native/ReactCommon/jsiexecutor/jsireact/JSINativeModules.cpp
+@@ -6,6 +6,7 @@
+  */
+
+ #include "jsireact/JSINativeModules.h"
++#include <utility>
+
+ #ifndef RCT_FIT_RM_OLD_RUNTIME
