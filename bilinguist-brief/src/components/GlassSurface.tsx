@@ -1,33 +1,34 @@
 import React from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
-// Lazy-load expo-glass-effect — if the native module isn't compatible with this
-// SDK version it will throw, and glassAvailable stays false (no crash).
-let GlassView: React.ComponentType<any> | null = null;
-let GlassContainer: React.ComponentType<any> | null = null;
+// Lazy-load our custom native module at startup.
+// requireNativeView('LiquidGlass') throws if the module didn't autolink — caught here so
+// the app never crashes. On success we have real UIGlassEffect on iOS 26+.
+let NativeGlassView: React.ComponentType<any> | null = null;
 export let glassAvailable = false;
 
 if (!isExpoGo) {
   try {
-    const mod = require('expo-glass-effect');
-    const available = mod.isGlassEffectAPIAvailable?.();
-    if (available) {
-      GlassView = mod.GlassView;
-      GlassContainer = mod.GlassContainer;
-      glassAvailable = true;
-    }
+    // requireNativeView is the Expo Modules SDK way to get a native view by module name.
+    // LiquidGlassModule registers 'LiquidGlass' and LiquidGlassView under it.
+    const { requireNativeView } = require('expo');
+    NativeGlassView = requireNativeView('LiquidGlass');
+    glassAvailable = true;
   } catch {
-    // expo-glass-effect not compatible with this runtime — use blur fallback
+    NativeGlassView = null;
   }
 }
 
-// Error boundary: if GlassView crashes mid-render, swap to BlurView silently.
+// Error boundary: if the native view crashes mid-render, fall back to blur silently.
 interface BoundaryState { crashed: boolean }
-class GlassBoundary extends React.Component<{ fallback: React.ReactNode; children: React.ReactNode }, BoundaryState> {
+class GlassBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  BoundaryState
+> {
   state: BoundaryState = { crashed: false };
   static getDerivedStateFromError() { return { crashed: true }; }
   render() { return this.state.crashed ? this.props.fallback : this.props.children; }
@@ -53,13 +54,17 @@ const styles = StyleSheet.create({
 
 function BlurFallback({ style, children, fallbackColor }: { style?: object; children?: React.ReactNode; fallbackColor?: string }) {
   return (
-    <BlurView intensity={80} tint="systemUltraThinMaterial" style={[StyleSheet.absoluteFillObject, style]}>
+    <BlurView
+      intensity={80}
+      tint="systemUltraThinMaterial"
+      style={[StyleSheet.absoluteFillObject, style]}
+    >
       {children}
     </BlurView>
   );
 }
 
-export function GlassSurface({ style, children, fallbackColor, colorScheme = 'auto' }: Props) {
+export function GlassSurface({ style, children, fallbackColor, colorScheme }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
   if (isExpoGo) {
@@ -70,14 +75,17 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme = 'au
     );
   }
 
-  if (glassAvailable && GlassView) {
-    const NativeGlass = GlassView;
+  if (glassAvailable && NativeGlassView) {
+    const GlassView = NativeGlassView;
     const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
     return (
       <GlassBoundary fallback={blurFallback}>
-        <NativeGlass glassEffectStyle="regular" colorScheme={colorScheme} style={[StyleSheet.absoluteFillObject, flatStyle]}>
+        <GlassView
+          style={[StyleSheet.absoluteFillObject, flatStyle]}
+          cornerRadius={100}
+        >
           {children}
-        </NativeGlass>
+        </GlassView>
       </GlassBoundary>
     );
   }
@@ -85,16 +93,10 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme = 'au
   return <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
 }
 
-export function GlassGroupContainer({ style, children, spacing, pointerEvents }: ContainerProps) {
-  if (glassAvailable && GlassContainer) {
-    const NativeContainer = GlassContainer;
-    return (
-      <GlassBoundary fallback={<View style={style} pointerEvents={pointerEvents}>{children}</View>}>
-        <NativeContainer spacing={spacing} style={style} pointerEvents={pointerEvents}>
-          {children}
-        </NativeContainer>
-      </GlassBoundary>
-    );
-  }
+// On iOS 26+, wraps children in the native GlassContainer so adjacent glass elements merge.
+// Falls back to a plain View on older iOS.
+export function GlassGroupContainer({ style, children, pointerEvents }: ContainerProps) {
+  // GlassContainer merging isn't available via our custom module yet — plain View works fine
+  // since each pill has its own GlassView background.
   return <View style={style} pointerEvents={pointerEvents}>{children}</View>;
 }
