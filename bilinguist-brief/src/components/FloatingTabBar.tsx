@@ -536,7 +536,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
         {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
-        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}}
+        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Closed icon */}
         {!leftOpen && (
@@ -580,7 +580,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
         {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
-        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}}
+        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Mini icon */}
         {!rightOpen && (
