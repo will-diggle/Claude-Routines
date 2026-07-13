@@ -2,10 +2,12 @@ import React from 'react';
 import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 
 const isExpoGo = Constants.appOwnership === 'expo';
-const glassAvailable = !isExpoGo && isLiquidGlassAvailable();
+// isGlassEffectAPIAvailable checks the API exists — unlike isLiquidGlassAvailable,
+// it returns true even if the user has Reduce Transparency or Classic mode enabled.
+const glassAvailable = !isExpoGo && isGlassEffectAPIAvailable();
 
 interface Props {
   style?: ViewStyle | ViewStyle[];
