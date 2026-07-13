@@ -1,31 +1,19 @@
 import React from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 
-// Expo Go can't use expo-blur or local native modules.
 const isExpoGo = Constants.appOwnership === 'expo';
 
-// Always try to load the native view — works in EAS/TestFlight builds.
-// Throws in Expo Go (requireNativeView finds no registered view), which is caught below.
-// NOTE: NativeModules.LiquidGlass is NOT the right check — Expo Modules SDK does not
-// inject into NativeModules. The try-catch on requireNativeView is the correct gate.
-let NativeGlassView: React.ComponentType<any> | null = null;
-if (!isExpoGo) {
-  try {
-    const mod = require('../../modules/liquid-glass/src');
-    NativeGlassView = mod.LiquidGlassView ?? null;
-  } catch {
-    // Module not compiled in this build — fall back to expo-blur
-  }
-}
+// iOS 26+ gets true Liquid Glass via patched expo-blur; older iOS gets systemUltraThinMaterial
+const iosMajor = Platform.OS === 'ios' ? parseInt(String(Platform.Version), 10) : 0;
+const glassTint = iosMajor >= 26 ? ('glass' as any) : 'systemUltraThinMaterial';
 
 interface Props {
   style?: ViewStyle | ViewStyle[];
   cornerRadius?: number;
   intensity?: number;
   children?: React.ReactNode;
-  /** Overrides the Expo Go fallback colour — use this to match tile/card backgrounds */
   fallbackColor?: string;
 }
 
@@ -35,22 +23,9 @@ const styles = StyleSheet.create({
   },
 });
 
-export function GlassSurface({ style, cornerRadius = 100, intensity = 1, children, fallbackColor }: Props) {
+export function GlassSurface({ style, children, fallbackColor }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
-  if (NativeGlassView) {
-    return (
-      <NativeGlassView
-        style={[StyleSheet.absoluteFillObject, flatStyle]}
-        cornerRadius={cornerRadius}
-        intensity={intensity}
-      >
-        {children}
-      </NativeGlassView>
-    );
-  }
-
-  // Expo Go — no BlurView support, use a plain background
   if (isExpoGo) {
     return (
       <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback, fallbackColor ? { backgroundColor: fallbackColor } : undefined]}>
@@ -59,11 +34,10 @@ export function GlassSurface({ style, cornerRadius = 100, intensity = 1, childre
     );
   }
 
-  // EAS build without the native module compiled — expo-blur fallback
   return (
     <BlurView
       intensity={80}
-      tint="systemUltraThinMaterial"
+      tint={glassTint}
       style={[StyleSheet.absoluteFillObject, flatStyle]}
     >
       {children}
