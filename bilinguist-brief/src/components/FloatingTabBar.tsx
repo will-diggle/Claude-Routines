@@ -13,7 +13,7 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle, GlobeCircle } from './FlagCircle';
-import { GlassSurface } from './GlassSurface';
+import { GlassSurface, GlassGroupContainer, glassAvailable } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -510,7 +510,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   const glassColorScheme = (isNavy || isDark) ? 'dark' as const : 'light' as const;
 
-  const pillStyle = {
+  // On iOS 26 native glass handles all visual treatment — no border/shadow needed.
+  const pillStyle = glassAvailable ? {} : {
+    backgroundColor: pillBg,
+    borderWidth: 1,
     borderColor: pillBorder,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 2 },
@@ -524,14 +527,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   if (gameActive) return null;
 
   return (
-    // Flex-row layout guarantees pills never overlap — spacer fills remaining
-    // space and shrinks to 0 before either pill can cross the other.
-    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
+    <GlassGroupContainer
+      spacing={8}
+      style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
+      pointerEvents="box-none"
+    >
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {/* Glass / blur background */}
-        <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
+        {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
+        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}}
 
         {/* Closed icon */}
         {!leftOpen && (
@@ -574,8 +579,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        {/* Glass / blur background */}
-        <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
+        {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
+        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}}
 
         {/* Mini icon */}
         {!rightOpen && (
@@ -589,7 +594,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           {renderFullNav()}
         </Animated.View>
       </Animated.View>
-    </View>
+    </GlassGroupContainer>
   );
 }
 

@@ -1,19 +1,24 @@
 import React from 'react';
-import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
-import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
+import { GlassView, GlassContainer, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 
 const isExpoGo = Constants.appOwnership === 'expo';
-// isGlassEffectAPIAvailable checks the API exists — unlike isLiquidGlassAvailable,
-// it returns true even if the user has Reduce Transparency or Classic mode enabled.
-const glassAvailable = !isExpoGo && isGlassEffectAPIAvailable();
+export const glassAvailable = !isExpoGo && isGlassEffectAPIAvailable();
 
 interface Props {
   style?: ViewStyle | ViewStyle[];
   children?: React.ReactNode;
   fallbackColor?: string;
   colorScheme?: 'auto' | 'light' | 'dark';
+}
+
+interface ContainerProps {
+  style?: ViewStyle | ViewStyle[];
+  children?: React.ReactNode;
+  spacing?: number;
+  pointerEvents?: 'box-none' | 'none' | 'box-only' | 'auto';
 }
 
 const styles = StyleSheet.create({
@@ -25,7 +30,6 @@ const styles = StyleSheet.create({
 export function GlassSurface({ style, children, fallbackColor, colorScheme = 'auto' }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
-  // Expo Go — no native modules available
   if (isExpoGo) {
     return (
       <View
@@ -41,7 +45,6 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme = 'au
     );
   }
 
-  // iOS 26+ — true Liquid Glass via expo-glass-effect
   if (glassAvailable) {
     return (
       <GlassView
@@ -54,7 +57,6 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme = 'au
     );
   }
 
-  // iOS < 26 — expo-blur frosted glass fallback
   return (
     <BlurView
       intensity={80}
@@ -64,4 +66,17 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme = 'au
       {children}
     </BlurView>
   );
+}
+
+// Wraps multiple GlassView siblings so they merge when close — iOS 26 only.
+// Falls back to a plain View on older iOS (children already handle their own backgrounds).
+export function GlassGroupContainer({ style, children, spacing, pointerEvents }: ContainerProps) {
+  if (glassAvailable) {
+    return (
+      <GlassContainer spacing={spacing} style={style} pointerEvents={pointerEvents}>
+        {children}
+      </GlassContainer>
+    );
+  }
+  return <View style={style} pointerEvents={pointerEvents}>{children}</View>;
 }
