@@ -46,13 +46,7 @@ public class LiquidGlassView: ExpoView {
 
   @available(iOS 26.0, *)
   private func setupiOS26Glass() {
-    // Use NSClassFromString to avoid a compile-time dependency on UIGlassEffect
-    // (only in Xcode 26+ SDK). At runtime this resolves to the real class on iOS 26+.
-    guard let glassClass = NSClassFromString("UIGlassEffect") as? UIVisualEffect.Type else {
-      setupFallbackBlur()
-      return
-    }
-    let effect = glassClass.init()
+    let effect = UIGlassEffect()
     let effectView = UIVisualEffectView(effect: effect)
     effectView.frame = bounds
     effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
