@@ -508,9 +508,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const glassColorScheme = (isNavy || isDark) ? 'dark' as const : 'light' as const;
+
   const pillStyle = {
-    backgroundColor: pillBg,
-    borderColor: colors.borderLight,
+    borderColor: pillBorder,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.13,
@@ -529,8 +530,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {/* Dark/navy tint overlay */}
-        {pillTint && <View style={[styles.absoluteFill, { backgroundColor: pillTint, borderRadius: 100 }]} pointerEvents="none" />}
+        {/* Glass / blur background */}
+        <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Closed icon */}
         {!leftOpen && (
@@ -573,8 +574,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        {/* Dark/navy tint overlay */}
-        {pillTint && <View style={[styles.absoluteFill, { backgroundColor: pillTint, borderRadius: 100 }]} pointerEvents="none" />}
+        {/* Glass / blur background */}
+        <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Mini icon */}
         {!rightOpen && (

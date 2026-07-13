@@ -13,6 +13,7 @@ interface Props {
   style?: ViewStyle | ViewStyle[];
   children?: React.ReactNode;
   fallbackColor?: string;
+  colorScheme?: 'auto' | 'light' | 'dark';
 }
 
 const styles = StyleSheet.create({
@@ -21,7 +22,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export function GlassSurface({ style, children, fallbackColor }: Props) {
+export function GlassSurface({ style, children, fallbackColor, colorScheme = 'auto' }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
   // Expo Go — no native modules available
@@ -45,6 +46,7 @@ export function GlassSurface({ style, children, fallbackColor }: Props) {
     return (
       <GlassView
         glassEffectStyle="regular"
+        colorScheme={colorScheme}
         style={[StyleSheet.absoluteFillObject, flatStyle]}
       >
         {children}
