@@ -2,17 +2,13 @@ import React from 'react';
 import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 
 const isExpoGo = Constants.appOwnership === 'expo';
-
-// iOS 26+ gets true Liquid Glass via patched expo-blur; older iOS gets systemUltraThinMaterial
-const iosMajor = Platform.OS === 'ios' ? parseInt(String(Platform.Version), 10) : 0;
-const glassTint = iosMajor >= 26 ? ('glass' as any) : 'systemUltraThinMaterial';
+const glassAvailable = !isExpoGo && isLiquidGlassAvailable();
 
 interface Props {
   style?: ViewStyle | ViewStyle[];
-  cornerRadius?: number;
-  intensity?: number;
   children?: React.ReactNode;
   fallbackColor?: string;
 }
@@ -26,18 +22,39 @@ const styles = StyleSheet.create({
 export function GlassSurface({ style, children, fallbackColor }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
+  // Expo Go — no native modules available
   if (isExpoGo) {
     return (
-      <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback, fallbackColor ? { backgroundColor: fallbackColor } : undefined]}>
+      <View
+        style={[
+          StyleSheet.absoluteFillObject,
+          flatStyle,
+          styles.expoGoFallback,
+          fallbackColor ? { backgroundColor: fallbackColor } : undefined,
+        ]}
+      >
         {children}
       </View>
     );
   }
 
+  // iOS 26+ — true Liquid Glass via expo-glass-effect
+  if (glassAvailable) {
+    return (
+      <GlassView
+        glassEffectStyle="regular"
+        style={[StyleSheet.absoluteFillObject, flatStyle]}
+      >
+        {children}
+      </GlassView>
+    );
+  }
+
+  // iOS < 26 — expo-blur frosted glass fallback
   return (
     <BlurView
       intensity={80}
-      tint={glassTint}
+      tint="systemUltraThinMaterial"
       style={[StyleSheet.absoluteFillObject, flatStyle]}
     >
       {children}
