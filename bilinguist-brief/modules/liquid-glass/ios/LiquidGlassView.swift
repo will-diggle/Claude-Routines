@@ -45,7 +45,36 @@ public class LiquidGlassView: ExpoView {
       addSubview(ev)
       effectView = ev
     }
-    updateCornerRadius()
+  }
+
+  @available(iOS 26.0, *)
+  private func setupiOS26Glass() {
+    let effect = UIGlassEffect()
+    let effectView = UIVisualEffectView(effect: effect)
+    effectView.frame = bounds
+    effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    effectView.layer.cornerRadius = currentCornerRadius
+    effectView.clipsToBounds = true
+    addSubview(effectView)
+    blurView = effectView
+  }
+
+  private func setupFallbackBlur() {
+    // systemUltraThinMaterial is the closest pre-iOS-26 equivalent
+    let blur = UIBlurEffect(style: .systemUltraThinMaterial)
+    let effectView = UIVisualEffectView(effect: blur)
+    effectView.frame = bounds
+    effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+
+    // Subtle vibrancy layer on top so text/icons read through the glass
+    let vibrancy = UIVibrancyEffect(blurEffect: blur, style: .fill)
+    let vibrancyView = UIVisualEffectView(effect: vibrancy)
+    vibrancyView.frame = effectView.contentView.bounds
+    vibrancyView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    effectView.contentView.addSubview(vibrancyView)
+
+    addSubview(effectView)
+    blurView = effectView
   }
 
   private func updateCornerRadius() {

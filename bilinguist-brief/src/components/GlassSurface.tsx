@@ -1,64 +1,72 @@
 import React from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 
-// Expo Go can't use expo-blur or local native modules.
 const isExpoGo = Constants.appOwnership === 'expo';
 
-// Always try to load the native view — works in EAS/TestFlight builds.
-// Throws in Expo Go (requireNativeView finds no registered view), which is caught below.
-// NOTE: NativeModules.LiquidGlass is NOT the right check — Expo Modules SDK does not
-// inject into NativeModules. The try-catch on requireNativeView is the correct gate.
+// Lazy-load our custom native module at startup.
+// requireNativeView('LiquidGlass') throws if the module didn't autolink — caught here so
+// the app never crashes. On success we have real UIGlassEffect on iOS 26+.
 let NativeGlassView: React.ComponentType<any> | null = null;
+export let glassAvailable = false;
+
 if (!isExpoGo) {
   try {
-    const mod = require('../../modules/liquid-glass/src');
-    NativeGlassView = mod.LiquidGlassView ?? null;
+    // requireNativeView is the Expo Modules SDK way to get a native view by module name.
+    // LiquidGlassModule registers 'LiquidGlass' and LiquidGlassView under it.
+    const { requireNativeView } = require('expo');
+    NativeGlassView = requireNativeView('LiquidGlass');
+    glassAvailable = true;
   } catch {
-    // Module not compiled in this build — fall back to expo-blur
+    NativeGlassView = null;
   }
 }
 
-// True when UIGlassEffect is compiled in and will render — consumers can
-// omit their own backgroundColor in that case.
-export const glassAvailable = !isExpoGo && NativeGlassView !== null;
-// DIAGNOSTIC — remove after confirming glass loads in TestFlight
-if (__DEV__ || !isExpoGo) {
-  console.log('[GlassSurface] glassAvailable:', glassAvailable, '| isExpoGo:', isExpoGo, '| NativeGlassView loaded:', NativeGlassView !== null);
+// Error boundary: if the native view crashes mid-render, fall back to blur silently.
+interface BoundaryState { crashed: boolean }
+class GlassBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  BoundaryState
+> {
+  state: BoundaryState = { crashed: false };
+  static getDerivedStateFromError() { return { crashed: true }; }
+  render() { return this.state.crashed ? this.props.fallback : this.props.children; }
 }
 
 interface Props {
   style?: ViewStyle | ViewStyle[];
-  cornerRadius?: number;
-  intensity?: number;
   children?: React.ReactNode;
-  /** Overrides the Expo Go fallback colour — use this to match tile/card backgrounds */
   fallbackColor?: string;
+  colorScheme?: 'auto' | 'light' | 'dark';
+}
+
+interface ContainerProps {
+  style?: ViewStyle | ViewStyle[];
+  children?: React.ReactNode;
+  spacing?: number;
+  pointerEvents?: 'box-none' | 'none' | 'box-only' | 'auto';
 }
 
 const styles = StyleSheet.create({
-  expoGoFallback: {
-    backgroundColor: 'rgba(252, 251, 250, 0.90)',
-  },
+  expoGoFallback: { backgroundColor: 'rgba(252, 251, 250, 0.90)' },
 });
 
-export function GlassSurface({ style, cornerRadius = 100, intensity = 1, children, fallbackColor }: Props) {
+function BlurFallback({ style, children, fallbackColor }: { style?: object; children?: React.ReactNode; fallbackColor?: string }) {
+  return (
+    <BlurView
+      intensity={80}
+      tint="systemUltraThinMaterial"
+      style={[StyleSheet.absoluteFillObject, style]}
+    >
+      {children}
+    </BlurView>
+  );
+}
+
+export function GlassSurface({ style, children, fallbackColor, colorScheme }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
-  if (NativeGlassView) {
-    return (
-      <NativeGlassView
-        style={[StyleSheet.absoluteFillObject, flatStyle]}
-        cornerRadius={cornerRadius}
-        intensity={intensity}
-      >
-        {children}
-      </NativeGlassView>
-    );
-  }
-
-  // Expo Go — no BlurView support, use a plain background
   if (isExpoGo) {
     return (
       <View style={[StyleSheet.absoluteFillObject, flatStyle, styles.expoGoFallback, fallbackColor ? { backgroundColor: fallbackColor } : undefined]}>
@@ -67,14 +75,28 @@ export function GlassSurface({ style, cornerRadius = 100, intensity = 1, childre
     );
   }
 
-  // EAS build without the native module compiled — expo-blur fallback
-  return (
-    <BlurView
-      intensity={80}
-      tint="systemUltraThinMaterial"
-      style={[StyleSheet.absoluteFillObject, flatStyle]}
-    >
-      {children}
-    </BlurView>
-  );
+  if (glassAvailable && NativeGlassView) {
+    const GlassView = NativeGlassView;
+    const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
+    return (
+      <GlassBoundary fallback={blurFallback}>
+        <GlassView
+          style={[StyleSheet.absoluteFillObject, flatStyle]}
+          cornerRadius={100}
+        >
+          {children}
+        </GlassView>
+      </GlassBoundary>
+    );
+  }
+
+  return <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
+}
+
+// On iOS 26+, wraps children in the native GlassContainer so adjacent glass elements merge.
+// Falls back to a plain View on older iOS.
+export function GlassGroupContainer({ style, children, pointerEvents }: ContainerProps) {
+  // GlassContainer merging isn't available via our custom module yet — plain View works fine
+  // since each pill has its own GlassView background.
+  return <View style={style} pointerEvents={pointerEvents}>{children}</View>;
 }

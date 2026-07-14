@@ -50,26 +50,11 @@
       [
         "expo-alternate-app-icons",
         [
-          {
-            "name": "Black",
-            "image": "./assets/icon-black.png"
-          },
-          {
-            "name": "Cream",
-            "image": "./assets/icon-cream.png"
-          },
-          {
-            "name": "Navy",
-            "image": "./assets/icon-navy.png"
-          },
-          {
-            "name": "Pride1",
-            "image": "./assets/icon-pride-1.png"
-          },
-          {
-            "name": "Pride2",
-            "image": "./assets/icon-pride-2.png"
-          }
+          { "name": "Black",   "ios": "./assets/icon-black.png"   },
+          { "name": "Cream",   "ios": "./assets/icon-cream.png"   },
+          { "name": "Navy",    "ios": "./assets/icon-navy.png"    },
+          { "name": "Pride1",  "ios": "./assets/icon-pride-1.png" },
+          { "name": "Pride2",  "ios": "./assets/icon-pride-2.png" }
         ]
       ],
       "expo-location",
