@@ -21,6 +21,7 @@ import { FullStreakCalendar } from '../components/StreakCalendar';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
+import { FreezeWarningModal, FrozenLang } from '../components/FreezeWarningModal';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -218,6 +219,8 @@ export function BriefingScreen() {
   const calSlideAnim = useRef(new Animated.Value(-400)).current;
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
+  const [freezeWarnVisible, setFreezeWarnVisible] = useState(false);
+  const [frozenLangs, setFrozenLangs] = useState<FrozenLang[]>([]);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
   const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('longer');
   // Per-language flags — reset from store on mount so app restarts don't double-credit
@@ -291,7 +294,17 @@ export function BriefingScreen() {
     }
   }, [activeLanguages, checkAndConsumeFreeze]);
 
-  useEffect(() => { checkFreezes(); }, []);
+  useEffect(() => {
+    checkFreezes();
+    // After consuming freezes, warn about any language now under a freeze today
+    const frozen = activeLanguages
+      .filter(l => isFrozenToday(l.code))
+      .map(l => ({ code: l.code, nativeName: l.nativeName, streak: readingStreaks[l.code] ?? 0 }));
+    if (frozen.length > 0) {
+      setFrozenLangs(frozen);
+      setFreezeWarnVisible(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialise the modal's length picker to the language's current readLength
   useEffect(() => {
@@ -411,6 +424,7 @@ export function BriefingScreen() {
   const lastValidBriefingsRef = useRef<Partial<Record<string, GeneratedBriefing>>>({});
   const lastSyncRef = useRef<number>(0);
   const pagerRef = useRef<ScrollView>(null);
+  const langScrollRefs = useRef<Map<string, ScrollView>>(new Map());
   // Prevents the pill→pager scroll from bouncing back as a user-swipe event
   const programmaticScrollRef = useRef(false);
 
@@ -610,6 +624,7 @@ export function BriefingScreen() {
           return (
             <View key={lang.code} style={styles.page}>
             <ScrollView
+              ref={(el) => { if (el) langScrollRefs.current.set(lang.code, el); else langScrollRefs.current.delete(lang.code); }}
               style={{ flex: 1, backgroundColor: colors.bg }}
               contentContainerStyle={[
                 styles.pageContent,
@@ -699,7 +714,10 @@ export function BriefingScreen() {
                 {(() => {
                   const streak = readingStreaks[lang.code] ?? 0;
                   const isReadToday = lastReadDates[lang.code] === today;
-                  const streakColor = isReadToday ? '#F97316' : colors.inkFaint;
+                  const isFrozen = isFrozenToday(lang.code);
+                  const streakColor = isReadToday ? '#F97316'
+                                    : isFrozen   ? '#60A5FA'
+                                    :               colors.inkFaint;
                   return (
                     <TouchableOpacity
                       onPress={() => { openStreakModal(lang.code); }}
@@ -751,11 +769,20 @@ export function BriefingScreen() {
                   <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                     {publishedDateStr(bundleReceivedAt, lang.code)}
                   </Text>
-                  <Image
-                    source={CRESTS[background] ?? CRESTS.cream}
-                    style={styles.footerCrest}
-                    resizeMode="contain"
-                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      langScrollRefs.current.get(lang.code)?.scrollTo({ y: 0, animated: true });
+                    }}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 14, bottom: 14, left: 20, right: 20 }}
+                  >
+                    <Image
+                      source={CRESTS[background] ?? CRESTS.cream}
+                      style={styles.footerCrest}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
                 </View>
               )}
             </ScrollView>
@@ -876,7 +903,7 @@ export function BriefingScreen() {
                   >
                     <Text style={[
                       styles.levelChipText,
-                      { color: isActive ? colors.inkDark : colors.inkMid, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
+                      { color: isActive ? colors.bg : colors.inkMid, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
                     ]}>
                       {chipLabel}
                     </Text>
@@ -982,6 +1009,11 @@ export function BriefingScreen() {
         visible={fullSweepVisible}
         langCodes={activeLanguages.map(l => l.code)}
         onDismiss={() => setFullSweepVisible(false)}
+      />
+      <FreezeWarningModal
+        visible={freezeWarnVisible}
+        langs={frozenLangs}
+        onDismiss={() => setFreezeWarnVisible(false)}
       />
     </View>
   );
@@ -1089,7 +1121,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 16,
     alignItems: 'center',
-    gap: 14,
   },
   footerRule: {
     height: 1,
@@ -1097,14 +1128,16 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   footerDate: {
+    marginTop: 32,
     fontSize: 11,
     opacity: 0.5,
     textAlign: 'center',
   },
   footerCrest: {
-    width: 48,
-    height: 48,
-    opacity: 0.18,
+    marginTop: 20,
+    width: 72,
+    height: 72,
+    opacity: 0.22,
   },
   statusFade: {
     position: 'absolute',

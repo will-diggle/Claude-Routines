@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Dimensions, Animated, Easing,
+  Dimensions, Animated, Easing, Platform, LayoutChangeEvent,
 } from 'react-native';
+
+export const isIOS26Plus =
+  Platform.OS === 'ios' && parseInt(Platform.Version as string, 10) >= 26;
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -13,7 +16,7 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle, GlobeCircle } from './FlagCircle';
-import { GlassSurface } from './GlassSurface';
+import { GlassSurface, glassAvailable } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -32,7 +35,8 @@ export const FLOAT_TAB_H_SMALL  = 60; // unified — same height on all pages
 export const FLOAT_TAB_H_FLAG      = 60; // unified with LARGE
 export const FLOAT_TAB_H_FLAG_2ROW = 100; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
-export const FLOAT_TAB_INSET    = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
+// Pills float over content on all iOS versions — screens need this bottom padding.
+export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
@@ -72,6 +76,13 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   languages: 'Languages', genres: 'Genres', display: 'Display', profile: 'Profile',
 };
 
+const SECTION_ICONS: Record<SettingsSection, React.ComponentProps<typeof Ionicons>['name']> = {
+  languages: 'globe-outline',
+  genres:    'pricetags-outline',
+  display:   'color-palette-outline',
+  profile:   'person-outline',
+};
+
 // ── Left pill context — memoised so it doesn't re-render on every animation frame ──
 
 interface LeftContextProps {
@@ -90,30 +101,108 @@ interface LeftContextProps {
   onBriefLang: (i: number) => void;
   onSettingsSection: (s: SettingsSection) => void;
   onPracticeLang: (code: string) => void;
+  isDark: boolean;
+  isNavy: boolean;
 }
 
 const LeftContext = memo(function LeftContext({
   routeIndex, activeLanguages, briefPageIndex, settingsSection,
   practiceLang, savedLangCodes, allLanguages, activeColor, inactiveColor,
-  activeChipStyle, fontFamily, onChipGroupLayout, onBriefLang,
-  onSettingsSection, onPracticeLang,
+  fontFamily, onChipGroupLayout, onBriefLang,
+  onSettingsSection, onPracticeLang, isDark, isNavy,
 }: LeftContextProps) {
+
+  // ── Sliding glass lens ────────────────────────────────────────────────────
+  // Absolutely-positioned view that springs between chip positions when the
+  // active selection changes — no native UIGlassEffect needed.
+  const posCache   = useRef<{ idx: number; data: Array<{ x: number; w: number } | undefined> }>({ idx: -1, data: [] });
+  const lensLeft   = useRef(new Animated.Value(-200)).current;
+  const lensW      = useRef(new Animated.Value(60)).current;
+  const lensOpacity = useRef(new Animated.Value(0)).current;
+  const hasSeated  = useRef(false);
+
+  const LENS_SP = { stiffness: 380, damping: 26, mass: 0.8, useNativeDriver: false } as const;
+
+  function getActiveIdx(): number {
+    if (routeIndex === 0) return briefPageIndex;
+    if (routeIndex === 2) {
+      const i = (['languages', 'genres', 'display', 'profile'] as SettingsSection[]).indexOf(settingsSection);
+      return Math.max(0, i);
+    }
+    if (practiceLang === 'all') return 0;
+    const i = savedLangCodes.indexOf(practiceLang as string);
+    return i >= 0 ? i + 1 : 0;
+  }
+
+  function moveLens(chipIdx: number, animate = true) {
+    if (posCache.current.idx !== routeIndex) return;
+    const pos = posCache.current.data[chipIdx];
+    if (!pos) return;
+    if (animate) {
+      Animated.parallel([
+        Animated.spring(lensLeft, { toValue: pos.x, ...LENS_SP }),
+        Animated.spring(lensW,    { toValue: pos.w, ...LENS_SP }),
+      ]).start();
+    } else {
+      lensLeft.setValue(pos.x);
+      lensW.setValue(pos.w);
+    }
+    lensOpacity.setValue(1);
+  }
+
+  // Slide lens when selection changes
+  useEffect(() => {
+    moveLens(getActiveIdx());
+  }, [briefPageIndex, settingsSection, practiceLang]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset lens when tab route changes (different chip set)
+  useEffect(() => {
+    hasSeated.current = false;
+    lensOpacity.setValue(0);
+  }, [routeIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function chipLayout(chipIdx: number) {
+    return (e: LayoutChangeEvent) => {
+      const { x, width } = e.nativeEvent.layout;
+      if (posCache.current.idx !== routeIndex) {
+        posCache.current = { idx: routeIndex, data: [] };
+      }
+      posCache.current.data[chipIdx] = { x, w: width };
+      if (chipIdx === getActiveIdx() && !hasSeated.current) {
+        hasSeated.current = true;
+        moveLens(chipIdx, false);
+      }
+    };
+  }
+
+  // Glass lens visual — subtle frosted disc that slides beneath chip content
+  const lensStyle = [
+    styles.glassLens,
+    {
+      borderColor: isDark || isNavy ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.88)',
+      backgroundColor: isDark || isNavy ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.62)',
+      left: lensLeft,
+      width: lensW,
+      opacity: lensOpacity,
+    },
+  ];
+
+  const flagOnly = routeIndex === 0 && activeLanguages.length >= 5;
+
   if (routeIndex === 0) {
-    const flagOnly = activeLanguages.length >= 5;
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+          <Animated.View style={lensStyle as any} pointerEvents="none" />
           {activeLanguages.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
-              style={[
-                flagOnly ? styles.contextItemFlagOnly : [styles.contextItem, styles.contextItemFlag],
-                briefPageIndex === i && activeChipStyle,
-              ]}
+              style={flagOnly ? styles.contextItemFlagOnly : [styles.contextItem, styles.contextItemFlag]}
               onPress={() => { Haptics.selectionAsync(); onBriefLang(i); }}
+              onLayout={chipLayout(i)}
               activeOpacity={0.7}
             >
-              <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} />
+              <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} muted />
               {!flagOnly && (
                 <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                   {lang.nativeName}
@@ -130,13 +219,24 @@ const LeftContext = memo(function LeftContext({
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-          {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec) => (
-            <TouchableOpacity key={sec} style={[styles.contextItem, settingsSection === sec && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }} activeOpacity={0.7}>
-              <Text style={[styles.contextLabel, { color: settingsSection === sec ? activeColor : inactiveColor, fontFamily: settingsSection === sec ? fontFamily.bold : fontFamily.regular }]}>
-                {SECTION_LABELS[sec]}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <Animated.View style={lensStyle as any} pointerEvents="none" />
+          {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec, i) => {
+            const isActive = settingsSection === sec;
+            return (
+              <TouchableOpacity
+                key={sec}
+                style={[styles.contextItem, styles.contextItemFlag]}
+                onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
+                onLayout={chipLayout(i)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={SECTION_ICONS[sec]} size={18} color={isActive ? activeColor : inactiveColor} />
+                <Text style={[styles.contextLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: isActive ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
+                  {SECTION_LABELS[sec]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     );
@@ -151,13 +251,14 @@ const LeftContext = memo(function LeftContext({
   return (
     <View style={styles.contextRow}>
       <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag, practiceLang === 'all' && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} activeOpacity={0.7}>
-          <GlobeCircle size={20} />
+        <Animated.View style={lensStyle as any} pointerEvents="none" />
+        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onLayout={chipLayout(0)} activeOpacity={0.7}>
+          <GlobeCircle size={20} muted />
           <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
         </TouchableOpacity>
-        {visibleLangs.map((code) => (
-          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag, practiceLang === code && activeChipStyle]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} activeOpacity={0.7}>
-            <FlagCircle code={code} size={20} />
+        {visibleLangs.map((code, i) => (
+          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onLayout={chipLayout(i + 1)} activeOpacity={0.7}>
+            <FlagCircle code={code} size={20} muted />
             <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
               {langLabel(code)}
             </Text>
@@ -254,9 +355,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                : isDark  ? 'rgba(22,22,22,0.92)'
                : isCream ? 'rgba(245,240,232,0.95)'
                :           'rgba(250,248,246,0.92)';
-  // Tint overlay applied on top of GlassSurface so the pill actually reads as
-  // dark/grey in night & navy modes — the glass effect alone stays frosted-light.
-  const pillTint = isNavy ? 'rgba(22,34,54,0.80)'
+  // When real UIGlassEffect is rendering, let it naturally sample the background —
+  // no tint needed. Only use tint as a fallback when glass isn't available.
+  const pillTint = glassAvailable ? null
+                 : isNavy ? 'rgba(22,34,54,0.80)'
                  : isDark ? 'rgba(18,18,18,0.78)'
                  : null;
   const pillBorder = isNavy  ? 'rgba(255,255,255,0.14)'
@@ -265,12 +367,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                    :           'rgba(0,0,0,0.11)';
   const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
   const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
-  // Dark/navy: dark-tinted chip with a crisp white border so the selected state reads
-  // clearly without the jarring "white pill" that rgba(255,255,255,0.18) creates.
-  const activeChipStyle = (isNavy || isDark) ? {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)',
-  } : {
-    backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 0.5, borderColor: 'rgba(0,0,0,0.07)',
+  // Subtle tinted background for the active chip — low enough opacity to not
+  // create the white-oval "eye" effect, but visible enough to show selection.
+  const activeChipStyle = {
+    backgroundColor: isNavy ? 'rgba(245,240,232,0.13)'
+                   : isDark  ? 'rgba(255,255,255,0.10)'
+                   :           'rgba(0,0,0,0.06)',
   };
 
   const currentRouteIndex = state.index;
@@ -350,10 +452,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     leftContextOp.setValue(1);
     rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    const targetH =
-      currentRouteIndex === 0 || currentRouteIndex === 1
-        ? FLOAT_TAB_H_FLAG
-        : FLOAT_TAB_H_SMALL;
+    // All three tabs now use icon+label stacked chips — same height for all.
+  const targetH = FLOAT_TAB_H_FLAG;
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: targetH, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),
@@ -509,12 +609,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const pillStyle = {
-    backgroundColor: pillBg,
+    // GlassSurface is rendered as the first child of each pill and provides
+    // the background (UIGlassEffect on iOS 26, BlurView on older iOS, solid on Expo Go).
+    // Only set a backgroundColor here as a last resort when neither is available.
+    backgroundColor: glassAvailable ? 'transparent' : pillBg,
     borderColor: colors.borderLight,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.13,
-    shadowRadius: 6,
+    shadowOpacity: glassAvailable ? 0.18 : 0.13,
+    shadowRadius: glassAvailable ? 12 : 6,
     elevation: 3,
   };
 
@@ -529,6 +632,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
+        {/* Glass background — UIGlassEffect on iOS 26+, BlurView below that */}
+        <GlassSurface cornerRadius={100} fallbackColor={pillBg} />
         {/* Dark/navy tint overlay */}
         {pillTint && <View style={[styles.absoluteFill, { backgroundColor: pillTint, borderRadius: 100 }]} pointerEvents="none" />}
 
@@ -563,6 +668,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               onBriefLang={setBriefPageIndex}
               onSettingsSection={setSettingsSection}
               onPracticeLang={(code) => setPracticeLang(code as any)}
+              isDark={isDark}
+              isNavy={isNavy}
             />
           </TouchableOpacity>
         </Animated.View>
@@ -573,6 +680,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
+        {/* Glass background — UIGlassEffect on iOS 26+, BlurView below that */}
+        <GlassSurface cornerRadius={100} fallbackColor={pillBg} />
         {/* Dark/navy tint overlay */}
         {pillTint && <View style={[styles.absoluteFill, { backgroundColor: pillTint, borderRadius: 100 }]} pointerEvents="none" />}
 
@@ -640,6 +749,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingLeft: 10,
     paddingRight: 10,
+  },
+  // Sliding glass lens — absolutely positioned within chipGroup, slides to active chip
+  glassLens: {
+    position: 'absolute',
+    top: 5,
+    bottom: 5,
+    borderRadius: 99,
+    borderWidth: 1,
   },
   // Inner group — sizes to content, reports true width via onLayout
   chipGroup: {

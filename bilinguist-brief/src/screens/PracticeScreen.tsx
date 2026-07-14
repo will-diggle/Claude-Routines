@@ -188,7 +188,7 @@ export function PracticeScreen() {
       )}
 
       {/* Games section */}
-      <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.lg, marginBottom: Spacing.lg }]}>
+      <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.lg, marginBottom: Spacing.sm }]}>
         PRACTICE GAMES
       </Text>
 
@@ -227,18 +227,9 @@ export function PracticeScreen() {
 
       {/* Recent words preview */}
       {hasWords && (
-        <View style={[styles.recentCard, {
-          backgroundColor: colors.card,
-          borderColor: colors.borderLight,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.13,
-          shadowRadius: 6,
-          elevation: 3,
-          marginTop: Spacing.xl,
-        }]}>
+        <>
           <View style={styles.sectionRow}>
-            <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+            <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.lg }]}>
               RECENTLY SAVED
             </Text>
             <TouchableOpacity
@@ -251,6 +242,15 @@ export function PracticeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        <View style={[styles.recentCard, {
+          backgroundColor: colors.card,
+          borderColor: colors.borderLight,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.13,
+          shadowRadius: 6,
+          elevation: 3,
+        }]}>
           {recentWords.map((w, idx) => (
             <TouchableOpacity
               key={w.id}
@@ -286,6 +286,7 @@ export function PracticeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        </>
       )}
     </ScrollView>
 
@@ -389,7 +390,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   pileCard: {
     width: '47.5%',
@@ -418,7 +419,6 @@ const styles = StyleSheet.create({
   recentCard: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.md,
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xs,
   },

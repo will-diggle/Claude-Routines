@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
 function FlagInterior({ code, size }: { code: string; size: number }) {
   switch (code) {
@@ -82,15 +82,16 @@ function FlagInterior({ code, size }: { code: string; size: number }) {
   }
 }
 
-export function FlagCircle({ code, size = 28 }: { code: string; size?: number }) {
+export function FlagCircle({ code, size = 28, muted = false }: { code: string; size?: number; muted?: boolean }) {
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
       <FlagInterior code={code} size={size} />
+      {muted && <View style={[StyleSheet.absoluteFillObject, styles.mutedOverlay]} />}
     </View>
   );
 }
 
-export function GlobeCircle({ size = 20 }: { size?: number }) {
+export function GlobeCircle({ size = 20, muted = false }: { size?: number; muted?: boolean }) {
   const s = size;
   const land = '#77BF4A';
   return (
@@ -109,6 +110,13 @@ export function GlobeCircle({ size = 20 }: { size?: number }) {
       <View style={{ position: 'absolute', left: s*0.46, top: s*0.27, width: s*0.25, height: s*0.54, backgroundColor: land, borderRadius: s*0.12 }} />
       {/* Asia (right edge, partially clipped by circle) */}
       <View style={{ position: 'absolute', left: s*0.64, top: -s*0.02, width: s*0.40, height: s*0.42, backgroundColor: land, borderRadius: s*0.10 }} />
+      {muted && <View style={[StyleSheet.absoluteFillObject, styles.mutedOverlay]} />}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  mutedOverlay: {
+    backgroundColor: 'rgba(255,255,255,0.38)',
+  },
+});

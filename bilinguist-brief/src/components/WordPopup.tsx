@@ -242,6 +242,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     if (lemma && lemma.toLowerCase() !== word.toLowerCase()) return lemma;
     return null;
   })();
+  // subtitle kept as fallback only — new render splits pill + IPA separately
   const subtitle = subtitleLemma
     ? (entry?.pronunciation ? `${subtitleLemma}  ·  ${entry.pronunciation}` : subtitleLemma)
     : (entry?.pronunciation ? entry.pronunciation : null);
@@ -295,23 +296,31 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             )}
           </View>
 
-        {/* Subtitle: lemma · /IPA/ — tappable if it's the infinitive/lemma (not just IPA) */}
-        {subtitle && (
-          subtitleLemma && !isNested ? (
-            <TouchableOpacity
-              onPress={() => setNestedWord(subtitleLemma)}
-              activeOpacity={0.6}
-              hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
-            >
-              <Text style={[styles.subtitle, styles.subtitleTappable, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                {subtitle}
+        {/* Subtitle: infinitive pill (tappable) + IPA plain text */}
+        {(subtitleLemma || entry?.pronunciation) && (
+          <View style={styles.subtitleRow}>
+            {subtitleLemma && !isNested ? (
+              <TouchableOpacity
+                onPress={() => setNestedWord(subtitleLemma)}
+                activeOpacity={0.7}
+                style={[styles.infinitivePill, { backgroundColor: colors.card }]}
+              >
+                <Text style={[styles.infinitivePillText, { color: colors.accentRed, fontFamily: fontFamily.italic }]}>
+                  {subtitleLemma}
+                </Text>
+                <Ionicons name="chevron-forward" size={11} color={colors.accentRed} />
+              </TouchableOpacity>
+            ) : subtitleLemma ? (
+              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                {subtitleLemma}
               </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={[styles.subtitle, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              {subtitle}
-            </Text>
-          )
+            ) : null}
+            {entry?.pronunciation && (
+              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                {subtitleLemma ? `· ${entry.pronunciation}` : entry.pronunciation}
+              </Text>
+            )}
+          </View>
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
@@ -500,21 +509,6 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             );
           })()}
 
-          {/* Infinitive row — tappable when the lemma differs from tapped word */}
-          {tenses.length > 0 && subtitleLemma && !isNested && (
-            <TouchableOpacity
-              onPress={() => setNestedWord(subtitleLemma)}
-              activeOpacity={0.6}
-              style={[styles.conjRow, { borderTopColor: colors.borderLight }]}
-            >
-              <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>Infinitive</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{subtitleLemma}</Text>
-                <Ionicons name="chevron-forward" size={12} color={colors.accentRed} />
-              </View>
-            </TouchableOpacity>
-          )}
-
           {/* Verb tenses — circular nav with CENTERED tense title */}
           {tenses.length > 0 && activeTense && (
             <>
@@ -638,8 +632,31 @@ const styles = StyleSheet.create({
   wordSpeakerMirror: { width: 34 },
   wordText: { fontSize: 34, flexShrink: 1 },
 
-  subtitle: { fontSize: 14, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
-  subtitleTappable: { textDecorationLine: 'underline' },
+  // Subtitle area — pill + IPA side by side
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xs,
+  },
+  infinitivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    borderRadius: 99,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  infinitivePillText: { fontSize: 14 },
+  subtitleIPA: { fontSize: 14, fontStyle: 'italic' },
 
   // Dividers
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: Spacing.sm },
