@@ -236,11 +236,18 @@ export const useBriefingStore = create<BriefingStore>()(
 
           const isNewDate = get().lastBundleDate !== bundle.date;
 
-          // Derive daily native CEFR grade per language from Prompt 4 results
+          // Native journalism reading level from P4a — this is what gates which CEFR
+          // levels the pipeline writes, and what the "B1 / Muttersprache" chip should show.
           const gradeUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
-          for (const [lang, langGrading] of Object.entries(bundle.grading ?? {})) {
-            if (langGrading.length > 0) {
-              gradeUpdates[lang as LanguageCode] = modalCefr(langGrading, lang);
+          for (const [lang, grade] of Object.entries(bundle.nativeGrades ?? {})) {
+            if (grade) gradeUpdates[lang as LanguageCode] = grade as LanguageLevel;
+          }
+          // Fall back to P4b modal if nativeGrades not present (older bundles)
+          if (Object.keys(gradeUpdates).length === 0) {
+            for (const [lang, langGrading] of Object.entries(bundle.grading ?? {})) {
+              if (langGrading.length > 0) {
+                gradeUpdates[lang as LanguageCode] = modalCefr(langGrading, lang);
+              }
             }
           }
 

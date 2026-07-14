@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
-      "buildNumber": "97",
+      "buildNumber": "128",
       "usesAppleSignIn": true,
       "icon": {
         "light": "./assets/icon-white.png",
@@ -50,20 +50,38 @@
       [
         "expo-alternate-app-icons",
         [
-          { "name": "Black",   "image": "./assets/icon-black.png"   },
-          { "name": "Cream",   "image": "./assets/icon-cream.png"   },
-          { "name": "Navy",    "image": "./assets/icon-navy.png"    },
-          { "name": "Pride1",  "image": "./assets/icon-pride-1.png" },
-          { "name": "Pride2",  "image": "./assets/icon-pride-2.png" }
+          {
+            "name": "Black",
+            "image": "./assets/icon-black.png"
+          },
+          {
+            "name": "Cream",
+            "image": "./assets/icon-cream.png"
+          },
+          {
+            "name": "Navy",
+            "image": "./assets/icon-navy.png"
+          },
+          {
+            "name": "Pride1",
+            "image": "./assets/icon-pride-1.png"
+          },
+          {
+            "name": "Pride2",
+            "image": "./assets/icon-pride-2.png"
+          }
         ]
       ],
       "expo-location",
-      ["expo-build-properties", {
-        "ios": {
-          "useHermes": false,
-          "deploymentTarget": "15.1"
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useHermes": false,
+            "deploymentTarget": "15.1"
+          }
         }
-      }],
+      ],
       [
         "expo-notifications",
         {

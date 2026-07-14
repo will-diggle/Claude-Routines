@@ -24,13 +24,11 @@ export function AppNavigator() {
         tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          // Subtle crossfade between tabs — faster than default, feels snappy
           animation: 'fade',
-          animationDuration: 120,
         }}
       >
-        <Tab.Screen name="Briefing"    component={BriefingScreen} />
-        <Tab.Screen name="Practice"    component={PracticeNavigator} />
+        <Tab.Screen name="Briefing" component={BriefingScreen} />
+        <Tab.Screen name="Practice" component={PracticeNavigator} />
         <Tab.Screen name="Preferences" component={SettingsScreen} />
       </Tab.Navigator>
     </View>

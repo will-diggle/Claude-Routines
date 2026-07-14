@@ -252,6 +252,9 @@ export function MatchingScreen() {
     const first = tiles.find((t) => t.id === selected);
     if (!first) { setSelected(tile.id); return; }
 
+    // Same column tapped — just switch selection, don't penalise
+    if (first.isNative === tile.isNative) { setSelected(tile.id); return; }
+
     if (first.pairId === tile.pairId && first.id !== tile.id) {
       const newMatched = new Set(matched).add(tile.pairId);
       setMatched(newMatched);
@@ -343,7 +346,7 @@ export function MatchingScreen() {
   }
 
   const timerFrac = timeLeft / TIME_LIMIT;
-  const timerColor = timerFrac > 0.5 ? '#43A047' : timerFrac > 0.25 ? '#E65100' : '#E53935';
+  const timerColor = timerFrac > 0.5 ? '#66BB6A' : timerFrac > 0.25 ? '#FFA726' : '#E53935';
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
@@ -426,8 +429,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.lg },
   emptyText: { fontSize: 15, textAlign: 'center', lineHeight: 24 },
 
-  timerTrack: { height: 3, marginHorizontal: Spacing.md, borderRadius: 2 },
-  timerFill: { height: 3, borderRadius: 2 },
+  timerTrack: { height: 5, marginHorizontal: Spacing.md, borderRadius: 3 },
+  timerFill: { height: 5, borderRadius: 3 },
   timerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -2,6 +2,8 @@
   "name": "LiquidGlass",
   "platforms": ["ios"],
   "ios": {
-    "modules": ["LiquidGlassModule"]
+    "modules": ["LiquidGlassModule"],
+    "podspecPath": "LiquidGlass.podspec",
+    "swiftModuleName": "LiquidGlass"
   }
 }

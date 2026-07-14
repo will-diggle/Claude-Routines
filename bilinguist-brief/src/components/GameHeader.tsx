@@ -21,43 +21,43 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
 
   const progress = total > 0 ? current / total : 0;
 
+  const showProgress = total > 0;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.bg }]}>
+    <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.bg, borderBottomColor: colors.borderLight }]}>
       <View style={styles.row}>
-        {/* X — left glass button */}
+        {/* Back button */}
         <GlassButton onPress={() => navigation.goBack()} size={40}>
-          <Ionicons name="chevron-back" size={24} color={isDark ? colors.bg : colors.inkMid} />
+          <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
         </GlassButton>
 
-        {/* Progress bar — center */}
-        <View style={[styles.progressTrack, { backgroundColor: colors.borderLight }]}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${progress * 100}%`, backgroundColor: colors.accentRed },
-            ]}
-          />
-        </View>
+        {/* Title centred in row (no progress) or progress bar */}
+        {showProgress ? (
+          <View style={[styles.progressTrack, { backgroundColor: colors.borderLight }]}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${progress * 100}%`, backgroundColor: colors.accentRed },
+              ]}
+            />
+          </View>
+        ) : title ? (
+          <Text style={[styles.inlineTitle, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+            {title.toUpperCase()}
+          </Text>
+        ) : (
+          <View style={{ flex: 1 }} />
+        )}
 
-        {/* Settings gear — right glass button (or counter when no settings) */}
+        {/* Settings gear — right glass button (or spacer to balance layout) */}
         {onSettingsPress ? (
           <GlassButton onPress={onSettingsPress} size={40}>
-            <Ionicons name="settings-outline" size={20} color={isDark ? colors.bg : colors.inkMid} />
+            <Ionicons name="settings-outline" size={20} color={colors.inkDark} />
           </GlassButton>
         ) : (
-          <View style={styles.counter}>
-            <Text style={[styles.counterText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-              {current}/{total}
-            </Text>
-          </View>
+          <View style={styles.counter} />
         )}
       </View>
-
-      {title ? (
-        <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-          {title.toUpperCase()}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -65,7 +65,6 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
 const styles = StyleSheet.create({
   container: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0DDD5',
     paddingBottom: 10,
   },
   row: {
@@ -90,15 +89,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  counterText: {
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  title: {
+  inlineTitle: {
+    flex: 1,
     fontSize: 13,
     letterSpacing: 1.8,
     textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: Spacing.md,
   },
 });

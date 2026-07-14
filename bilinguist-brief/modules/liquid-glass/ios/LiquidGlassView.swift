@@ -1,27 +1,22 @@
 import ExpoModulesCore
 import UIKit
 
-// On iOS 26+ devices this view uses UIGlassMorphismEffect (true Liquid Glass).
-// On iOS 15–25 it falls back to systemUltraThinMaterial blur — indistinguishable to most users.
-// Expo Go never loads this module; it uses expo-blur BlurView instead (see GlassSurface.tsx).
-
 public class LiquidGlassView: ExpoView {
-  private var blurView: UIVisualEffectView?
-  private var glassLayer: CALayer?
+  private var effectView: UIVisualEffectView?
   private var currentCornerRadius: CGFloat = 100
-  private var currentIntensity: Double = 1.0
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     backgroundColor = .clear
-    clipsToBounds = true
+    // Do not set clipsToBounds here — the RN parent pill already clips to
+    // borderRadius:100 via overflow:hidden. Letting the effectView self-clip
+    // allows UIGlassEffect's rim specular highlights to render unmasked.
     setupGlass()
   }
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    blurView?.frame = bounds
-    glassLayer?.frame = bounds
+    effectView?.frame = bounds
     updateCornerRadius()
   }
 
@@ -31,58 +26,31 @@ public class LiquidGlassView: ExpoView {
   }
 
   func setIntensity(_ intensity: Double) {
-    currentIntensity = intensity
-    // Intensity currently adjusts blur alpha for pre-iOS-26 path
-    blurView?.alpha = CGFloat(intensity)
+    effectView?.alpha = CGFloat(intensity)
   }
 
   private func setupGlass() {
     if #available(iOS 26.0, *) {
-      setupiOS26Glass()
+      let effect = UIGlassEffect()
+      let ev = UIVisualEffectView(effect: effect)
+      ev.frame = bounds
+      ev.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      addSubview(ev)
+      effectView = ev
     } else {
-      setupFallbackBlur()
+      let blur = UIBlurEffect(style: .systemUltraThinMaterial)
+      let ev = UIVisualEffectView(effect: blur)
+      ev.frame = bounds
+      ev.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      addSubview(ev)
+      effectView = ev
     }
-  }
-
-  @available(iOS 26.0, *)
-  private func setupiOS26Glass() {
-    // Use NSClassFromString to avoid a compile-time dependency on UIGlassEffect
-    // (only in Xcode 26+ SDK). At runtime this resolves to the real class on iOS 26+.
-    guard let glassClass = NSClassFromString("UIGlassEffect") as? UIVisualEffect.Type else {
-      setupFallbackBlur()
-      return
-    }
-    let effect = glassClass.init()
-    let effectView = UIVisualEffectView(effect: effect)
-    effectView.frame = bounds
-    effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    effectView.layer.cornerRadius = currentCornerRadius
-    effectView.clipsToBounds = true
-    addSubview(effectView)
-    blurView = effectView
-  }
-
-  private func setupFallbackBlur() {
-    // systemUltraThinMaterial is the closest pre-iOS-26 equivalent
-    let blur = UIBlurEffect(style: .systemUltraThinMaterial)
-    let effectView = UIVisualEffectView(effect: blur)
-    effectView.frame = bounds
-    effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-
-    // Subtle vibrancy layer on top so text/icons read through the glass
-    let vibrancy = UIVibrancyEffect(blurEffect: blur, style: .fill)
-    let vibrancyView = UIVisualEffectView(effect: vibrancy)
-    vibrancyView.frame = effectView.contentView.bounds
-    vibrancyView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    effectView.contentView.addSubview(vibrancyView)
-
-    addSubview(effectView)
-    blurView = effectView
+    updateCornerRadius()
   }
 
   private func updateCornerRadius() {
-    blurView?.layer.cornerRadius = currentCornerRadius
-    blurView?.clipsToBounds = true
+    effectView?.layer.cornerRadius = currentCornerRadius
+    effectView?.clipsToBounds = true
     layer.cornerRadius = currentCornerRadius
   }
 }

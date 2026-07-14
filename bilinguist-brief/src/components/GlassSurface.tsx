@@ -20,6 +20,14 @@ if (!isExpoGo) {
   }
 }
 
+// True when UIGlassEffect is compiled in and will render — consumers can
+// omit their own backgroundColor in that case.
+export const glassAvailable = !isExpoGo && NativeGlassView !== null;
+// DIAGNOSTIC — remove after confirming glass loads in TestFlight
+if (__DEV__ || !isExpoGo) {
+  console.log('[GlassSurface] glassAvailable:', glassAvailable, '| isExpoGo:', isExpoGo, '| NativeGlassView loaded:', NativeGlassView !== null);
+}
+
 interface Props {
   style?: ViewStyle | ViewStyle[];
   cornerRadius?: number;
