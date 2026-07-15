@@ -702,7 +702,10 @@ export function BriefingScreen() {
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLevelPickerLang(lang.code); }}
                   activeOpacity={0.6}
                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
-                  style={styles.editionLabelRow}
+                  style={[styles.editionLabelRow, styles.editionPill, {
+                    backgroundColor: colors.card,
+                    borderColor: colors.borderLight,
+                  }]}
                 >
                   <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
                     {lang.nativeName.toUpperCase()} · {level === 'Native'
@@ -723,7 +726,7 @@ export function BriefingScreen() {
                       onPress={() => { openStreakModal(lang.code); }}
                       activeOpacity={0.7}
                       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                      style={[styles.editionPill, { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.card, borderColor: colors.borderLight }]}
                     >
                       {streak === 0 ? (
                         <Ionicons name="calendar-outline" size={13} color={colors.inkFaint} />
@@ -786,12 +789,6 @@ export function BriefingScreen() {
                 </View>
               )}
             </ScrollView>
-            {/* Status-bar fade — text disappears cleanly as it scrolls under the notch */}
-            <LinearGradient
-              pointerEvents="none"
-              colors={[colors.bg, colors.bg, colors.bg + 'DD', colors.bg + '00']}
-              style={[styles.statusFade, { height: insets.top + 72 }]}
-            />
             {/* Scroll position pill */}
             <Animated.View
               pointerEvents="none"
@@ -808,6 +805,13 @@ export function BriefingScreen() {
           );
         })}
       </ScrollView>
+
+      {/* Status-bar fade — top-level so it's always above article text as it scrolls under the notch */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={[colors.bg, colors.bg, colors.bg + 'CC', colors.bg + '00'] as any}
+        style={[styles.statusFade, { height: insets.top + 90 }]}
+      />
 
       {/* ── Level + Length picker modal ─────────────────────────────────── */}
       <Modal
@@ -1278,5 +1282,15 @@ const styles = StyleSheet.create({
   editionLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  editionPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 99,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
 });

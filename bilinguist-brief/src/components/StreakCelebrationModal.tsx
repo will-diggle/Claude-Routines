@@ -2,7 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated,
 } from 'react-native';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import ConfettiCannonBase from 'react-native-confetti-cannon';
+// Library types are incomplete — `spread`, `explosionSpeed` etc. are valid runtime props
+const ConfettiCannon = ConfettiCannonBase as any;
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
 
@@ -43,11 +45,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
   // Back layer (behind card): two corner cannons
-  const confettiBehindLeftRef  = useRef<ConfettiCannon>(null);
-  const confettiBehindRightRef = useRef<ConfettiCannon>(null);
+  const confettiBehindLeftRef  = useRef<any>(null);
+  const confettiBehindRightRef = useRef<any>(null);
   // Front layer (in front of card): centre burst
-  const confettiFrontLeftRef   = useRef<ConfettiCannon>(null);
-  const confettiFrontRightRef  = useRef<ConfettiCannon>(null);
+  const confettiFrontLeftRef   = useRef<any>(null);
+  const confettiFrontRightRef  = useRef<any>(null);
   const scaleAnim  = useRef(new Animated.Value(0.7)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 

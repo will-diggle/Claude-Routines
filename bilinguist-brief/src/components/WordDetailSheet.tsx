@@ -143,7 +143,6 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   if (!word) return null;
 
   const lang = word.language as LanguageCode;
-  const pileColor = PILE_COLOR[word.pile];
 
   // Verified > rich tenses array > legacy two-field fallback
   const tenses: Array<{ label: string; table: Record<string, string> }> = (() => {
@@ -253,21 +252,17 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-        {/* Grammar chips + pile badge on same row */}
-        <View style={styles.chipsRow}>
-          {word.wordType && (
-            <View style={[styles.chipFilled, { backgroundColor: colors.accentRed }]}>
-              <Text style={[styles.chipFilledText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
-                {word.wordType.charAt(0).toUpperCase() + word.wordType.slice(1)}
-              </Text>
-            </View>
-          )}
-          <View style={[styles.pileBadge, { borderColor: pileColor }]}>
-            <Text style={[styles.pileBadgeText, { color: pileColor, fontFamily: fontFamily.regular }]}>
-              {word.pile.toUpperCase()}
+        {/* Grammar tag row — plain text, same style as brief word popup */}
+        {word.wordType && (
+          <View style={styles.chipsRow}>
+            <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+              {[
+                word.wordType.charAt(0).toUpperCase() + word.wordType.slice(1),
+                word.pile !== 'new' ? word.pile.charAt(0).toUpperCase() + word.pile.slice(1) : null,
+              ].filter(Boolean).join(' · ')}
             </Text>
           </View>
-        </View>
+        )}
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
@@ -543,16 +538,12 @@ const styles = StyleSheet.create({
   translationBlock: { alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
   translationLarge: { fontSize: 26, textAlign: 'center' },
 
-  // Chips row
+  // Grammar tag row — dot-separated plain text (matches brief word popup style)
   chipsRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs,
-    justifyContent: 'center',
   },
-  chipFilled: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  chipFilledText: { fontSize: 13, letterSpacing: 0.3 },
-  pileBadge: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  pileBadgeText: { fontSize: 13, letterSpacing: 0.5 },
+  grammarTags: { fontSize: 13, textAlign: 'center', letterSpacing: 0.2 },
 
   // Scroll body
   scrollArea: { paddingHorizontal: Spacing.lg },
