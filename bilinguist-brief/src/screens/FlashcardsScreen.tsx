@@ -345,6 +345,23 @@ export function FlashcardsScreen() {
   }
   const activeTense = cardTenses[activeTenseIdx] ?? null;
 
+  const flashPillLemma = (() => {
+    if (!card) return null;
+    const wt = card.wordType;
+    const f = card.forms;
+    if (wt === 'noun' && f?.article && card.lemma) return `${f.article} ${card.lemma}`;
+    if (card.lemma && card.lemma !== card.word.toLowerCase()) return card.lemma;
+    return null;
+  })();
+  const flashPillLabel = (() => {
+    const wt = card?.wordType;
+    if (wt === 'verb') return 'Infinitive';
+    if (wt === 'noun') return 'Noun';
+    if (wt === 'adjective') return 'Adjective';
+    if (wt === 'adverb') return 'Adverb';
+    return 'Root';
+  })();
+
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
       <GameHeader
@@ -472,6 +489,22 @@ export function FlashcardsScreen() {
                 {backText}
               </Text>
               {reversed && <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />}
+
+              {/* Infinitive/noun pill — informational only, not tappable in game context */}
+              {flashPillLemma && (
+                <View style={[
+                  styles.flashPill,
+                  {
+                    backgroundColor: colors.card,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: colors.borderLight,
+                  },
+                ]}>
+                  <Text style={[styles.flashPillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                    {flashPillLabel}: {flashPillLemma}
+                  </Text>
+                </View>
+              )}
 
               <View style={[styles.backDivider, { backgroundColor: colors.borderLight }]} />
 
@@ -841,6 +874,14 @@ const styles = StyleSheet.create({
   },
   backTranslation: { textAlign: 'center', marginBottom: 2 },
   backDivider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
+  flashPill: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'center',
+    gap: 3, paddingHorizontal: 11, paddingVertical: 4, borderRadius: 99,
+    marginTop: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+  },
+  flashPillText: { fontSize: 13 },
   backExplanation: { lineHeight: 22, textAlign: 'center' },
   pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7, marginTop: 4 },
   backBlockquote: { borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 8, marginTop: Spacing.sm },

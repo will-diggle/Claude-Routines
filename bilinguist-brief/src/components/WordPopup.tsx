@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -103,21 +103,30 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
   // Draggable handle — sheet physically follows finger, springs back or closes
-  const dragY = useRef(new Animated.Value(0)).current;
+  // Start off-screen so we can animate the entry ourselves (avoids animationType="slide" flash on exit)
+  const dragY = useRef(new Animated.Value(700)).current;
   const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.45, 0], extrapolate: 'clamp' });
+
+  useEffect(() => {
+    Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+  }, []);
+
+  const dismissSheet = useCallback(() => {
+    Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
+  }, [onClose]);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
       onPanResponderMove: (_, g) => {
-        dragY.setValue(Math.max(0, g.dy)); // only allow downward drag
+        dragY.setValue(Math.max(0, g.dy));
       },
       onPanResponderRelease: (_, g) => {
         if (g.dy > 100) {
-          onClose();
-          dragY.setValue(0);
+          Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
         } else {
-          Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+          Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 12 }).start();
         }
       },
     })
@@ -258,11 +267,11 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
 
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      {/* Dimming overlay — fades out as sheet drags down */}
+    <Modal visible animationType="none" transparent onRequestClose={dismissSheet}>
+      {/* Dimming overlay — fades in on entry, fades out as sheet is dragged down */}
       <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', opacity: overlayOpacity }]} pointerEvents="none" />
       <View style={styles.modalContainer}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismissSheet} />
 
         <Animated.View
           style={[
@@ -296,13 +305,9 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
               </Text>
               <WordAudioButton word={word} language={language} size="md" />
             </View>
-            {isNested ? (
-              <View style={styles.wordStub} />
-            ) : (
-              <GlassButton onPress={onClose} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={20} color={isDark ? colors.bg : colors.inkMid} />
-              </GlassButton>
-            )}
+            <GlassButton onPress={dismissSheet} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={20} color={isDark ? colors.bg : colors.inkMid} />
+            </GlassButton>
           </View>
 
         {/* Subtitle: infinitive pill (tappable) + IPA plain text */}

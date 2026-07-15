@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, PanResponder, Animated,
 } from 'react-native';
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { WordAudioButton } from './WordAudioButton';
 import { WordPopup } from './WordPopup';
+import { GlassButton } from './GlassButton';
 import { Spacing } from '../theme';
 import { useWordBankStore, type SavedWord, type Pile } from '../store/useWordBankStore';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -111,7 +112,17 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
     }
   }, [word?.id]);
 
-  const dragY = useRef(new Animated.Value(0)).current;
+  const dragY = useRef(new Animated.Value(700)).current;
+  const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.35, 0], extrapolate: 'clamp' });
+
+  useEffect(() => {
+    Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+  }, []);
+
+  const dismissSheet = useCallback(() => {
+    Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
+  }, [onClose]);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -121,10 +132,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
       },
       onPanResponderRelease: (_, g) => {
         if (g.dy > 100) {
-          onClose();
-          dragY.setValue(0);
+          Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
         } else {
-          Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+          Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 12 }).start();
         }
       },
     })
@@ -160,14 +170,20 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
     if (word.lemma && word.lemma !== word.word.toLowerCase()) return word.lemma;
     return null;
   })();
-  const dsSubtitle = dsSubtitleLemma
-    ? (word.pronunciation ? `${dsSubtitleLemma}  ·  ${word.pronunciation}` : dsSubtitleLemma)
-    : (word.pronunciation ? word.pronunciation : null);
+  const dsPillLabel = (() => {
+    const wt = word.wordType;
+    if (wt === 'verb') return 'Infinitive';
+    if (wt === 'noun') return 'Noun';
+    if (wt === 'adjective') return 'Adjective';
+    if (wt === 'adverb') return 'Adverb';
+    return 'Root';
+  })();
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="none" transparent onRequestClose={dismissSheet}>
+      <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', opacity: overlayOpacity }]} pointerEvents="none" />
       <View style={styles.modalContainer}>
-        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismissSheet} />
 
         <Animated.View
           style={[
@@ -191,16 +207,39 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
               </Text>
               <WordAudioButton word={word.word} language={lang} size="md" />
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Ionicons name="close" size={26} color={colors.inkLight} />
-            </TouchableOpacity>
+            <GlassButton onPress={dismissSheet} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={20} color={colors.inkMid} />
+            </GlassButton>
           </View>
 
-        {/* Subtitle: lemma · /IPA/ */}
-        {dsSubtitle && (
-          <Text style={[styles.subtitle, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {dsSubtitle}
-          </Text>
+        {/* Subtitle: pill (lemma, tappable) + IPA */}
+        {(dsSubtitleLemma || word.pronunciation) && (
+          <View style={styles.subtitleRow}>
+            {dsSubtitleLemma && (
+              <TouchableOpacity
+                onPress={() => setNestedWord(dsSubtitleLemma)}
+                activeOpacity={0.7}
+                style={[
+                  styles.infinitivePill,
+                  {
+                    backgroundColor: colors.card,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: colors.borderLight,
+                  },
+                ]}
+              >
+                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  {dsPillLabel}: {dsSubtitleLemma}
+                </Text>
+                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
+              </TouchableOpacity>
+            )}
+            {word.pronunciation && (
+              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                {dsSubtitleLemma ? `· ${word.pronunciation}` : word.pronunciation}
+              </Text>
+            )}
+          </View>
         )}
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
@@ -365,21 +404,6 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             );
           })()}
 
-          {/* Tappable infinitive row — verbs only */}
-          {tenses.length > 0 && word.lemma && (
-            <TouchableOpacity
-              onPress={() => setNestedWord(word.lemma!)}
-              activeOpacity={0.6}
-              style={[styles.conjRow, { borderTopColor: colors.borderLight }]}
-            >
-              <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>Infinitive</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{word.lemma}</Text>
-                <Ionicons name="chevron-forward" size={12} color={colors.accentRed} />
-              </View>
-            </TouchableOpacity>
-          )}
-
           {/* Verb tenses with centered label and circular nav arrows */}
           {tenses.length > 0 && activeTense && (
             <>
@@ -484,7 +508,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
 }
 
 const styles = StyleSheet.create({
-  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  modalContainer: { flex: 1 },
   sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%' },
 
   handleArea: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 40, alignItems: 'center' },
@@ -500,7 +524,18 @@ const styles = StyleSheet.create({
   wordSpeakerMirror: { width: 34 },
   wordText: { fontSize: 34, flexShrink: 1 },
   ipaInline: { fontSize: 13, letterSpacing: 0.5 },
-  subtitle: { fontSize: 14, textAlign: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
+  subtitleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs, flexWrap: 'wrap',
+  },
+  infinitivePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 11, paddingVertical: 4, borderRadius: 99,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+  },
+  infinitivePillText: { fontSize: 14 },
+  subtitleIPA: { fontSize: 14, fontStyle: 'italic' },
 
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: Spacing.sm },
 
