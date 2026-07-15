@@ -1134,9 +1134,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footerCrest: {
-    marginTop: 20,
-    width: 72,
-    height: 72,
+    marginTop: 10,
+    width: 100,
+    height: 100,
     opacity: 0.22,
   },
   statusFade: {
