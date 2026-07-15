@@ -203,7 +203,7 @@ const LeftContext = memo(function LeftContext({
               activeOpacity={0.7}
               delayPressIn={0}
             >
-              <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} muted />
+              <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} muted={briefPageIndex !== i} />
               {!flagOnly && (
                 <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                   {lang.nativeName}
@@ -397,12 +397,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setLeftOpen(false);
     setRightOpen(true);
     leftContextOp.setValue(0);
-    leftWidthAnim.setValue(FLOAT_TAB_H_SMALL);
-    iconScaleAnim.setValue(SCALE_SMALL);
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        ...TM_LAYOUT_OPEN }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL,  ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 200, useNativeDriver: true }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
     ]).start();
@@ -602,10 +601,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderLight,
     shadowColor: '#000' as string,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 5,
   };
 
   const leftClosedIcon = 'earth-outline' as const;

@@ -465,8 +465,8 @@ export function BriefingScreen() {
   useEffect(() => {
     const clamped = Math.min(briefPageIndex, Math.max(0, langCount - 1));
     programmaticScrollRef.current = true;
-    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: false });
-    const t = setTimeout(() => { programmaticScrollRef.current = false; }, 500);
+    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: true });
+    const t = setTimeout(() => { programmaticScrollRef.current = false; }, 700);
     return () => clearTimeout(t);
   }, [briefPageIndex, langCount]);
 
@@ -789,8 +789,8 @@ export function BriefingScreen() {
             {/* Status-bar fade — text disappears cleanly as it scrolls under the notch */}
             <LinearGradient
               pointerEvents="none"
-              colors={[colors.bg, colors.bg + 'CC', colors.bg + '00']}
-              style={[styles.statusFade, { height: insets.top + 32 }]}
+              colors={[colors.bg, colors.bg, colors.bg + 'DD', colors.bg + '00']}
+              style={[styles.statusFade, { height: insets.top + 72 }]}
             />
             {/* Scroll position pill */}
             <Animated.View
