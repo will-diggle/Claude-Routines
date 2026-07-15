@@ -601,10 +601,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderLight,
     shadowColor: '#000' as string,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 8,
   };
 
   const leftClosedIcon = 'earth-outline' as const;
