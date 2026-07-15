@@ -242,6 +242,15 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     if (lemma && lemma.toLowerCase() !== word.toLowerCase()) return lemma;
     return null;
   })();
+  const pillLabel = (() => {
+    const wt = entry?.wordType;
+    if (wt === 'verb') return 'Infinitive';
+    if (wt === 'noun') return 'Noun';
+    if (wt === 'adjective') return 'Adjective';
+    if (wt === 'adverb') return 'Adverb';
+    return 'Root';
+  })();
+
   // subtitle kept as fallback only — new render splits pill + IPA separately
   const subtitle = subtitleLemma
     ? (entry?.pronunciation ? `${subtitleLemma}  ·  ${entry.pronunciation}` : subtitleLemma)
@@ -303,12 +312,19 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
               <TouchableOpacity
                 onPress={() => setNestedWord(subtitleLemma)}
                 activeOpacity={0.7}
-                style={[styles.infinitivePill, { backgroundColor: colors.card }]}
+                style={[
+                  styles.infinitivePill,
+                  {
+                    backgroundColor: colors.card,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: colors.borderLight,
+                  },
+                ]}
               >
-                <Text style={[styles.infinitivePillText, { color: colors.accentRed, fontFamily: fontFamily.italic }]}>
-                  {subtitleLemma}
+                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  {pillLabel}: {subtitleLemma}
                 </Text>
-                <Ionicons name="chevron-forward" size={11} color={colors.accentRed} />
+                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
               </TouchableOpacity>
             ) : subtitleLemma ? (
               <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>

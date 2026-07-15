@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { GlassSurface } from './GlassSurface';
+import { useTheme } from '../hooks/useTheme';
 
 interface Props {
   onPress: () => void;
@@ -21,6 +21,7 @@ export function GlassButton({
   activeOpacity = 0.7,
   cornerRadius,
 }: Props) {
+  const { colors } = useTheme();
   const radius = cornerRadius ?? size / 2;
 
   return (
@@ -28,12 +29,25 @@ export function GlassButton({
       onPress={onPress}
       hitSlop={hitSlop}
       activeOpacity={activeOpacity}
+      delayPressIn={0}
       style={[
-        { width: size, height: size, borderRadius: radius, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+        {
+          width: size,
+          height: size,
+          borderRadius: radius,
+          backgroundColor: colors.card,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.borderLight,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.08,
+          shadowRadius: 3,
+        },
         style,
       ]}
     >
-      <GlassSurface cornerRadius={radius} style={{ borderRadius: radius }} />
       {children}
     </TouchableOpacity>
   );

@@ -17,6 +17,7 @@ import { useNavPillStore } from '../store/useNavPillStore';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
+import { GlassButton } from '../components/GlassButton';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -325,13 +326,13 @@ export function MatchingScreen() {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
         <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <GlassButton size={40} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-          </TouchableOpacity>
+          </GlassButton>
           <Text style={[styles.titleText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             SPEED SNAP
           </Text>
-          <View style={styles.backBtn} />
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.center}>
           <Text style={[styles.emptyText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
@@ -348,13 +349,13 @@ export function MatchingScreen() {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
         <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <GlassButton size={40} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-          </TouchableOpacity>
+          </GlassButton>
           <Text style={[styles.titleText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             SPEED SNAP
           </Text>
-          <View style={styles.backBtn} />
+          <View style={{ width: 40 }} />
         </View>
         {isNewBest && (
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
@@ -451,9 +452,9 @@ export function MatchingScreen() {
 
       {/* ── Header: back | best+title | spacer ── */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <GlassButton size={40} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-        </TouchableOpacity>
+        </GlassButton>
         <View style={styles.titleBlock}>
           {speedSnapHighScore > 0 && (
             <Text style={[styles.bestText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
@@ -464,7 +465,7 @@ export function MatchingScreen() {
             SPEED SNAP
           </Text>
         </View>
-        <View style={styles.backBtn} />
+        <View style={{ width: 40 }} />
       </View>
 
       {/* ── Smooth full-width timer bar ── */}
@@ -511,7 +512,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingBottom: Spacing.sm,
   },
-  backBtn: { width: 44, alignItems: 'flex-start', justifyContent: 'center' },
   titleBlock: { flex: 1, alignItems: 'center' },
   bestText: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 1 },
   titleText: { fontSize: 15, letterSpacing: 2, textTransform: 'uppercase' },

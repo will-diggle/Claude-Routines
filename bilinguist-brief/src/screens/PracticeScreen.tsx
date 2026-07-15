@@ -228,16 +228,27 @@ export function PracticeScreen() {
       {/* Recent words preview */}
       {hasWords && (
         <>
-          <View style={styles.sectionRow}>
-            <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, marginTop: Spacing.lg }]}>
+          <View style={[styles.sectionRow, { marginTop: Spacing.lg }]}>
+            <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
               RECENTLY SAVED
             </Text>
             <TouchableOpacity
-              style={[styles.practisePill, { borderColor: colors.chrome }]}
+              style={[
+                styles.practisePill,
+                {
+                  backgroundColor: colors.card,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: colors.borderLight,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 3,
+                },
+              ]}
               onPress={() => setGameModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+              <Text style={[styles.practisePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
                 Practice →
               </Text>
             </TouchableOpacity>
