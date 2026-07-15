@@ -145,6 +145,7 @@ export function TappableText({
         return (
           <Text
             key={token.index}
+            suppressHighlighting
             onPress={() => onWordPress(
               globalPos,
               token.text,
@@ -153,7 +154,7 @@ export function TappableText({
             style={[
               styles.word,
               isActive
-                ? { borderBottomColor: colors.accentGold, borderBottomWidth: 2 }
+                ? { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 5, overflow: 'hidden', borderBottomColor: colors.accentGold, borderBottomWidth: 2 }
                 : { borderBottomColor: colors.accentGold + '66', borderBottomWidth: 1 },
             ]}
           >

@@ -42,9 +42,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
-  const confettiLeftRef = useRef<ConfettiCannon>(null);
-  const confettiRightRef = useRef<ConfettiCannon>(null);
-  const scaleAnim = useRef(new Animated.Value(0.7)).current;
+  // Back layer (behind card): two corner cannons
+  const confettiBehindLeftRef  = useRef<ConfettiCannon>(null);
+  const confettiBehindRightRef = useRef<ConfettiCannon>(null);
+  // Front layer (in front of card): centre burst
+  const confettiFrontLeftRef   = useRef<ConfettiCannon>(null);
+  const confettiFrontRightRef  = useRef<ConfettiCannon>(null);
+  const scaleAnim  = useRef(new Animated.Value(0.7)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -52,33 +56,29 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       scaleAnim.setValue(0.7);
       rotateAnim.setValue(0);
 
-      // Spring in with a slight jiggle
       Animated.parallel([
         Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 200,
-          friction: 6,
-          useNativeDriver: true,
+          toValue: 1, tension: 200, friction: 6, useNativeDriver: true,
         }),
         Animated.sequence([
-          Animated.timing(rotateAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
-          Animated.timing(rotateAnim, { toValue: -1, duration: 80, useNativeDriver: true }),
-          Animated.timing(rotateAnim, { toValue: 0.5, duration: 80, useNativeDriver: true }),
-          Animated.timing(rotateAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: 1,    duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: -1,   duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: 0.5,  duration: 80, useNativeDriver: true }),
+          Animated.timing(rotateAnim, { toValue: 0,    duration: 80, useNativeDriver: true }),
         ]),
       ]).start();
 
       const confettiTimer = setTimeout(() => {
-        confettiLeftRef.current?.start();
-        confettiRightRef.current?.start();
+        confettiBehindLeftRef.current?.start();
+        confettiBehindRightRef.current?.start();
+        confettiFrontLeftRef.current?.start();
+        confettiFrontRightRef.current?.start();
       }, 100);
-      const dismissTimer = setTimeout(onDismiss, 5000);
-      return () => {
-        clearTimeout(confettiTimer);
-        clearTimeout(dismissTimer);
-      };
+
+      // Don't auto-dismiss — user taps to close so confetti stays visible
+      return () => clearTimeout(confettiTimer);
     }
-  }, [visible, onDismiss]);
+  }, [visible]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [-1, 0, 1],
@@ -88,9 +88,9 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const toArabicNumerals = (n: number) =>
     String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
   const displayCount = langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount);
-
   const copy = STREAK_COPY[langCode] ?? 'Your streak is on fire';
-  const headline = streakCount === 1 ? `${displayCount} day streak!` : `${displayCount} day streak!`;
+  const headline = `${displayCount} day streak!`;
+  const confettiColors = FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS;
 
   return (
     <Modal
@@ -99,6 +99,29 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       animationType="none"
       onRequestClose={onDismiss}
     >
+      {/* ── Back confetti layer (behind card) ── */}
+      <ConfettiCannon
+        ref={confettiBehindLeftRef}
+        count={120}
+        origin={{ x: -10, y: -200 }}
+        spread={90}
+        colors={confettiColors}
+        fallSpeed={3800}
+        autoStart={false}
+        explosionSpeed={600}
+      />
+      <ConfettiCannon
+        ref={confettiBehindRightRef}
+        count={120}
+        origin={{ x: SCREEN_WIDTH + 10, y: -200 }}
+        spread={90}
+        colors={confettiColors}
+        fallSpeed={3800}
+        autoStart={false}
+        explosionSpeed={600}
+      />
+
+      {/* ── Card (sits between the two confetti layers) ── */}
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onDismiss}>
         <Animated.View
           style={[
@@ -117,27 +140,27 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           </Text>
         </Animated.View>
       </TouchableOpacity>
+
+      {/* ── Front confetti layer (in front of card) ── */}
       <ConfettiCannon
-        ref={confettiLeftRef}
-        count={100}
-        origin={{ x: -10, y: -60 }}
-        spread={70}
-        colors={FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS}
+        ref={confettiFrontLeftRef}
+        count={80}
+        origin={{ x: SCREEN_WIDTH * 0.25, y: -100 }}
+        spread={60}
+        colors={confettiColors}
         fallSpeed={3200}
-        fadeOut
         autoStart={false}
-        explosionSpeed={500}
+        explosionSpeed={400}
       />
       <ConfettiCannon
-        ref={confettiRightRef}
-        count={100}
-        origin={{ x: SCREEN_WIDTH + 10, y: -60 }}
-        spread={70}
-        colors={FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS}
+        ref={confettiFrontRightRef}
+        count={80}
+        origin={{ x: SCREEN_WIDTH * 0.75, y: -100 }}
+        spread={60}
+        colors={confettiColors}
         fallSpeed={3200}
-        fadeOut
         autoStart={false}
-        explosionSpeed={500}
+        explosionSpeed={400}
       />
     </Modal>
   );
