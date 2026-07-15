@@ -201,6 +201,7 @@ const LeftContext = memo(function LeftContext({
               onPress={() => { Haptics.selectionAsync(); onBriefLang(i); }}
               onLayout={chipLayout(i)}
               activeOpacity={0.7}
+              delayPressIn={0}
             >
               <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} muted />
               {!flagOnly && (
@@ -229,6 +230,7 @@ const LeftContext = memo(function LeftContext({
                 onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
                 onLayout={chipLayout(i)}
                 activeOpacity={0.7}
+                delayPressIn={0}
               >
                 <Ionicons name={SECTION_ICONS[sec]} size={18} color={isActive ? activeColor : inactiveColor} />
                 <Text style={[styles.contextLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: isActive ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
@@ -252,12 +254,12 @@ const LeftContext = memo(function LeftContext({
     <View style={styles.contextRow}>
       <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
         <Animated.View style={lensStyle as any} pointerEvents="none" />
-        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onLayout={chipLayout(0)} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onLayout={chipLayout(0)} activeOpacity={0.7} delayPressIn={0}>
           <GlobeCircle size={20} muted />
           <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
         </TouchableOpacity>
         {visibleLangs.map((code, i) => (
-          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onLayout={chipLayout(i + 1)} activeOpacity={0.7}>
+          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onLayout={chipLayout(i + 1)} activeOpacity={0.7} delayPressIn={0}>
             <FlagCircle code={code} size={20} muted />
             <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
               {langLabel(code)}
@@ -351,20 +353,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // ── Theming ────────────────────────────────────────────────────────────────
   const isNavy  = background === 'softGrey';
   const isCream = background === 'cream';
-  const pillBg = isNavy  ? 'rgba(30,45,66,0.93)'
-               : isDark  ? 'rgba(22,22,22,0.92)'
-               : isCream ? 'rgba(245,240,232,0.95)'
-               :           'rgba(250,248,246,0.92)';
-  // When real UIGlassEffect is rendering, let it naturally sample the background —
-  // no tint needed. Only use tint as a fallback when glass isn't available.
-  const pillTint = glassAvailable ? null
-                 : isNavy ? 'rgba(22,34,54,0.80)'
-                 : isDark ? 'rgba(18,18,18,0.78)'
-                 : null;
-  const pillBorder = isNavy  ? 'rgba(255,255,255,0.14)'
-                   : isDark  ? 'rgba(255,255,255,0.13)'
-                   : isCream ? 'rgba(22,32,50,0.14)'
-                   :           'rgba(0,0,0,0.11)';
+  const pillBg = colors.card;
   const activeColor   = isNavy ? '#F5F0E8' : colors.inkDark;
   const inactiveColor = isNavy ? 'rgba(245,240,232,0.40)' : colors.inkFaint;
   // Subtle tinted background for the active chip — low enough opacity to not
@@ -386,8 +375,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Layout props (width/height) can't use native driver — timing is smoother
   // than spring here because it avoids per-frame spring physics on the JS thread
   // while layout recalculates simultaneously. Cubic ease-out feels lush and snappy.
-  const TM_LAYOUT_OPEN  = { duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE = { duration: 200, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
+  const TM_LAYOUT_OPEN  = { duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE = { duration: 160, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
   // Scale runs on UI thread via native driver — spring here is free (no layout cost).
   const SP_SCALE_OPEN  = { stiffness: 200, damping: 14, mass: 0.7, useNativeDriver: true } as const;
   const SP_SCALE_CLOSE = { stiffness: 320, damping: 28, mass: 0.8, useNativeDriver: true } as const;
@@ -608,17 +597,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const glassColorScheme = (isNavy || isDark) ? 'dark' as const : 'light' as const;
-
-  // On iOS 26 native glass handles all visual treatment — no border/shadow needed.
-  const pillStyle = glassAvailable ? {} : {
+  const pillStyle = {
     backgroundColor: pillBg,
-    borderWidth: 1,
-    borderColor: pillBorder,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderLight,
     shadowColor: '#000' as string,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: glassAvailable ? 0.18 : 0.13,
-    shadowRadius: glassAvailable ? 12 : 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     elevation: 3,
   };
 
@@ -627,21 +613,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   if (gameActive) return null;
 
   return (
-    <GlassGroupContainer
-      spacing={8}
-      style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}
-      pointerEvents="box-none"
-    >
+    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
-        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Closed icon */}
         {!leftOpen && (
           <View style={styles.absoluteFill}>
-            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
               <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
                 <Ionicons name={leftClosedIcon} size={28} color={activeColor} />
               </Animated.View>
@@ -681,8 +661,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        {/* Glass / blur background — hidden on iOS 26 where GlassGroupContainer owns the glass */}
-        {!glassAvailable && <GlassSurface colorScheme={glassColorScheme} fallbackColor={pillBg} />}
 
         {/* Mini icon */}
         {!rightOpen && (
@@ -696,7 +674,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           {renderFullNav()}
         </Animated.View>
       </Animated.View>
-    </GlassGroupContainer>
+    </View>
   );
 }
 
