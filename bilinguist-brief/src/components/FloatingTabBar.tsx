@@ -255,12 +255,12 @@ const LeftContext = memo(function LeftContext({
       <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
         <Animated.View style={lensStyle as any} pointerEvents="none" />
         <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onLayout={chipLayout(0)} activeOpacity={0.7} delayPressIn={0}>
-          <GlobeCircle size={20} muted />
+          <GlobeCircle size={20} muted={practiceLang !== 'all'} />
           <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
         </TouchableOpacity>
         {visibleLangs.map((code, i) => (
           <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onLayout={chipLayout(i + 1)} activeOpacity={0.7} delayPressIn={0}>
-            <FlagCircle code={code} size={20} muted />
+            <FlagCircle code={code} size={20} muted={practiceLang !== code} />
             <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
               {langLabel(code)}
             </Text>
