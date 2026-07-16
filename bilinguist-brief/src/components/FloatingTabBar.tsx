@@ -543,16 +543,19 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
         {/* Inner: background + border + overflow:hidden for content clipping */}
         <View style={[styles.pill, pillInner]}>
-          {/* Closed icon */}
-          {!leftOpen && (
-            <View style={styles.absoluteFill}>
-              <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
-                <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-                  <Ionicons name={leftClosedIcon} size={34} color={activeColor} />
-                </Animated.View>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Closed icon — always mounted, crossfades via opacity so no native
+              subview is ever inserted/removed from this container at runtime
+              (removal-on-toggle caused an NSRangeException on cold launch). */}
+          <Animated.View
+            style={[styles.absoluteFill, { opacity: leftContextOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
+            pointerEvents={leftOpen ? 'none' : 'auto'}
+          >
+            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
+              <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
+                <Ionicons name={leftClosedIcon} size={34} color={activeColor} />
+              </Animated.View>
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Context chips */}
           <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
@@ -585,12 +588,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
         <View style={[styles.pill, pillInner]}>
-          {/* Mini icon */}
-          {!rightOpen && (
-            <View style={styles.absoluteFill}>
-              {renderMiniNav()}
-            </View>
-          )}
+          {/* Mini icon — always mounted, crossfades via opacity (see left pill note above) */}
+          <Animated.View
+            style={[styles.absoluteFill, { opacity: rightFullOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
+            pointerEvents={rightOpen ? 'none' : 'auto'}
+          >
+            {renderMiniNav()}
+          </Animated.View>
 
           {/* Full nav */}
           <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
