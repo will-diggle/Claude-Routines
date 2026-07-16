@@ -22,7 +22,7 @@ import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
 import { FreezeWarningModal, FrozenLang } from '../components/FreezeWarningModal';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { FLOAT_TAB_BOTTOM, FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
@@ -628,11 +628,11 @@ export function BriefingScreen() {
               style={{ flex: 1, backgroundColor: colors.bg }}
               contentContainerStyle={[
                 styles.pageContent,
-                { paddingTop: insets.top + 12, paddingBottom: FLOAT_TAB_INSET },
+                { paddingTop: insets.top + 12, paddingBottom: 0 },
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
-              scrollEventThrottle={16}
+              scrollEventThrottle={32}
               onScroll={e => {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
@@ -664,6 +664,7 @@ export function BriefingScreen() {
             >
               <View style={styles.lockupWrap}>
                 <Image
+                  key={background}
                   source={MASTHEADS[background] ?? MASTHEADS.cream}
                   style={styles.lockup}
                   resizeMode="contain"
@@ -764,7 +765,7 @@ export function BriefingScreen() {
 
               {/* ── Page footer ─────────────────────────────────────────── */}
               {displayBriefing && (
-                <View style={styles.articleFooter}>
+                <View style={[styles.articleFooter, { paddingBottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
                   <View style={[styles.footerRule, { backgroundColor: chrome }]} />
                   <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                     {publishedDateStr(bundleReceivedAt, lang.code)}
@@ -803,11 +804,12 @@ export function BriefingScreen() {
         })}
       </ScrollView>
 
-      {/* Status-bar fade — top-level so it's always above article text as it scrolls under the notch */}
+      {/* Status-bar fade — semi-transparent so text faintly shows through, like Claude app */}
       <LinearGradient
         pointerEvents="none"
-        colors={[colors.bg, colors.bg, colors.bg + 'CC', colors.bg + '00'] as any}
-        style={[styles.statusFade, { height: insets.top + 90 }]}
+        colors={[colors.bg + 'CC', colors.bg + '55', colors.bg + '00'] as any}
+        locations={[0, 0.65, 1]}
+        style={[styles.statusFade, { height: insets.top + 28 }]}
       />
 
       {/* ── Level + Length picker modal ─────────────────────────────────── */}
@@ -1120,7 +1122,7 @@ const styles = StyleSheet.create({
   articleFooter: {
     marginTop: 32,
     paddingHorizontal: 18,
-    paddingBottom: 16,
+    paddingBottom: 0,
     alignItems: 'center',
   },
   footerRule: {
@@ -1129,16 +1131,16 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   footerDate: {
-    marginTop: 32,
+    marginTop: 14,
     fontSize: 11,
     opacity: 0.5,
     textAlign: 'center',
   },
   footerCrest: {
-    marginTop: 10,
-    width: 100,
-    height: 100,
-    opacity: 0.22,
+    marginTop: 4,
+    width: 108,
+    height: 108,
+    opacity: 0.28,
   },
   statusFade: {
     position: 'absolute',

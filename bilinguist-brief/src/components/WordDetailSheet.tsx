@@ -113,7 +113,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   }, [word?.id]);
 
   const dragY = useRef(new Animated.Value(700)).current;
-  const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.35, 0], extrapolate: 'clamp' });
+  const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.45, 0], extrapolate: 'clamp' });
+
+  const scrollAtTop = useRef(true);
 
   useEffect(() => {
     Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
@@ -123,16 +125,20 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
     Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
   }, [onClose]);
 
+  const dismissRef = useRef(dismissSheet);
+  useEffect(() => { dismissRef.current = dismissSheet; }, [dismissSheet]);
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) =>
+        scrollAtTop.current && g.dy > 6 && g.dy > Math.abs(g.dx) * 0.75,
       onPanResponderMove: (_, g) => {
-        dragY.setValue(Math.max(0, g.dy));
+        if (g.dy > 0) dragY.setValue(g.dy);
       },
       onPanResponderRelease: (_, g) => {
-        if (g.dy > 100) {
-          Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
+        if (g.dy > 120 || g.vy > 0.5) {
+          dismissRef.current();
         } else {
           Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 12 }).start();
         }
@@ -185,14 +191,15 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismissSheet} />
 
         <Animated.View
+          {...panResponder.panHandlers}
           style={[
             styles.sheet,
             { backgroundColor: colors.surface, paddingBottom: insets.bottom + 8 },
             { transform: [{ translateY: dragY }] },
           ]}
         >
-          {/* Drag handle */}
-          <View {...panResponder.panHandlers} style={styles.handleArea}>
+          {/* Drag handle — visual affordance; the whole sheet is now draggable */}
+          <View style={styles.handleArea}>
             <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
           </View>
 
@@ -266,7 +273,12 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
-        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollArea}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={e => { scrollAtTop.current = e.nativeEvent.contentOffset.y <= 0; }}
+        >
 
           {/* Explanation */}
           {word.explanation ? (

@@ -33,7 +33,8 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
 };
 
 // Genre labels translated into each supported language.
-// The API always returns genre in English — we translate on the display side.
+// The API should return genre in English, but some language pipelines (e.g. Native
+// journalism) may translate it. translateGenre handles both directions.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
   'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER',        hu: 'VILÁGHÍREK',          ar: 'أخبار عالمية'      },
   'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK',     hu: 'BRIT POLITIKA',       ar: 'السياسة البريطانية' },
@@ -48,9 +49,24 @@ const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
   'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER',         hu: 'JÓ HÍREK',            ar: 'أخبار سارة'        },
 };
 
+// Reverse map: any translated label (any language) → canonical English key.
+// Used when the API returns a genre already translated into the target language.
+const GENRE_REVERSE: Record<string, string> = {};
+for (const [englishKey, langs] of Object.entries(GENRE_LABELS)) {
+  for (const translated of Object.values(langs)) {
+    if (translated) GENRE_REVERSE[translated.toUpperCase()] = englishKey;
+  }
+}
+
 function translateGenre(genre: string, lang: LanguageCode): string {
-  const key = genre.toUpperCase();
-  return GENRE_LABELS[key]?.[lang] ?? genre.toUpperCase();
+  const upper = genre.toUpperCase();
+  // Direct lookup: genre is already an English canonical key
+  const direct = GENRE_LABELS[upper]?.[lang];
+  if (direct) return direct;
+  // Reverse lookup: genre may be a translated label — map back to the English key first
+  const canonicalKey = GENRE_REVERSE[upper];
+  if (canonicalKey) return GENRE_LABELS[canonicalKey]?.[lang] ?? upper;
+  return upper;
 }
 
 // Genre accent colour map

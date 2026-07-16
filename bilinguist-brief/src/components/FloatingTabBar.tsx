@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Dimensions, Animated, Easing, Platform, LayoutChangeEvent,
+  Dimensions, Animated, Easing, Platform,
 } from 'react-native';
 
 export const isIOS26Plus =
@@ -29,11 +29,11 @@ const TABS = [
 
 // ── Geometry ───────────────────────────────────────────────────────────────────
 
-export const FLOAT_TAB_H        = 58;
-export const FLOAT_TAB_H_LARGE  = 60;
-export const FLOAT_TAB_H_SMALL  = 60; // unified — same height on all pages
-export const FLOAT_TAB_H_FLAG      = 60; // unified with LARGE
-export const FLOAT_TAB_H_FLAG_2ROW = 100; // 2-row flag chip layout (5+ languages)
+export const FLOAT_TAB_H        = 68;
+export const FLOAT_TAB_H_LARGE  = 68;
+export const FLOAT_TAB_H_SMALL  = 68; // unified — same height on all pages
+export const FLOAT_TAB_H_FLAG      = 68; // unified with LARGE
+export const FLOAT_TAB_H_FLAG_2ROW = 108; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
 // Pills float over content on all iOS versions — screens need this bottom padding.
 export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
@@ -41,7 +41,7 @@ export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H;
 const RIGHT_MINI_W = FLOAT_TAB_H;
-const RIGHT_MAX_W  = 250;
+const RIGHT_MAX_W  = 218;
 const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
 
 // Icon scale targets (relative to default 62px)
@@ -101,91 +101,14 @@ interface LeftContextProps {
   onBriefLang: (i: number) => void;
   onSettingsSection: (s: SettingsSection) => void;
   onPracticeLang: (code: string) => void;
-  isDark: boolean;
-  isNavy: boolean;
 }
 
 const LeftContext = memo(function LeftContext({
   routeIndex, activeLanguages, briefPageIndex, settingsSection,
   practiceLang, savedLangCodes, allLanguages, activeColor, inactiveColor,
   fontFamily, onChipGroupLayout, onBriefLang,
-  onSettingsSection, onPracticeLang, isDark, isNavy,
+  onSettingsSection, onPracticeLang,
 }: LeftContextProps) {
-
-  // ── Sliding glass lens ────────────────────────────────────────────────────
-  // Absolutely-positioned view that springs between chip positions when the
-  // active selection changes — no native UIGlassEffect needed.
-  const posCache   = useRef<{ idx: number; data: Array<{ x: number; w: number } | undefined> }>({ idx: -1, data: [] });
-  const lensLeft   = useRef(new Animated.Value(-200)).current;
-  const lensW      = useRef(new Animated.Value(60)).current;
-  const lensOpacity = useRef(new Animated.Value(0)).current;
-  const hasSeated  = useRef(false);
-
-  const LENS_SP = { stiffness: 380, damping: 26, mass: 0.8, useNativeDriver: false } as const;
-
-  function getActiveIdx(): number {
-    if (routeIndex === 0) return briefPageIndex;
-    if (routeIndex === 2) {
-      const i = (['languages', 'genres', 'display', 'profile'] as SettingsSection[]).indexOf(settingsSection);
-      return Math.max(0, i);
-    }
-    if (practiceLang === 'all') return 0;
-    const i = savedLangCodes.indexOf(practiceLang as string);
-    return i >= 0 ? i + 1 : 0;
-  }
-
-  function moveLens(chipIdx: number, animate = true) {
-    if (posCache.current.idx !== routeIndex) return;
-    const pos = posCache.current.data[chipIdx];
-    if (!pos) return;
-    if (animate) {
-      Animated.parallel([
-        Animated.spring(lensLeft, { toValue: pos.x, ...LENS_SP }),
-        Animated.spring(lensW,    { toValue: pos.w, ...LENS_SP }),
-      ]).start();
-    } else {
-      lensLeft.setValue(pos.x);
-      lensW.setValue(pos.w);
-    }
-    lensOpacity.setValue(1);
-  }
-
-  // Slide lens when selection changes
-  useEffect(() => {
-    moveLens(getActiveIdx());
-  }, [briefPageIndex, settingsSection, practiceLang]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset lens when tab route changes (different chip set)
-  useEffect(() => {
-    hasSeated.current = false;
-    lensOpacity.setValue(0);
-  }, [routeIndex]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function chipLayout(chipIdx: number) {
-    return (e: LayoutChangeEvent) => {
-      const { x, width } = e.nativeEvent.layout;
-      if (posCache.current.idx !== routeIndex) {
-        posCache.current = { idx: routeIndex, data: [] };
-      }
-      posCache.current.data[chipIdx] = { x, w: width };
-      if (chipIdx === getActiveIdx() && !hasSeated.current) {
-        hasSeated.current = true;
-        moveLens(chipIdx, false);
-      }
-    };
-  }
-
-  // Glass lens visual — subtle frosted disc that slides beneath chip content
-  const lensStyle = [
-    styles.glassLens,
-    {
-      borderColor: isDark || isNavy ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.88)',
-      backgroundColor: isDark || isNavy ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.62)',
-      left: lensLeft,
-      width: lensW,
-      opacity: lensOpacity,
-    },
-  ];
 
   const flagOnly = routeIndex === 0 && activeLanguages.length >= 5;
 
@@ -193,17 +116,16 @@ const LeftContext = memo(function LeftContext({
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-          <Animated.View style={lensStyle as any} pointerEvents="none" />
           {activeLanguages.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
               style={flagOnly ? styles.contextItemFlagOnly : [styles.contextItem, styles.contextItemFlag]}
               onPress={() => { Haptics.selectionAsync(); onBriefLang(i); }}
-              onLayout={chipLayout(i)}
               activeOpacity={0.7}
               delayPressIn={0}
             >
-              <FlagCircle code={lang.code} size={flagOnly ? 24 : 20} muted={briefPageIndex !== i} />
+              <View style={[styles.contextDot, { opacity: briefPageIndex === i ? 1 : 0, backgroundColor: activeColor }]} />
+              <FlagCircle code={lang.code} size={flagOnly ? 22 : 20} />
               {!flagOnly && (
                 <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
                   {lang.nativeName}
@@ -218,28 +140,25 @@ const LeftContext = memo(function LeftContext({
 
   if (routeIndex === 2) {
     return (
-      <View style={styles.contextRow}>
-        <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-          <Animated.View style={lensStyle as any} pointerEvents="none" />
-          {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec, i) => {
-            const isActive = settingsSection === sec;
-            return (
-              <TouchableOpacity
-                key={sec}
-                style={[styles.contextItem, styles.contextItemFlag]}
-                onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
-                onLayout={chipLayout(i)}
-                activeOpacity={0.7}
-                delayPressIn={0}
-              >
-                <Ionicons name={SECTION_ICONS[sec]} size={18} color={isActive ? activeColor : inactiveColor} />
-                <Text style={[styles.contextLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: isActive ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
-                  {SECTION_LABELS[sec]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      <View style={[styles.fullNavRow, { justifyContent: 'space-evenly' }]}>
+        {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec) => {
+          const isActive = settingsSection === sec;
+          return (
+            <TouchableOpacity
+              key={sec}
+              style={[styles.navTabItem, { flex: 0 }]}
+              onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
+              activeOpacity={0.7}
+              delayPressIn={0}
+            >
+              <View style={[styles.navDot, { opacity: isActive ? 1 : 0, backgroundColor: activeColor }]} />
+              <Ionicons name={SECTION_ICONS[sec]} size={20} color={isActive ? activeColor : inactiveColor} />
+              <Text style={[styles.navLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+                {SECTION_LABELS[sec]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   }
@@ -253,14 +172,15 @@ const LeftContext = memo(function LeftContext({
   return (
     <View style={styles.contextRow}>
       <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-        <Animated.View style={lensStyle as any} pointerEvents="none" />
-        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onLayout={chipLayout(0)} activeOpacity={0.7} delayPressIn={0}>
-          <GlobeCircle size={20} muted={practiceLang !== 'all'} />
+        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} activeOpacity={0.7} delayPressIn={0}>
+          <View style={[styles.contextDot, { opacity: practiceLang === 'all' ? 1 : 0, backgroundColor: activeColor }]} />
+          <GlobeCircle size={20} />
           <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
         </TouchableOpacity>
         {visibleLangs.map((code, i) => (
-          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onLayout={chipLayout(i + 1)} activeOpacity={0.7} delayPressIn={0}>
-            <FlagCircle code={code} size={20} muted={practiceLang !== code} />
+          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} activeOpacity={0.7} delayPressIn={0}>
+            <View style={[styles.contextDot, { opacity: practiceLang === code ? 1 : 0, backgroundColor: activeColor }]} />
+            <FlagCircle code={code} size={20} />
             <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
               {langLabel(code)}
             </Text>
@@ -383,7 +303,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function animCloseLeft() {
     setLeftOpen(false);
+    setRightOpen(false);
     leftContextOp.setValue(0);
+    rightFullOp.setValue(0);
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
@@ -451,15 +373,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Content-fit left expanded width ──────────────────────────────────────
 
-  function computeLeftExpandedW(): number {
-    if (currentRouteIndex === 0) {
-      // Briefing — brief language switcher
-      // 5+ languages: flag-circle-only chips (no text) in a single row
+  function computeLeftExpandedW(forIndex?: number): number {
+    const idx = forIndex ?? currentRouteIndex;
+    if (idx === 0) {
       if (activeLanguages.length >= 5) return pillFlagOnlyW(activeLanguages.length);
       return pillContentW(activeLanguages.map((l) => l.nativeName));
     }
-    if (currentRouteIndex === 2) {
-      // Preferences — settings section shortcuts
+    if (idx === 2) {
       return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
     }
     // Practice — word-bank language filter
@@ -547,7 +467,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.icon} size={24} color={activeColor} />
+          <Ionicons name={currentTab.icon} size={30} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -572,11 +492,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 Haptics.selectionAsync();
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!isFocused && !event.defaultPrevented) {
-                  // Navigating to a different tab — immediately reset right pill state
-                  // and let the currentRouteIndex effect drive the open-left animation.
-                  // Calling toggleRight() here too would start a conflicting animation.
-                  setRightOpen(false);
-                  rightFullOp.setValue(0);
+                  // Start the same animation immediately (don't wait for the route effect)
+                  animToLeftOpen(computeLeftExpandedW(index));
                   navigation.navigate(route.name);
                 } else {
                   // Same tab tapped — full toggle (no route change, effect won't fire)
@@ -585,7 +502,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               }}
             >
               <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={24} color={tint} />
+              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={20} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>{tab.label}</Text>
             </TouchableOpacity>
           );
@@ -596,15 +513,22 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const pillStyle = {
-    backgroundColor: pillBg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderLight,
+  // Shadow lives on the OUTER Animated.View (no overflow:hidden so iOS renders it).
+  // Background + border + overflow:hidden live on the INNER View for proper clipping.
+  const pillShadow = {
+    backgroundColor: pillBg,  // background on outer so iOS casts shadow from a solid surface
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? colors.borderLight : 'transparent',
     shadowColor: '#000' as string,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 3,
+  };
+  // Inner pill is transparent — outer wrapper provides the background.
+  // Having backgroundColor on both layers creates a visible seam/rim artifact.
+  const pillInner = {
+    borderWidth: 0,
   };
 
   const leftClosedIcon = 'earth-outline' as const;
@@ -615,63 +539,64 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { height: leftHeightAnim, width: leftWidthAnim }]}>
+      {/* Outer: shadow only (no overflow:hidden so iOS shadow renders) */}
+      <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
+        {/* Inner: background + border + overflow:hidden for content clipping */}
+        <View style={[styles.pill, pillInner]}>
+          {/* Closed icon */}
+          {!leftOpen && (
+            <View style={styles.absoluteFill}>
+              <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
+                <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
+                  <Ionicons name={leftClosedIcon} size={34} color={activeColor} />
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {/* Closed icon */}
-        {!leftOpen && (
-          <View style={styles.absoluteFill}>
-            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
-              <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-                <Ionicons name={leftClosedIcon} size={28} color={activeColor} />
-              </Animated.View>
+          {/* Context chips */}
+          <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
+            <TouchableOpacity style={styles.absoluteFill} onPress={toggleLeft} activeOpacity={1}>
+              <LeftContext
+                routeIndex={currentRouteIndex}
+                activeLanguages={activeLanguages}
+                briefPageIndex={briefPageIndex}
+                settingsSection={settingsSection}
+                practiceLang={practiceLang}
+                savedLangCodes={savedLangCodes}
+                allLanguages={allLanguages}
+                activeColor={activeColor}
+                inactiveColor={inactiveColor}
+                activeChipStyle={activeChipStyle}
+                fontFamily={fontFamily}
+                onChipGroupLayout={onChipGroupLayout}
+                onBriefLang={setBriefPageIndex}
+                onSettingsSection={setSettingsSection}
+                onPracticeLang={(code) => setPracticeLang(code as any)}
+              />
             </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Context chips — outer TouchableOpacity lets tapping any empty area close the pill;
-             inner chip TouchableOpacitys capture their own presses (innermost responder wins) */}
-        <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
-          <TouchableOpacity style={styles.absoluteFill} onPress={toggleLeft} activeOpacity={1}>
-            <LeftContext
-              routeIndex={currentRouteIndex}
-              activeLanguages={activeLanguages}
-              briefPageIndex={briefPageIndex}
-              settingsSection={settingsSection}
-              practiceLang={practiceLang}
-              savedLangCodes={savedLangCodes}
-              allLanguages={allLanguages}
-              activeColor={activeColor}
-              inactiveColor={inactiveColor}
-              activeChipStyle={activeChipStyle}
-              fontFamily={fontFamily}
-              onChipGroupLayout={onChipGroupLayout}
-              onBriefLang={setBriefPageIndex}
-              onSettingsSection={setSettingsSection}
-              onPracticeLang={(code) => setPracticeLang(code as any)}
-              isDark={isDark}
-              isNavy={isNavy}
-            />
-          </TouchableOpacity>
-        </Animated.View>
+          </Animated.View>
+        </View>
       </Animated.View>
 
       {/* Spacer — takes all remaining space, preventing any overlap */}
       <View style={styles.pillSpacer} />
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
-      <Animated.View style={[styles.pill, pillStyle, { height: rightHeightAnim, width: rightWidthAnim }]}>
+      <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
+        <View style={[styles.pill, pillInner]}>
+          {/* Mini icon */}
+          {!rightOpen && (
+            <View style={styles.absoluteFill}>
+              {renderMiniNav()}
+            </View>
+          )}
 
-        {/* Mini icon */}
-        {!rightOpen && (
-          <View style={styles.absoluteFill}>
-            {renderMiniNav()}
-          </View>
-        )}
-
-        {/* Full nav */}
-        <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
-          {renderFullNav()}
-        </Animated.View>
+          {/* Full nav */}
+          <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
+            {renderFullNav()}
+          </Animated.View>
+        </View>
       </Animated.View>
     </View>
   );
@@ -688,27 +613,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
 
+  pillWrapper: {
+    borderRadius: 100,
+    // Shadow is applied inline — no overflow:hidden here so iOS shadow renders
+  },
   pill: {
-    borderWidth: 1,
+    flex: 1,
     borderRadius: 100,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pillRim: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    borderRadius: 100,
-    borderWidth: 1,
-  },
-  // Second inner ring — the bright specular highlight (Liquid Glass glow border)
-  pillInnerRim: {
-    position: 'absolute',
-    top: 1.5, left: 1.5, right: 1.5, bottom: 1.5,
-    borderRadius: 100,
-    borderWidth: 0.75,
-  },
-
   // Fills all space between the two pills — collapses to 0 before they can touch
   pillSpacer: { flex: 1 },
 
@@ -726,19 +641,11 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 10,
   },
-  // Sliding glass lens — absolutely positioned within chipGroup, slides to active chip
-  glassLens: {
-    position: 'absolute',
-    top: 5,
-    bottom: 5,
-    borderRadius: 99,
-    borderWidth: 1,
-  },
   // Inner group — sizes to content, reports true width via onLayout
   chipGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 7,
     flexShrink: 0,
   },
   contextItem: {
@@ -750,19 +657,23 @@ const styles = StyleSheet.create({
   },
   contextItemFlag: {
     flexDirection: 'column',
-    paddingVertical: 8,
-    gap: 2,
+    paddingTop: 2,
+    paddingBottom: 8,
+    gap: 5,
   },
   // Flag-circle-only chip (no text): used when 5+ languages to fit in one row
   contextItemFlagOnly: {
+    flexDirection: 'column',
     paddingHorizontal: 7,
-    paddingVertical: 9,
+    paddingTop: 4,
+    paddingBottom: 6,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
   contextLabel: {
-    fontSize: 12,
+    fontSize: 13,
     letterSpacing: 0.2,
     textAlign: 'center',
   },
@@ -783,13 +694,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
   },
   navTabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 3,
     paddingTop: 2,
   },
   navDot: {
@@ -798,8 +709,14 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: 1,
   },
+  contextDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    marginBottom: 1,
+  },
   navLabel: {
-    fontSize: 10,
+    fontSize: 11,
     letterSpacing: 0,
   },
 });

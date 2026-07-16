@@ -249,8 +249,8 @@ WRITING RULES:
 - Use only facts from the fact-base. Preserve all attributions exactly.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
 - GLOSSARY:
-  • LITERAL (numbers, specific names): reproduce exactly. Names not translated.
-  • SEMANTIC (descriptive terms, generic descriptors): translate naturally and consistently. Never leave English inside a non-English article.
+  • LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
+  • SEMANTIC (descriptive terms, generic descriptors in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims. Parallel treatment of opposing parties. No loaded language.
 - Write to the natural length the story demands — do not pad, do not cut mid-thought. Aim for 150–250 words per article.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.

@@ -26,6 +26,7 @@ const LOGOMARK_H = Math.round(LOGOMARK_W * (297 / 600)); // ≈ 34
 
 interface Props {
   routeName?: string;
+  onLogoPress?: () => void;
 }
 
 const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -35,7 +36,7 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 };
 
-export function TopBar({ routeName }: Props) {
+export function TopBar({ routeName, onLogoPress }: Props) {
   const insets = useSafeAreaInsets();
   const { colors, fontFamily, isNight, background } = useTheme();
   const navigation = useNavigation<any>();
@@ -94,10 +95,11 @@ export function TopBar({ routeName }: Props) {
     <View style={[styles.compact, { paddingTop: insets.top + 4, backgroundColor: colors.bg }]}>
       <TouchableOpacity
         activeOpacity={0.7}
-        onPress={() => navigation.navigate('Briefing')}
+        onPress={onLogoPress ?? (() => navigation.navigate('Briefing'))}
         hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
       >
         <Image
+          key={bg}
           source={MASTHEADS[bg]}
           style={[styles.compactLockup, imageStyle]}
           resizeMode="contain"

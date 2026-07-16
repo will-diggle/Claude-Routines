@@ -6,8 +6,8 @@ export const Colors = {
   cream: '#F5F0E8',
   softGrey: '#EDEBE6',
   night: '#141414',
-  nightSurface: '#1E1E1E',
-  nightCard: '#252525',
+  nightSurface: '#080808',
+  nightCard: '#000000',
   creamSurface: '#EDEAE5',
   creamCard: '#F7F3EC',
 
@@ -25,7 +25,7 @@ export const Colors = {
   // Borders
   borderLight: '#E0DDD5',
   borderMid: '#C8C4BC',
-  borderNight: '#2E2E2E',
+  borderNight: 'rgba(255,255,255,0.18)',
 
   // Navy
   navyBg: '#162032',

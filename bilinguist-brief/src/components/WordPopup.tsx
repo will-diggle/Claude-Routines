@@ -102,10 +102,13 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
 
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
-  // Draggable handle — sheet physically follows finger, springs back or closes
-  // Start off-screen so we can animate the entry ourselves (avoids animationType="slide" flash on exit)
+  // Sheet slides in from bottom; dragY drives both position and backdrop opacity.
   const dragY = useRef(new Animated.Value(700)).current;
   const overlayOpacity = dragY.interpolate({ inputRange: [0, 300], outputRange: [0.45, 0], extrapolate: 'clamp' });
+
+  // Track whether the inner ScrollView is at its top so we know when to
+  // let the parent sheet capture the drag gesture instead.
+  const scrollAtTop = useRef(true);
 
   useEffect(() => {
     Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
@@ -115,16 +118,23 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
   }, [onClose]);
 
+  // Keep a stable ref so the panResponder closure never goes stale.
+  const dismissRef = useRef(dismissSheet);
+  useEffect(() => { dismissRef.current = dismissSheet; }, [dismissSheet]);
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+      // Don't claim on touch-start — let child ScrollViews handle taps/scroll.
+      onStartShouldSetPanResponder: () => false,
+      // Claim when the scroll content is at top AND the gesture is clearly downward.
+      onMoveShouldSetPanResponder: (_, g) =>
+        scrollAtTop.current && g.dy > 6 && g.dy > Math.abs(g.dx) * 0.75,
       onPanResponderMove: (_, g) => {
-        dragY.setValue(Math.max(0, g.dy));
+        if (g.dy > 0) dragY.setValue(g.dy);
       },
       onPanResponderRelease: (_, g) => {
-        if (g.dy > 100) {
-          Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
+        if (g.dy > 120 || g.vy > 0.5) {
+          dismissRef.current();
         } else {
           Animated.spring(dragY, { toValue: 0, useNativeDriver: true, tension: 60, friction: 12 }).start();
         }
@@ -274,14 +284,15 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismissSheet} />
 
         <Animated.View
+          {...panResponder.panHandlers}
           style={[
             styles.sheet,
             { backgroundColor: colors.surface, paddingBottom: insets.bottom + 8 },
             { transform: [{ translateY: dragY }] },
           ]}
         >
-          {/* Drag handle — touch this area to slide sheet down */}
-          <View {...panResponder.panHandlers} style={styles.handleArea}>
+          {/* Drag handle — visual affordance; the whole sheet is now draggable */}
+          <View style={styles.handleArea}>
             <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
           </View>
 
@@ -392,7 +403,12 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           </View>
         )}
 
-        <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollArea}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={e => { scrollAtTop.current = e.nativeEvent.contentOffset.y <= 0; }}
+        >
 
           {/* Explanation */}
           {entry?.explanation && (

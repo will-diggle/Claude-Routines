@@ -1489,6 +1489,7 @@ export function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
     </SafeAreaView>
   );
 }

@@ -60,8 +60,8 @@ WRITING RULES:
 - Use only facts from the fact-base. Preserve all attributions exactly.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
 - GLOSSARY:
-  * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
-  * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
+  * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
+  * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
 - LENGTH AND STRUCTURE: 180–270 words across 2–3 paragraphs. First paragraph: core facts (who, what, when, where). Second paragraph: context and significance. Third paragraph (optional): reaction, wider implications, or outlook. Never pad, never cut mid-thought.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
@@ -102,8 +102,8 @@ WRITING RULES:
 - Use only facts from the fact-base. Preserve all attributions exactly.
 - FACT ORDER: follow the "what_happened" sequence. Lead with the core fact; add key context in order.
 - GLOSSARY:
-  * LITERAL (numbers, specific names): reproduce exactly. Names not translated.
-  * SEMANTIC (descriptive terms): translate naturally and consistently. Never leave English inside a non-English article.
+  * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
+  * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources.
 - LENGTH: 75–100 words per article. 1–2 paragraphs. Lead sentence covers the core fact (who, what, when). Remaining sentences add the most important context. Never pad, never cut mid-sentence.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.

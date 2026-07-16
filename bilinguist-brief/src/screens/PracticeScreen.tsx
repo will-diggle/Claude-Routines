@@ -266,9 +266,10 @@ export function PracticeScreen() {
             <TouchableOpacity
               key={w.id}
               style={[styles.wordRow, {
-                borderTopColor: idx === 0 ? colors.borderLight : colors.borderLight,
+                borderTopColor: colors.borderLight,
                 borderTopWidth: idx === 0 ? StyleSheet.hairlineWidth : 0,
                 borderBottomColor: colors.borderLight,
+                borderBottomWidth: idx === recentWords.length - 1 ? 0 : StyleSheet.hairlineWidth,
               }]}
               onPress={() => setSelectedWord(w)}
               activeOpacity={0.7}

@@ -46,7 +46,7 @@ export function useTheme() {
       ? Colors.navyBorder
       : Colors.borderLight,
     borderMid: isNight
-      ? '#3A3A3A'
+      ? 'rgba(255,255,255,0.55)'
       : isNavy
       ? Colors.navyBorderMid
       : Colors.borderMid,

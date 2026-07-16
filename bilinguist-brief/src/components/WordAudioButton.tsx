@@ -79,7 +79,13 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
       onPress={handlePress}
       activeOpacity={0.7}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      style={[styles.btn, { width: btnSize, height: btnSize, borderRadius: btnSize / 2, borderColor: colors.borderMid }]}
+      style={[styles.btn, {
+        width: btnSize,
+        height: btnSize,
+        borderRadius: btnSize / 2,
+        backgroundColor: colors.card,
+        borderColor: colors.borderLight,
+      }]}
     >
       {state === 'loading' ? (
         <ActivityIndicator size="small" color={colors.inkFaint} />
@@ -99,5 +105,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
 });
