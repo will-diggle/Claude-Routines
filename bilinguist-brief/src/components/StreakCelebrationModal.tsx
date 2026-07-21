@@ -310,17 +310,17 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
             style={{
               position: 'absolute',
               left: piece.x,
-              transform: [
-                { translateY: piece.anim },
-                { rotate: `${piece.angle}deg` },
-              ],
+              transform: [{ translateY: piece.anim }],
             }}
           >
-            <FallPieceShape
-              size={piece.size}
-              shape={piece.shape}
-              color={confettiColors[piece.colorIdx % confettiColors.length]}
-            />
+            {/* Rotation on a plain View — native driver only sees translateY above */}
+            <View style={{ transform: [{ rotate: `${piece.angle}deg` }] }}>
+              <FallPieceShape
+                size={piece.size}
+                shape={piece.shape}
+                color={confettiColors[piece.colorIdx % confettiColors.length]}
+              />
+            </View>
           </Animated.View>
         ))}
       </View>
