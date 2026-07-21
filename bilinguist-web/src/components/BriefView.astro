@@ -1,0 +1,170 @@
+---
+---
+<section class="brief-shell">
+  <div class="wrap">
+    <div id="brief-status" class="brief-status" role="status" aria-live="polite">
+      <p class="micro-label">Loading today's brief…</p>
+    </div>
+    <div id="brief-content" class="brief-content" hidden></div>
+  </div>
+</section>
+
+<script>
+  import { loadPreferences } from '../lib/preferences';
+  import { fetchBrief, type BriefArticle } from '../lib/brief';
+  import { langInfo } from '../lib/config';
+
+  const statusEl = document.getElementById('brief-status') as HTMLDivElement;
+  const contentEl = document.getElementById('brief-content') as HTMLDivElement;
+
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderArticle(article: BriefArticle, index: number, total: number): string {
+    const paragraphs = article.body
+      .split(/\n\n+/)
+      .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
+      .join('');
+
+    const genreTag = article.genre
+      ? `<p class="micro-label article-genre">${escapeHtml(article.genre)}</p>`
+      : '';
+
+    const divider = index < total - 1 ? '<hr class="hairline article-divider" />' : '';
+
+    return `
+      <article class="article">
+        ${genreTag}
+        <h2 class="article-headline">${escapeHtml(article.headline)}</h2>
+        <div class="article-body">${paragraphs}</div>
+      </article>
+      ${divider}
+    `;
+  }
+
+  function setStatus(message: string) {
+    statusEl.hidden = false;
+    contentEl.hidden = true;
+    statusEl.innerHTML = `<p class="micro-label">${escapeHtml(message)}</p>`;
+  }
+
+  function formatDate(dateStr: string): string {
+    try {
+      const d = new Date(`${dateStr}T00:00:00Z`);
+      return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    } catch {
+      return dateStr;
+    }
+  }
+
+  async function loadAndRender() {
+    const prefs = loadPreferences();
+    setStatus(`Loading today's brief in ${langInfo(prefs.language).name}…`);
+
+    const result = await fetchBrief(prefs.language, prefs.level);
+
+    if (!result.ok) {
+      const message =
+        result.reason === 'not_found'
+          ? `No brief available yet for ${langInfo(prefs.language).name} at ${prefs.level} level. Try another language or level from Preferences.`
+          : "Couldn't load today's brief — check your connection and try again.";
+      setStatus(message);
+      return;
+    }
+
+    const { brief, date } = result;
+    statusEl.hidden = true;
+    contentEl.hidden = false;
+
+    const edition = `
+      <div class="edition-row">
+        <span class="micro-label">${escapeHtml(langInfo(prefs.language).name)} · ${escapeHtml(prefs.level)}</span>
+        <span class="meta-text">${escapeHtml(formatDate(date))}</span>
+      </div>
+    `;
+
+    const articlesHtml = brief.articles
+      .map((a, i) => renderArticle(a, i, brief.articles.length))
+      .join('');
+
+    contentEl.innerHTML = edition + `<div class="columns">${articlesHtml}</div>`;
+  }
+
+  loadAndRender();
+  window.addEventListener('bilinguist:preferences-changed', () => {
+    loadAndRender();
+  });
+</script>
+
+<style>
+  .brief-shell {
+    padding-block: var(--space-lg) var(--space-xxl);
+  }
+
+  .brief-status {
+    padding-block: var(--space-xxl);
+    text-align: center;
+    color: var(--color-ink-light);
+  }
+
+  .edition-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: var(--hairline-width) solid var(--color-hairline);
+    margin-bottom: var(--space-lg);
+    color: var(--color-ink-light);
+  }
+
+  :global(.columns) {
+    column-count: 1;
+    column-gap: var(--space-xl);
+  }
+
+  @media (min-width: 700px) {
+    :global(.columns) {
+      column-count: 2;
+      column-rule: var(--hairline-width) solid var(--color-hairline);
+    }
+  }
+
+  :global(.article) {
+    margin-bottom: var(--space-lg);
+  }
+
+  :global(.article-genre) {
+    color: var(--color-accent-gold);
+    margin: 0 0 var(--space-xs);
+  }
+
+  :global(.article-headline) {
+    font-size: var(--font-headline);
+    line-height: var(--line-headline);
+    font-weight: 700;
+    color: var(--color-ink-dark);
+    margin: 0 0 var(--space-sm);
+    break-after: avoid-column;
+  }
+
+  :global(.article-body p) {
+    font-size: var(--font-body);
+    line-height: var(--line-body);
+    text-align: justify;
+    color: var(--color-ink-mid);
+    margin: 0 0 var(--space-md);
+    hyphens: auto;
+  }
+
+  :global(.article-divider) {
+    margin: var(--space-lg) 0;
+    break-inside: avoid;
+  }
+</style>

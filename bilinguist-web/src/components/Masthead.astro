@@ -1,0 +1,53 @@
+---
+import { THEMES } from '../lib/config';
+---
+<div class="masthead">
+  {THEMES.map((t) => (
+    <img
+      src={`/masthead/${t.key}.png`}
+      alt="Bilinguist Brief"
+      class="masthead-img"
+      data-masthead-theme={t.key}
+      loading="eager"
+      fetchpriority="high"
+    />
+  ))}
+</div>
+<hr class="chrome-rule" />
+
+<style>
+  /* The app never crops this artwork — it always renders with resizeMode
+     "contain" (see TopBar.tsx). The banner's own aspect ratio (~6.2:1) is
+     already close to broadsheet proportions, so we just cap its height
+     rather than forcing an arbitrary aspect box that would clip the crest
+     or wordmark. */
+  .masthead {
+    width: 100%;
+    height: clamp(56px, 11vw, 96px);
+    background: var(--color-bg);
+    display: flex;
+    justify-content: center;
+  }
+
+  @media (min-width: 900px) {
+    .masthead {
+      height: clamp(96px, 8vw, 168px);
+    }
+  }
+
+  .masthead-img {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  /* Shown/hidden per theme via [data-theme] on <html> — no JS needed. */
+  :global([data-theme='white']) .masthead-img[data-masthead-theme='white'],
+  :global([data-theme='cream']) .masthead-img[data-masthead-theme='cream'],
+  :global([data-theme='softGrey']) .masthead-img[data-masthead-theme='softGrey'],
+  :global([data-theme='night']) .masthead-img[data-masthead-theme='night'] {
+    display: block;
+  }
+</style>

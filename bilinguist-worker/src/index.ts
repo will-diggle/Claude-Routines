@@ -804,6 +804,71 @@ async function handleBriefing(filePath: string, env: Env): Promise<Response> {
   });
 }
 
+// ── Route: GET /latest?lang=&level= (filtered slice for the website) ─────────
+// Avoids shipping the full multi-language bundle (all languages × all levels ×
+// all lengths + factbase + tokenMaps) to every site visitor — returns just the
+// requested language/level, in the same per-length shape the app already uses.
+
+interface NativeArticle { genre: string; headline: string; body: string; slug?: string }
+
+async function handleBriefingFiltered(env: Env, lang: string, level: string): Promise<Response> {
+  const upstream = `https://api.github.com/repos/${REPO}/contents/latest.json`;
+  const githubRes = await fetch(upstream, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.raw+json',
+      'User-Agent': 'Bilinguist-Brief-Worker/1.0',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    cf: { cacheEverything: false },
+  } as RequestInit & { cf: { cacheEverything: boolean } });
+
+  if (!githubRes.ok) {
+    const status = githubRes.status === 404 ? 404 : 502;
+    return json({ error: status === 404 ? 'not_found' : 'upstream_error' }, status);
+  }
+
+  const bundle = await githubRes.json() as {
+    date: string;
+    generatedAt: number;
+    briefings?: Record<string, Record<string, Record<string, unknown>>>;
+    nativeJournalism?: Record<string, Record<string, NativeArticle[]>>;
+  };
+
+  let lengths: Record<string, unknown> | null = null;
+
+  if (level === 'Native') {
+    const byLength = bundle.nativeJournalism?.[lang];
+    if (byLength) {
+      lengths = {};
+      for (const [length, articles] of Object.entries(byLength)) {
+        if (!Array.isArray(articles) || articles.length === 0) continue;
+        lengths[length] = {
+          articles: articles.map((a) => ({ genre: a.genre, headline: a.headline, body: a.body })),
+          date: bundle.date,
+          language: lang,
+          level: 'Native',
+          length,
+          generatedAt: bundle.generatedAt,
+        };
+      }
+      if (Object.keys(lengths).length === 0) lengths = null;
+    }
+  } else {
+    lengths = bundle.briefings?.[lang]?.[level] ?? null;
+  }
+
+  if (!lengths) return json({ error: 'not_found' }, 404);
+
+  return json({
+    date: bundle.date,
+    generatedAt: bundle.generatedAt,
+    language: lang,
+    level,
+    lengths,
+  });
+}
+
 // ── DB warm-up (runs on cron schedule) ───────────────────────────────────────
 
 const NO_DB_LANGS = new Set(['tr', 'ar', 'hu']);
@@ -941,7 +1006,12 @@ export default {
     if (audioStream) return handleAudioStream(audioStream[1], env);
 
     if (pathname === '/latest/meta') return handleBriefingMeta(env);
-    if (pathname === '/latest')   return handleBriefing('latest.json', env);
+    if (pathname === '/latest') {
+      const lang  = url.searchParams.get('lang');
+      const level = url.searchParams.get('level');
+      if (lang && level) return handleBriefingFiltered(env, lang, level);
+      return handleBriefing('latest.json', env);
+    }
 
     const archive = pathname.match(/^\/briefings\/(\d{4}-\d{2}-\d{2})$/);
     if (archive) return handleBriefing(`briefings/${archive[1]}.json`, env);
