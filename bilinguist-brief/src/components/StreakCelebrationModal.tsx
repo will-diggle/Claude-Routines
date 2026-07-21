@@ -64,6 +64,10 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const rainLeftRef   = useRef<any>(null);
   const rainCenterRef = useRef<any>(null);
   const rainRightRef  = useRef<any>(null);
+  const featherARef = useRef<any>(null);
+  const featherBRef = useRef<any>(null);
+  const featherCRef = useRef<any>(null);
+  const featherDRef = useRef<any>(null);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const rainIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -102,9 +106,18 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
     const rainTimer = setTimeout(startRain, 120);
     rainIntervalRef.current = setInterval(startRain, 3800);
 
+    // Feather fall: slow drift from top ~2.8s after open (cannon arc has settled)
+    const featherTimer = setTimeout(() => {
+      featherARef.current?.start();
+      featherBRef.current?.start();
+      featherCRef.current?.start();
+      featherDRef.current?.start();
+    }, 2800);
+
     return () => {
       clearTimeout(burstTimer);
       clearTimeout(rainTimer);
+      clearTimeout(featherTimer);
       if (rainIntervalRef.current) clearInterval(rainIntervalRef.current);
     };
   }, [visible]);
@@ -204,6 +217,54 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           colors={confettiColors}
           fallSpeed={3000}
           explosionSpeed={450}
+          fadeOut={false}
+          autoStart={false}
+        />
+      </View>
+
+      {/* Feather fall — fires once ~2.8s in, slow float from top to bottom */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <ConfettiCannon
+          ref={featherARef}
+          count={18}
+          origin={{ x: SCREEN_WIDTH * 0.1, y: -10 }}
+          spread={22}
+          colors={confettiColors}
+          fallSpeed={8000}
+          explosionSpeed={28}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherBRef}
+          count={20}
+          origin={{ x: SCREEN_WIDTH * 0.38, y: -10 }}
+          spread={25}
+          colors={confettiColors}
+          fallSpeed={8500}
+          explosionSpeed={25}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherCRef}
+          count={20}
+          origin={{ x: SCREEN_WIDTH * 0.62, y: -10 }}
+          spread={25}
+          colors={confettiColors}
+          fallSpeed={8200}
+          explosionSpeed={30}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherDRef}
+          count={18}
+          origin={{ x: SCREEN_WIDTH * 0.9, y: -10 }}
+          spread={22}
+          colors={confettiColors}
+          fallSpeed={7800}
+          explosionSpeed={27}
           fadeOut={false}
           autoStart={false}
         />
