@@ -59,39 +59,74 @@ function makeRimBaseConfig() {
 }
 
 // ── Custom fall pieces ────────────────────────────────────────────────────────
-// Each piece has its own Animated.Value and starts at a random Y position
-// between -60 and -(SCREEN_HEIGHT + 60), so it's already "in flight" from the
-// moment the modal opens — the user never sees it spawn.
 
 const FALL_COUNT = 60;
+type PieceShape = 'feather' | 'rect' | 'circle';
+const SHAPES: PieceShape[] = ['feather','feather','feather','rect','rect','circle'];
 
 interface FallPiece {
-  anim: Animated.Value;
-  initY: number;      // starting Y for first run (above screen, random)
-  x: number;
-  w: number;
-  h: number;
-  duration: number;   // ms to travel from -60 to SCREEN_HEIGHT+60 (full trip)
+  anim:     Animated.Value;
+  initY:    number;
+  x:        number;
+  size:     number;
+  angle:    number;   // static tilt so pieces aren't all vertical
+  duration: number;
   colorIdx: number;
+  shape:    PieceShape;
 }
 
 function makeFallPieces(): FallPiece[] {
   return Array.from({ length: FALL_COUNT }, (_, i) => {
-    // Distribute X evenly with slight random jitter
     const slotW = SCREEN_WIDTH / FALL_COUNT;
-    const x = slotW * i + Math.random() * slotW;
-    // Start at a random Y already above the screen
+    const x     = slotW * i + Math.random() * slotW;
     const initY = -80 - Math.floor(Math.random() * (SCREEN_HEIGHT + 60));
     return {
       anim:     new Animated.Value(initY),
       initY,
       x,
-      w:        4 + Math.floor(Math.random() * 7),
-      h:        3 + Math.floor(Math.random() * 5),
-      duration: 7000 + Math.floor(Math.random() * 7000),  // 7–14s per full trip
+      size:     6 + Math.floor(Math.random() * 9),          // 6–14
+      angle:    -35 + Math.floor(Math.random() * 70),       // −35°…+35° tilt
+      duration: 7000 + Math.floor(Math.random() * 7000),
       colorIdx: Math.floor(Math.random() * 5),
+      shape:    SHAPES[Math.floor(Math.random() * SHAPES.length)],
     };
   });
+}
+
+function FallPieceShape({ size, shape, color }: { size: number; shape: PieceShape; color: string }) {
+  if (shape === 'circle') {
+    return (
+      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
+    );
+  }
+  if (shape === 'feather') {
+    const stemH  = size * 2;
+    const wingW  = Math.round(size * 1.4);
+    const wingH  = Math.max(2, Math.round(size * 0.22));
+    const stemX  = Math.round((wingW - 2) / 2);
+    const wingY  = Math.round(stemH * 0.32);
+    return (
+      <View style={{ width: wingW, height: stemH }}>
+        {/* stem */}
+        <View style={{
+          position: 'absolute', left: stemX, top: 0,
+          width: 2, height: stemH,
+          backgroundColor: color, borderRadius: 1,
+        }} />
+        {/* wings */}
+        <View style={{
+          position: 'absolute', left: 0, top: wingY,
+          width: wingW, height: wingH,
+          backgroundColor: color, borderRadius: wingH / 2,
+          opacity: 0.85,
+        }} />
+      </View>
+    );
+  }
+  // rect
+  return (
+    <View style={{ width: size + 4, height: Math.max(3, Math.round(size * 0.38)), backgroundColor: color, borderRadius: 1 }} />
+  );
 }
 
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
@@ -266,10 +301,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         />
       </View>
 
-      {/* Continuous fall — 60 pieces each with independent loops.
-          Each starts at a random Y already above the screen so there is
-          no visible spawn: pieces simply enter from the top edge and exit
-          below the bottom, then loop silently from above. */}
+      {/* Continuous fall — 60 pieces (feathers, rects, circles) each with
+          their own independent loop. Already mid-fall at open time. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {fallPieces.map((piece, i) => (
           <Animated.View
@@ -277,12 +310,18 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
             style={{
               position: 'absolute',
               left: piece.x,
-              width: piece.w,
-              height: piece.h,
-              backgroundColor: confettiColors[piece.colorIdx % confettiColors.length],
-              transform: [{ translateY: piece.anim }],
+              transform: [
+                { translateY: piece.anim },
+                { rotate: `${piece.angle}deg` },
+              ],
             }}
-          />
+          >
+            <FallPieceShape
+              size={piece.size}
+              shape={piece.shape}
+              color={confettiColors[piece.colorIdx % confettiColors.length]}
+            />
+          </Animated.View>
         ))}
       </View>
     </Modal>
