@@ -1,0 +1,33 @@
+# Supabase project configuration.
+# Run `supabase link --project-ref <your-project-ref>` to connect to your project.
+
+[project]
+# Find your project ref in: Supabase dashboard → Project Settings → General
+id = "your-project-ref"
+
+[functions.send-support-email]
+# verify_jwt = false allows unauthenticated (anon key only) users to submit support
+# requests. The anon key is already public in the app bundle, so this is the expected
+# access level. Abuse protection relies on Supabase's built-in rate limiting.
+verify_jwt = false
+
+[functions.delete-account]
+# verify_jwt = true — a valid signed-in user JWT is required.
+# The function extracts the user ID from the verified token; the caller
+# cannot delete any account other than their own.
+verify_jwt = true
+
+[functions.record-acceptance]
+# verify_jwt = true — requires a signed-in user. The user ID is taken from the
+# JWT, not from the request body, so a user can only record their own acceptance.
+verify_jwt = true
+
+[functions.revenuecat-webhook]
+# verify_jwt = false — RevenueCat sends no user JWT. Authentication is via the
+# RC_WEBHOOK_SECRET shared secret validated inside the function body.
+verify_jwt = false
+
+[functions.word-lookup]
+# verify_jwt = false — word lookups happen before sign-in (anon users can look up words).
+# The Anthropic API key is held server-side as a Supabase secret.
+verify_jwt = false

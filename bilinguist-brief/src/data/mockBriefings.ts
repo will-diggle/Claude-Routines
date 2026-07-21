@@ -451,6 +451,11 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
     ],
   },
 
+  // ── SWEDISH / TURKISH / HUNGARIAN — fall back to English at runtime ───────
+  sv: { A1: [], B1: [], C1: [] },
+  tr: { A1: [], B1: [], C1: [] },
+  hu: { A1: [], B1: [], C1: [] },
+
   // ── ARABIC (Modern Standard) ─────────────────────────────────────────────
   ar: {
     A1: [

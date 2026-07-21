@@ -24,7 +24,7 @@ function ph(): PostHog | null {
 }
 
 export function identifyUser(distinctId: string, properties?: Record<string, unknown>): void {
-  ph()?.identify(distinctId, properties);
+  ph()?.identify(distinctId, properties as any);
 }
 
 export function resetIdentity(): void {
@@ -32,7 +32,7 @@ export function resetIdentity(): void {
 }
 
 export function setSuperProperties(props: Record<string, unknown>): void {
-  ph()?.register(props);
+  ph()?.register(props as any);
 }
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────

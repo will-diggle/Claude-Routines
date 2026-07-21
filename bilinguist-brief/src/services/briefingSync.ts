@@ -87,7 +87,7 @@ export async function fetchBundleMeta(): Promise<BundleMeta | null> {
 
 export type BundleFetchResult =
   | { ok: true; bundle: DailyBundle }
-  | { ok: false; reason: 'network' | 'http'; status?: number };
+  | { ok: false; reason: 'network' | 'http' | 'date-mismatch'; status?: number; bundleDate?: string };
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 

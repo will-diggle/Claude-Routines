@@ -27,7 +27,8 @@ import {
 } from '@expo-google-fonts/noto-naskh-arabic';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { useSettingsStore } from './src/store/useSettingsStore';
-import type { LanguageCode, LanguageLevel, BackgroundKey } from './src/store/useSettingsStore';
+import type { LanguageCode, LanguageLevel } from './src/store/useSettingsStore';
+import type { BackgroundKey } from './src/theme';
 import { useAuthStore } from './src/store/useAuthStore';
 import { supabase } from './src/services/supabase';
 import { useWordBankStore } from './src/store/useWordBankStore';
@@ -51,7 +52,8 @@ function safeSetAppIcon(icon: string | null) {
 import { lookupWord } from './src/services/wordService';
 import * as analytics from './src/services/analytics';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
-import { useStreakStore } from './src/store/useStreakStore';
+import { useStreakStore, getStreakSnapshot } from './src/store/useStreakStore';
+import { migrateAnonymousData, reconcileStreaks } from './src/services/streakSync';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -105,6 +107,34 @@ function AppContent() {
   const lastReadDates = useStreakStore((s) => s.lastReadDates);
   const setSession = useAuthStore((s) => s.setSession);
 
+  // Deduplicate streak sync calls within this session (avoids double-sync on
+  // getSession + INITIAL_SESSION both firing for the same persisted session).
+  const syncedUsers = React.useRef(new Set<string>());
+
+  // Waits for the streak store to finish hydrating from AsyncStorage before
+  // we snapshot it for sync — ensures we push real data, not initial defaults.
+  async function waitForStreakHydration(): Promise<void> {
+    if (useStreakStore.persist.hasHydrated()) return;
+    await new Promise<void>((resolve) => {
+      const unsub = useStreakStore.persist.onFinishHydration(() => { unsub(); resolve(); });
+    });
+  }
+
+  async function runStreakSync(userId: string, isNewSignIn: boolean): Promise<void> {
+    if (syncedUsers.current.has(userId)) return;
+    syncedUsers.current.add(userId);
+    try {
+      await waitForStreakHydration();
+      const snap = getStreakSnapshot();
+      const merged = isNewSignIn
+        ? await migrateAnonymousData(userId, snap)
+        : await reconcileStreaks(userId, snap);
+      useStreakStore.getState().applyMergedState(merged);
+    } catch (e) {
+      console.warn('[App] streak sync error:', e);
+    }
+  }
+
   // Keep auth store in sync with Supabase session changes (no-op when not configured)
   useEffect(() => {
     if (!supabase) return;
@@ -116,6 +146,8 @@ function AppContent() {
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
+        // Existing session on app open — reconcile (not a fresh sign-in)
+        runStreakSync(data.session.user.id, false).catch(() => {});
       } else {
         const anonId = useAuthStore.getState().anonymousId;
         analytics.identifyUser(anonId);
@@ -130,8 +162,12 @@ function AppContent() {
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
+        // SIGNED_IN = user just authenticated; INITIAL_SESSION = persisted session on startup
+        const isNewSignIn = _event === 'SIGNED_IN';
+        runStreakSync(session.user.id, isNewSignIn).catch(() => {});
       } else if (_event === 'SIGNED_OUT') {
         analytics.resetIdentity();
+        syncedUsers.current.clear(); // allow re-sync if user signs back in
       }
     });
     return () => subscription.unsubscribe();

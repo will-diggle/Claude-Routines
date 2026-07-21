@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleStreakSync, type StreakSnapshot } from '../services/streakSync';
 
 interface StreakStore {
   streak: number;
@@ -33,6 +34,8 @@ interface StreakStore {
   recordFullSweep: () => void;
   // Returns true if full-sweep celebration already shown today
   fullSweepShownToday: () => boolean;
+  // Apply a merged snapshot from Supabase reconciliation (does not trigger a write-behind push)
+  applyMergedState: (merged: StreakSnapshot) => void;
 }
 
 function todayString() {
@@ -43,6 +46,23 @@ function yesterdayString() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().split('T')[0];
+}
+
+// Returns a plain snapshot of the current store state for sync operations.
+export function getStreakSnapshot(): StreakSnapshot {
+  const s = useStreakStore.getState();
+  return {
+    streak: s.streak,
+    lastPracticedDate: s.lastPracticedDate,
+    totalSessionsCompleted: s.totalSessionsCompleted,
+    speedSnapHighScore: s.speedSnapHighScore,
+    readingStreaks: s.readingStreaks,
+    lastReadDates: s.lastReadDates,
+    readingHistory: s.readingHistory,
+    readingTimeSecs: s.readingTimeSecs,
+    freezeDatesUsed: s.freezeDatesUsed,
+    fullSweepDate: s.fullSweepDate,
+  };
 }
 
 export const useStreakStore = create<StreakStore>()(
@@ -73,9 +93,13 @@ export const useStreakStore = create<StreakStore>()(
           lastPracticedDate: today,
           totalSessionsCompleted: get().totalSessionsCompleted + 1,
         });
+        scheduleStreakSync(get());
       },
 
-      setSpeedSnapHighScore: (score) => set({ speedSnapHighScore: score }),
+      setSpeedSnapHighScore: (score) => {
+        set({ speedSnapHighScore: score });
+        scheduleStreakSync(get());
+      },
 
       recordRead: (langCode: string) => {
         const today = todayString();
@@ -97,6 +121,7 @@ export const useStreakStore = create<StreakStore>()(
           // Only update history if today wasn't already recorded
           if (!existingHistory.includes(today)) {
             set({ readingHistory: { ...readingHistory, [langCode]: newHistory } });
+            scheduleStreakSync(get());
           }
           return;
         }
@@ -106,6 +131,7 @@ export const useStreakStore = create<StreakStore>()(
           readingStreaks: { ...readingStreaks, [langCode]: newStreak },
           readingHistory: { ...readingHistory, [langCode]: newHistory },
         });
+        scheduleStreakSync(get());
       },
 
       getReadingStreak: (langCode: string) => {
@@ -161,6 +187,7 @@ export const useStreakStore = create<StreakStore>()(
             [langCode]: [...used, yesterday],
           },
         });
+        scheduleStreakSync(get());
         return true;
       },
 
@@ -181,10 +208,27 @@ export const useStreakStore = create<StreakStore>()(
 
       recordFullSweep: () => {
         set({ fullSweepDate: todayString() });
+        scheduleStreakSync(get());
       },
 
       fullSweepShownToday: () => {
         return get().fullSweepDate === todayString();
+      },
+
+      applyMergedState: (merged: StreakSnapshot) => {
+        set({
+          streak: merged.streak,
+          lastPracticedDate: merged.lastPracticedDate,
+          totalSessionsCompleted: merged.totalSessionsCompleted,
+          speedSnapHighScore: merged.speedSnapHighScore,
+          readingStreaks: merged.readingStreaks,
+          lastReadDates: merged.lastReadDates,
+          readingHistory: merged.readingHistory,
+          readingTimeSecs: merged.readingTimeSecs,
+          freezeDatesUsed: merged.freezeDatesUsed,
+          fullSweepDate: merged.fullSweepDate,
+        });
+        // No scheduleStreakSync here — we just pulled this from Supabase.
       },
     }),
     {

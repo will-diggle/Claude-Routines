@@ -75,7 +75,11 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   setNativeAppIcon = require('expo-alternate-app-icons').setAlternateAppIcon;
 } catch { /* not available in Expo Go */ }
+import Constants from 'expo-constants';
 import * as analytics from '../services/analytics';
+import { LegalDocModal, type LegalDoc } from './LegalDocModal';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -469,6 +473,14 @@ export function SettingsScreen() {
   const isSignedIn = !!session;
   const displayName = session?.user?.user_metadata?.full_name ?? session?.user?.user_metadata?.name ?? null;
   const userEmail = session?.user?.email ?? null;
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportBody, setSupportBody] = useState('');
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportState, setSupportState] = useState<'idle' | 'success' | 'error'>('idle');
+  const [legalDocVisible, setLegalDocVisible] = useState(false);
+  const [legalDocInitial, setLegalDocInitial] = useState<LegalDoc>('privacy');
+
   const [signInModalVisible, setSignInModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authEmail, setAuthEmail] = useState('');
@@ -530,6 +542,59 @@ export function SettingsScreen() {
       setAuthError(e?.message ?? 'Google sign-in failed');
     } finally {
       setAuthLoading(false);
+    }
+  }
+
+  function openLegalDoc(doc: LegalDoc) {
+    setLegalDocInitial(doc);
+    setSettingsSheetVisible(false);
+    setLegalDocVisible(true);
+  }
+
+  function closeLegalDoc() {
+    setLegalDocVisible(false);
+    setSettingsSheetVisible(true);
+  }
+
+  function openSupportForm() {
+    setSettingsSheetVisible(false);
+    setSupportState('idle');
+    setSupportSubject('');
+    setSupportBody('');
+    setSupportModalVisible(true);
+  }
+
+  function closeSupportModal() {
+    setSupportModalVisible(false);
+    setSupportState('idle');
+  }
+
+  async function handleSupportSubmit() {
+    if (!supportSubject.trim() || !supportBody.trim()) return;
+    setSupportLoading(true);
+    try {
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-support-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          subject: supportSubject.trim(),
+          message: supportBody.trim(),
+          email: userEmail ?? '',
+          appVersion: APP_VERSION,
+          platform: Platform.OS,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSupportState('success');
+    } catch {
+      setSupportState('error');
+    } finally {
+      setSupportLoading(false);
     }
   }
 
@@ -1163,16 +1228,38 @@ export function SettingsScreen() {
                 </View>
               </View>
 
-              {/* About */}
-              <SectionHeader title="About" colors={colors} fontFamily={fontFamily} />
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+              {/* Legal & Support */}
+              <SectionHeader title="Legal & Support" colors={colors} fontFamily={fontFamily} />
+              <TouchableOpacity
+                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                onPress={() => openLegalDoc('privacy')}
+              >
                 <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Bilinguist Brief
+                  Privacy Policy
                 </Text>
-                <Text style={[styles.rowSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  Version 1.0
+                <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                onPress={() => openLegalDoc('terms')}
+              >
+                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Terms of Service
                 </Text>
-              </View>
+                <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                onPress={openSupportForm}
+              >
+                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  Contact Support
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+              </TouchableOpacity>
+              <Text style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                Bilinguist Brief · Version {APP_VERSION}
+              </Text>
               {/* Developer */}
               <View style={styles.devSection}>
                 <TouchableOpacity onPress={() => { setSettingsSheetVisible(false); handleDevTap(); }} style={styles.devTap}>
@@ -1489,6 +1576,109 @@ export function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Support form ── */}
+      <Modal
+        visible={supportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeSupportModal}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={[legalStyles.supportContainer, { backgroundColor: colors.surface }]}>
+            <View style={sheetStyles.handleRow}>
+              <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
+            </View>
+            <View style={sheetStyles.titleRow}>
+              <TouchableOpacity onPress={closeSupportModal}>
+                <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
+              </TouchableOpacity>
+              <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                Contact Support
+              </Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            {supportState === 'success' ? (
+              <View style={legalStyles.successContainer}>
+                <Ionicons name="checkmark-circle-outline" size={52} color={colors.chrome} />
+                <Text style={[legalStyles.successTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                  Message sent
+                </Text>
+                <Text style={[legalStyles.successBody, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Thanks, we'll get back to you soon.
+                </Text>
+                <TouchableOpacity
+                  style={[modalStyles.codeButton, { backgroundColor: colors.chrome, marginTop: Spacing.xl, marginHorizontal: Spacing.lg }]}
+                  onPress={closeSupportModal}
+                >
+                  <Text style={modalStyles.codeButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+                <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  {userEmail ? `Signed in as ${userEmail}` : 'Not signed in'} · Version {APP_VERSION} · iOS
+                </Text>
+
+                <TextInput
+                  style={[legalStyles.subjectInput, { borderColor: colors.borderMid, color: colors.inkDark, fontFamily: fontFamily.regular, backgroundColor: colors.card }]}
+                  value={supportSubject}
+                  onChangeText={setSupportSubject}
+                  placeholder="Subject"
+                  placeholderTextColor={colors.inkFaint}
+                  returnKeyType="next"
+                  maxLength={120}
+                />
+
+                <TextInput
+                  style={[legalStyles.messageInput, { borderColor: colors.borderMid, color: colors.inkDark, fontFamily: fontFamily.regular, backgroundColor: colors.card }]}
+                  value={supportBody}
+                  onChangeText={setSupportBody}
+                  placeholder="Describe your issue or question…"
+                  placeholderTextColor={colors.inkFaint}
+                  multiline
+                  textAlignVertical="top"
+                />
+
+                {supportState === 'error' && (
+                  <Text style={[legalStyles.errorText, { fontFamily: fontFamily.regular }]}>
+                    Something went wrong — please try again.
+                  </Text>
+                )}
+
+                <TouchableOpacity
+                  style={[
+                    modalStyles.codeButton,
+                    {
+                      backgroundColor: colors.accentRed,
+                      marginHorizontal: Spacing.md,
+                      marginTop: Spacing.md,
+                      opacity: supportLoading || !supportSubject.trim() || !supportBody.trim() ? 0.5 : 1,
+                    },
+                  ]}
+                  onPress={handleSupportSubmit}
+                  disabled={supportLoading || !supportSubject.trim() || !supportBody.trim()}
+                >
+                  <Text style={modalStyles.codeButtonText}>
+                    {supportLoading ? 'Sending…' : 'Send message'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Legal documents ── */}
+      <LegalDocModal
+        visible={legalDocVisible}
+        initialDoc={legalDocInitial}
+        onClose={closeLegalDoc}
+      />
 
     </SafeAreaView>
   );
@@ -1846,6 +2036,62 @@ const profileStyles = StyleSheet.create({
   },
   streakBadgeText: {
     fontSize: 13,
+  },
+});
+
+const legalStyles = StyleSheet.create({
+  version: {
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
+    opacity: 0.6,
+  },
+  supportContainer: {
+    flex: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginTop: 60,
+  },
+  subjectInput: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  messageInput: {
+    marginHorizontal: Spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    minHeight: 160,
+  },
+  errorText: {
+    color: '#E53935',
+    fontSize: 13,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  successContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 80,
+  },
+  successTitle: {
+    fontSize: 20,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  successBody: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 

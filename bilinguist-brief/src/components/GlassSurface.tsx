@@ -39,6 +39,8 @@ interface Props {
   children?: React.ReactNode;
   fallbackColor?: string;
   colorScheme?: 'auto' | 'light' | 'dark';
+  cornerRadius?: number;
+  intensity?: number;
 }
 
 interface ContainerProps {
@@ -64,7 +66,7 @@ function BlurFallback({ style, children, fallbackColor }: { style?: object; chil
   );
 }
 
-export function GlassSurface({ style, children, fallbackColor, colorScheme }: Props) {
+export function GlassSurface({ style, children, fallbackColor, colorScheme, cornerRadius = 100, intensity }: Props) {
   const flatStyle = StyleSheet.flatten(style) ?? {};
 
   if (isExpoGo) {
@@ -82,7 +84,8 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme }: Pr
       <GlassBoundary fallback={blurFallback}>
         <GlassView
           style={[StyleSheet.absoluteFillObject, flatStyle]}
-          cornerRadius={100}
+          cornerRadius={cornerRadius}
+          {...(intensity !== undefined ? { intensity } : {})}
         >
           {children}
         </GlassView>

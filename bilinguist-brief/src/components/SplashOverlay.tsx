@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Image, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, Animated } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useSettingsStore } from '../store/useSettingsStore';
+import type { BackgroundKey } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 
-const LOGOMARK = require('../../assets/logomark.png');
-const LOGOTYPE = require('../../assets/logotype.png');
+const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
+  cream:    require('../../assets/masthead-cream.png'),
+  softGrey: require('../../assets/masthead-navy.png'),
+  white:    require('../../assets/masthead-white.png'),
+  night:    require('../../assets/masthead-black.png'),
+};
 
 const PHRASE_POOL: Record<string, string[]> = {
   en: ['Hello', 'Good morning', 'Good afternoon', 'Good evening', 'Welcome', 'Your daily brief', "Today's news", 'Hi there', 'Good to see you', 'Breaking news', 'Just in', 'Top stories', "Today's headlines", 'World news', 'Urgent update'],
@@ -30,6 +35,10 @@ function pickPhrases(langs: string[]): string[] {
   return result.sort(() => Math.random() - 0.5);
 }
 
+const SW = Dimensions.get('window').width;
+const LOGO_W = SW * 0.88;
+const LOGO_H = Math.round(LOGO_W / 5.17);
+
 const FADE_MS  = 160;
 const HOLD_MS  = 260;
 const SPLASH_MS = 3400;
@@ -39,8 +48,7 @@ interface Props {
 }
 
 export function SplashOverlay({ onDone }: Props) {
-  const { width: windowWidth } = useWindowDimensions();
-  const { colors, fontFamily } = useTheme();
+  const { colors, background, fontFamily } = useTheme();
 
   const activeLanguageCodes = useSettingsStore(
     useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code as LanguageCode))
@@ -88,18 +96,11 @@ export function SplashOverlay({ onDone }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <View style={styles.logoRow}>
-        <Image
-          source={LOGOMARK}
-          style={[styles.logomark, { tintColor: colors.inkDark }]}
-          resizeMode="contain"
-        />
-        <Image
-          source={LOGOTYPE}
-          style={[styles.logotype, { width: windowWidth * 0.58, tintColor: colors.inkDark }]}
-          resizeMode="contain"
-        />
-      </View>
+      <Image
+        source={MASTHEADS[background as BackgroundKey] ?? MASTHEADS.cream}
+        style={{ width: LOGO_W, height: LOGO_H }}
+        resizeMode="contain"
+      />
       <Animated.Text
         style={[styles.greeting, { color: colors.inkDark, fontFamily: fontFamily.italic, opacity: fadeAnim }]}
       >
@@ -120,18 +121,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 28,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logomark: {
-    width: 52,
-    height: Math.round(52 * (297 / 600)),
-  },
-  logotype: {
-    height: 44,
   },
   greeting: {
     fontSize: 18,
