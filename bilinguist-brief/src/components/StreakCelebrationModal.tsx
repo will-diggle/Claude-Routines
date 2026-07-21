@@ -40,6 +40,8 @@ interface Props {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// ── Rim pieces ────────────────────────────────────────────────────────────────
+
 const RIM_COUNT = 36;
 
 function makeRimBaseConfig() {
@@ -56,23 +58,49 @@ function makeRimBaseConfig() {
   }));
 }
 
+// ── Custom fall pieces ────────────────────────────────────────────────────────
+// Each piece has its own Animated.Value and starts at a random Y position
+// between -60 and -(SCREEN_HEIGHT + 60), so it's already "in flight" from the
+// moment the modal opens — the user never sees it spawn.
+
+const FALL_COUNT = 60;
+
+interface FallPiece {
+  anim: Animated.Value;
+  initY: number;      // starting Y for first run (above screen, random)
+  x: number;
+  w: number;
+  h: number;
+  duration: number;   // ms to travel from -60 to SCREEN_HEIGHT+60 (full trip)
+  colorIdx: number;
+}
+
+function makeFallPieces(): FallPiece[] {
+  return Array.from({ length: FALL_COUNT }, (_, i) => {
+    // Distribute X evenly with slight random jitter
+    const slotW = SCREEN_WIDTH / FALL_COUNT;
+    const x = slotW * i + Math.random() * slotW;
+    // Start at a random Y already above the screen
+    const initY = -80 - Math.floor(Math.random() * (SCREEN_HEIGHT + 60));
+    return {
+      anim:     new Animated.Value(initY),
+      initY,
+      x,
+      w:        4 + Math.floor(Math.random() * 7),
+      h:        3 + Math.floor(Math.random() * 5),
+      duration: 7000 + Math.floor(Math.random() * 7000),  // 7–14s per full trip
+      colorIdx: Math.floor(Math.random() * 5),
+    };
+  });
+}
+
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
 
   const leftRef  = useRef<any>(null);
   const rightRef = useRef<any>(null);
-  // 14 fall cannons — fired in a tight stagger so pieces appear to
-  // trickle in continuously rather than spawn in visible groups.
-  const f0  = useRef<any>(null); const f1  = useRef<any>(null);
-  const f2  = useRef<any>(null); const f3  = useRef<any>(null);
-  const f4  = useRef<any>(null); const f5  = useRef<any>(null);
-  const f6  = useRef<any>(null); const f7  = useRef<any>(null);
-  const f8  = useRef<any>(null); const f9  = useRef<any>(null);
-  const f10 = useRef<any>(null); const f11 = useRef<any>(null);
-  const f12 = useRef<any>(null); const f13 = useRef<any>(null);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
-  const waveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const rimBaseConfig = useRef(makeRimBaseConfig()).current;
   const rimAnims = useRef(
@@ -83,8 +111,12 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
     }))
   ).current;
 
+  // Fall pieces created once — Animated.Values persist across show/hide cycles
+  const fallPieces = useRef(makeFallPieces()).current;
+
   const [cardTopY, setCardTopY] = useState<number | null>(null);
 
+  // ── Main effect: burst cannons + continuous fall ──────────────────────────
   useEffect(() => {
     if (!visible) return;
 
@@ -93,35 +125,48 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       toValue: 1, tension: 200, friction: 6, useNativeDriver: true,
     }).start();
 
-    // Side cannons fire once on open
+    // Side cannons fire once
     const burstTimer = setTimeout(() => {
       leftRef.current?.start();
       rightRef.current?.start();
     }, 120);
 
-    // 14 fall cannons staggered 300ms apart (total spread = 3.9s per wave).
-    // Origins are 1.5× screen height above the phone — pieces are already
-    // mid-fall when they enter the viewport so there's no visible spawn.
-    // fallSpeed ~16s means pieces take the full screen to cross, exiting
-    // naturally at the bottom before the cannon restarts at 13s.
-    const STAGGER = 300;
-    const WAVE_MS = 13000;
-    const fallers = [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13];
+    // Each fall piece runs its own independent loop:
+    //   first run: initY → SCREEN_HEIGHT+80 (proportional duration)
+    //   subsequent runs: -80 → SCREEN_HEIGHT+80 (full duration)
+    // This means each piece is mid-fall at open time and never visibly spawns.
+    const cancelled = { v: false };
+    const BOTTOM = SCREEN_HEIGHT + 80;
+    const FULL_TRIP = SCREEN_HEIGHT + 160; // -80 → BOTTOM
 
-    const fireWave = (baseDelay: number) =>
-      fallers.map((ref, i) => setTimeout(() => ref.current?.start(), baseDelay + i * STAGGER));
+    fallPieces.forEach((piece) => {
+      const firstTrip = BOTTOM - piece.initY; // remaining distance from initY
+      const firstDur  = Math.round(piece.duration * firstTrip / FULL_TRIP);
 
-    const firstWaveTimers = fireWave(120);
-    waveIntervalRef.current = setInterval(() => fireWave(0), WAVE_MS);
+      const loop = (fromY: number, dur: number) => {
+        if (cancelled.v) return;
+        piece.anim.setValue(fromY);
+        Animated.timing(piece.anim, {
+          toValue: BOTTOM,
+          duration: dur,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished && !cancelled.v) loop(-80, piece.duration);
+        });
+      };
+
+      loop(piece.initY, firstDur);
+    });
 
     return () => {
       clearTimeout(burstTimer);
-      firstWaveTimers.forEach(clearTimeout);
-      if (waveIntervalRef.current) clearInterval(waveIntervalRef.current);
+      cancelled.v = true;
+      fallPieces.forEach((p) => p.anim.stopAnimation());
     };
   }, [visible]);
 
-  // Rim pieces settle on card's top edge
+  // ── Rim pieces settle on card's top edge ──────────────────────────────────
   useEffect(() => {
     if (!visible || cardTopY === null) return;
     rimAnims.forEach((a) => {
@@ -195,7 +240,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         })}
       </View>
 
-      {/* Side cannons — fire once, confetti arcs up then falls down */}
+      {/* Side cannons — one-time burst */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ConfettiCannon
           ref={leftRef}
@@ -221,37 +266,22 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         />
       </View>
 
-      {/* 14 fall cannons — origins 1.5× screen height above the phone.
-          Pieces enter the viewport naturally from the top edge (no visible spawn)
-          and exit at the bottom before the 13s wave repeats. */}
+      {/* Continuous fall — 60 pieces each with independent loops.
+          Each starts at a random Y already above the screen so there is
+          no visible spawn: pieces simply enter from the top edge and exit
+          below the bottom, then loop silently from above. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        {([
-          { ref: f0,  x: 0.05, fs: 15800, es: 22 },
-          { ref: f1,  x: 0.12, fs: 16200, es: 20 },
-          { ref: f2,  x: 0.20, fs: 15500, es: 25 },
-          { ref: f3,  x: 0.28, fs: 16500, es: 18 },
-          { ref: f4,  x: 0.36, fs: 15900, es: 22 },
-          { ref: f5,  x: 0.44, fs: 16800, es: 20 },
-          { ref: f6,  x: 0.52, fs: 15600, es: 24 },
-          { ref: f7,  x: 0.60, fs: 16300, es: 19 },
-          { ref: f8,  x: 0.68, fs: 15700, es: 22 },
-          { ref: f9,  x: 0.76, fs: 16600, es: 21 },
-          { ref: f10, x: 0.84, fs: 15400, es: 25 },
-          { ref: f11, x: 0.91, fs: 16100, es: 20 },
-          { ref: f12, x: 0.30, fs: 17000, es: 18 },
-          { ref: f13, x: 0.70, fs: 16900, es: 19 },
-        ] as { ref: React.RefObject<any>; x: number; fs: number; es: number }[]).map(({ ref, x, fs, es }, i) => (
-          <ConfettiCannon
+        {fallPieces.map((piece, i) => (
+          <Animated.View
             key={i}
-            ref={ref}
-            count={4}
-            origin={{ x: SCREEN_WIDTH * x, y: -SCREEN_HEIGHT * 1.5 }}
-            spread={18}
-            colors={confettiColors}
-            fallSpeed={fs}
-            explosionSpeed={es}
-            fadeOut={false}
-            autoStart={false}
+            style={{
+              position: 'absolute',
+              left: piece.x,
+              width: piece.w,
+              height: piece.h,
+              backgroundColor: confettiColors[piece.colorIdx % confettiColors.length],
+              transform: [{ translateY: piece.anim }],
+            }}
           />
         ))}
       </View>
