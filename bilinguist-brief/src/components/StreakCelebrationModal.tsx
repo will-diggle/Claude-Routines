@@ -59,15 +59,17 @@ function makeRimBaseConfig() {
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
 
-  const leftRef   = useRef<any>(null);
-  const rightRef  = useRef<any>(null);
-  const rainLeftRef   = useRef<any>(null);
-  const rainCenterRef = useRef<any>(null);
-  const rainRightRef  = useRef<any>(null);
-  const featherARef = useRef<any>(null);
-  const featherBRef = useRef<any>(null);
-  const featherCRef = useRef<any>(null);
-  const featherDRef = useRef<any>(null);
+  const leftRef  = useRef<any>(null);
+  const rightRef = useRef<any>(null);
+  // 14 fall cannons — fired in a tight stagger so pieces appear to
+  // trickle in continuously rather than spawn in visible groups.
+  const f0  = useRef<any>(null); const f1  = useRef<any>(null);
+  const f2  = useRef<any>(null); const f3  = useRef<any>(null);
+  const f4  = useRef<any>(null); const f5  = useRef<any>(null);
+  const f6  = useRef<any>(null); const f7  = useRef<any>(null);
+  const f8  = useRef<any>(null); const f9  = useRef<any>(null);
+  const f10 = useRef<any>(null); const f11 = useRef<any>(null);
+  const f12 = useRef<any>(null); const f13 = useRef<any>(null);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const waveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -97,15 +99,14 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       rightRef.current?.start();
     }, 120);
 
-    // Continuous fall: 7 cannons staggered 700ms apart, repeat every 9s
-    // Each cannon's fallSpeed is 9500-11500ms so old pieces are nearly gone
-    // by the time that specific cannon restarts — while others are still mid-fall.
-    const STAGGER = 700;
-    const WAVE_MS = 9000;
-    const fallers = [
-      rainLeftRef, rainCenterRef, rainRightRef,
-      featherARef, featherBRef, featherCRef, featherDRef,
-    ];
+    // 14 fall cannons staggered 300ms apart (total spread = 3.9s per wave).
+    // Origins are 1.5× screen height above the phone — pieces are already
+    // mid-fall when they enter the viewport so there's no visible spawn.
+    // fallSpeed ~16s means pieces take the full screen to cross, exiting
+    // naturally at the bottom before the cannon restarts at 13s.
+    const STAGGER = 300;
+    const WAVE_MS = 13000;
+    const fallers = [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13];
 
     const fireWave = (baseDelay: number) =>
       fallers.map((ref, i) => setTimeout(() => ref.current?.start(), baseDelay + i * STAGGER));
@@ -220,89 +221,39 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         />
       </View>
 
-      {/* Rain — fires once at open, originates well above screen */}
+      {/* 14 fall cannons — origins 1.5× screen height above the phone.
+          Pieces enter the viewport naturally from the top edge (no visible spawn)
+          and exit at the bottom before the 13s wave repeats. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={rainLeftRef}
-          count={22}
-          origin={{ x: SCREEN_WIDTH * 0.2, y: -SCREEN_HEIGHT * 0.5 }}
-          spread={30}
-          colors={confettiColors}
-          fallSpeed={9500}
-          explosionSpeed={40}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={rainCenterRef}
-          count={28}
-          origin={{ x: SCREEN_WIDTH * 0.5, y: -SCREEN_HEIGHT * 0.6 }}
-          spread={35}
-          colors={confettiColors}
-          fallSpeed={10000}
-          explosionSpeed={35}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={rainRightRef}
-          count={22}
-          origin={{ x: SCREEN_WIDTH * 0.8, y: -SCREEN_HEIGHT * 0.5 }}
-          spread={30}
-          colors={confettiColors}
-          fallSpeed={9500}
-          explosionSpeed={40}
-          fadeOut={false}
-          autoStart={false}
-        />
-      </View>
-
-      {/* Feather fall — fires at 2.5s, originates even higher above screen for a staggered wave */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={featherARef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.12, y: -SCREEN_HEIGHT * 0.7 }}
-          spread={25}
-          colors={confettiColors}
-          fallSpeed={11000}
-          explosionSpeed={30}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherBRef}
-          count={22}
-          origin={{ x: SCREEN_WIDTH * 0.4, y: -SCREEN_HEIGHT * 0.65 }}
-          spread={28}
-          colors={confettiColors}
-          fallSpeed={11500}
-          explosionSpeed={28}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherCRef}
-          count={22}
-          origin={{ x: SCREEN_WIDTH * 0.62, y: -SCREEN_HEIGHT * 0.7 }}
-          spread={28}
-          colors={confettiColors}
-          fallSpeed={11200}
-          explosionSpeed={32}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherDRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.88, y: -SCREEN_HEIGHT * 0.65 }}
-          spread={25}
-          colors={confettiColors}
-          fallSpeed={10800}
-          explosionSpeed={30}
-          fadeOut={false}
-          autoStart={false}
-        />
+        {([
+          { ref: f0,  x: 0.05, fs: 15800, es: 22 },
+          { ref: f1,  x: 0.12, fs: 16200, es: 20 },
+          { ref: f2,  x: 0.20, fs: 15500, es: 25 },
+          { ref: f3,  x: 0.28, fs: 16500, es: 18 },
+          { ref: f4,  x: 0.36, fs: 15900, es: 22 },
+          { ref: f5,  x: 0.44, fs: 16800, es: 20 },
+          { ref: f6,  x: 0.52, fs: 15600, es: 24 },
+          { ref: f7,  x: 0.60, fs: 16300, es: 19 },
+          { ref: f8,  x: 0.68, fs: 15700, es: 22 },
+          { ref: f9,  x: 0.76, fs: 16600, es: 21 },
+          { ref: f10, x: 0.84, fs: 15400, es: 25 },
+          { ref: f11, x: 0.91, fs: 16100, es: 20 },
+          { ref: f12, x: 0.30, fs: 17000, es: 18 },
+          { ref: f13, x: 0.70, fs: 16900, es: 19 },
+        ] as { ref: React.RefObject<any>; x: number; fs: number; es: number }[]).map(({ ref, x, fs, es }, i) => (
+          <ConfettiCannon
+            key={i}
+            ref={ref}
+            count={4}
+            origin={{ x: SCREEN_WIDTH * x, y: -SCREEN_HEIGHT * 1.5 }}
+            spread={18}
+            colors={confettiColors}
+            fallSpeed={fs}
+            explosionSpeed={es}
+            fadeOut={false}
+            autoStart={false}
+          />
+        ))}
       </View>
     </Modal>
   );
