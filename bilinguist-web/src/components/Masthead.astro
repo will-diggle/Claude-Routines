@@ -16,27 +16,30 @@ import { THEMES } from '../lib/config';
 <hr class="chrome-rule" />
 
 <style>
+  /* The app never crops this artwork — it always renders with resizeMode
+     "contain" (see TopBar.tsx). The banner's own aspect ratio (~6.2:1) is
+     already close to broadsheet proportions, so we just cap its height
+     rather than forcing an arbitrary aspect box that would clip the crest
+     or wordmark. */
   .masthead {
     width: 100%;
-    aspect-ratio: var(--masthead-ratio-mobile);
-    overflow: hidden;
-    position: relative;
+    height: clamp(56px, 11vw, 96px);
     background: var(--color-bg);
+    display: flex;
+    justify-content: center;
   }
 
   @media (min-width: 900px) {
     .masthead {
-      aspect-ratio: var(--masthead-ratio-desktop);
+      height: clamp(96px, 8vw, 168px);
     }
   }
 
   .masthead-img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
     height: 100%;
-    object-fit: cover;
-    object-position: center;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
     display: none;
   }
 

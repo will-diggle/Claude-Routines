@@ -34,10 +34,6 @@
   /* Border weights */
   --hairline-width: 1px;
   --chrome-width: 1.5px;
-
-  /* Masthead aspect ratio — 5.17:1 at mobile widths, relaxes on desktop */
-  --masthead-ratio-mobile: 5.17;
-  --masthead-ratio-desktop: 8.5;
 }
 
 [data-theme='white'] {
