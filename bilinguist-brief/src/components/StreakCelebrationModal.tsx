@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated,
+  Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Easing,
 } from 'react-native';
 import ConfettiCannonBase from 'react-native-confetti-cannon';
 const ConfettiCannon = ConfettiCannonBase as any;
@@ -38,14 +38,29 @@ interface Props {
   onDismiss: () => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Rain loops every 4.5 s — long enough for pieces to fully fall off-screen
-const RAIN_INTERVAL_MS = 4500;
+const RIM_COUNT = 16;
+
+function makeRimBaseConfig() {
+  const CARD_LEFT  = 28;
+  const CARD_RIGHT = SCREEN_WIDTH - 28;
+  return Array.from({ length: RIM_COUNT }, () => ({
+    x:          CARD_LEFT + Math.floor(Math.random() * (CARD_RIGHT - CARD_LEFT - 8)),
+    w:          5 + Math.floor(Math.random() * 6),
+    h:          3 + Math.floor(Math.random() * 3),
+    rotation:   -90 + Math.floor(Math.random() * 180),
+    colorIndex: Math.floor(Math.random() * 5),
+    delay:      200 + Math.floor(Math.random() * 1800),
+    duration:   600 + Math.floor(Math.random() * 400),
+  }));
+}
 
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
 
+  const leftRef   = useRef<any>(null);
+  const rightRef  = useRef<any>(null);
   const rainLeftRef   = useRef<any>(null);
   const rainCenterRef = useRef<any>(null);
   const rainRightRef  = useRef<any>(null);
@@ -53,29 +68,73 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
   const rainIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const rimBaseConfig = useRef(makeRimBaseConfig()).current;
+  const rimAnims = useRef(
+    Array.from({ length: RIM_COUNT }, () => ({
+      y:       new Animated.Value(-50),
+      opacity: new Animated.Value(0),
+      rotate:  new Animated.Value(0),
+    }))
+  ).current;
+
+  const [cardTopY, setCardTopY] = useState<number | null>(null);
+
   useEffect(() => {
     if (!visible) return;
 
     scaleAnim.setValue(0.7);
     Animated.spring(scaleAnim, {
-      toValue: 1, tension: 180, friction: 7, useNativeDriver: true,
+      toValue: 1, tension: 200, friction: 6, useNativeDriver: true,
     }).start();
 
+    // Side cannons fire once on open
+    const burstTimer = setTimeout(() => {
+      leftRef.current?.start();
+      rightRef.current?.start();
+    }, 120);
+
+    // Rain loops from above
     const startRain = () => {
       rainLeftRef.current?.start();
       rainCenterRef.current?.start();
       rainRightRef.current?.start();
     };
-
-    // First batch right away, then loop
-    const firstTimer = setTimeout(startRain, 200);
-    rainIntervalRef.current = setInterval(startRain, RAIN_INTERVAL_MS);
+    const rainTimer = setTimeout(startRain, 120);
+    rainIntervalRef.current = setInterval(startRain, 3800);
 
     return () => {
-      clearTimeout(firstTimer);
+      clearTimeout(burstTimer);
+      clearTimeout(rainTimer);
       if (rainIntervalRef.current) clearInterval(rainIntervalRef.current);
     };
   }, [visible]);
+
+  // Rim pieces settle on card's top edge
+  useEffect(() => {
+    if (!visible || cardTopY === null) return;
+    rimAnims.forEach((a) => {
+      a.y.setValue(-20 - Math.floor(Math.random() * 60));
+      a.opacity.setValue(0);
+      a.rotate.setValue(0);
+    });
+    const timers = rimBaseConfig.map((cfg, i) =>
+      setTimeout(() => {
+        const landY = cardTopY - Math.floor(Math.random() * 4);
+        rimAnims[i].opacity.setValue(1);
+        Animated.parallel([
+          Animated.timing(rimAnims[i].y, {
+            toValue: landY, duration: cfg.duration,
+            easing: Easing.out(Easing.quad), useNativeDriver: true,
+          }),
+          Animated.timing(rimAnims[i].rotate, {
+            toValue: 1, duration: cfg.duration,
+            easing: Easing.out(Easing.quad), useNativeDriver: true,
+          }),
+        ]).start();
+      }, cfg.delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [visible, cardTopY]);
 
   const toArabicNumerals = (n: number) =>
     String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
@@ -85,17 +144,12 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const confettiColors = FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onDismiss}
-    >
-      {/* Full-screen tap dismisses */}
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
       <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss}>
         <View style={styles.backdrop} pointerEvents="none">
           <Animated.View
             style={[styles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}
+            onLayout={(e) => setCardTopY(e.nativeEvent.layout.y)}
           >
             <Text style={styles.flame}>🔥</Text>
             <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
@@ -108,38 +162,85 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         </View>
       </TouchableOpacity>
 
-      {/* Gentle rain — 3 origins spread across top, 20 pieces each = 60 total per cycle */}
+      {/* Rim pieces settle on card's top edge */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {rimBaseConfig.map((cfg, i) => {
+          const pieceRotate = rimAnims[i].rotate.interpolate({
+            inputRange: [0, 1], outputRange: ['0deg', `${cfg.rotation}deg`],
+          });
+          return (
+            <View key={i} style={{ position: 'absolute', top: 0, left: cfg.x, width: cfg.w, height: cfg.h, overflow: 'visible' }}>
+              <Animated.View
+                style={{
+                  width: cfg.w, height: cfg.h,
+                  backgroundColor: confettiColors[cfg.colorIndex % confettiColors.length],
+                  opacity: rimAnims[i].opacity,
+                  transform: [{ translateY: rimAnims[i].y }, { rotate: pieceRotate }],
+                }}
+              />
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Side cannons — fire once, confetti arcs up then falls down */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <ConfettiCannon
+          ref={leftRef}
+          count={80}
+          origin={{ x: 0, y: SCREEN_HEIGHT * 0.6 }}
+          spread={70}
+          colors={confettiColors}
+          fallSpeed={3000}
+          explosionSpeed={450}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={rightRef}
+          count={80}
+          origin={{ x: SCREEN_WIDTH, y: SCREEN_HEIGHT * 0.6 }}
+          spread={70}
+          colors={confettiColors}
+          fallSpeed={3000}
+          explosionSpeed={450}
+          fadeOut={false}
+          autoStart={false}
+        />
+      </View>
+
+      {/* Looping rain from above */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ConfettiCannon
           ref={rainLeftRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.15, y: -40 }}
-          spread={70}
+          count={22}
+          origin={{ x: SCREEN_WIDTH * 0.2, y: -30 }}
+          spread={50}
           colors={confettiColors}
-          fallSpeed={4200}
-          explosionSpeed={180}
+          fallSpeed={4000}
+          explosionSpeed={150}
           fadeOut={false}
           autoStart={false}
         />
         <ConfettiCannon
           ref={rainCenterRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.5, y: -40 }}
-          spread={90}
+          count={28}
+          origin={{ x: SCREEN_WIDTH * 0.5, y: -30 }}
+          spread={70}
           colors={confettiColors}
-          fallSpeed={4000}
-          explosionSpeed={160}
+          fallSpeed={3800}
+          explosionSpeed={140}
           fadeOut={false}
           autoStart={false}
         />
         <ConfettiCannon
           ref={rainRightRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.85, y: -40 }}
-          spread={70}
+          count={22}
+          origin={{ x: SCREEN_WIDTH * 0.8, y: -30 }}
+          spread={50}
           colors={confettiColors}
-          fallSpeed={4200}
-          explosionSpeed={180}
+          fallSpeed={4000}
+          explosionSpeed={150}
           fadeOut={false}
           autoStart={false}
         />
