@@ -777,10 +777,10 @@ export function BriefingScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      langScrollRefs.current.get(lang.code)?.scrollTo({ y: 0, animated: true });
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCelebration({ langCode: lang.code, streakCount: readingStreaks[lang.code] ?? 1 });
                     }}
-                    activeOpacity={0.6}
+                    activeOpacity={0.75}
                     hitSlop={{ top: 14, bottom: 14, left: 20, right: 20 }}
                   >
                     <Image
