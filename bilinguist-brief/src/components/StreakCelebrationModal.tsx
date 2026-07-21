@@ -70,7 +70,6 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const featherDRef = useRef<any>(null);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
-  const rainIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const rimBaseConfig = useRef(makeRimBaseConfig()).current;
   const rimAnims = useRef(
@@ -97,28 +96,25 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       rightRef.current?.start();
     }, 120);
 
-    // Rain loops from above
-    const startRain = () => {
+    // Rain fires once from above — no loop, pieces drift down and exit
+    const rainTimer = setTimeout(() => {
       rainLeftRef.current?.start();
       rainCenterRef.current?.start();
       rainRightRef.current?.start();
-    };
-    const rainTimer = setTimeout(startRain, 120);
-    rainIntervalRef.current = setInterval(startRain, 3800);
+    }, 120);
 
-    // Feather fall: slow drift from top ~2.8s after open (cannon arc has settled)
+    // Feather fall: slow drift from top ~2.5s after open (cannon arc has settled)
     const featherTimer = setTimeout(() => {
       featherARef.current?.start();
       featherBRef.current?.start();
       featherCRef.current?.start();
       featherDRef.current?.start();
-    }, 2800);
+    }, 2500);
 
     return () => {
       clearTimeout(burstTimer);
       clearTimeout(rainTimer);
       clearTimeout(featherTimer);
-      if (rainIntervalRef.current) clearInterval(rainIntervalRef.current);
     };
   }, [visible]);
 
@@ -278,8 +274,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           origin={{ x: SCREEN_WIDTH * 0.2, y: -30 }}
           spread={50}
           colors={confettiColors}
-          fallSpeed={4000}
-          explosionSpeed={150}
+          fallSpeed={6500}
+          explosionSpeed={120}
           fadeOut={false}
           autoStart={false}
         />
@@ -289,8 +285,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           origin={{ x: SCREEN_WIDTH * 0.5, y: -30 }}
           spread={70}
           colors={confettiColors}
-          fallSpeed={3800}
-          explosionSpeed={140}
+          fallSpeed={6200}
+          explosionSpeed={110}
           fadeOut={false}
           autoStart={false}
         />
@@ -300,8 +296,8 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           origin={{ x: SCREEN_WIDTH * 0.8, y: -30 }}
           spread={50}
           colors={confettiColors}
-          fallSpeed={4000}
-          explosionSpeed={150}
+          fallSpeed={6500}
+          explosionSpeed={120}
           fadeOut={false}
           autoStart={false}
         />
