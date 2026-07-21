@@ -1,0 +1,50 @@
+---
+import { THEMES } from '../lib/config';
+---
+<div class="masthead">
+  {THEMES.map((t) => (
+    <img
+      src={`/masthead/${t.key}.png`}
+      alt="Bilinguist Brief"
+      class="masthead-img"
+      data-masthead-theme={t.key}
+      loading="eager"
+      fetchpriority="high"
+    />
+  ))}
+</div>
+<hr class="chrome-rule" />
+
+<style>
+  .masthead {
+    width: 100%;
+    aspect-ratio: var(--masthead-ratio-mobile);
+    overflow: hidden;
+    position: relative;
+    background: var(--color-bg);
+  }
+
+  @media (min-width: 900px) {
+    .masthead {
+      aspect-ratio: var(--masthead-ratio-desktop);
+    }
+  }
+
+  .masthead-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: none;
+  }
+
+  /* Shown/hidden per theme via [data-theme] on <html> — no JS needed. */
+  :global([data-theme='white']) .masthead-img[data-masthead-theme='white'],
+  :global([data-theme='cream']) .masthead-img[data-masthead-theme='cream'],
+  :global([data-theme='softGrey']) .masthead-img[data-masthead-theme='softGrey'],
+  :global([data-theme='night']) .masthead-img[data-masthead-theme='night'] {
+    display: block;
+  }
+</style>

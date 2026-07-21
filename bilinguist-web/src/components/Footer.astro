@@ -1,0 +1,43 @@
+---
+const year = new Date().getFullYear();
+---
+<footer class="footer">
+  <hr class="hairline" />
+  <div class="wrap footer-row">
+    <span class="meta-text">© {year} Bilinguist Brief</span>
+    <div class="footer-links">
+      <a href="/privacy" class="micro-label link">Privacy Policy</a>
+      <a href="/terms" class="micro-label link">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    margin-top: var(--space-xxl);
+    background: var(--color-surface);
+  }
+
+  .footer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-block: var(--space-lg);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: var(--space-lg);
+  }
+
+  .link {
+    text-decoration: none;
+    color: var(--color-ink-light);
+  }
+
+  .link:hover {
+    color: var(--color-ink-dark);
+  }
+</style>

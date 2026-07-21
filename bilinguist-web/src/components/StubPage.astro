@@ -1,0 +1,38 @@
+---
+interface Props {
+  heading: string;
+}
+const { heading } = Astro.props;
+---
+<div class="wrap stub">
+  <h1 class="stub-heading">{heading}</h1>
+  <hr class="chrome-rule stub-rule" />
+  <div class="stub-body">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .stub {
+    padding-block: var(--space-xxl);
+    max-width: 760px;
+  }
+
+  .stub-heading {
+    font-size: var(--font-headline);
+    color: var(--color-ink-dark);
+    margin: 0 0 var(--space-md);
+  }
+
+  .stub-rule {
+    max-width: 120px;
+    margin-bottom: var(--space-lg);
+  }
+
+  .stub-body :global(p) {
+    font-size: var(--font-body);
+    line-height: var(--line-body);
+    color: var(--color-ink-mid);
+    margin: 0 0 var(--space-md);
+  }
+</style>

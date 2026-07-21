@@ -1,0 +1,109 @@
+/* ─── Design tokens — mirrors bilinguist-brief/src/theme ───────────────────
+   Four themes, selected via [data-theme] on <html>. Every color, spacing,
+   type-scale, and font value here is a token; components should reference
+   these variables rather than hardcoding values. */
+
+:root {
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* Type scale — responsive via clamp(), bounded by the spec's px steps */
+  --font-headline: clamp(22px, 2.6vw, 34px);
+  --font-body: clamp(14px, 1.1vw, 21px);
+  --font-tagline: 13px;
+  --font-micro: 10px;
+  --font-meta: 11px;
+
+  --line-headline: 28px;
+  --line-body: 26px;
+
+  --letter-micro: 2.25px;
+
+  /* Font families — user-selectable, default Lora */
+  --font-lora: 'Lora', Georgia, 'Times New Roman', serif;
+  --font-garamond: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --font-playfair: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-times: Georgia, 'Times New Roman', Times, serif;
+  --font-body-family: var(--font-lora);
+
+  /* Border weights */
+  --hairline-width: 1px;
+  --chrome-width: 1.5px;
+
+  /* Masthead aspect ratio — 5.17:1 at mobile widths, relaxes on desktop */
+  --masthead-ratio-mobile: 5.17;
+  --masthead-ratio-desktop: 8.5;
+}
+
+[data-theme='white'] {
+  --color-bg: #FDFCFB;
+  --color-surface: #F5F3F1;
+  --color-card: #FAF9F8;
+  --color-ink-dark: #1A1A1A;
+  --color-ink-mid: #3D3D3D;
+  --color-ink-light: #6B6B6B;
+  --color-ink-faint: #9A9A9A;
+  --color-chrome: #1A1A1A;
+  --color-hairline: rgba(26, 26, 26, 0.30);
+  --color-border-light: #E0DDD5;
+  --color-border-mid: #C8C4BC;
+  --color-accent-gold: #7D6B4F;
+  --color-accent-red: #8B1A1A;
+  --color-scheme: light;
+}
+
+[data-theme='cream'] {
+  --color-bg: #F5F0E8;
+  --color-surface: #EDEAE5;
+  --color-card: #F7F3EC;
+  --color-ink-dark: #162032;
+  --color-ink-mid: #1E3A5F;
+  --color-ink-light: #2E5FA3;
+  --color-ink-faint: #4A6FA5;
+  --color-chrome: #162032;
+  --color-hairline: rgba(22, 32, 50, 0.32);
+  --color-border-light: #E0DDD5;
+  --color-border-mid: #C8C4BC;
+  --color-accent-gold: #7D6B4F;
+  --color-accent-red: #9A2424;
+  --color-scheme: light;
+}
+
+[data-theme='softGrey'] {
+  --color-bg: #162032;
+  --color-surface: #1E2D42;
+  --color-card: #243552;
+  --color-ink-dark: #F0EDE6;
+  --color-ink-mid: #C8C4BC;
+  --color-ink-light: #8A8680;
+  --color-ink-faint: #8A8680;
+  --color-chrome: #F5F0E8;
+  --color-hairline: rgba(245, 240, 232, 0.40);
+  --color-border-light: #203050;
+  --color-border-mid: #2A3D5A;
+  --color-accent-gold: #7D6B4F;
+  --color-accent-red: #CF5F6A;
+  --color-scheme: dark;
+}
+
+[data-theme='night'] {
+  --color-bg: #141414;
+  --color-surface: #080808;
+  --color-card: #000000;
+  --color-ink-dark: #F0EDE6;
+  --color-ink-mid: #C8C4BC;
+  --color-ink-light: #8A8680;
+  --color-ink-faint: #8A8680;
+  --color-chrome: #F5F0E8;
+  --color-hairline: rgba(245, 240, 232, 0.40);
+  --color-border-light: rgba(255, 255, 255, 0.18);
+  --color-border-mid: rgba(255, 255, 255, 0.55);
+  --color-accent-gold: #7D6B4F;
+  --color-accent-red: #CF5F6A;
+  --color-scheme: dark;
+}
