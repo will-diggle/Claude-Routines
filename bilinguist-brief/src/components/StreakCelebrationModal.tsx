@@ -40,19 +40,19 @@ interface Props {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const RIM_COUNT = 16;
+const RIM_COUNT = 36;
 
 function makeRimBaseConfig() {
   const CARD_LEFT  = 28;
   const CARD_RIGHT = SCREEN_WIDTH - 28;
   return Array.from({ length: RIM_COUNT }, () => ({
     x:          CARD_LEFT + Math.floor(Math.random() * (CARD_RIGHT - CARD_LEFT - 8)),
-    w:          5 + Math.floor(Math.random() * 6),
-    h:          3 + Math.floor(Math.random() * 3),
+    w:          5 + Math.floor(Math.random() * 7),
+    h:          3 + Math.floor(Math.random() * 4),
     rotation:   -90 + Math.floor(Math.random() * 180),
     colorIndex: Math.floor(Math.random() * 5),
-    delay:      200 + Math.floor(Math.random() * 1800),
-    duration:   600 + Math.floor(Math.random() * 400),
+    delay:      150 + Math.floor(Math.random() * 2800),
+    duration:   500 + Math.floor(Math.random() * 500),
   }));
 }
 
@@ -218,86 +218,86 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         />
       </View>
 
-      {/* Feather fall — fires once ~2.8s in, slow float from top to bottom */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={featherARef}
-          count={18}
-          origin={{ x: SCREEN_WIDTH * 0.1, y: -10 }}
-          spread={22}
-          colors={confettiColors}
-          fallSpeed={8000}
-          explosionSpeed={28}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherBRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.38, y: -10 }}
-          spread={25}
-          colors={confettiColors}
-          fallSpeed={8500}
-          explosionSpeed={25}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherCRef}
-          count={20}
-          origin={{ x: SCREEN_WIDTH * 0.62, y: -10 }}
-          spread={25}
-          colors={confettiColors}
-          fallSpeed={8200}
-          explosionSpeed={30}
-          fadeOut={false}
-          autoStart={false}
-        />
-        <ConfettiCannon
-          ref={featherDRef}
-          count={18}
-          origin={{ x: SCREEN_WIDTH * 0.9, y: -10 }}
-          spread={22}
-          colors={confettiColors}
-          fallSpeed={7800}
-          explosionSpeed={27}
-          fadeOut={false}
-          autoStart={false}
-        />
-      </View>
-
-      {/* Looping rain from above */}
+      {/* Rain — fires once at open, originates well above screen */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ConfettiCannon
           ref={rainLeftRef}
           count={22}
-          origin={{ x: SCREEN_WIDTH * 0.2, y: -30 }}
-          spread={50}
+          origin={{ x: SCREEN_WIDTH * 0.2, y: -SCREEN_HEIGHT * 0.5 }}
+          spread={30}
           colors={confettiColors}
-          fallSpeed={6500}
-          explosionSpeed={120}
+          fallSpeed={9500}
+          explosionSpeed={40}
           fadeOut={false}
           autoStart={false}
         />
         <ConfettiCannon
           ref={rainCenterRef}
           count={28}
-          origin={{ x: SCREEN_WIDTH * 0.5, y: -30 }}
-          spread={70}
+          origin={{ x: SCREEN_WIDTH * 0.5, y: -SCREEN_HEIGHT * 0.6 }}
+          spread={35}
           colors={confettiColors}
-          fallSpeed={6200}
-          explosionSpeed={110}
+          fallSpeed={10000}
+          explosionSpeed={35}
           fadeOut={false}
           autoStart={false}
         />
         <ConfettiCannon
           ref={rainRightRef}
           count={22}
-          origin={{ x: SCREEN_WIDTH * 0.8, y: -30 }}
-          spread={50}
+          origin={{ x: SCREEN_WIDTH * 0.8, y: -SCREEN_HEIGHT * 0.5 }}
+          spread={30}
           colors={confettiColors}
-          fallSpeed={6500}
-          explosionSpeed={120}
+          fallSpeed={9500}
+          explosionSpeed={40}
+          fadeOut={false}
+          autoStart={false}
+        />
+      </View>
+
+      {/* Feather fall — fires at 2.5s, originates even higher above screen for a staggered wave */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <ConfettiCannon
+          ref={featherARef}
+          count={20}
+          origin={{ x: SCREEN_WIDTH * 0.12, y: -SCREEN_HEIGHT * 0.7 }}
+          spread={25}
+          colors={confettiColors}
+          fallSpeed={11000}
+          explosionSpeed={30}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherBRef}
+          count={22}
+          origin={{ x: SCREEN_WIDTH * 0.4, y: -SCREEN_HEIGHT * 0.65 }}
+          spread={28}
+          colors={confettiColors}
+          fallSpeed={11500}
+          explosionSpeed={28}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherCRef}
+          count={22}
+          origin={{ x: SCREEN_WIDTH * 0.62, y: -SCREEN_HEIGHT * 0.7 }}
+          spread={28}
+          colors={confettiColors}
+          fallSpeed={11200}
+          explosionSpeed={32}
+          fadeOut={false}
+          autoStart={false}
+        />
+        <ConfettiCannon
+          ref={featherDRef}
+          count={20}
+          origin={{ x: SCREEN_WIDTH * 0.88, y: -SCREEN_HEIGHT * 0.65 }}
+          spread={25}
+          colors={confettiColors}
+          fallSpeed={10800}
+          explosionSpeed={30}
           fadeOut={false}
           autoStart={false}
         />
