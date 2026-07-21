@@ -40,7 +40,7 @@ interface Props {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// ── Rim pieces ────────────────────────────────────────────────────────────────
+// ── Rim pieces (settle on card top edge) ─────────────────────────────────────
 
 const RIM_COUNT = 36;
 
@@ -58,18 +58,19 @@ function makeRimBaseConfig() {
   }));
 }
 
-// ── Custom fall pieces ────────────────────────────────────────────────────────
+// ── Continuous fall pieces ────────────────────────────────────────────────────
 
 const FALL_COUNT = 60;
-type PieceShape = 'feather' | 'rect' | 'circle';
-const SHAPES: PieceShape[] = ['feather','feather','feather','rect','rect','circle'];
+
+type PieceShape = 'rect' | 'square' | 'circle';
+const SHAPES: PieceShape[] = ['rect', 'rect', 'rect', 'square', 'square', 'circle'];
 
 interface FallPiece {
   anim:     Animated.Value;
   initY:    number;
   x:        number;
   size:     number;
-  angle:    number;   // static tilt so pieces aren't all vertical
+  angle:    number;
   duration: number;
   colorIdx: number;
   shape:    PieceShape;
@@ -84,8 +85,8 @@ function makeFallPieces(): FallPiece[] {
       anim:     new Animated.Value(initY),
       initY,
       x,
-      size:     6 + Math.floor(Math.random() * 9),          // 6–14
-      angle:    -35 + Math.floor(Math.random() * 70),       // −35°…+35° tilt
+      size:     6 + Math.floor(Math.random() * 9),       // 6–14
+      angle:    -40 + Math.floor(Math.random() * 80),    // −40°…+40° tilt
       duration: 7000 + Math.floor(Math.random() * 7000),
       colorIdx: Math.floor(Math.random() * 5),
       shape:    SHAPES[Math.floor(Math.random() * SHAPES.length)],
@@ -95,37 +96,21 @@ function makeFallPieces(): FallPiece[] {
 
 function FallPieceShape({ size, shape, color }: { size: number; shape: PieceShape; color: string }) {
   if (shape === 'circle') {
-    return (
-      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
-    );
+    const d = Math.max(4, Math.round(size * 0.6));
+    return <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: color }} />;
   }
-  if (shape === 'feather') {
-    const stemH  = size * 2;
-    const wingW  = Math.round(size * 1.4);
-    const wingH  = Math.max(2, Math.round(size * 0.22));
-    const stemX  = Math.round((wingW - 2) / 2);
-    const wingY  = Math.round(stemH * 0.32);
-    return (
-      <View style={{ width: wingW, height: stemH }}>
-        {/* stem */}
-        <View style={{
-          position: 'absolute', left: stemX, top: 0,
-          width: 2, height: stemH,
-          backgroundColor: color, borderRadius: 1,
-        }} />
-        {/* wings */}
-        <View style={{
-          position: 'absolute', left: 0, top: wingY,
-          width: wingW, height: wingH,
-          backgroundColor: color, borderRadius: wingH / 2,
-          opacity: 0.85,
-        }} />
-      </View>
-    );
+  if (shape === 'square') {
+    const s = Math.max(4, Math.round(size * 0.7));
+    return <View style={{ width: s, height: s, backgroundColor: color, borderRadius: 1 }} />;
   }
-  // rect
+  // rect — classic confetti rectangle, wider than tall
   return (
-    <View style={{ width: size + 4, height: Math.max(3, Math.round(size * 0.38)), backgroundColor: color, borderRadius: 1 }} />
+    <View style={{
+      width:           Math.max(6, size + 2),
+      height:          Math.max(3, Math.round(size * 0.45)),
+      backgroundColor: color,
+      borderRadius:    1,
+    }} />
   );
 }
 
@@ -146,7 +131,6 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
     }))
   ).current;
 
-  // Fall pieces created once — Animated.Values persist across show/hide cycles
   const fallPieces = useRef(makeFallPieces()).current;
 
   const [cardTopY, setCardTopY] = useState<number | null>(null);
@@ -160,43 +144,27 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       toValue: 1, tension: 200, friction: 6, useNativeDriver: true,
     }).start();
 
-    // Side cannons fire once
     const burstTimer = setTimeout(() => {
       leftRef.current?.start();
       rightRef.current?.start();
     }, 120);
 
-    // Each fall piece runs its own independent loop:
-    //   first run: initY → SCREEN_HEIGHT+80 (proportional duration)
-    //   subsequent runs: -80 → SCREEN_HEIGHT+80 (full duration)
-    // This means each piece is mid-fall at open time and never visibly spawns.
-    const cancelled = { v: false };
     const BOTTOM = SCREEN_HEIGHT + 80;
-    const FULL_TRIP = SCREEN_HEIGHT + 160; // -80 → BOTTOM
 
     fallPieces.forEach((piece) => {
-      const firstTrip = BOTTOM - piece.initY; // remaining distance from initY
-      const firstDur  = Math.round(piece.duration * firstTrip / FULL_TRIP);
-
-      const loop = (fromY: number, dur: number) => {
-        if (cancelled.v) return;
-        piece.anim.setValue(fromY);
+      piece.anim.setValue(piece.initY);
+      Animated.loop(
         Animated.timing(piece.anim, {
           toValue: BOTTOM,
-          duration: dur,
+          duration: piece.duration,
           easing: Easing.linear,
           useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (finished && !cancelled.v) loop(-80, piece.duration);
-        });
-      };
-
-      loop(piece.initY, firstDur);
+        })
+      ).start();
     });
 
     return () => {
       clearTimeout(burstTimer);
-      cancelled.v = true;
       fallPieces.forEach((p) => p.anim.stopAnimation());
     };
   }, [visible]);
@@ -301,8 +269,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         />
       </View>
 
-      {/* Continuous fall — 60 pieces (feathers, rects, circles) each with
-          their own independent loop. Already mid-fall at open time. */}
+      {/* Continuous fall — petals, rects, circles */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {fallPieces.map((piece, i) => (
           <Animated.View
@@ -313,7 +280,6 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
               transform: [{ translateY: piece.anim }],
             }}
           >
-            {/* Rotation on a plain View — native driver only sees translateY above */}
             <View style={{ transform: [{ rotate: `${piece.angle}deg` }] }}>
               <FallPieceShape
                 size={piece.size}
