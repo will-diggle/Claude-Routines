@@ -273,7 +273,7 @@ export function BriefingScreen() {
     // Cancel any pending fade
     if (scrollFadeTimer.current[code]) clearTimeout(scrollFadeTimer.current[code]);
     scrollFadeTimer.current[code] = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
     }, 500);
   }
   // Which language page is currently visible
@@ -619,9 +619,10 @@ export function BriefingScreen() {
           const PILL_H = 40;
           const PILL_TRACK_TOP    = insets.top + 20;
           const PILL_TRACK_BOTTOM = SCREEN_HEIGHT - FLOAT_TAB_INSET - PILL_H - 20;
-          const pillTop = scrollProgress.interpolate({
+          // Use translateY instead of top so the animation runs on the UI thread
+          const pillTranslateY = scrollProgress.interpolate({
             inputRange: [0, 1],
-            outputRange: [PILL_TRACK_TOP, PILL_TRACK_BOTTOM],
+            outputRange: [0, PILL_TRACK_BOTTOM - PILL_TRACK_TOP],
             extrapolate: 'clamp',
           });
 
@@ -636,7 +637,7 @@ export function BriefingScreen() {
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
-              scrollEventThrottle={32}
+              scrollEventThrottle={64}
               onScroll={e => {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
@@ -799,7 +800,8 @@ export function BriefingScreen() {
                 {
                   backgroundColor: pillColor,
                   opacity: scrollOpacity,
-                  top: pillTop,
+                  top: PILL_TRACK_TOP,
+                  transform: [{ translateY: pillTranslateY }],
                 },
               ]}
             />
