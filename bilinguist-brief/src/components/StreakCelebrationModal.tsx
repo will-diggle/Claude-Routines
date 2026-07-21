@@ -70,6 +70,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const featherDRef = useRef<any>(null);
 
   const scaleAnim = useRef(new Animated.Value(0.7)).current;
+  const waveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const rimBaseConfig = useRef(makeRimBaseConfig()).current;
   const rimAnims = useRef(
@@ -96,25 +97,26 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       rightRef.current?.start();
     }, 120);
 
-    // Rain fires once from above — no loop, pieces drift down and exit
-    const rainTimer = setTimeout(() => {
-      rainLeftRef.current?.start();
-      rainCenterRef.current?.start();
-      rainRightRef.current?.start();
-    }, 120);
+    // Continuous fall: 7 cannons staggered 700ms apart, repeat every 9s
+    // Each cannon's fallSpeed is 9500-11500ms so old pieces are nearly gone
+    // by the time that specific cannon restarts — while others are still mid-fall.
+    const STAGGER = 700;
+    const WAVE_MS = 9000;
+    const fallers = [
+      rainLeftRef, rainCenterRef, rainRightRef,
+      featherARef, featherBRef, featherCRef, featherDRef,
+    ];
 
-    // Feather fall: slow drift from top ~2.5s after open (cannon arc has settled)
-    const featherTimer = setTimeout(() => {
-      featherARef.current?.start();
-      featherBRef.current?.start();
-      featherCRef.current?.start();
-      featherDRef.current?.start();
-    }, 2500);
+    const fireWave = (baseDelay: number) =>
+      fallers.map((ref, i) => setTimeout(() => ref.current?.start(), baseDelay + i * STAGGER));
+
+    const firstWaveTimers = fireWave(120);
+    waveIntervalRef.current = setInterval(() => fireWave(0), WAVE_MS);
 
     return () => {
       clearTimeout(burstTimer);
-      clearTimeout(rainTimer);
-      clearTimeout(featherTimer);
+      firstWaveTimers.forEach(clearTimeout);
+      if (waveIntervalRef.current) clearInterval(waveIntervalRef.current);
     };
   }, [visible]);
 
