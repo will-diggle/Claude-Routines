@@ -359,15 +359,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(false);
     setLeftOpen(true);
     rightFullOp.setValue(0);
-    leftContextOp.setValue(1);
+    leftContextOp.setValue(0);
     rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    // All three tabs now use icon+label stacked chips — same height for all.
-  const targetH = FLOAT_TAB_H_FLAG;
+    const targetH = FLOAT_TAB_H_FLAG;
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: targetH, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),
       Animated.timing(leftWidthAnim,   { toValue: targetW, ...TM_LAYOUT_OPEN }),
+      // Fade content in after pill is mostly open to avoid overflow glitch
+      Animated.timing(leftContextOp, { toValue: 1, duration: 80, delay: 140, useNativeDriver: true }),
     ]).start();
   }
 

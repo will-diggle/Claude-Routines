@@ -295,15 +295,19 @@ export function BriefingScreen() {
   }, [activeLanguages, checkAndConsumeFreeze]);
 
   useEffect(() => {
-    checkFreezes();
-    // After consuming freezes, warn about any language now under a freeze today
-    const frozen = activeLanguages
-      .filter(l => isFrozenToday(l.code))
-      .map(l => ({ code: l.code, nativeName: l.nativeName, streak: readingStreaks[l.code] ?? 0 }));
-    if (frozen.length > 0) {
-      setFrozenLangs(frozen);
-      setFreezeWarnVisible(true);
-    }
+    // Delay until after the splash screen finishes (3400 ms) so the modal
+    // doesn't appear on top of the loading animation.
+    const t = setTimeout(() => {
+      checkFreezes();
+      const frozen = activeLanguages
+        .filter(l => isFrozenToday(l.code))
+        .map(l => ({ code: l.code, nativeName: l.nativeName, streak: readingStreaks[l.code] ?? 0 }));
+      if (frozen.length > 0) {
+        setFrozenLangs(frozen);
+        setFreezeWarnVisible(true);
+      }
+    }, 4000);
+    return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialise the modal's length picker to the language's current readLength
