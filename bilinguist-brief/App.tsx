@@ -1,9 +1,10 @@
-import React, { useEffect, useState, Component } from 'react';
+import React, { useEffect, useRef, useState, Component } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { addTabChangeListener, setNativeSelectedTab, isNativeTabAvailable } from 'native-tab';
 import { StatusBar } from 'expo-status-bar';
 import {
   useFonts,
@@ -325,6 +326,20 @@ export default function App() {
   const navRef = useNavigationContainerRef();
   const lastResponse = Notifications.useLastNotificationResponse();
 
+  // Tab names must match the Tab.Screen order in AppNavigator.tsx.
+  const TAB_NAMES = useRef(['Briefing', 'Practice', 'Preferences'] as const);
+
+  // Listen for native UITabBar taps and drive React Navigation accordingly.
+  useEffect(() => {
+    if (!isNativeTabAvailable) return;
+    return addTabChangeListener((index) => {
+      const tab = TAB_NAMES.current[index];
+      if (tab && navRef.isReady()) {
+        navRef.navigate(tab as never);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     AsyncStorage.getItem('bilinguist-settings').then((json) => {
       if (!json) return;
@@ -340,6 +355,8 @@ export default function App() {
     const screen = lastResponse.notification.request.content.data?.screen;
     if (screen === 'Briefing' && navRef.isReady()) {
       navRef.navigate('Briefing' as never);
+      // Keep the native tab bar in sync with notification-driven navigation.
+      setNativeSelectedTab(0);
     }
   }, [lastResponse]); // eslint-disable-line react-hooks/exhaustive-deps
 

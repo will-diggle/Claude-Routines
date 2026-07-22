@@ -39,6 +39,7 @@
     "expo-speech": "^13.1.7",
     "expo-status-bar": "~3.0.9",
     "liquid-glass": "file:./modules/liquid-glass",
+    "native-tab": "file:./modules/native-tab",
     "posthog-react-native": "^4.52.0",
     "react": "19.1.0",
     "react-native": "0.81.5",

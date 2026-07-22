@@ -1,0 +1,9 @@
+{
+  "name": "native-tab",
+  "version": "1.0.0",
+  "description": "Native UITabBarController for Bilinguist Brief (iOS 26 liquid glass)",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}
