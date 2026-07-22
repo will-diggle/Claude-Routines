@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Easing,
 } from 'react-native';
+import { GlassSurface, glassAvailable } from './GlassSurface';
 import ConfettiCannonBase from 'react-native-confetti-cannon';
 const ConfettiCannon = ConfettiCannonBase as any;
 import { useTheme } from '../hooks/useTheme';
@@ -208,9 +209,10 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss}>
         <View style={styles.backdrop} pointerEvents="none">
           <Animated.View
-            style={[styles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}
+            style={[styles.card, { backgroundColor: glassAvailable ? 'transparent' : colors.surface, transform: [{ scale: scaleAnim }] }]}
             onLayout={(e) => setCardTopY(e.nativeEvent.layout.y)}
           >
+            {glassAvailable && <GlassSurface cornerRadius={26} />}
             <Text style={styles.flame}>🔥</Text>
             <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
               {headline}

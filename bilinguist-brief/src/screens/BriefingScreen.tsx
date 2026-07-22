@@ -235,6 +235,7 @@ export function BriefingScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Scroll indicator state ──────────────────────────────────────────────────
+
   const SCROLL_PILL_COLORS: Record<string, string> = {
     white:    '#222222',
     cream:    '#162032',
@@ -270,7 +271,6 @@ export function BriefingScreen() {
     const { progress, opacity } = getScrollIndicatorValues(code);
     progress.setValue(pct);
     opacity.setValue(1);
-    // Cancel any pending fade
     if (scrollFadeTimer.current[code]) clearTimeout(scrollFadeTimer.current[code]);
     scrollFadeTimer.current[code] = setTimeout(() => {
       Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
@@ -619,7 +619,6 @@ export function BriefingScreen() {
           const PILL_H = 40;
           const PILL_TRACK_TOP    = insets.top + 20;
           const PILL_TRACK_BOTTOM = SCREEN_HEIGHT - FLOAT_TAB_INSET - PILL_H - 20;
-          // Use translateY instead of top so the animation runs on the UI thread
           const pillTranslateY = scrollProgress.interpolate({
             inputRange: [0, 1],
             outputRange: [0, PILL_TRACK_BOTTOM - PILL_TRACK_TOP],
@@ -637,7 +636,7 @@ export function BriefingScreen() {
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled
-              scrollEventThrottle={64}
+              scrollEventThrottle={16}
               onScroll={e => {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
@@ -647,7 +646,6 @@ export function BriefingScreen() {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
                 }
-                // Track max scroll depth and gate streak on 90% scroll + 30 seconds
                 if (contentSize.height > 0) {
                   const pct = (y + layoutMeasurement.height) / contentSize.height;
                   scrollPctRef.current[lang.code] = Math.max(scrollPctRef.current[lang.code] ?? 0, pct);
@@ -656,7 +654,6 @@ export function BriefingScreen() {
                     maybeCredit(lang.code);
                   }
                 }
-                // Scroll indicator
                 handleScrollIndicator(lang.code, y, contentSize.height, layoutMeasurement.height);
               }}
               refreshControl={

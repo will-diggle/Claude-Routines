@@ -31,7 +31,7 @@ const TABS = [
 
 export const FLOAT_TAB_H        = 68;
 export const FLOAT_TAB_H_LARGE  = 68;
-export const FLOAT_TAB_H_SMALL  = 68; // unified — same height on all pages
+export const FLOAT_TAB_H_SMALL  = 52; // closed/mini circle size
 export const FLOAT_TAB_H_FLAG      = 68; // unified with LARGE
 export const FLOAT_TAB_H_FLAG_2ROW = 108; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
@@ -39,15 +39,15 @@ export const FLOAT_TAB_BOTTOM   = 16;
 export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
 const SW           = Dimensions.get('window').width;
-const LEFT_MINI_W  = FLOAT_TAB_H;
-const RIGHT_MINI_W = FLOAT_TAB_H;
+const LEFT_MINI_W  = FLOAT_TAB_H_SMALL;
+const RIGHT_MINI_W = FLOAT_TAB_H_SMALL;
 const RIGHT_MAX_W  = 218;
 const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
 
-// Icon scale targets (relative to default 62px)
+// Icon scale targets — all 1 since icons are sized explicitly for each state
 const SCALE_DEFAULT = 1;
-const SCALE_SMALL   = FLOAT_TAB_H_SMALL / FLOAT_TAB_H;
-const SCALE_LARGE   = FLOAT_TAB_H_LARGE / FLOAT_TAB_H;
+const SCALE_SMALL   = 1;
+const SCALE_LARGE   = 1;
 
 const CHIP_PAD = 12;
 const CHIP_GAP = 4;
@@ -259,8 +259,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // JS-driver: layout properties (width, height) cannot use native driver
   // Each pill has its own height value — sharing one caused conflicts when
   // animToLeftOpen (h=48) and animOpenRight (h=60) ran in close succession.
-  const leftHeightAnim  = useRef(new Animated.Value(FLOAT_TAB_H)).current;
-  const rightHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H)).current;
+  const leftHeightAnim  = useRef(new Animated.Value(FLOAT_TAB_H_SMALL)).current;
+  const rightHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H_SMALL)).current;
   const leftWidthAnim   = useRef(new Animated.Value(LEFT_MINI_W)).current;
   const rightWidthAnim  = useRef(new Animated.Value(RIGHT_MINI_W)).current;
 
@@ -307,11 +307,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE  }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
     ]).start();
   }
 
@@ -333,11 +333,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(false);
     Animated.parallel([
       Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE  }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
     ]).start();
   }
 
@@ -347,11 +347,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     leftContextOp.setValue(0);
     Animated.parallel([
       Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H,   ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE  }),
+      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
     ]).start();
   }
 
@@ -468,7 +468,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.icon} size={30} color={activeColor} />
+          <Ionicons name={currentTab.icon} size={22} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -514,20 +514,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Shadow lives on the OUTER Animated.View (no overflow:hidden so iOS renders it).
-  // Background + border + overflow:hidden live on the INNER View for proper clipping.
+  // When liquid glass is available the outer wrapper is transparent so UIGlassEffect
+  // can blur real content behind it. Otherwise keep the solid card background.
   const pillShadow = {
-    backgroundColor: pillBg,  // background on outer so iOS casts shadow from a solid surface
-    borderWidth: isDark ? 1 : 0,
+    backgroundColor: glassAvailable ? 'transparent' : pillBg,
+    borderWidth: isDark && !glassAvailable ? 1 : 0,
     borderColor: isDark ? colors.borderLight : 'transparent',
     shadowColor: '#000' as string,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: glassAvailable ? 0.12 : 0.08,
+    shadowRadius: glassAvailable ? 8 : 3,
     elevation: 3,
   };
-  // Inner pill is transparent — outer wrapper provides the background.
-  // Having backgroundColor on both layers creates a visible seam/rim artifact.
   const pillInner = {
     borderWidth: 0,
   };
@@ -543,7 +541,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       {/* Outer: shadow only (no overflow:hidden so iOS shadow renders) */}
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
         {/* Inner: background + border + overflow:hidden for content clipping */}
-        <View style={[styles.pill, pillInner]}>
+        <View style={[styles.pill, pillInner, !glassAvailable && { backgroundColor: pillBg }]}>
+          {glassAvailable && <GlassSurface cornerRadius={100} />}
           {/* Closed icon — always mounted, crossfades via opacity so no native
               subview is ever inserted/removed from this container at runtime
               (removal-on-toggle caused an NSRangeException on cold launch). */}
@@ -553,7 +552,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           >
             <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
               <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-                <Ionicons name={leftClosedIcon} size={34} color={activeColor} />
+                <Ionicons name={leftClosedIcon} size={22} color={activeColor} />
               </Animated.View>
             </TouchableOpacity>
           </Animated.View>
@@ -588,7 +587,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        <View style={[styles.pill, pillInner]}>
+        <View style={[styles.pill, pillInner, !glassAvailable && { backgroundColor: pillBg }]}>
+          {glassAvailable && <GlassSurface cornerRadius={100} />}
           {/* Mini icon — always mounted, crossfades via opacity (see left pill note above) */}
           <Animated.View
             style={[styles.absoluteFill, { opacity: rightFullOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
