@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { SpringButton } from '../components/SpringButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -138,12 +139,12 @@ export function MultipleChoiceScreen() {
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
-          <TouchableOpacity
+          <SpringButton
             style={[styles.doneButton, { backgroundColor: colors.accentRed }]}
             onPress={() => navigation.goBack()}
           >
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       </View>
     );
@@ -204,11 +205,12 @@ export function MultipleChoiceScreen() {
         {/* Options */}
         <View style={styles.options}>
           {q.options.map((opt, i) => (
-            <TouchableOpacity
+            <SpringButton
               key={i}
               style={optionStyle(i)}
               onPress={() => handleSelect(i)}
-              activeOpacity={0.75}
+              glass
+              cornerRadius={12}
             >
               <Text style={[styles.optionLetter, {
                 color: selected !== null && i === q.correctIndex ? '#43A047'
@@ -227,20 +229,22 @@ export function MultipleChoiceScreen() {
               {selected !== null && i === selected && selected !== q.correctIndex && (
                 <Ionicons name="close-circle" size={18} color="#E53935" />
               )}
-            </TouchableOpacity>
+            </SpringButton>
           ))}
         </View>
 
         {selected !== null && (
-          <TouchableOpacity
+          <SpringButton
             style={[styles.nextButton, { backgroundColor: colors.accentRed }]}
             onPress={handleNext}
-            activeOpacity={0.8}
+            glass
+            cornerRadius={14}
+            haptic="medium"
           >
             <Text style={[styles.nextButtonText, { fontFamily: fontFamily.regular }]}>
               {index + 1 >= questions.length ? 'Finish' : 'Next'}
             </Text>
-          </TouchableOpacity>
+          </SpringButton>
         )}
       </View>
     </View>

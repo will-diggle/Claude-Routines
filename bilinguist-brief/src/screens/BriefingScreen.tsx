@@ -5,7 +5,7 @@ import {
   NativeScrollEvent, NativeSyntheticEvent, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
@@ -216,7 +216,10 @@ export function BriefingScreen() {
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
   const [calModalActiveLang, setCalModalActiveLang] = useState('all');
-  const calSlideAnim = useRef(new Animated.Value(-400)).current;
+  const calSlideAnim = useRef(new Animated.Value(-12)).current;
+  const calOpacityAnim = useRef(new Animated.Value(0)).current;
+  const [streakAnchorY, setStreakAnchorY] = useState(0);
+  const streakButtonRefs = useRef<Record<string, any>>({});
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [freezeWarnVisible, setFreezeWarnVisible] = useState(false);
@@ -328,9 +331,19 @@ export function BriefingScreen() {
   function openStreakModal(lang: string) {
     setStreakModalLang(lang);
     setCalModalActiveLang(lang);
-    calSlideAnim.setValue(-400);
+    // Measure the tapped button's screen position so we can anchor below it.
+    streakButtonRefs.current[lang]?.measure(
+      (_x: number, _y: number, _w: number, h: number, _px: number, py: number) => {
+        setStreakAnchorY(py + h + 6);
+      }
+    );
+    calSlideAnim.setValue(-12);
+    calOpacityAnim.setValue(0);
     setStreakModalVisible(true);
-    Animated.spring(calSlideAnim, { toValue: 0, damping: 22, stiffness: 220, mass: 0.8, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.spring(calSlideAnim, { toValue: 0, damping: 22, stiffness: 260, mass: 0.7, useNativeDriver: true }),
+      Animated.timing(calOpacityAnim, { toValue: 1, duration: 160, useNativeDriver: true }),
+    ]).start();
   }
 
   function closeStreakModal() {
@@ -680,24 +693,8 @@ export function BriefingScreen() {
                 </Text>
               </View>
 
-              {/* Thin rule above date/vol — inset from edges */}
-              <View style={[styles.ruleInset, { backgroundColor: hairline }]} />
-
-              {/* Row 1: date (left) · tagline (right) */}
-              <View style={styles.metaRow}>
-                <Text
-                  style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}
-                  numberOfLines={2}
-                >
-                  {publishedDateStr(bundleReceivedAt, lang.code)}
-                </Text>
-                <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
-                  {tagline}
-                </Text>
-              </View>
-
               {/* Medium rule between rows */}
-              <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
+              <View style={[styles.ruleOuterInset, { backgroundColor: hairline }]} />
 
               {/* Row 2: language·level (left) · streak (right) */}
               <View style={styles.editionRow}>
@@ -707,12 +704,12 @@ export function BriefingScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
                   style={styles.editionLabelRow}
                 >
-                  <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                  <Text style={[styles.editionLabel, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: 15 }]}>
                     {lang.nativeName.toUpperCase()} · {level === 'Native'
                       ? `${nativeGradeByLang[lang.code as LanguageCode] ?? 'C1'} / ${NATIVE_WORD[lang.code] ?? 'Native'}`
                       : level}
                   </Text>
-                  <Ionicons name="chevron-down" size={11} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
+                  <Ionicons name="chevron-down" size={14} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
                 </TouchableOpacity>
                 {(() => {
                   const streak = readingStreaks[lang.code] ?? 0;
@@ -721,25 +718,38 @@ export function BriefingScreen() {
                   const streakColor = isReadToday ? '#F97316'
                                     : isFrozen   ? '#60A5FA'
                                     :               colors.inkFaint;
+                  const calColor = colors.inkDark;
                   return (
                     <TouchableOpacity
+                      ref={(r) => { if (r) streakButtonRefs.current[lang.code] = r; }}
                       onPress={() => { openStreakModal(lang.code); }}
                       activeOpacity={0.7}
                       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
                     >
                       {streak === 0 ? (
-                        <Ionicons name="calendar-outline" size={13} color={colors.inkFaint} />
+                        <>
+                          <Ionicons name="calendar-outline" size={17} color={calColor} />
+                          <Text style={[styles.editionLabel, { color: calColor, fontFamily: fontFamily.regular, fontSize: 15 }]}>
+                            {streak}
+                          </Text>
+                        </>
+                      ) : isFrozen ? (
+                        <>
+                          <MaterialCommunityIcons name="snowflake" size={17} color={streakColor} />
+                          <Text style={[styles.editionLabel, { color: streakColor, fontFamily: fontFamily.regular, fontSize: 15 }]}>
+                            {streak}
+                          </Text>
+                        </>
                       ) : (
-                        <Text style={[styles.editionLabel, {
-                          color: streakColor,
-                          fontFamily: fontFamily.regular,
-                          letterSpacing: lang.code === 'ar' ? 0 : 1.5,
-                        }]}>
-                          {streakPhrase(lang.code, streak)}
-                        </Text>
+                        <>
+                          <Ionicons name={isReadToday ? 'flame' : 'flame-outline'} size={17} color={streakColor} />
+                          <Text style={[styles.editionLabel, { color: streakColor, fontFamily: fontFamily.regular, fontSize: 15 }]}>
+                            {streak}
+                          </Text>
+                        </>
                       )}
-                      <Ionicons name="chevron-down" size={11} color={streakColor} />
+                      <Ionicons name="chevron-down" size={14} color={streak === 0 ? calColor : streakColor} />
                     </TouchableOpacity>
                   );
                 })()}
@@ -771,6 +781,9 @@ export function BriefingScreen() {
                   <View style={[styles.footerRule, { backgroundColor: chrome }]} />
                   <Text style={[styles.footerDate, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                     {publishedDateStr(bundleReceivedAt, lang.code)}
+                  </Text>
+                  <Text style={[styles.footerTagline, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                    {tagline}
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
@@ -931,11 +944,11 @@ export function BriefingScreen() {
         onRequestClose={closeStreakModal}
       >
         <TouchableOpacity
-          style={styles.calendarBackdrop}
+          style={[styles.calendarBackdrop, { paddingTop: streakAnchorY }]}
           activeOpacity={1}
           onPress={closeStreakModal}
         >
-          <Animated.View style={{ transform: [{ translateY: calSlideAnim }] }}>
+          <Animated.View style={{ transform: [{ translateY: calSlideAnim }], opacity: calOpacityAnim }}>
             {/* Language flags tile — only shown when there's more than one language */}
             {langsWithHistory.length > 1 && (
               <TouchableOpacity
@@ -1036,7 +1049,7 @@ const styles = StyleSheet.create({
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
   ruleInset:      { height: 1, marginHorizontal: 8, marginVertical: 5, borderRadius: 1 },
-  ruleOuterInset: { height: 1.5, marginHorizontal: 8, marginVertical: 2, borderRadius: 1 },
+  ruleOuterInset: { height: StyleSheet.hairlineWidth, marginHorizontal: 8, marginVertical: 2, borderRadius: 1 },
 
   citiesWrap: {
     width: SCREEN_WIDTH,
@@ -1139,6 +1152,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     textAlign: 'center',
   },
+  footerTagline: {
+    marginTop: 6,
+    fontSize: 13,
+    opacity: 0.5,
+    textAlign: 'center',
+  },
   footerCrest: {
     marginTop: 4,
     width: 108,
@@ -1175,7 +1194,7 @@ const styles = StyleSheet.create({
   calendarBackdrop: {
     flex: 1,
     backgroundColor: 'transparent',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: 16,
   },
   calendarCard: {

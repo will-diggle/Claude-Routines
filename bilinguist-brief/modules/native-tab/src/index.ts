@@ -14,6 +14,15 @@ try {
 export const isNativeTabAvailable = Boolean(NativeTabNativeModule);
 
 /**
+ * Call once from App.tsx on first mount to trigger native UITabBarController setup.
+ * The Swift side wraps window.rootViewController at this point (guaranteed to be
+ * the real app VC, not the Expo dev-client picker).
+ */
+export function setupNativeTabBar(): void {
+  NativeTabNativeModule?.setup?.();
+}
+
+/**
  * Subscribe to native tab-bar taps.
  * `index` matches the Tab.Screen order: 0=Briefing, 1=Practice, 2=Preferences.
  * Returns an unsubscribe function.

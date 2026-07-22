@@ -1,9 +1,6 @@
 import ExpoModulesCore
 import UIKit
 
-// Listens for tab-change notifications posted by NativeTabBarController (in the main
-// app target) and forwards them to React Native as JS events. Using NotificationCenter
-// avoids any cross-target import between the main app and this pod.
 public class NativeTabModule: Module {
     private var observer: NSObjectProtocol?
 
@@ -28,6 +25,17 @@ public class NativeTabModule: Module {
                 NotificationCenter.default.removeObserver(obs)
                 self.observer = nil
             }
+        }
+
+        // Called once from JS (App.tsx useEffect) when the React Native app has
+        // finished its first render. Posts BBSetupNativeTabBar so AppDelegate can
+        // safely wrap window.rootViewController in NativeTabBarController — at this
+        // point the real app VC is guaranteed to be the rootVC.
+        Function("setup") { () in
+            NotificationCenter.default.post(
+                name: NSNotification.Name("BBSetupNativeTabBar"),
+                object: nil
+            )
         }
 
         // Called from JS to keep the native tab bar in sync when RN navigates

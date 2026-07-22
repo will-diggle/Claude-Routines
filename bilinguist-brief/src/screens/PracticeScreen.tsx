@@ -1,5 +1,7 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { useScrollTabBar } from '../hooks/useScrollTabBar';
+import { View, Text, ScrollView, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,6 +54,7 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 };
 
 export function PracticeScreen() {
+  const onScrollTabBar = useScrollTabBar();
   const { colors, fontFamily, fontSize } = useTheme();
   const navigation = useNavigation<PracticeNav>();
   const words = useWordBankStore(useShallow((s) => s.words));
@@ -86,6 +89,8 @@ export function PracticeScreen() {
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
+      scrollEventThrottle={16}
+      onScroll={onScrollTabBar}
     >
       <Text style={[styles.pageTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
         Practice
@@ -114,9 +119,9 @@ export function PracticeScreen() {
               Tap any word in The Brief to save it here for practice.
             </Text>
           </View>
-          <TouchableOpacity onPress={() => setTipDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <SpringButton onPress={() => setTipDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close" size={18} color={colors.inkFaint} />
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       )}
 
@@ -132,10 +137,11 @@ export function PracticeScreen() {
             const count = filteredCounts[pile.key];
             const isEmpty = count === 0;
             return (
-              <TouchableOpacity
+              <SpringButton
                 key={pile.key}
                 onPress={() => !isEmpty && navigation.navigate('WordBankList', { pile: pile.key, language: selectedLang })}
                 activeOpacity={isEmpty ? 1 : 0.7}
+                containerStyle={{ width: '47.5%' }}
                 style={[
                   styles.pileCard,
                   {
@@ -160,12 +166,12 @@ export function PracticeScreen() {
                   {pile.label}
                 </Text>
                 <Text style={[styles.pileDesc, { color: colors.inkFaint }]}>{pile.description}</Text>
-              </TouchableOpacity>
+              </SpringButton>
             );
           })}
         </View>
 
-        <TouchableOpacity
+        <SpringButton
           onPress={() => navigation.navigate('WordBankList', { pile: 'all', language: selectedLang })}
           style={[styles.allWordsBtn, {
             backgroundColor: colors.card,
@@ -176,14 +182,14 @@ export function PracticeScreen() {
             shadowRadius: 6,
             elevation: 3,
           }]}
-          activeOpacity={0.7}
+         
         >
           <Ionicons name="library-outline" size={18} color={colors.inkMid} />
           <Text style={[styles.allWordsBtnText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
             View all {totalWords} words
           </Text>
           <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-        </TouchableOpacity>
+        </SpringButton>
         </>
       )}
 
@@ -193,7 +199,7 @@ export function PracticeScreen() {
       </Text>
 
       {GAMES.map((game) => (
-        <TouchableOpacity
+        <SpringButton
           key={game.key}
           style={[styles.gameRow, {
             backgroundColor: colors.card,
@@ -222,7 +228,7 @@ export function PracticeScreen() {
             ? <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
             : <Ionicons name="lock-closed-outline" size={16} color={colors.inkFaint} />
           }
-        </TouchableOpacity>
+        </SpringButton>
       ))}
 
       {/* Recent words preview */}
@@ -232,7 +238,7 @@ export function PracticeScreen() {
             <Text style={[styles.sectionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
               RECENTLY SAVED
             </Text>
-            <TouchableOpacity
+            <SpringButton
               style={[
                 styles.practisePill,
                 {
@@ -246,12 +252,12 @@ export function PracticeScreen() {
                 },
               ]}
               onPress={() => setGameModalVisible(true)}
-              activeOpacity={0.7}
+             
             >
               <Text style={[styles.practisePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
                 Practice →
               </Text>
-            </TouchableOpacity>
+            </SpringButton>
           </View>
         <View style={[styles.recentCard, {
           backgroundColor: colors.card,
@@ -263,7 +269,7 @@ export function PracticeScreen() {
           elevation: 3,
         }]}>
           {recentWords.map((w, idx) => (
-            <TouchableOpacity
+            <SpringButton
               key={w.id}
               style={[styles.wordRow, {
                 borderTopColor: colors.borderLight,
@@ -272,7 +278,7 @@ export function PracticeScreen() {
                 borderBottomWidth: idx === recentWords.length - 1 ? 0 : StyleSheet.hairlineWidth,
               }]}
               onPress={() => setSelectedWord(w)}
-              activeOpacity={0.7}
+             
             >
               <View style={{ flex: 1 }}>
                 <Text style={[styles.wordText, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
@@ -295,7 +301,7 @@ export function PracticeScreen() {
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={14} color={colors.inkFaint} />
-            </TouchableOpacity>
+            </SpringButton>
           ))}
         </View>
         </>
@@ -309,14 +315,14 @@ export function PracticeScreen() {
       animationType="slide"
       onRequestClose={() => setGameModalVisible(false)}
     >
-      <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={() => setGameModalVisible(false)} />
+      <SpringButton style={modalStyles.overlay} onPress={() => setGameModalVisible(false)} />
       <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
         <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
         <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {selectedLang !== 'all' ? `Practice · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
         </Text>
         {GAMES.map((game) => (
-          <TouchableOpacity
+          <SpringButton
             key={game.key}
             style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight }]}
             onPress={() => {
@@ -334,11 +340,11 @@ export function PracticeScreen() {
               <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </TouchableOpacity>
+          </SpringButton>
         ))}
-        <TouchableOpacity style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
+        <SpringButton style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
           <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
-        </TouchableOpacity>
+        </SpringButton>
       </View>
     </Modal>
     </SafeAreaView>
@@ -405,7 +411,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   pileCard: {
-    width: '47.5%',
     padding: Spacing.md,
     alignItems: 'center',
     borderRadius: 12,

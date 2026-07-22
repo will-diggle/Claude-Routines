@@ -8,7 +8,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon-white.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "jsEngine": "jsc",
     "splash": {
       "backgroundColor": "#F5F0E8"

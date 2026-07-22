@@ -1,6 +1,7 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Animated, Modal,
+  View, Text, FlatList, StyleSheet, Animated, Modal,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,22 +78,22 @@ export function WordBankListScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       {/* Nav header */}
       <View style={[styles.navHeader, { borderBottomColor: colors.borderLight }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <SpringButton onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-        </TouchableOpacity>
+        </SpringButton>
         <Text style={[styles.navTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {PILE_LABEL[selectedPile]} {filtered.length > 0 ? `· ${filtered.length}` : ''}
         </Text>
         {filtered.length > 0 ? (
-          <TouchableOpacity
+          <SpringButton
             style={[styles.practisePill, { borderColor: colors.chrome }]}
             onPress={() => setGameModalVisible(true)}
-            activeOpacity={0.7}
+           
           >
             <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
               Practice →
             </Text>
-          </TouchableOpacity>
+          </SpringButton>
         ) : (
           <View style={{ width: 22 }} />
         )}
@@ -104,7 +105,7 @@ export function WordBankListScreen() {
           const active = selectedPile === p;
           const color = p === 'all' ? colors.chrome : PILE_COLOR[p];
           return (
-            <TouchableOpacity
+            <SpringButton
               key={p}
               onPress={() => setSelectedPile(p)}
               style={[styles.filterTab, active && { borderBottomColor: color, borderBottomWidth: 2 }]}
@@ -112,7 +113,7 @@ export function WordBankListScreen() {
               <Text style={[styles.filterTabText, { color: active ? color : colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 {p === 'all' ? 'All' : PILE_LABEL[p].split(' ')[0]}
               </Text>
-            </TouchableOpacity>
+            </SpringButton>
           );
         })}
       </View>
@@ -123,7 +124,7 @@ export function WordBankListScreen() {
           {(['all', ...presentLangs] as (LanguageCode | 'all')[]).map((lang) => {
             const active = selectedLang === lang;
             return (
-              <TouchableOpacity
+              <SpringButton
                 key={lang}
                 onPress={() => setSelectedLang(lang)}
                 style={[styles.langChip, { borderColor: active ? colors.inkDark : colors.borderMid },
@@ -132,7 +133,7 @@ export function WordBankListScreen() {
                 <Text style={[styles.langChipText, { color: active ? (colors.isNight ? colors.inkDark : '#FFF') : colors.inkMid, fontFamily: fontFamily.regular }]}>
                   {lang === 'all' ? 'All' : (LANG_NATIVE[lang] ?? lang.toUpperCase())}
                 </Text>
-              </TouchableOpacity>
+              </SpringButton>
             );
           })}
         </View>
@@ -167,7 +168,7 @@ export function WordBankListScreen() {
                 const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1], extrapolate: 'clamp' });
                 return (
                   <Animated.View style={[styles.deleteAction, { transform: [{ scale }] }]}>
-                    <TouchableOpacity
+                    <SpringButton
                       style={styles.deleteActionInner}
                       onPress={() => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -176,15 +177,15 @@ export function WordBankListScreen() {
                     >
                       <Ionicons name="trash-outline" size={20} color="#FFF" />
                       <Text style={[styles.deleteLabel, { fontFamily: fontFamily.regular }]}>Delete</Text>
-                    </TouchableOpacity>
+                    </SpringButton>
                   </Animated.View>
                 );
               }}
             >
-              <TouchableOpacity
+              <SpringButton
                 style={[styles.wordRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.bg }]}
                 onPress={() => setDetailWord(item)}
-                activeOpacity={0.7}
+               
               >
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.word, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
@@ -209,7 +210,7 @@ export function WordBankListScreen() {
                     <Ionicons name="layers-outline" size={12} color={colors.accentGold} />
                   ) : null}
                 </View>
-              </TouchableOpacity>
+              </SpringButton>
             </Swipeable>
           )}
         />
@@ -227,7 +228,7 @@ export function WordBankListScreen() {
         animationType="slide"
         onRequestClose={() => setGameModalVisible(false)}
       >
-        <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={() => setGameModalVisible(false)} />
+        <SpringButton style={modalStyles.overlay} onPress={() => setGameModalVisible(false)} />
         <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
           <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
           <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
@@ -236,7 +237,7 @@ export function WordBankListScreen() {
               : `Practice · ${PILE_LABEL[selectedPile]}`}
           </Text>
           {GAMES.map((game) => (
-            <TouchableOpacity
+            <SpringButton
               key={game.key}
               style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight }]}
               onPress={() => {
@@ -254,11 +255,11 @@ export function WordBankListScreen() {
                 <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-            </TouchableOpacity>
+            </SpringButton>
           ))}
-          <TouchableOpacity style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
+          <SpringButton style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
             <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       </Modal>
     </SafeAreaView>

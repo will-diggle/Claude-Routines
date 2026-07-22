@@ -16,7 +16,7 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle, GlobeCircle } from './FlagCircle';
-import { GlassSurface, GlassGroupContainer, glassAvailable } from './GlassSurface';
+import { GlassSurface, glassAvailable } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
@@ -41,8 +41,9 @@ export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H_SMALL;
 const RIGHT_MINI_W = FLOAT_TAB_H_SMALL;
-const RIGHT_MAX_W  = 218;
-const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_SMALL - 12;
+// Both open states: opposite pill is a 68×68 circle — same formula each side.
+const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_LARGE - 20;
+const RIGHT_MAX_W  = SW - 32 - FLOAT_TAB_H_LARGE - 20;
 
 // Icon scale targets — all 1 since icons are sized explicitly for each state
 const SCALE_DEFAULT = 1;
@@ -101,36 +102,36 @@ interface LeftContextProps {
   onBriefLang: (i: number) => void;
   onSettingsSection: (s: SettingsSection) => void;
   onPracticeLang: (code: string) => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
 }
 
 const LeftContext = memo(function LeftContext({
   routeIndex, activeLanguages, briefPageIndex, settingsSection,
   practiceLang, savedLangCodes, allLanguages, activeColor, inactiveColor,
   fontFamily, onChipGroupLayout, onBriefLang,
-  onSettingsSection, onPracticeLang,
+  onSettingsSection, onPracticeLang, onPressIn, onPressOut,
 }: LeftContextProps) {
 
-  const flagOnly = routeIndex === 0 && activeLanguages.length >= 5;
+  // Cap Brief at 5 languages — keeps the pill compact and glass well-shaped.
+  const briefLangs = routeIndex === 0 ? activeLanguages.slice(0, 5) : activeLanguages;
+  const flagOnly = routeIndex === 0;
 
   if (routeIndex === 0) {
     return (
       <View style={styles.contextRow}>
         <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-          {activeLanguages.map((lang, i) => (
+          {briefLangs.map((lang, i) => (
             <TouchableOpacity
               key={lang.code}
-              style={flagOnly ? styles.contextItemFlagOnly : [styles.contextItem, styles.contextItemFlag]}
+              style={styles.contextItemFlagOnly}
               onPress={() => { Haptics.selectionAsync(); onBriefLang(i); }}
-              activeOpacity={0.7}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              activeOpacity={1}
               delayPressIn={0}
             >
-              <View style={[styles.contextDot, { opacity: briefPageIndex === i ? 1 : 0, backgroundColor: activeColor }]} />
-              <FlagCircle code={lang.code} size={flagOnly ? 22 : 20} />
-              {!flagOnly && (
-                <Text style={[styles.contextLabel, { color: briefPageIndex === i ? activeColor : inactiveColor, fontFamily: briefPageIndex === i ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
-                  {lang.nativeName}
-                </Text>
-              )}
+              <FlagCircle code={lang.code} size={22} />
             </TouchableOpacity>
           ))}
         </View>
@@ -148,12 +149,13 @@ const LeftContext = memo(function LeftContext({
               key={sec}
               style={[styles.navTabItem, { flex: 0 }]}
               onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
-              activeOpacity={0.7}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              activeOpacity={1}
               delayPressIn={0}
             >
-              <View style={[styles.navDot, { opacity: isActive ? 1 : 0, backgroundColor: activeColor }]} />
               <Ionicons name={SECTION_ICONS[sec]} size={20} color={isActive ? activeColor : inactiveColor} />
-              <Text style={[styles.navLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+              <Text style={[styles.navLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: fontFamily.regular }]}>
                 {SECTION_LABELS[sec]}
               </Text>
             </TouchableOpacity>
@@ -163,25 +165,21 @@ const LeftContext = memo(function LeftContext({
     );
   }
 
-  const showFull     = savedLangCodes.length <= 3;
   const visibleLangs = savedLangCodes.slice(0, 4);
   const overflow     = savedLangCodes.length - 4;
-  const langLabel    = (code: string) =>
-    showFull ? (allLanguages.find(l => l.code === code)?.nativeName ?? langDisplayCode(code)) : langDisplayCode(code);
+  const langLabel    = (code: string) => langDisplayCode(code);
 
   return (
     <View style={styles.contextRow}>
       <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
-        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} activeOpacity={0.7} delayPressIn={0}>
-          <View style={[styles.contextDot, { opacity: practiceLang === 'all' ? 1 : 0, backgroundColor: activeColor }]} />
+        <TouchableOpacity style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }} onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}>
           <GlobeCircle size={20} />
-          <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: practiceLang === 'all' ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>All</Text>
+          <Text style={[styles.contextLabel, { color: practiceLang === 'all' ? activeColor : inactiveColor, fontFamily: fontFamily.regular, marginTop: 2 }]}>All</Text>
         </TouchableOpacity>
         {visibleLangs.map((code, i) => (
-          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} activeOpacity={0.7} delayPressIn={0}>
-            <View style={[styles.contextDot, { opacity: practiceLang === code ? 1 : 0, backgroundColor: activeColor }]} />
+          <TouchableOpacity key={code} style={[styles.contextItem, styles.contextItemFlag]} onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }} onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}>
             <FlagCircle code={code} size={20} />
-            <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: practiceLang === code ? fontFamily.bold : fontFamily.regular, marginTop: 2 }]}>
+            <Text style={[styles.contextLabel, { color: practiceLang === code ? activeColor : inactiveColor, fontFamily: fontFamily.regular, marginTop: 2 }]}>
               {langLabel(code)}
             </Text>
           </TouchableOpacity>
@@ -236,8 +234,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const activeLanguagesKey = activeLanguages.map((l) => l.code).join(',');
   const savedLangCodesKey  = savedLangCodes.join(',');
 
-  const [leftOpen,  setLeftOpen]  = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
+  const [leftOpen,       setLeftOpen]       = useState(false);
+  const [rightOpen,      setRightOpen]      = useState(false);
+  const [rightNavMounted, setRightNavMounted] = useState(false);
 
   // Always-current refs — read in effects that omit these from deps to avoid stale closures
   const leftOpenRef  = useRef(false);
@@ -269,6 +268,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const leftContextOp  = useRef(new Animated.Value(0)).current;
   const rightFullOp    = useRef(new Animated.Value(0)).current;
   const iconScaleAnim  = useRef(new Animated.Value(SCALE_DEFAULT)).current;
+  const leftPressScale  = useRef(new Animated.Value(1)).current;
+  const rightPressScale = useRef(new Animated.Value(1)).current;
 
   // ── Theming ────────────────────────────────────────────────────────────────
   const isNavy  = background === 'softGrey';
@@ -295,8 +296,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Layout props (width/height) can't use native driver — timing is smoother
   // than spring here because it avoids per-frame spring physics on the JS thread
   // while layout recalculates simultaneously. Cubic ease-out feels lush and snappy.
-  const TM_LAYOUT_OPEN  = { duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE = { duration: 160, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
+  const TM_LAYOUT_OPEN       = { duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE      = { duration: 160, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE_FAST = { duration: 90,  easing: Easing.in(Easing.cubic),  useNativeDriver: false } as const;
   // Scale runs on UI thread via native driver — spring here is free (no layout cost).
   const SP_SCALE_OPEN  = { stiffness: 200, damping: 14, mass: 0.7, useNativeDriver: true } as const;
   const SP_SCALE_CLOSE = { stiffness: 320, damping: 28, mass: 0.8, useNativeDriver: true } as const;
@@ -304,6 +306,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function animCloseLeft() {
     setLeftOpen(false);
     setRightOpen(false);
+    setRightNavMounted(false);
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);
     Animated.parallel([
@@ -318,12 +321,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function animOpenRight() {
     setLeftOpen(false);
     setRightOpen(true);
+    setRightNavMounted(true);
     leftContextOp.setValue(0);
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL,  ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE,  ...TM_LAYOUT_OPEN }),
       Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 200, useNativeDriver: true }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
     ]).start();
@@ -338,7 +342,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+    ]).start(() => setRightNavMounted(false));
   }
 
   function animCloseBoth() {
@@ -352,23 +356,23 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+    ]).start(() => setRightNavMounted(false));
   }
 
   function animToLeftOpen(targetW: number) {
     setRightOpen(false);
+    setRightNavMounted(false);
     setLeftOpen(true);
     rightFullOp.setValue(0);
     leftContextOp.setValue(0);
-    rightWidthAnim.setValue(FLOAT_TAB_H_SMALL);
     iconScaleAnim.setValue(SCALE_SMALL);
-    const targetH = FLOAT_TAB_H_FLAG;
+    rightWidthAnim.setValue(FLOAT_TAB_H_LARGE);
+    rightHeightAnim.setValue(FLOAT_TAB_H_LARGE);
+    const targetH = FLOAT_TAB_H_LARGE;
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: targetH, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,   { toValue: targetW, ...TM_LAYOUT_OPEN }),
-      // Fade content in after pill is mostly open to avoid overflow glitch
-      Animated.timing(leftContextOp, { toValue: 1, duration: 80, delay: 140, useNativeDriver: true }),
+      Animated.timing(leftHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),
+      Animated.timing(leftWidthAnim,  { toValue: targetW, ...TM_LAYOUT_OPEN }),
+      Animated.timing(leftContextOp,  { toValue: 1, duration: 80, delay: 140, useNativeDriver: true }),
     ]).start();
   }
 
@@ -377,8 +381,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function computeLeftExpandedW(forIndex?: number): number {
     const idx = forIndex ?? currentRouteIndex;
     if (idx === 0) {
-      if (activeLanguages.length >= 5) return pillFlagOnlyW(activeLanguages.length);
-      return pillContentW(activeLanguages.map((l) => l.nativeName));
+      return pillFlagOnlyW(Math.min(activeLanguages.length, 5));
     }
     if (idx === 2) {
       return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
@@ -393,10 +396,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return Math.max(pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]), 100);
   }
 
+  // ── Press feel — GlassButton style (compress on pressIn, spring back on pressOut) ──
+
+  function pressInLeft() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.spring(leftPressScale, { toValue: 0.94, useNativeDriver: true, tension: 400, friction: 8 }).start();
+  }
+  function pressOutLeft() {
+    Animated.spring(leftPressScale, { toValue: 1.0, useNativeDriver: true, tension: 300, friction: 20 }).start();
+  }
+  function pressInRight() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.spring(rightPressScale, { toValue: 0.94, useNativeDriver: true, tension: 400, friction: 8 }).start();
+  }
+  function pressOutRight() {
+    Animated.spring(rightPressScale, { toValue: 1.0, useNativeDriver: true, tension: 300, friction: 20 }).start();
+  }
+
   // ── Toggle handlers ───────────────────────────────────────────────────────
 
   function toggleLeft() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isAudioDocked) { setAudioPillForcedUp(true); }
     if (leftOpen) {
       animCloseLeft();
@@ -406,7 +425,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   }
 
   function toggleRight() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isAudioDocked) { setAudioPillForcedUp(true); }
     if (rightOpen) {
       if (isAudioDocked) {
@@ -466,9 +484,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function renderMiniNav() {
     return (
-      <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} onPressIn={pressInRight} onPressOut={pressOutRight} activeOpacity={1}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.icon} size={22} color={activeColor} />
+          <Ionicons name={currentTab.iconOff} size={28} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -487,8 +505,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             <TouchableOpacity
               key={route.key}
               style={styles.navTabItem}
-              activeOpacity={0.65}
+              activeOpacity={1}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              onPressIn={pressInRight}
+              onPressOut={pressOutRight}
               onPress={() => {
                 Haptics.selectionAsync();
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -502,8 +522,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 }
               }}
             >
-              <View style={[styles.navDot, { opacity: isFocused ? 1 : 0, backgroundColor: activeColor }]} />
-              <Ionicons name={isFocused ? tab.icon : tab.iconOff} size={20} color={tint} />
+              <Ionicons name={tab.iconOff} size={22} color={tint} />
               <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>{tab.label}</Text>
             </TouchableOpacity>
           );
@@ -530,7 +549,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     borderWidth: 0,
   };
 
-  const leftClosedIcon = 'earth-outline' as const;
+  // Mini pill icon — active language flag on Brief, globe otherwise
+  const miniLeftContent = currentRouteIndex === 0 && activeLanguages[briefPageIndex]
+    ? <FlagCircle code={activeLanguages[briefPageIndex].code} size={28} />
+    : currentRouteIndex === 2
+    ? <Ionicons name={SECTION_ICONS[settingsSection]} size={28} color={activeColor} />
+    : <Ionicons name="earth-outline" size={28} color={activeColor} />;
 
   if (gameActive) return null;
 
@@ -538,26 +562,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }]}>
 
       {/* ── Left pill ──────────────────────────────────────────────────────── */}
-      {/* Outer: shadow only (no overflow:hidden so iOS shadow renders) */}
+      {/* Outer: scale only (native driver). Inner: layout only (non-native). Separating drivers prevents animation freeze. */}
+      <Animated.View style={{ transform: [{ scale: leftPressScale }] }}>
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {/* Inner: background + border + overflow:hidden for content clipping */}
-        <View style={[styles.pill, pillInner, !glassAvailable && { backgroundColor: pillBg }]}>
-          {glassAvailable && <GlassSurface cornerRadius={100} />}
-          {/* Closed icon — always mounted, crossfades via opacity so no native
-              subview is ever inserted/removed from this container at runtime
-              (removal-on-toggle caused an NSRangeException on cold launch). */}
+        {glassAvailable && (
+          <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+            <GlassSurface cornerRadius={100} />
+          </View>
+        )}
+        <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: leftContextOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
             pointerEvents={leftOpen ? 'none' : 'auto'}
           >
-            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} activeOpacity={0.7} delayPressIn={0}>
+            <TouchableOpacity style={styles.centerFill} onPress={toggleLeft} onPressIn={pressInLeft} onPressOut={pressOutLeft} activeOpacity={1} delayPressIn={0}>
               <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-                <Ionicons name={leftClosedIcon} size={22} color={activeColor} />
+                {miniLeftContent}
               </Animated.View>
             </TouchableOpacity>
           </Animated.View>
 
-          {/* Context chips */}
           <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
             <TouchableOpacity style={styles.absoluteFill} onPress={toggleLeft} activeOpacity={1}>
               <LeftContext
@@ -576,20 +600,27 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 onBriefLang={setBriefPageIndex}
                 onSettingsSection={setSettingsSection}
                 onPracticeLang={(code) => setPracticeLang(code as any)}
+                onPressIn={pressInLeft}
+                onPressOut={pressOutLeft}
               />
             </TouchableOpacity>
           </Animated.View>
         </View>
+      </Animated.View>
       </Animated.View>
 
       {/* Spacer — takes all remaining space, preventing any overlap */}
       <View style={styles.pillSpacer} />
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
+      <Animated.View style={{ transform: [{ scale: rightPressScale }] }}>
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        <View style={[styles.pill, pillInner, !glassAvailable && { backgroundColor: pillBg }]}>
-          {glassAvailable && <GlassSurface cornerRadius={100} />}
-          {/* Mini icon — always mounted, crossfades via opacity (see left pill note above) */}
+        {glassAvailable && (
+          <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+            <GlassSurface cornerRadius={100} />
+          </View>
+        )}
+        <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: rightFullOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
             pointerEvents={rightOpen ? 'none' : 'auto'}
@@ -597,11 +628,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             {renderMiniNav()}
           </Animated.View>
 
-          {/* Full nav */}
-          <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
-            {renderFullNav()}
-          </Animated.View>
+          {rightNavMounted && (
+            <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
+              {renderFullNav()}
+            </Animated.View>
+          )}
         </View>
+      </Animated.View>
       </Animated.View>
     </View>
   );
@@ -630,7 +663,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   // Fills all space between the two pills — collapses to 0 before they can touch
-  pillSpacer: { flex: 1 },
+  pillSpacer: { flex: 1, minWidth: 16 },
 
   absoluteFill: {
     ...StyleSheet.absoluteFillObject,
@@ -699,14 +732,22 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
   },
   navTabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingTop: 2,
+    gap: 4,
+    paddingVertical: 8,
+  },
+  navActiveChip: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 6,
+    right: 6,
+    borderRadius: 16,
   },
   navDot: {
     width: 3,
@@ -721,7 +762,7 @@ const styles = StyleSheet.create({
     marginBottom: 1,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 0,
   },
 });

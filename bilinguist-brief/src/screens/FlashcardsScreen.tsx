@@ -1,6 +1,7 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  View, Text, ScrollView, StyleSheet,
   Animated, PanResponder, Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -314,9 +315,9 @@ export function FlashcardsScreen() {
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
-          <TouchableOpacity style={[styles.doneBtn, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
+          <SpringButton style={[styles.doneBtn, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       </View>
     );
@@ -436,7 +437,7 @@ export function FlashcardsScreen() {
             ]}
             pointerEvents={flipped ? 'none' : 'auto'}
           >
-            <TouchableOpacity style={styles.faceTouchable} onPress={handleFlip} activeOpacity={0.95}>
+            <SpringButton style={styles.faceTouchable} onPress={handleFlip}>
               <View style={[styles.cardMeta, { borderBottomColor: colors.borderLight }]}>
                 <Text style={[styles.cardLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                   {card.language.toUpperCase()}
@@ -460,7 +461,7 @@ export function FlashcardsScreen() {
                   Tap to reveal
                 </Text>
               </View>
-            </TouchableOpacity>
+            </SpringButton>
 
             <Animated.View style={[styles.tintOverlay, { backgroundColor: '#43A047', opacity: rightTint }]} />
             <Animated.View style={[styles.tintOverlay, { backgroundColor: '#E53935', opacity: leftTint }]} />
@@ -616,7 +617,7 @@ export function FlashcardsScreen() {
                         {sectionLabel}
                       </Text>
                       <View style={styles.tenseNav}>
-                        <TouchableOpacity
+                        <SpringButton
                           onPress={() => {
                             if (split.mode === 'split' && declNumber === 'pl') { setDeclNumber('sg'); }
                             else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
@@ -631,11 +632,11 @@ export function FlashcardsScreen() {
                             (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
                               ? colors.borderMid : colors.inkDark
                           } />
-                        </TouchableOpacity>
+                        </SpringButton>
                         <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                           {navLabel}
                         </Text>
-                        <TouchableOpacity
+                        <SpringButton
                           onPress={() => {
                             if (split.mode === 'split' && declNumber === 'sg') { setDeclNumber('pl'); }
                             else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
@@ -650,7 +651,7 @@ export function FlashcardsScreen() {
                             (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
                               ? colors.borderMid : colors.inkDark
                           } />
-                        </TouchableOpacity>
+                        </SpringButton>
                       </View>
                     </View>
                     {Object.entries(rows).map(([key, value]) => (
@@ -673,7 +674,7 @@ export function FlashcardsScreen() {
                     </Text>
                     {cardTenses.length > 1 ? (
                       <View style={styles.tenseNav}>
-                        <TouchableOpacity
+                        <SpringButton
                           onPress={() => setActiveTenseIdx((i) => Math.max(0, i - 1))}
                           disabled={activeTenseIdx === 0}
                           style={[styles.tenseNavBtn, {
@@ -681,11 +682,11 @@ export function FlashcardsScreen() {
                           }]}
                         >
                           <Ionicons name="chevron-back" size={16} color={activeTenseIdx === 0 ? colors.borderMid : colors.inkDark} />
-                        </TouchableOpacity>
+                        </SpringButton>
                         <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                           {activeTense.label}
                         </Text>
-                        <TouchableOpacity
+                        <SpringButton
                           onPress={() => setActiveTenseIdx((i) => Math.min(cardTenses.length - 1, i + 1))}
                           disabled={activeTenseIdx === cardTenses.length - 1}
                           style={[styles.tenseNavBtn, {
@@ -693,7 +694,7 @@ export function FlashcardsScreen() {
                           }]}
                         >
                           <Ionicons name="chevron-forward" size={16} color={activeTenseIdx === cardTenses.length - 1 ? colors.borderMid : colors.inkDark} />
-                        </TouchableOpacity>
+                        </SpringButton>
                       </View>
                     ) : (
                       <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
@@ -726,13 +727,14 @@ export function FlashcardsScreen() {
                 <Ionicons name="close-circle" size={18} color="#E53935" />
                 <Text style={[styles.swipeHintText, { color: '#E53935', fontFamily: fontFamily.regular }]}>No idea</Text>
               </View>
-              <TouchableOpacity
+              <SpringButton
                 onPress={handleFlip}
                 hitSlop={{ top: 10, bottom: 10, left: 14, right: 14 }}
-                activeOpacity={0.6}
+                glass
+                cornerRadius={20}
               >
                 <Ionicons name="sync-outline" size={18} color={colors.inkFaint} />
-              </TouchableOpacity>
+              </SpringButton>
               <View style={styles.swipeHintSide}>
                 <Text style={[styles.swipeHintText, { color: '#43A047', fontFamily: fontFamily.regular }]}>Got it</Text>
                 <Ionicons name="checkmark-circle" size={18} color="#43A047" />

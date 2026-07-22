@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { BriefingScreen } from '../screens/BriefingScreen';
 import { PracticeNavigator } from './PracticeNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { FloatingTabBar } from '../components/FloatingTabBar';
 import { useTheme } from '../hooks/useTheme';
 
 export type RootTabParamList = {
@@ -20,7 +21,7 @@ export function AppNavigator() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Tab.Navigator
         initialRouteName="Briefing"
-        tabBar={() => null}
+        tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{
           headerShown: false,
           animation: 'fade',

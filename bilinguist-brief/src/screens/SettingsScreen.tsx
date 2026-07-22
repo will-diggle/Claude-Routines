@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
+import { useScrollTabBar } from '../hooks/useScrollTabBar';
 
 
 // Length picker labels localised to each target language
@@ -416,6 +417,7 @@ const lcStyles = StyleSheet.create({
 // --- Main screen ---
 
 export function SettingsScreen() {
+  const onScrollTabBar = useScrollTabBar();
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const store = useSettingsStore();
@@ -709,6 +711,8 @@ export function SettingsScreen() {
           scrollEnabled={!isDragging}
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onScrollTabBar}
         >
           <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
@@ -767,6 +771,8 @@ export function SettingsScreen() {
           scrollEnabled={!isDragging}
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onScrollTabBar}
         >
           <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
 
@@ -837,6 +843,8 @@ export function SettingsScreen() {
           keyboardShouldPersistTaps="handled"
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onScrollTabBar}
         >
           <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
 
@@ -958,6 +966,8 @@ export function SettingsScreen() {
           keyboardShouldPersistTaps="handled"
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onScrollTabBar}
         >
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>

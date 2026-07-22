@@ -1,5 +1,6 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Keyboard, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TextInput, ScrollView, Keyboard, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -119,9 +120,9 @@ export function FillBlankScreen() {
             {correct}/{eligible.length} correct
           </Text>
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
+          <SpringButton style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       </View>
     );
@@ -191,16 +192,16 @@ export function FillBlankScreen() {
         </View>
 
         {card.translation ? (
-          <TouchableOpacity
+          <SpringButton
             style={[styles.hintButton, { borderColor: colors.borderMid, backgroundColor: colors.card, ...CARD_SHADOW }]}
             onPress={() => setHintVisible((v) => !v)}
-            activeOpacity={0.7}
+           
           >
             <Ionicons name="bulb-outline" size={14} color={colors.inkFaint} />
             <Text style={[styles.hint, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
               {hintVisible ? `"${card.translation}"` : 'Hint'}
             </Text>
-          </TouchableOpacity>
+          </SpringButton>
         ) : null}
 
         {!checked ? (
@@ -233,20 +234,20 @@ export function FillBlankScreen() {
           </View>
         )}
 
-        <TouchableOpacity
+        <SpringButton
           style={[styles.actionButton, {
             backgroundColor: !input.trim() && !checked ? colors.borderMid : colors.accentRed,
           }]}
           onPress={checked ? handleNext : handleCheck}
           disabled={!checked && !input.trim()}
-          activeOpacity={0.8}
+         
         >
           <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>
             {checked
               ? (index + 1 >= eligible.length ? 'Finish' : 'Next')
               : 'Check'}
           </Text>
-        </TouchableOpacity>
+        </SpringButton>
       </ScrollView>
     </View>
   );

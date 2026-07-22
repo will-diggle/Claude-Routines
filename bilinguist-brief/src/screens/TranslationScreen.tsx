@@ -1,6 +1,7 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
+  View, Text, TextInput, ScrollView,
   Keyboard, StyleSheet, Dimensions, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -167,9 +168,9 @@ export function TranslationScreen() {
             {correct}/{eligible.length} correct
           </Text>
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
+          <SpringButton style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
             <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
         {renderSettingsModal()}
       </View>
@@ -207,13 +208,13 @@ export function TranslationScreen() {
         animationType="slide"
         onRequestClose={() => setSettingsVisible(false)}
       >
-        <TouchableOpacity
+        <SpringButton
           style={styles.modalBackdrop}
-          activeOpacity={1}
+         
           onPress={() => setSettingsVisible(false)}
         >
-          <TouchableOpacity
-            activeOpacity={1}
+          <SpringButton
+           
             style={[styles.settingsSheet, { ...CARD_SHADOW, overflow: 'hidden' }]}
           >
             <GlassSurface cornerRadius={20} intensity={0.9} />
@@ -222,9 +223,9 @@ export function TranslationScreen() {
               <Text style={[styles.settingsTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Game Settings
               </Text>
-              <TouchableOpacity onPress={() => setSettingsVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <SpringButton onPress={() => setSettingsVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={20} color={colors.inkFaint} />
-              </TouchableOpacity>
+              </SpringButton>
             </View>
 
             {/* Direction */}
@@ -235,11 +236,11 @@ export function TranslationScreen() {
               {(['target-to-en', 'en-to-target'] as Mode[]).map((m) => {
                 const active = draftMode === m;
                 return (
-                  <TouchableOpacity
+                  <SpringButton
                     key={m}
                     style={[styles.pill, { flex: 1, overflow: 'hidden' }]}
                     onPress={() => setDraftMode(m)}
-                    activeOpacity={0.75}
+                   
                   >
                     {active
                       ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
@@ -251,7 +252,7 @@ export function TranslationScreen() {
                     }]}>
                       {m === 'target-to-en' ? 'Foreign → EN' : 'EN → Foreign'}
                     </Text>
-                  </TouchableOpacity>
+                  </SpringButton>
                 );
               })}
             </View>
@@ -264,11 +265,11 @@ export function TranslationScreen() {
               {COUNTS.map((n) => {
                 const active = draftCount === n;
                 return (
-                  <TouchableOpacity
+                  <SpringButton
                     key={n}
                     style={[styles.pill, { flex: 1, overflow: 'hidden' }]}
                     onPress={() => setDraftCount(n)}
-                    activeOpacity={0.75}
+                   
                   >
                     {active
                       ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
@@ -280,7 +281,7 @@ export function TranslationScreen() {
                     }]}>
                       {n}
                     </Text>
-                  </TouchableOpacity>
+                  </SpringButton>
                 );
               })}
             </View>
@@ -296,11 +297,11 @@ export function TranslationScreen() {
                     {['all', ...langsWithWords].map((code) => {
                       const active = draftLang === code;
                       return (
-                        <TouchableOpacity
+                        <SpringButton
                           key={code}
                           style={[styles.pill, { overflow: 'hidden' }]}
                           onPress={() => setDraftLang(code)}
-                          activeOpacity={0.75}
+                         
                         >
                           {active
                             ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
@@ -312,7 +313,7 @@ export function TranslationScreen() {
                           }]}>
                             {code === 'all' ? 'All' : code.toUpperCase()}
                           </Text>
-                        </TouchableOpacity>
+                        </SpringButton>
                       );
                     })}
                   </View>
@@ -321,17 +322,17 @@ export function TranslationScreen() {
             )}
 
             {/* Apply */}
-            <TouchableOpacity
+            <SpringButton
               style={[styles.applyButton, { backgroundColor: colors.accentRed }]}
               onPress={applySettings}
-              activeOpacity={0.85}
+             
             >
               <Text style={[styles.applyButtonText, { fontFamily: fontFamily.bold }]}>
                 Start New Game
               </Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </SpringButton>
+          </SpringButton>
+        </SpringButton>
       </Modal>
     );
   }
@@ -405,20 +406,20 @@ export function TranslationScreen() {
           </View>
         )}
 
-        <TouchableOpacity
+        <SpringButton
           style={[styles.actionButton, {
             backgroundColor: !input.trim() && !checked ? colors.borderMid : colors.accentRed,
           }]}
           onPress={checked ? handleNext : handleCheck}
           disabled={!checked && !input.trim()}
-          activeOpacity={0.8}
+         
         >
           <Text style={[styles.actionButtonText, { fontFamily: fontFamily.regular }]}>
             {checked
               ? (index + 1 >= eligible.length ? 'Finish' : 'Next')
               : 'Check'}
           </Text>
-        </TouchableOpacity>
+        </SpringButton>
       </ScrollView>
 
       {renderSettingsModal()}

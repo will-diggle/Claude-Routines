@@ -1,6 +1,7 @@
+import { SpringButton } from '../components/SpringButton';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Dimensions,
+  View, Text, StyleSheet, Animated, Easing, Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -396,15 +397,15 @@ export function MatchingScreen() {
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
-          <TouchableOpacity
+          <SpringButton
             style={[styles.doneBtn, { backgroundColor: colors.accentRed }]}
             onPress={() => initGame(shuffle([...eligibleWords]))}
           >
             <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Play again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          </SpringButton>
+          <SpringButton onPress={() => navigation.goBack()}>
             <Text style={[styles.backLink, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </TouchableOpacity>
+          </SpringButton>
         </View>
       </View>
     );
@@ -426,10 +427,10 @@ export function MatchingScreen() {
     const borderWidth = (isMatched || isWrong || isSelected) ? 1.5 : StyleSheet.hairlineWidth;
     return (
       <Animated.View key={tile.id} style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}>
-        <TouchableOpacity
+        <SpringButton
           style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
           onPress={() => !isMatched && handleTile(tile)}
-          activeOpacity={0.7}
+         
           disabled={isMatched}
         >
           <Text
@@ -442,7 +443,7 @@ export function MatchingScreen() {
           >
             {tile.text}
           </Text>
-        </TouchableOpacity>
+        </SpringButton>
       </Animated.View>
     );
   }
