@@ -10,6 +10,26 @@ export interface WeatherData {
   windKph: number;
   uvIndex: number;
   code: number;
+  latitude: number;
+  longitude: number;
+}
+
+export interface RainviewerFrame {
+  time: number;  // unix seconds
+  path: string;  // tile path fragment from RainViewer API
+}
+
+export async function fetchRainviewerFrames(): Promise<RainviewerFrame[]> {
+  try {
+    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    if (!res.ok) return [];
+    const data = await res.json();
+    const past     = (data.radar?.past    ?? []) as Array<{ time: number; path: string }>;
+    const nowcast  = (data.radar?.nowcast ?? []) as Array<{ time: number; path: string }>;
+    return [...past, ...nowcast].map(f => ({ time: f.time, path: f.path }));
+  } catch {
+    return [];
+  }
 }
 
 const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | 'evening', string>>> = {
@@ -225,7 +245,7 @@ export async function fetchWeather(
     const windKph      = Math.round(data.current?.wind_speed_10m ?? 0);
     const uvIndex      = Math.round(data.current?.uv_index ?? 0);
 
-    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex, code };
+    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex, code, latitude, longitude };
   } catch {
     return null;
   }

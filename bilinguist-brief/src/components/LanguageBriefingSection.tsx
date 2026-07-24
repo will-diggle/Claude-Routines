@@ -13,8 +13,7 @@ import type { ArticleLength } from '../services/anthropic';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
-import { WEATHER_IN } from '../services/weather';
-import { codeToIoniconName } from './WeatherStrip';
+import { WeatherCard } from './WeatherCard';
 import { useBriefingStore } from '../store/useBriefingStore';
 
 // Maps the genre strings the API returns to settings topic keys
@@ -282,18 +281,13 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {/* Inline weather strip — centred, per-language */}
-      {weather && (
-        <View style={styles.weatherLine}>
-          <Ionicons
-            name={codeToIoniconName(weather.code ?? 0)}
-            size={16}
-            color={colors.inkFaint}
-          />
-          <Text style={[styles.weatherText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-            {`${weather.greeting} — ${weather.temp}°C, ${weather.description} ${WEATHER_IN[langCode] ?? 'in'} ${weather.city}`}
-          </Text>
-        </View>
+      {/* Weather card — phrase + interactive radar map */}
+      {weather?.latitude != null && (
+        <WeatherCard
+          weather={weather}
+          language={langCode}
+          level={level}
+        />
       )}
 
       {(isTransitioning || isGenerating || (!error && !briefing)) && <BriefingLoading long={length === 'longer'} />}
@@ -368,18 +362,6 @@ const styles = StyleSheet.create({
   mastLineThick: { height: 2 },
   mastLineThin:  { height: 1, marginTop: 4 },
   editionText: { fontSize: 14, letterSpacing: 1.5, marginTop: 8, textAlign: 'center' },
-  weatherLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 6,
-    gap: 7,
-  },
-  weatherText: {
-    fontSize: 14,
-  },
   centerBlock: {
     alignItems: 'center',
     paddingHorizontal: Spacing.xl,
