@@ -46,8 +46,8 @@ function shuffle<T>(arr: T[]): T[] {
 
 function makeTiles(words: SavedWord[]): Tile[] {
   return words.flatMap((w) => [
-    { id: `${w.id}-native`, pairId: w.id, text: w.word, isNative: true },
-    { id: `${w.id}-trans`,  pairId: w.id, text: w.translation || w.word, isNative: false },
+    { id: `${w.id}-native`, pairId: w.id, text: w.word        || '—', isNative: true },
+    { id: `${w.id}-trans`,  pairId: w.id, text: w.translation || w.word || '—', isNative: false },
   ]);
 }
 
