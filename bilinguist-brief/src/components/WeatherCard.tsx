@@ -178,15 +178,23 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
         <Text style={hgStyles.minmax}>↑{fmt(todayMax)}  ↓{fmt(todayMin)}</Text>
       </View>
       <View style={hgStyles.barsRow}>
-        {values.map((v, i) => (
-          <View key={i} style={hgStyles.barCol}>
-            <View style={[
-              hgStyles.bar,
-              { height: barH(v), backgroundColor: barColor(v) },
-              i === currentHour && hgStyles.barCurrent,
-            ]} />
-          </View>
-        ))}
+        {values.map((v, i) => {
+          const isPast    = i < currentHour;
+          const isCurrent = i === currentHour;
+          return (
+            <View key={i} style={hgStyles.barCol}>
+              <View style={[
+                hgStyles.bar,
+                {
+                  height: barH(v),
+                  backgroundColor: isPast ? 'rgba(255,255,255,0.18)' : barColor(v),
+                  opacity: isPast ? 0.5 : isCurrent ? 1 : 0.72,
+                },
+                isCurrent && hgStyles.barCurrent,
+              ]} />
+            </View>
+          );
+        })}
       </View>
       <View style={hgStyles.timeRow}>
         {[0, 6, 12, 18, 23].map(h => (
