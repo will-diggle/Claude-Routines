@@ -335,6 +335,7 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
   labels: { precipitation: string; temperature: string; wind: string; clouds: string };
   onSelect: (l: Layer) => void;
 }) {
+  const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const layers: Layer[] = hasOwmKey
     ? ['temperature', 'precipitation', 'wind', 'clouds']
@@ -342,17 +343,21 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
 
   return (
     <View style={ltStyles.wrapper}>
-      <TouchableOpacity style={ltStyles.btn} onPress={() => setOpen(o => !o)} activeOpacity={0.8}>
-        <Ionicons name={LAYER_ICONS[activeLayer]} size={15} color="#1a1a1a" />
+      <TouchableOpacity
+        style={[ltStyles.btn, { backgroundColor: colors.surface }]}
+        onPress={() => setOpen(o => !o)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name={LAYER_ICONS[activeLayer]} size={15} color={colors.inkDark} />
       </TouchableOpacity>
       {open && (
-        <View style={ltStyles.menu}>
+        <View style={[ltStyles.menu, { backgroundColor: colors.surface }]}>
           {layers.map(layer => (
             <TouchableOpacity key={layer} style={ltStyles.item} activeOpacity={0.7}
               onPress={() => { onSelect(layer); setOpen(false); }}>
-              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)'} style={{ width: 18 }} />
-              <Text style={[ltStyles.itemText, activeLayer === layer && ltStyles.itemActive]}>{labels[layer]}</Text>
-              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="rgba(255,255,255,0.9)" />}
+              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? colors.inkDark : colors.inkFaint} style={{ width: 18 }} />
+              <Text style={[ltStyles.itemText, { color: activeLayer === layer ? colors.inkDark : colors.inkFaint }, activeLayer === layer && ltStyles.itemActive]}>{labels[layer]}</Text>
+              {activeLayer === layer && <Ionicons name="checkmark" size={12} color={colors.inkDark} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -363,11 +368,11 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
 
 const ltStyles = StyleSheet.create({
   wrapper:    { position: 'absolute', top: 10, right: 10, alignItems: 'flex-end', zIndex: 20 },
-  btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.38)', alignItems: 'center', justifyContent: 'center' },
-  menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.38)', borderRadius: 12, paddingVertical: 4, minWidth: 155 },
+  btn:        { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 },
+  menu:       { marginTop: 5, borderRadius: 12, paddingVertical: 4, minWidth: 155, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
   item:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
-  itemText:   { fontSize: 13, color: 'rgba(255,255,255,0.55)', flex: 1 },
-  itemActive: { color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  itemText:   { fontSize: 13, flex: 1 },
+  itemActive: { fontWeight: '600' },
 });
 
 // ── WeatherCard ───────────────────────────────────────────────────────────────
