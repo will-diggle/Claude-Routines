@@ -20,6 +20,7 @@ import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
+import { GlassButton } from '../components/GlassButton';
 import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -86,10 +87,15 @@ function levelColor(level?: string | null): string {
 }
 
 function getSessionWords(words: SavedWord[]): SavedWord[] {
-  const revisit = words.filter((w) => w.pile === 'revisit');
-  const newW    = words.filter((w) => w.pile === 'new');
+  const revisit  = words.filter((w) => w.pile === 'revisit');
+  const newW     = words.filter((w) => w.pile === 'new');
   const learning = words.filter((w) => w.pile === 'learning');
-  return [...revisit, ...newW, ...learning].slice(0, MAX_CARDS);
+  const active   = [...revisit, ...newW, ...learning];
+  // Fall back to mastered words if nothing else is left to practise
+  if (active.length === 0) {
+    return words.filter((w) => w.pile === 'mastered').slice(0, MAX_CARDS);
+  }
+  return active.slice(0, MAX_CARDS);
 }
 
 export function FlashcardsScreen() {
@@ -328,8 +334,8 @@ export function FlashcardsScreen() {
   const card = sessionWords[index];
   const remaining = sessionWords.length - index;
   const reversed = gameSettings.direction === 'translation-to-word';
-  const frontText = reversed ? (card?.translation || '—') : card?.word;
-  const backText  = reversed ? card?.word : (card?.translation || '—');
+  const frontText = reversed ? (card?.translation || '—') : (card?.word || '—');
+  const backText  = reversed ? (card?.word || '—') : (card?.translation || '—');
 
   // Build tense list for the active card — prefer full tenses array, fall back to legacy fields
   const cardTenses: Array<{ label: string; table: Record<string, string> }> = [];
@@ -617,41 +623,31 @@ export function FlashcardsScreen() {
                         {sectionLabel}
                       </Text>
                       <View style={styles.tenseNav}>
-                        <SpringButton
+                        <GlassButton
+                          size={34}
                           onPress={() => {
                             if (split.mode === 'split' && declNumber === 'pl') { setDeclNumber('sg'); }
                             else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
                           }}
                           disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
-                          style={[styles.tenseNavBtn, {
-                            backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                              ? colors.borderLight : colors.borderMid,
-                          }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="chevron-back" size={16} color={
-                            (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                              ? colors.borderMid : colors.inkDark
-                          } />
-                        </SpringButton>
+                          <Ionicons name="chevron-back" size={16} color={colors.inkDark} />
+                        </GlassButton>
                         <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                           {navLabel}
                         </Text>
-                        <SpringButton
+                        <GlassButton
+                          size={34}
                           onPress={() => {
                             if (split.mode === 'split' && declNumber === 'sg') { setDeclNumber('pl'); }
                             else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
                           }}
                           disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
-                          style={[styles.tenseNavBtn, {
-                            backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                              ? colors.borderLight : colors.borderMid,
-                          }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="chevron-forward" size={16} color={
-                            (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                              ? colors.borderMid : colors.inkDark
-                          } />
-                        </SpringButton>
+                          <Ionicons name="chevron-forward" size={16} color={colors.inkDark} />
+                        </GlassButton>
                       </View>
                     </View>
                     {Object.entries(rows).map(([key, value]) => (
@@ -674,27 +670,25 @@ export function FlashcardsScreen() {
                     </Text>
                     {cardTenses.length > 1 ? (
                       <View style={styles.tenseNav}>
-                        <SpringButton
+                        <GlassButton
+                          size={34}
                           onPress={() => setActiveTenseIdx((i) => Math.max(0, i - 1))}
                           disabled={activeTenseIdx === 0}
-                          style={[styles.tenseNavBtn, {
-                            backgroundColor: activeTenseIdx === 0 ? colors.borderLight : colors.borderMid,
-                          }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="chevron-back" size={16} color={activeTenseIdx === 0 ? colors.borderMid : colors.inkDark} />
-                        </SpringButton>
+                          <Ionicons name="chevron-back" size={16} color={colors.inkDark} />
+                        </GlassButton>
                         <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                           {activeTense.label}
                         </Text>
-                        <SpringButton
+                        <GlassButton
+                          size={34}
                           onPress={() => setActiveTenseIdx((i) => Math.min(cardTenses.length - 1, i + 1))}
                           disabled={activeTenseIdx === cardTenses.length - 1}
-                          style={[styles.tenseNavBtn, {
-                            backgroundColor: activeTenseIdx === cardTenses.length - 1 ? colors.borderLight : colors.borderMid,
-                          }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Ionicons name="chevron-forward" size={16} color={activeTenseIdx === cardTenses.length - 1 ? colors.borderMid : colors.inkDark} />
-                        </SpringButton>
+                          <Ionicons name="chevron-forward" size={16} color={colors.inkDark} />
+                        </GlassButton>
                       </View>
                     ) : (
                       <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>

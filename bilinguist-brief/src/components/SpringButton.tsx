@@ -4,7 +4,11 @@ import {
   GestureResponderEvent, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { LiquidGlassView } from '../../modules/liquid-glass/src';
+import { glassAvailable } from './GlassSurface';
+let LiquidGlassView: React.ComponentType<any> | null = null;
+if (glassAvailable) {
+  try { LiquidGlassView = require('../../modules/liquid-glass/src').LiquidGlassView; } catch { /* no-op */ }
+}
 
 interface SpringButtonProps {
   onPress?: (e: GestureResponderEvent) => void;
@@ -32,29 +36,20 @@ export function SpringButton({
 
   const pressIn = useCallback(() => {
     Animated.spring(scale, {
-      toValue: 0.92,
+      toValue: 0.95,
       useNativeDriver: true,
-      tension: 400,
-      friction: 8,        // low friction = fast snap down
+      tension: 300,
+      friction: 20,
     }).start();
   }, [scale]);
 
   const pressOut = useCallback(() => {
-    // Overshoot to 1.08 then settle — this is the "bounce back" feel
-    Animated.sequence([
-      Animated.spring(scale, {
-        toValue: 1.08,
-        useNativeDriver: true,
-        tension: 500,
-        friction: 5,      // very low friction = strong overshoot
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 200,
-        friction: 12,     // settles cleanly without further wobble
-      }),
-    ]).start();
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 20,
+    }).start();
   }, [scale]);
 
   const handlePress = useCallback((e: GestureResponderEvent) => {
@@ -68,7 +63,7 @@ export function SpringButton({
     onPress?.(e);
   }, [haptic, onPress]);
 
-  const isIOS26 = Platform.OS === 'ios' && parseInt(String(Platform.Version), 10) >= 26;
+  const isIOS26 = glassAvailable;
 
   return (
     <Pressable
@@ -85,7 +80,7 @@ export function SpringButton({
           glass && styles.glassContainer,
         ]}
       >
-        {glass && isIOS26 && (
+        {glass && isIOS26 && LiquidGlassView && (
           <LiquidGlassView
             cornerRadius={cornerRadius}
             style={StyleSheet.absoluteFill}

@@ -23,8 +23,8 @@ import { GlassButton } from '../components/GlassButton';
 const SCREEN_W = Dimensions.get('window').width;
 
 const TIME_LIMIT       = 60;
-const MIN_WORDS        = 24;
 const PAIRS_PER_SCREEN = 6;
+const MIN_WORDS        = PAIRS_PER_SCREEN;
 const EXIT_DURATION    = 320;
 const SHAKE_THRESHOLD  = 10;
 
