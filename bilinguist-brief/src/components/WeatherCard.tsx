@@ -73,13 +73,13 @@ body,html{width:100%;height:100%;overflow:hidden}
 .loc-wrap{position:relative;width:26px;height:26px}
 .loc-dot{
   position:absolute;width:14px;height:14px;border-radius:50%;
-  background:#3B82F6;border:2.5px solid #fff;
+  background:#111;border:2.5px solid #fff;
   top:6px;left:6px;z-index:2;
-  box-shadow:0 2px 6px rgba(59,130,246,0.6);
+  box-shadow:0 2px 6px rgba(0,0,0,0.45);
 }
 .loc-ring{
   position:absolute;width:26px;height:26px;border-radius:50%;
-  background:rgba(59,130,246,0.25);
+  background:rgba(0,0,0,0.15);
   animation:locpulse 2s ease-out infinite;z-index:1;
 }
 @keyframes locpulse{
@@ -147,6 +147,34 @@ function cloudBarColor(v: number): string {
   return `rgba(${lum},${lum},${lum},${0.55 + (v / 100) * 0.45})`;
 }
 
+// Top-left overlay showing current value + high/low
+function DataBadge({ values, layer }: { values: number[]; layer: StaticLayer }) {
+  if (!values.length) return null;
+  const currentHour = new Date().getHours();
+  const current = values[Math.min(currentHour, values.length - 1)] ?? 0;
+  const hi = Math.max(...values);
+  const lo = Math.min(...values);
+  const unit = layer === 'temperature' ? '°C' : layer === 'wind' ? 'km/h' : '%';
+  const fmt = (v: number) => layer === 'temperature' ? `${v}°` : layer === 'wind' ? `${v}` : `${v}%`;
+  return (
+    <View style={dbStyles.badge}>
+      <Text style={dbStyles.big}>{fmt(current)}<Text style={dbStyles.unit}> {unit}</Text></Text>
+      <View style={dbStyles.hiloCol}>
+        <Text style={dbStyles.hilo}>↑ {fmt(hi)}</Text>
+        <Text style={dbStyles.hilo}>↓ {fmt(lo)}</Text>
+      </View>
+    </View>
+  );
+}
+
+const dbStyles = StyleSheet.create({
+  badge:   { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, paddingHorizontal: 13, paddingVertical: 9, zIndex: 10 },
+  big:     { fontSize: 26, fontWeight: '700', color: '#fff', lineHeight: 30 },
+  unit:    { fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,0.7)' },
+  hiloCol: { flexDirection: 'column', gap: 1 },
+  hilo:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.88)' },
+});
+
 function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }) {
   if (!values.length) return null;
   const currentHour = new Date().getHours();
@@ -161,22 +189,9 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
     if (layer === 'wind') return windBarColor(v);
     return cloudBarColor(v);
   }
-  function fmt(v: number) {
-    if (layer === 'temperature') return `${v}°`;
-    if (layer === 'wind') return `${v}`;
-    return `${v}%`;
-  }
-  const unit = layer === 'temperature' ? '°C' : layer === 'wind' ? 'km/h' : '% cloud';
-  const current = values[Math.min(currentHour, values.length - 1)] ?? 0;
-  const todayMax = max;
-  const todayMin = min;
 
   return (
     <View style={hgStyles.container}>
-      <View style={hgStyles.header}>
-        <Text style={hgStyles.currentVal}>{fmt(current)} <Text style={hgStyles.unit}>{unit}</Text></Text>
-        <Text style={hgStyles.minmax}>↑{fmt(todayMax)}  ↓{fmt(todayMin)}</Text>
-      </View>
       <View style={hgStyles.barsRow}>
         {values.map((v, i) => {
           const isPast    = i < currentHour;
@@ -209,10 +224,6 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
 
 const hgStyles = StyleSheet.create({
   container:  { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
-  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
-  currentVal: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  unit:       { fontSize: 10, fontWeight: '400', color: 'rgba(255,255,255,0.65)' },
-  minmax:     { fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.2 },
   barsRow:    { flexDirection: 'row', alignItems: 'flex-end', height: 40, gap: 1 },
   barCol:     { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   bar:        { width: '85%', borderRadius: 2, opacity: 0.6 },
@@ -308,7 +319,7 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
   return (
     <View style={ltStyles.wrapper}>
       <TouchableOpacity style={ltStyles.btn} onPress={() => setOpen(o => !o)} activeOpacity={0.8}>
-        <Ionicons name="layers-outline" size={15} color="#1a1a1a" />
+        <Ionicons name={LAYER_ICONS[activeLayer]} size={15} color="#1a1a1a" />
       </TouchableOpacity>
       {open && (
         <View style={ltStyles.menu}>
@@ -347,7 +358,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
   const { colors, fontFamily } = useTheme();
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [activeLayer, setActiveLayer]   = useState<Layer>('precipitation');
+  const [activeLayer, setActiveLayer]   = useState<Layer>(OWM_KEY.length > 0 ? 'temperature' : 'precipitation');
   const [frames, setFrames]             = useState<RainviewerFrame[]>([]);
   const [frameIdx, setFrameIdx]         = useState(0);
   const [isPlaying, setIsPlaying]       = useState(true);
@@ -496,6 +507,11 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
                   }}
                 />
 
+                {/* Top-left data badge for temperature / wind / clouds */}
+                {showHourly && (
+                  <DataBadge values={hourlyValues} layer={activeLayer as StaticLayer} />
+                )}
+
                 {/* Layer toggle — rendered after WebView → on top */}
                 <LayerToggle
                   activeLayer={activeLayer}
@@ -542,7 +558,7 @@ const styles = StyleSheet.create({
   stripIcon:{ marginTop: 1 },
   stripText:{ fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
-  backdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  backdrop:   { flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
   modalInner: { width: '100%' },
 
   phraseCard: { borderRadius: CARD_RADIUS, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
