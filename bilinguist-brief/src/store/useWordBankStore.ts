@@ -139,11 +139,8 @@ export const useWordBankStore = create<WordBankStore>()(
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        // Remove demo words seeded in earlier builds, and any corrupt entries
-        // where the word text itself is missing (saved before lookup completed)
-        state.words = state.words.filter(
-          (w) => !w.id.startsWith('seed-') && !!w.word?.trim(),
-        );
+        // Remove any demo words that were seeded in earlier builds
+        state.words = state.words.filter((w) => !w.id.startsWith('seed-'));
       },
     }
   )

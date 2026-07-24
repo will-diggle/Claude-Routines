@@ -428,9 +428,9 @@ export function MatchingScreen() {
     return (
       <Animated.View key={tile.id} style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}>
         <SpringButton
+          containerStyle={{ flex: 1 }}
           style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
           onPress={() => !isMatched && handleTile(tile)}
-         
           disabled={isMatched}
         >
           <Text
