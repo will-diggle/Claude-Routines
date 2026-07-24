@@ -463,7 +463,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
 
   // Shadow + border on OUTER wrapper (no overflow:hidden — that clips shadows on iOS)
   const cardStyle = {
-    borderWidth: 1.5,
+    borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.85)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
