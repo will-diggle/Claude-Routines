@@ -2,7 +2,7 @@ import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  Animated, PanResponder, Dimensions,
+  Animated, PanResponder, Dimensions, TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -443,7 +443,7 @@ export function FlashcardsScreen() {
             ]}
             pointerEvents={flipped ? 'none' : 'auto'}
           >
-            <SpringButton containerStyle={styles.faceTouchable} style={styles.faceTouchable} onPress={handleFlip}>
+            <TouchableOpacity activeOpacity={0.9} style={styles.faceTouchable} onPress={handleFlip}>
               <View style={[styles.cardMeta, { borderBottomColor: colors.borderLight }]}>
                 <Text style={[styles.cardLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                   {card.language.toUpperCase()}
@@ -467,7 +467,7 @@ export function FlashcardsScreen() {
                   Tap to reveal
                 </Text>
               </View>
-            </SpringButton>
+            </TouchableOpacity>
 
             <Animated.View style={[styles.tintOverlay, { backgroundColor: '#43A047', opacity: rightTint }]} />
             <Animated.View style={[styles.tintOverlay, { backgroundColor: '#E53935', opacity: leftTint }]} />

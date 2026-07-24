@@ -1,7 +1,7 @@
 import { SpringButton } from '../components/SpringButton';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Easing, Dimensions,
+  View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -427,8 +427,8 @@ export function MatchingScreen() {
     const borderWidth = (isMatched || isWrong || isSelected) ? 1.5 : StyleSheet.hairlineWidth;
     return (
       <Animated.View key={tile.id} style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}>
-        <SpringButton
-          containerStyle={{ flex: 1 }}
+        <TouchableOpacity
+          activeOpacity={0.75}
           style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
           onPress={() => !isMatched && handleTile(tile)}
           disabled={isMatched}
@@ -443,7 +443,7 @@ export function MatchingScreen() {
           >
             {tile.text}
           </Text>
-        </SpringButton>
+        </TouchableOpacity>
       </Animated.View>
     );
   }
