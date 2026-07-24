@@ -5,6 +5,7 @@ import {
   type FontKey,
   type LanguageCode,
   type LanguageLevel,
+  type ReadLength,
   type ThemeKey,
 } from './config';
 
@@ -15,6 +16,7 @@ export interface Preferences {
   language: LanguageCode;
   level: LanguageLevel;
   font: FontKey;
+  length: ReadLength;
 }
 
 function isValidPrefs(v: unknown): v is Preferences {
@@ -39,6 +41,9 @@ export function loadPreferences(): Preferences {
     const validLevels = LEVELS_BY_LANG[parsed.language as LanguageCode];
     if (!validLevels || !validLevels.includes(parsed.level as LanguageLevel)) {
       parsed.level = validLevels?.[0] ?? DEFAULTS.level;
+    }
+    if (parsed.length !== 'short' && parsed.length !== 'longer') {
+      parsed.length = DEFAULTS.length;
     }
     return parsed;
   } catch {

@@ -1,0 +1,239 @@
+---
+import { FONTS, THEMES } from '../lib/config';
+---
+<div class="profile-wrap">
+  <button id="profile-toggle" class="profile-circle" type="button" aria-expanded="false" aria-controls="profile-panel" aria-label="Account and preferences">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" fill="currentColor" />
+      <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
+    </svg>
+  </button>
+
+  <div id="profile-panel" class="profile-panel" hidden>
+    <div class="profile-section">
+      <span class="micro-label profile-label">Account</span>
+      <button id="login-stub" class="login-stub" type="button">Sign in</button>
+      <p class="meta-text login-note">Accounts are coming in a future update.</p>
+    </div>
+
+    <hr class="hairline" />
+
+    <div class="profile-section">
+      <span class="micro-label profile-label">Theme</span>
+      <div class="theme-swatches" role="radiogroup" aria-label="Theme">
+        {THEMES.map((t) => (
+          <button type="button" class="swatch" data-theme-choice={t.key} role="radio" aria-checked="false" aria-label={t.label} title={t.label}></button>
+        ))}
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <label class="micro-label profile-label" for="font-select">Font</label>
+      <select id="font-select" class="profile-select">
+        {FONTS.map((f) => (<option value={f.key}>{f.label}</option>))}
+      </select>
+    </div>
+
+    <hr class="hairline" />
+
+    <div class="profile-section profile-links">
+      <a href="/about" class="micro-label link">About</a>
+      <a href="/privacy" class="micro-label link">Privacy Policy</a>
+      <a href="/terms" class="micro-label link">Terms of Service</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { THEME_SWATCH_COLORS_JS } from '../lib/theme-colors';
+  import { applyPreferences, loadPreferences, savePreferences } from '../lib/preferences';
+
+  const prefs = loadPreferences();
+
+  const toggle = document.getElementById('profile-toggle') as HTMLButtonElement;
+  const panel = document.getElementById('profile-panel') as HTMLDivElement;
+  const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
+  const loginStub = document.getElementById('login-stub') as HTMLButtonElement;
+  const swatches = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-theme-choice]'));
+
+  function syncSwatches(theme: string) {
+    for (const s of swatches) {
+      const active = s.dataset.themeChoice === theme;
+      s.setAttribute('aria-checked', String(active));
+      s.classList.toggle('active', active);
+    }
+  }
+
+  function dispatchChange() {
+    window.dispatchEvent(new CustomEvent('bilinguist:preferences-changed', { detail: prefs }));
+  }
+
+  fontSelect.value = prefs.font;
+  syncSwatches(prefs.theme);
+  applyPreferences(prefs);
+
+  toggle.addEventListener('click', () => {
+    const isHidden = panel.hasAttribute('hidden');
+    if (isHidden) panel.removeAttribute('hidden');
+    else panel.setAttribute('hidden', '');
+    toggle.setAttribute('aria-expanded', String(isHidden));
+  });
+
+  document.addEventListener('click', (e) => {
+    const target = e.target as Node;
+    if (!panel.hasAttribute('hidden') && !panel.contains(target) && !toggle.contains(target)) {
+      panel.setAttribute('hidden', '');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  swatches.forEach((s) => {
+    s.addEventListener('click', () => {
+      prefs.theme = s.dataset.themeChoice as typeof prefs.theme;
+      savePreferences(prefs);
+      applyPreferences(prefs);
+      syncSwatches(prefs.theme);
+      dispatchChange();
+    });
+  });
+
+  fontSelect.addEventListener('change', () => {
+    prefs.font = fontSelect.value as typeof prefs.font;
+    savePreferences(prefs);
+    applyPreferences(prefs);
+    dispatchChange();
+  });
+
+  loginStub.addEventListener('click', () => {
+    loginStub.textContent = 'Accounts coming soon';
+    setTimeout(() => { loginStub.textContent = 'Sign in'; }, 1800);
+  });
+
+  // Other components (language/level/length selectors) hold their own
+  // in-memory preferences copy and can save independently — stay in sync
+  // so a change elsewhere doesn't get clobbered by a stale save here.
+  window.addEventListener('bilinguist:preferences-changed', ((e: CustomEvent) => {
+    if (e.detail === prefs) return; // our own dispatch
+    Object.assign(prefs, e.detail);
+    fontSelect.value = prefs.font;
+    syncSwatches(prefs.theme);
+  }) as EventListener);
+
+  for (const s of swatches) {
+    const key = s.dataset.themeChoice ?? 'cream';
+    s.style.background = THEME_SWATCH_COLORS_JS[key] ?? '#F5F0E8';
+  }
+</script>
+
+<style>
+  .profile-wrap {
+    position: relative;
+  }
+
+  .profile-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: var(--hairline-width) solid var(--color-border-mid);
+    background: var(--color-card);
+    color: var(--color-ink-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .profile-circle:hover {
+    color: var(--color-ink-dark);
+    border-color: var(--color-ink-light);
+  }
+
+  .profile-panel {
+    position: absolute;
+    top: calc(100% + var(--space-sm));
+    right: 0;
+    z-index: 60;
+    width: 240px;
+    background: var(--color-card);
+    border: var(--hairline-width) solid var(--color-hairline);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    padding: var(--space-md);
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  /* .profile-panel[hidden] must win over the display:flex below — an
+     explicit display on an author rule otherwise beats the UA stylesheet's
+     [hidden] { display: none }, since author styles outrank UA styles
+     regardless of selector specificity. */
+  .profile-panel:not([hidden]) {
+    display: flex;
+  }
+
+  .profile-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .profile-label {
+    color: var(--color-ink-light);
+  }
+
+  .login-stub {
+    align-self: flex-start;
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-dark);
+    background: var(--color-bg);
+    border: var(--hairline-width) solid var(--color-border-mid);
+    padding: var(--space-sm) var(--space-md);
+    cursor: pointer;
+  }
+
+  .login-note {
+    margin: 0;
+  }
+
+  .theme-swatches {
+    display: flex;
+    gap: var(--space-sm);
+  }
+
+  .swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: var(--hairline-width) solid var(--color-border-mid);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .swatch.active {
+    outline: 2px solid var(--color-accent-gold);
+    outline-offset: 2px;
+  }
+
+  .profile-select {
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-dark);
+    background: var(--color-bg);
+    border: var(--hairline-width) solid var(--color-border-mid);
+    padding: var(--space-sm);
+  }
+
+  .profile-links {
+    gap: var(--space-sm);
+  }
+
+  .profile-links .link {
+    text-decoration: none;
+    color: var(--color-ink-mid);
+  }
+
+  .profile-links .link:hover {
+    color: var(--color-ink-dark);
+  }
+</style>

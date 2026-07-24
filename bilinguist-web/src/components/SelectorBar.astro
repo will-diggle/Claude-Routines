@@ -1,0 +1,173 @@
+---
+import { LANGUAGES } from '../lib/config';
+import ProfileButton from './ProfileButton.astro';
+---
+<div class="selector-bar">
+  <div class="wrap selector-row">
+    <div class="selector-group">
+      <label class="visually-hidden" for="language-select">Language</label>
+      <select id="language-select" class="selector-select">
+        {LANGUAGES.map((l) => (<option value={l.code}>{l.flag} {l.name}</option>))}
+      </select>
+
+      <label class="visually-hidden" for="level-select">Level</label>
+      <select id="level-select" class="selector-select"></select>
+
+      <div class="length-pills" role="radiogroup" aria-label="Length">
+        <button type="button" class="length-pill" data-length="short">Concise</button>
+        <button type="button" class="length-pill" data-length="longer">Long</button>
+      </div>
+
+      <label class="visually-hidden" for="genre-select">Genre</label>
+      <select id="genre-select" class="selector-select">
+        <option value="all">All sections</option>
+      </select>
+    </div>
+
+    <ProfileButton />
+  </div>
+  <hr class="hairline" />
+</div>
+
+<script>
+  import { LENGTH_LABELS, LEVELS_BY_LANG, type LanguageCode } from '../lib/config';
+  import { loadPreferences, savePreferences } from '../lib/preferences';
+
+  const prefs = loadPreferences();
+
+  const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
+  const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
+  const genreSelect = document.getElementById('genre-select') as HTMLSelectElement;
+  const lengthPills = Array.from(document.querySelectorAll<HTMLButtonElement>('.length-pill'));
+
+  function populateLevels(lang: LanguageCode, selected: string) {
+    const levels = LEVELS_BY_LANG[lang] ?? [];
+    levelSelect.innerHTML = levels
+      .map((lvl) => `<option value="${lvl}">${lvl}</option>`)
+      .join('');
+    levelSelect.value = levels.includes(selected as never) ? selected : levels[0];
+  }
+
+  function syncLengthPills() {
+    const labels = LENGTH_LABELS[prefs.language] ?? ['Concise', 'Long'];
+    lengthPills[0].textContent = labels[0];
+    lengthPills[1].textContent = labels[1];
+    for (const pill of lengthPills) {
+      pill.classList.toggle('active', pill.dataset.length === prefs.length);
+    }
+  }
+
+  function dispatchChange() {
+    window.dispatchEvent(new CustomEvent('bilinguist:preferences-changed', { detail: prefs }));
+  }
+
+  languageSelect.value = prefs.language;
+  populateLevels(prefs.language, prefs.level);
+  syncLengthPills();
+
+  languageSelect.addEventListener('change', () => {
+    prefs.language = languageSelect.value as LanguageCode;
+    populateLevels(prefs.language, prefs.level);
+    prefs.level = levelSelect.value as typeof prefs.level;
+    syncLengthPills();
+    savePreferences(prefs);
+    dispatchChange();
+  });
+
+  levelSelect.addEventListener('change', () => {
+    prefs.level = levelSelect.value as typeof prefs.level;
+    savePreferences(prefs);
+    dispatchChange();
+  });
+
+  lengthPills.forEach((pill) => {
+    pill.addEventListener('click', () => {
+      prefs.length = pill.dataset.length as typeof prefs.length;
+      syncLengthPills();
+      savePreferences(prefs);
+      dispatchChange();
+    });
+  });
+
+  // Genre options come from whatever the loaded brief actually contains —
+  // populated by BriefView once the fetch resolves.
+  window.addEventListener('bilinguist:brief-genres', ((e: CustomEvent<{ genres: { key: string; label: string }[] }>) => {
+    const genres = e.detail.genres;
+    genreSelect.innerHTML =
+      '<option value="all">All sections</option>' +
+      genres.map((g) => `<option value="${g.key}">${g.label}</option>`).join('');
+    genreSelect.value = 'all';
+  }) as EventListener);
+
+  genreSelect.addEventListener('change', () => {
+    window.dispatchEvent(new CustomEvent('bilinguist:genre-filter-changed', { detail: { genre: genreSelect.value } }));
+  });
+
+  // Other components (e.g. the profile panel's theme/font pickers) hold
+  // their own in-memory preferences copy and can save independently — stay
+  // in sync so a change elsewhere doesn't get clobbered by a stale save here.
+  window.addEventListener('bilinguist:preferences-changed', ((e: CustomEvent) => {
+    if (e.detail === prefs) return; // our own dispatch
+    Object.assign(prefs, e.detail);
+    languageSelect.value = prefs.language;
+    populateLevels(prefs.language, prefs.level);
+    syncLengthPills();
+  }) as EventListener);
+</script>
+
+<style>
+  .selector-bar {
+    background: var(--color-bg);
+  }
+
+  .selector-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-block: var(--space-md);
+  }
+
+  .selector-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .selector-select {
+    font-family: var(--font-body-family);
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--color-ink-dark);
+    background: transparent;
+    border: none;
+    border-bottom: var(--hairline-width) solid var(--color-hairline);
+    padding: var(--space-xs) 0;
+    cursor: pointer;
+  }
+
+  .length-pills {
+    display: flex;
+    gap: var(--space-xs);
+  }
+
+  .length-pill {
+    font-family: var(--font-body-family);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--color-ink-light);
+    background: transparent;
+    border: var(--hairline-width) solid var(--color-border-mid);
+    border-radius: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+
+  .length-pill.active {
+    background: var(--color-ink-dark);
+    border-color: var(--color-ink-dark);
+    color: var(--color-bg);
+  }
+</style>

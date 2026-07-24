@@ -2,9 +2,29 @@
 ---
 <section class="brief-shell">
   <div class="wrap">
-    <div id="brief-status" class="brief-status" role="status" aria-live="polite">
-      <p class="micro-label">Loading today's brief…</p>
+    <div id="brief-loading" class="brief-loading" role="status" aria-live="polite">
+      <p id="loading-phrase" class="tagline loading-phrase"></p>
+      <div class="skeleton-block">
+        <div class="skeleton-line" style="width:30%;height:10px;" data-delay="0"></div>
+        <div class="skeleton-line" style="width:90%;height:24px;margin-top:12px;" data-delay="120"></div>
+        <div class="skeleton-line" style="width:70%;height:24px;margin-top:8px;" data-delay="240"></div>
+        <div class="skeleton-line" style="width:100%;height:16px;margin-top:20px;" data-delay="360"></div>
+        <div class="skeleton-line" style="width:100%;height:16px;margin-top:8px;" data-delay="480"></div>
+        <div class="skeleton-line" style="width:85%;height:16px;margin-top:8px;" data-delay="600"></div>
+      </div>
+      <div class="skeleton-block">
+        <div class="skeleton-line" style="width:30%;height:10px;" data-delay="200"></div>
+        <div class="skeleton-line" style="width:80%;height:24px;margin-top:12px;" data-delay="320"></div>
+        <div class="skeleton-line" style="width:100%;height:16px;margin-top:20px;" data-delay="440"></div>
+        <div class="skeleton-line" style="width:100%;height:16px;margin-top:8px;" data-delay="560"></div>
+        <div class="skeleton-line" style="width:60%;height:16px;margin-top:8px;" data-delay="680"></div>
+      </div>
     </div>
+
+    <div id="brief-status" class="brief-status" role="status" aria-live="polite" hidden>
+      <p class="micro-label"></p>
+    </div>
+
     <div id="brief-content" class="brief-content" hidden></div>
   </div>
 </section>
@@ -12,10 +32,14 @@
 <script>
   import { loadPreferences } from '../lib/preferences';
   import { fetchBrief, type BriefArticle } from '../lib/brief';
-  import { langInfo } from '../lib/config';
+  import { langInfo, translateGenre, genreColor, PHRASE_POOL, type LanguageCode } from '../lib/config';
 
+  const loadingEl = document.getElementById('brief-loading') as HTMLDivElement;
   const statusEl = document.getElementById('brief-status') as HTMLDivElement;
   const contentEl = document.getElementById('brief-content') as HTMLDivElement;
+  const phraseEl = document.getElementById('loading-phrase') as HTMLParagraphElement;
+
+  let phraseTimer: ReturnType<typeof setInterval> | null = null;
 
   function escapeHtml(s: string): string {
     return s
@@ -26,32 +50,42 @@
       .replace(/'/g, '&#39;');
   }
 
-  function renderArticle(article: BriefArticle, index: number, total: number): string {
-    const paragraphs = article.body
-      .split(/\n\n+/)
-      .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
-      .join('');
+  function startPhraseCycle(language: LanguageCode) {
+    const pool = PHRASE_POOL[language] ?? PHRASE_POOL.en ?? ['Loading…'];
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    let i = 0;
 
-    const genreTag = article.genre
-      ? `<p class="micro-label article-genre">${escapeHtml(article.genre)}</p>`
-      : '';
+    const show = () => {
+      phraseEl.style.opacity = '0';
+      setTimeout(() => {
+        phraseEl.textContent = shuffled[i % shuffled.length];
+        phraseEl.style.opacity = '1';
+        i++;
+      }, 160);
+    };
 
-    const divider = index < total - 1 ? '<hr class="hairline article-divider" />' : '';
+    show();
+    phraseTimer = setInterval(show, 1600);
+  }
 
-    return `
-      <article class="article">
-        ${genreTag}
-        <h2 class="article-headline">${escapeHtml(article.headline)}</h2>
-        <div class="article-body">${paragraphs}</div>
-      </article>
-      ${divider}
-    `;
+  function stopPhraseCycle() {
+    if (phraseTimer) clearInterval(phraseTimer);
+    phraseTimer = null;
+  }
+
+  function showLoading(language: LanguageCode) {
+    loadingEl.hidden = false;
+    statusEl.hidden = true;
+    contentEl.hidden = true;
+    startPhraseCycle(language);
   }
 
   function setStatus(message: string) {
+    stopPhraseCycle();
+    loadingEl.hidden = true;
     statusEl.hidden = false;
     contentEl.hidden = true;
-    statusEl.innerHTML = `<p class="micro-label">${escapeHtml(message)}</p>`;
+    statusEl.querySelector('p')!.textContent = message;
   }
 
   function formatDate(dateStr: string): string {
@@ -63,22 +97,69 @@
     }
   }
 
+  function renderArticle(article: BriefArticle, language: LanguageCode, index: number, total: number): string {
+    const paragraphs = article.body
+      .split(/\n\n+/)
+      .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
+      .join('');
+
+    const genreKey = article.genre.toUpperCase();
+    const label = translateGenre(article.genre, language);
+    const accent = genreColor(article.genre);
+
+    const genreTag = article.genre
+      ? `<p class="micro-label article-genre" style="color:${accent}">${escapeHtml(label)}</p>`
+      : '';
+
+    const divider = index < total - 1 ? '<hr class="hairline article-divider" />' : '';
+
+    return `
+      <article class="article" data-genre="${escapeHtml(genreKey)}">
+        ${genreTag}
+        <h2 class="article-headline">${escapeHtml(article.headline)}</h2>
+        <div class="article-body">${paragraphs}</div>
+      </article>
+      ${divider}
+    `;
+  }
+
+  function applyGenreFilter(genre: string) {
+    const articles = contentEl.querySelectorAll<HTMLElement>('.article');
+    for (const el of articles) {
+      el.style.display = genre === 'all' || el.dataset.genre === genre ? '' : 'none';
+    }
+
+    // Dividers sit between two .article elements — hide any divider whose
+    // neighbor on either side just got filtered out, so filtering to one
+    // genre doesn't leave an orphaned rule with nothing above or below it.
+    const dividers = contentEl.querySelectorAll<HTMLElement>('.article-divider');
+    for (const hr of dividers) {
+      const prev = hr.previousElementSibling as HTMLElement | null;
+      const next = hr.nextElementSibling as HTMLElement | null;
+      const prevVisible = !!prev && prev.style.display !== 'none';
+      const nextVisible = !!next && next.style.display !== 'none';
+      hr.style.display = prevVisible && nextVisible ? '' : 'none';
+    }
+  }
+
   async function loadAndRender() {
     const prefs = loadPreferences();
-    setStatus(`Loading today's brief in ${langInfo(prefs.language).name}…`);
+    showLoading(prefs.language);
 
-    const result = await fetchBrief(prefs.language, prefs.level);
+    const result = await fetchBrief(prefs.language, prefs.level, prefs.length);
 
     if (!result.ok) {
       const message =
         result.reason === 'not_found'
-          ? `No brief available yet for ${langInfo(prefs.language).name} at ${prefs.level} level. Try another language or level from Preferences.`
+          ? `No brief available yet for ${langInfo(prefs.language).name} at ${prefs.level} level. Try another language or level from the selectors above.`
           : "Couldn't load today's brief — check your connection and try again.";
       setStatus(message);
       return;
     }
 
     const { brief, date } = result;
+    stopPhraseCycle();
+    loadingEl.hidden = true;
     statusEl.hidden = true;
     contentEl.hidden = false;
 
@@ -90,21 +171,73 @@
     `;
 
     const articlesHtml = brief.articles
-      .map((a, i) => renderArticle(a, i, brief.articles.length))
+      .map((a, i) => renderArticle(a, prefs.language, i, brief.articles.length))
       .join('');
 
     contentEl.innerHTML = edition + `<div class="columns">${articlesHtml}</div>`;
+
+    // Tell the selector bar which genres are actually present today.
+    const seen = new Set<string>();
+    const genres: { key: string; label: string }[] = [];
+    for (const a of brief.articles) {
+      const key = a.genre.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      genres.push({ key, label: translateGenre(a.genre, prefs.language) });
+    }
+    window.dispatchEvent(new CustomEvent('bilinguist:brief-genres', { detail: { genres } }));
   }
 
   loadAndRender();
   window.addEventListener('bilinguist:preferences-changed', () => {
     loadAndRender();
   });
+  window.addEventListener('bilinguist:genre-filter-changed', ((e: CustomEvent<{ genre: string }>) => {
+    applyGenreFilter(e.detail.genre);
+  }) as EventListener);
 </script>
 
 <style>
   .brief-shell {
     padding-block: var(--space-lg) var(--space-xxl);
+  }
+
+  .brief-loading {
+    padding-block: var(--space-xl);
+  }
+
+  .loading-phrase {
+    text-align: center;
+    margin: 0 0 var(--space-xl);
+    transition: opacity 0.16s ease;
+    min-height: 1.4em;
+  }
+
+  .skeleton-block {
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-lg);
+    border-bottom: var(--hairline-width) solid var(--color-hairline);
+  }
+
+  .skeleton-line {
+    border-radius: 4px;
+    background: var(--color-border-light);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .skeleton-line::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, var(--color-card), transparent);
+    animation: shimmer 1.2s ease-in-out infinite;
+    animation-delay: calc(var(--delay, 0) * 1ms);
+  }
+
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
   }
 
   .brief-status {
@@ -138,10 +271,10 @@
 
   :global(.article) {
     margin-bottom: var(--space-lg);
+    break-inside: avoid-column;
   }
 
   :global(.article-genre) {
-    color: var(--color-accent-gold);
     margin: 0 0 var(--space-xs);
   }
 
@@ -168,3 +301,9 @@
     break-inside: avoid;
   }
 </style>
+
+<script is:inline>
+  document.querySelectorAll('.skeleton-line').forEach((el) => {
+    el.style.setProperty('--delay', el.dataset.delay ?? '0');
+  });
+</script>
