@@ -337,7 +337,7 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
 }) {
   const [open, setOpen] = useState(false);
   const layers: Layer[] = hasOwmKey
-    ? ['precipitation', 'temperature', 'wind', 'clouds']
+    ? ['temperature', 'precipitation', 'wind', 'clouds']
     : ['precipitation'];
 
   return (
@@ -350,9 +350,9 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
           {layers.map(layer => (
             <TouchableOpacity key={layer} style={ltStyles.item} activeOpacity={0.7}
               onPress={() => { onSelect(layer); setOpen(false); }}>
-              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? '#3B82F6' : '#555'} style={{ width: 18 }} />
+              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? '#fff' : 'rgba(255,255,255,0.7)'} style={{ width: 18 }} />
               <Text style={[ltStyles.itemText, activeLayer === layer && ltStyles.itemActive]}>{labels[layer]}</Text>
-              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="#3B82F6" />}
+              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="#fff" />}
             </TouchableOpacity>
           ))}
         </View>
@@ -364,10 +364,10 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
 const ltStyles = StyleSheet.create({
   wrapper:    { position: 'absolute', top: 10, right: 10, alignItems: 'flex-end', zIndex: 20 },
   btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.38)', alignItems: 'center', justifyContent: 'center' },
-  menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 12, paddingVertical: 4, minWidth: 155, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 },
+  menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.38)', borderRadius: 12, paddingVertical: 4, minWidth: 155 },
   item:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
-  itemText:   { fontSize: 13, color: '#333', flex: 1 },
-  itemActive: { color: '#3B82F6', fontWeight: '600' },
+  itemText:   { fontSize: 13, color: '#fff', flex: 1, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  itemActive: { color: '#fff', fontWeight: '700' },
 });
 
 // ── WeatherCard ───────────────────────────────────────────────────────────────
