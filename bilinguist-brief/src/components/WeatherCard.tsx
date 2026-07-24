@@ -1,25 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
+  Modal,
   PanResponder,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
 } from 'react-native';
 import WebView from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassSurface, glassAvailable } from './GlassSurface';
 import { useTheme } from '../hooks/useTheme';
-import { Spacing } from '../theme';
 import type { WeatherData, RainviewerFrame } from '../services/weather';
-import { fetchRainviewerFrames } from '../services/weather';
+import { fetchRainviewerFrames, WEATHER_IN } from '../services/weather';
 import { getWeatherPhrase, LAYER_LABELS } from '../services/weatherPhrases';
 import type { LanguageCode } from '../store/useSettingsStore';
 
 const { width: SW } = Dimensions.get('window');
-const CARD_H_MAP = Math.round((SW - 32) * 0.85); // ~85% of card width → near-square
+const MAP_H = Math.round((SW - 56) * 0.88);
 const OWM_KEY = (process.env.EXPO_PUBLIC_OWM_KEY ?? '').trim();
 
 type Layer = 'precipitation' | 'temperature' | 'wind' | 'clouds';
@@ -29,6 +30,24 @@ const OWM_PARAM: Record<Exclude<Layer, 'precipitation'>, string> = {
   wind:        'wind_new',
   clouds:      'clouds_new',
 };
+
+const LAYER_ICONS: Record<Layer, React.ComponentProps<typeof Ionicons>['name']> = {
+  precipitation: 'rainy-outline',
+  temperature:   'thermometer-outline',
+  wind:          'thunderstorm-outline',
+  clouds:        'cloudy-outline',
+};
+
+function codeToIcon(code: number): React.ComponentProps<typeof Ionicons>['name'] {
+  if (code === 0)                      return 'sunny-outline';
+  if (code <= 2)                       return 'partly-sunny-outline';
+  if (code === 3)                      return 'cloudy-outline';
+  if (code <= 48)                      return 'cloud-outline';
+  if (code <= 65 || (code >= 80 && code <= 82)) return 'rainy-outline';
+  if (code <= 86)                      return 'snow-outline';
+  if (code >= 95)                      return 'thunderstorm-outline';
+  return 'thermometer-outline';
+}
 
 function owmTileUrl(layer: Layer): string {
   if (layer === 'precipitation' || !OWM_KEY) return '';
@@ -43,51 +62,57 @@ function buildMapHtml(lat: number, lng: number): string {
   return `<!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body,html{width:100%;height:100%;background:#e8edf2;overflow:hidden}
-    #map{width:100%;height:100vh}
-    .leaflet-control-attribution{display:none!important}
-    .leaflet-control-zoom{display:none!important}
-  </style>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body,html{width:100%;height:100%;overflow:hidden}
+#map{width:100%;height:100vh}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+/* Pulsing location dot */
+.loc-wrap{position:relative;width:26px;height:26px}
+.loc-dot{
+  position:absolute;width:14px;height:14px;border-radius:50%;
+  background:#3B82F6;border:2.5px solid #fff;
+  top:6px;left:6px;z-index:2;
+  box-shadow:0 2px 6px rgba(59,130,246,0.6);
+}
+.loc-ring{
+  position:absolute;width:26px;height:26px;border-radius:50%;
+  background:rgba(59,130,246,0.25);
+  animation:locpulse 2s ease-out infinite;z-index:1;
+}
+@keyframes locpulse{
+  0%{transform:scale(0.4);opacity:1}
+  100%{transform:scale(1.6);opacity:0}
+}
+</style>
 </head>
 <body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-var map = L.map('map',{
-  center:[${lat},${lng}],
-  zoom:7,
-  dragging:false,
-  touchZoom:false,
-  scrollWheelZoom:false,
-  doubleClickZoom:false,
-  zoomControl:false,
-  attributionControl:false
+var map=L.map('map',{
+  center:[${lat},${lng}],zoom:7,
+  dragging:false,touchZoom:false,scrollWheelZoom:false,
+  doubleClickZoom:false,zoomControl:false,attributionControl:false
 });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
-
-// User location pin
-L.circleMarker([${lat},${lng}],{
-  radius:9,fillColor:'#2563EB',fillOpacity:1,color:'#fff',weight:2.5
-}).addTo(map);
-
+/* Voyager — warm, colourful base map */
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+/* Pulsing location marker */
+var locIcon=L.divIcon({
+  className:'',
+  html:'<div class="loc-wrap"><div class="loc-ring"></div><div class="loc-dot"></div></div>',
+  iconSize:[26,26],iconAnchor:[13,13]
+});
+L.marker([${lat},${lng}],{icon:locIcon,interactive:false}).addTo(map);
 var weatherLayer=null;
-function setLayer(url){
+window.setLayer=function(url){
   if(weatherLayer){map.removeLayer(weatherLayer);weatherLayer=null;}
-  if(url){
-    weatherLayer=L.tileLayer(url,{opacity:0.7,maxZoom:19});
-    weatherLayer.addTo(map);
-  }
-}
-window.setLayer=setLayer;
-window.setCenter=function(lat,lng){map.setView([lat,lng],map.getZoom())};
+  if(url){weatherLayer=L.tileLayer(url,{opacity:0.75,maxZoom:19});weatherLayer.addTo(map);}
+};
 window.addEventListener('load',function(){
-  if(window.ReactNativeWebView){
-    window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'}));
-  }
+  if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'}));
 });
 </script>
 </body>
@@ -96,23 +121,26 @@ window.addEventListener('load',function(){
 
 function formatHour(unixSec: number): string {
   const d = new Date(unixSec * 1000);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 }
 
-// ── Scrubber ─────────────────────────────────────────────────────────────────
+// ── Scrubber ──────────────────────────────────────────────────────────────────
 
-interface ScrubberProps {
+function Scrubber({ frames, frameIdx, isPlaying, onScrub, onTogglePlay }: {
   frames: RainviewerFrame[];
   frameIdx: number;
   isPlaying: boolean;
   onScrub: (idx: number) => void;
   onTogglePlay: () => void;
-  colors: any;
-  fontFamily: any;
-}
-
-function Scrubber({ frames, frameIdx, isPlaying, onScrub, onTogglePlay, colors, fontFamily }: ScrubberProps) {
+}) {
   const trackWidth = useRef(0);
+
+  const nowIdx = useMemo(() => {
+    const nowSec = Date.now() / 1000;
+    let best = 0;
+    frames.forEach((f, i) => { if (f.time <= nowSec) best = i; });
+    return best;
+  }, [frames]);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -129,47 +157,25 @@ function Scrubber({ frames, frameIdx, isPlaying, onScrub, onTogglePlay, colors, 
     },
   }), [frames.length, onScrub]);
 
-  const nowIdx = useMemo(() => {
-    const nowSec = Date.now() / 1000;
-    let best = 0;
-    frames.forEach((f, i) => { if (f.time <= nowSec) best = i; });
-    return best;
-  }, [frames]);
-
-  // Label positions: start, 1/4, now, 3/4, end
-  const labelAt = (idx: number) => frames.length > 1 ? (idx / (frames.length - 1)) * 100 : 0;
-  const thumbPct = frames.length > 1 ? (frameIdx / (frames.length - 1)) * 100 : 0;
+  const pct = (idx: number) => frames.length > 1 ? (idx / (frames.length - 1)) * 100 : 0;
+  const thumbPct = pct(frameIdx);
 
   return (
     <View style={scrubStyles.container}>
-      {/* Play / Pause */}
       <TouchableOpacity style={scrubStyles.playBtn} onPress={onTogglePlay} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Ionicons name={isPlaying ? 'pause' : 'play'} size={14} color="#fff" />
+        <Ionicons name={isPlaying ? 'pause' : 'play'} size={13} color="#fff" />
       </TouchableOpacity>
-
-      {/* Track */}
       <View
         style={scrubStyles.track}
         onLayout={e => { trackWidth.current = e.nativeEvent.layout.width; }}
         {...panResponder.panHandlers}
       >
-        {/* Fill */}
-        <View style={[scrubStyles.fill, { width: `${thumbPct}%` }]} />
-
-        {/* Now marker */}
-        {frames.length > 0 && (
-          <View style={[scrubStyles.nowMark, { left: `${labelAt(nowIdx)}%` }]} />
-        )}
-
-        {/* Thumb */}
-        <View style={[scrubStyles.thumb, { left: `${thumbPct}%` }]} />
-
-        {/* Time labels */}
+        <View style={scrubStyles.trackLine} />
+        <View style={[scrubStyles.fill, { width: `${thumbPct}%` as any }]} />
+        {frames.length > 0 && <View style={[scrubStyles.nowMark, { left: `${pct(nowIdx)}%` as any }]} />}
+        <View style={[scrubStyles.thumb, { left: `${thumbPct}%` as any }]} />
         {frames.length > 0 && [0, nowIdx, frames.length - 1].map((idx, i) => (
-          <Text
-            key={i}
-            style={[scrubStyles.label, { left: `${labelAt(idx)}%`, color: idx === nowIdx ? '#fff' : 'rgba(255,255,255,0.7)' }]}
-          >
+          <Text key={i} style={[scrubStyles.label, { left: `${pct(idx)}%` as any, color: idx === nowIdx ? '#fff' : 'rgba(255,255,255,0.65)' }]}>
             {idx === nowIdx ? 'now' : formatHour(frames[idx].time)}
           </Text>
         ))}
@@ -179,87 +185,24 @@ function Scrubber({ frames, frameIdx, isPlaying, onScrub, onTogglePlay, colors, 
 }
 
 const scrubStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-  },
-  playBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  track: {
-    flex: 1,
-    height: 28,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  fill: {
-    position: 'absolute',
-    height: 3,
-    backgroundColor: '#fff',
-    borderRadius: 1.5,
-    top: '50%',
-    marginTop: -1.5,
-  },
-  nowMark: {
-    position: 'absolute',
-    width: 2,
-    height: 10,
-    backgroundColor: '#93C5FD',
-    borderRadius: 1,
-    top: '50%',
-    marginTop: -5,
-    marginLeft: -1,
-  },
-  thumb: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#fff',
-    top: '50%',
-    marginTop: -7,
-    marginLeft: -7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  label: {
-    position: 'absolute',
-    fontSize: 9,
-    fontWeight: '600',
-    top: '50%',
-    marginTop: 8,
-    transform: [{ translateX: -12 }],
-  },
+  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11, gap: 10 },
+  playBtn:   { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  track:     { flex: 1, height: 28, justifyContent: 'center', position: 'relative' },
+  trackLine: { position: 'absolute', height: 2, left: 0, right: 0, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 1, top: '50%', marginTop: -1 },
+  fill:      { position: 'absolute', height: 2, backgroundColor: '#fff', borderRadius: 1, top: '50%', marginTop: -1 },
+  nowMark:   { position: 'absolute', width: 2, height: 10, backgroundColor: '#93C5FD', borderRadius: 1, top: '50%', marginTop: -5, marginLeft: -1 },
+  thumb:     { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#fff', top: '50%', marginTop: -7, marginLeft: -7, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2, elevation: 3 },
+  label:     { position: 'absolute', fontSize: 9, fontWeight: '600', top: '50%', marginTop: 8, transform: [{ translateX: -12 }] },
 });
 
 // ── Layer toggle ──────────────────────────────────────────────────────────────
 
-interface LayerToggleProps {
+function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
   activeLayer: Layer;
   hasOwmKey: boolean;
   labels: { precipitation: string; temperature: string; wind: string; clouds: string };
   onSelect: (l: Layer) => void;
-}
-
-const LAYER_ICONS: Record<Layer, React.ComponentProps<typeof Ionicons>['name']> = {
-  precipitation: 'rainy-outline',
-  temperature:   'thermometer-outline',
-  wind:          'thunderstorm-outline',
-  clouds:        'cloudy-outline',
-};
-
-function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: LayerToggleProps) {
+}) {
   const [open, setOpen] = useState(false);
   const layers: Layer[] = hasOwmKey
     ? ['precipitation', 'temperature', 'wind', 'clouds']
@@ -268,29 +211,16 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: LayerTogglePr
   return (
     <View style={ltStyles.wrapper}>
       <TouchableOpacity style={ltStyles.btn} onPress={() => setOpen(o => !o)} activeOpacity={0.8}>
-        <Ionicons name="layers-outline" size={16} color="#1a1a1a" />
+        <Ionicons name="layers-outline" size={15} color="#1a1a1a" />
       </TouchableOpacity>
       {open && (
         <View style={ltStyles.menu}>
           {layers.map(layer => (
-            <TouchableOpacity
-              key={layer}
-              style={ltStyles.menuItem}
-              onPress={() => { onSelect(layer); setOpen(false); }}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={LAYER_ICONS[layer]}
-                size={14}
-                color={activeLayer === layer ? '#2563EB' : '#555'}
-                style={{ width: 20 }}
-              />
-              <Text style={[ltStyles.menuText, activeLayer === layer && ltStyles.menuTextActive]}>
-                {labels[layer]}
-              </Text>
-              {activeLayer === layer && (
-                <Ionicons name="checkmark" size={13} color="#2563EB" style={{ marginLeft: 4 }} />
-              )}
+            <TouchableOpacity key={layer} style={ltStyles.item} activeOpacity={0.7}
+              onPress={() => { onSelect(layer); setOpen(false); }}>
+              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? '#3B82F6' : '#555'} style={{ width: 18 }} />
+              <Text style={[ltStyles.itemText, activeLayer === layer && ltStyles.itemActive]}>{labels[layer]}</Text>
+              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="#3B82F6" />}
             </TouchableOpacity>
           ))}
         </View>
@@ -300,53 +230,12 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: LayerTogglePr
 }
 
 const ltStyles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    alignItems: 'flex-end',
-    zIndex: 10,
-  },
-  btn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  menu: {
-    marginTop: 6,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 12,
-    paddingVertical: 4,
-    minWidth: 160,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  menuText: {
-    fontSize: 14,
-    color: '#333',
-    flex: 1,
-  },
-  menuTextActive: {
-    color: '#2563EB',
-    fontWeight: '600',
-  },
+  wrapper:    { position: 'absolute', top: 10, right: 10, alignItems: 'flex-end', zIndex: 20 },
+  btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 5 },
+  menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 12, paddingVertical: 4, minWidth: 155, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 },
+  item:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  itemText:   { fontSize: 13, color: '#333', flex: 1 },
+  itemActive: { color: '#3B82F6', fontWeight: '600' },
 });
 
 // ── WeatherCard ───────────────────────────────────────────────────────────────
@@ -360,6 +249,7 @@ interface WeatherCardProps {
 export function WeatherCard({ weather, language, level }: WeatherCardProps) {
   const { colors, fontFamily } = useTheme();
 
+  const [modalVisible, setModalVisible] = useState(false);
   const [activeLayer, setActiveLayer]   = useState<Layer>('precipitation');
   const [frames, setFrames]             = useState<RainviewerFrame[]>([]);
   const [frameIdx, setFrameIdx]         = useState(0);
@@ -368,18 +258,23 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
 
   const webViewRef = useRef<WebView>(null);
   const playRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scaleAnim  = useRef(new Animated.Value(0.88)).current;
 
-  const phrase  = getWeatherPhrase(weather.code, language, level);
-  const labels  = LAYER_LABELS[language] ?? LAYER_LABELS.en!;
-  const hasOwmKey = OWM_KEY.length > 0;
-  const mapHtml = useMemo(() => buildMapHtml(weather.latitude, weather.longitude), [weather.latitude, weather.longitude]);
+  const phrase      = getWeatherPhrase(weather.code, language, level);
+  const labels      = LAYER_LABELS[language] ?? LAYER_LABELS.en!;
+  const hasOwmKey   = OWM_KEY.length > 0;
+  const iconName    = codeToIcon(weather.code ?? 0);
+  const preposition = WEATHER_IN[language] ?? 'in';
 
-  // Fetch RainViewer frames on mount
+  const mapLat  = weather.latitude  ?? 51.5074;
+  const mapLng  = weather.longitude ?? -0.1278;
+  const mapHtml = useMemo(() => buildMapHtml(mapLat, mapLng), [mapLat, mapLng]);
+
+  // Fetch RainViewer frames once
   useEffect(() => {
     fetchRainviewerFrames().then(f => {
       if (!f.length) return;
       setFrames(f);
-      // Position scrubber at the most recent past frame ("now")
       const nowSec = Date.now() / 1000;
       let nowIdx = 0;
       f.forEach((fr, i) => { if (fr.time <= nowSec) nowIdx = i; });
@@ -387,175 +282,163 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
     });
   }, []);
 
-  // Apply current tile to the WebView whenever frame, layer, or map-ready state changes
+  // Apply tile to WebView
   const applyTile = useCallback((layer: Layer, idx: number, ready: boolean) => {
     if (!ready) return;
-    let url = '';
-    if (layer === 'precipitation' && frames.length > 0) {
-      url = rainviewerTileUrl(frames[idx].path);
-    } else {
-      url = owmTileUrl(layer);
-    }
+    const url = layer === 'precipitation' && frames.length > 0
+      ? rainviewerTileUrl(frames[idx].path)
+      : owmTileUrl(layer);
     webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
   }, [frames]);
 
   useEffect(() => { applyTile(activeLayer, frameIdx, mapReady); }, [activeLayer, frameIdx, mapReady, applyTile]);
 
-  // Auto-play for precipitation
+  // Auto-play (precipitation only — OWM tiles have no time dimension)
   useEffect(() => {
     if (playRef.current) clearInterval(playRef.current);
     if (isPlaying && activeLayer === 'precipitation' && frames.length > 0) {
-      playRef.current = setInterval(() => {
-        setFrameIdx(i => (i + 1) % frames.length);
-      }, 700);
+      playRef.current = setInterval(() => setFrameIdx(i => (i + 1) % frames.length), 700);
     }
     return () => { if (playRef.current) clearInterval(playRef.current); };
   }, [isPlaying, activeLayer, frames.length]);
 
+  function openModal() {
+    setModalVisible(true);
+    scaleAnim.setValue(0.88);
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 16 }).start();
+  }
+
+  function closeModal() {
+    Animated.timing(scaleAnim, { toValue: 0.88, duration: 160, useNativeDriver: true })
+      .start(() => setModalVisible(false));
+  }
+
   const handleLayerSelect = useCallback((layer: Layer) => {
     setActiveLayer(layer);
-    if (layer !== 'precipitation') setIsPlaying(false);
-    else setIsPlaying(true);
-  }, []);
-
-  const handleScrub = useCallback((idx: number) => {
-    setIsPlaying(false);
-    setFrameIdx(idx);
+    setIsPlaying(layer === 'precipitation');
   }, []);
 
   const showScrubber = activeLayer === 'precipitation' && frames.length > 0;
 
+  // Shared glass card border/shadow — mirrors streak modal
+  const cardStyle = {
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.85)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.20,
+    shadowRadius: 40,
+    elevation: 20,
+  } as const;
+
   return (
-    <View style={styles.wrapper}>
-      {/* ── Top thin box: phrase ───────────────────────────────────── */}
-      <View
-        style={[
-          styles.phraseCard,
-          { backgroundColor: glassAvailable ? 'transparent' : colors.surface },
-        ]}
+    <>
+      {/* ── Inline strip ─────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={[styles.strip, { borderBottomColor: colors.borderLight }]}
+        onPress={openModal}
+        activeOpacity={0.7}
       >
-        {glassAvailable && <GlassSurface cornerRadius={20} />}
-        <Text
-          style={[styles.phraseText, { color: colors.inkDark, fontFamily: fontFamily.italic }]}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-        >
-          {phrase}
-        </Text>
-      </View>
-
-      {/* ── Bottom large box: map ──────────────────────────────────── */}
-      <View
-        style={[
-          styles.mapCard,
-          { backgroundColor: glassAvailable ? 'transparent' : colors.card, height: CARD_H_MAP },
-        ]}
-      >
-        {glassAvailable && <GlassSurface cornerRadius={20} />}
-
-        {/* Map — clipped to card radius */}
-        <View style={styles.mapClip}>
-          <WebView
-            ref={webViewRef}
-            source={{ html: mapHtml, baseUrl: 'https://bilinguist.app' }}
-            style={StyleSheet.absoluteFill}
-            scrollEnabled={false}
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
-            originWhitelist={['*']}
-            onMessage={e => {
-              try {
-                const msg = JSON.parse(e.nativeEvent.data);
-                if (msg.type === 'ready') setMapReady(true);
-              } catch {}
-            }}
-          />
-
-          {/* Layer toggle – top right */}
-          <LayerToggle
-            activeLayer={activeLayer}
-            hasOwmKey={hasOwmKey}
-            labels={labels}
-            onSelect={handleLayerSelect}
-          />
-
-          {/* Hourly scrubber – bottom overlay */}
-          {showScrubber && (
-            <View style={styles.scrubberOverlay}>
-              <Scrubber
-                frames={frames}
-                frameIdx={frameIdx}
-                isPlaying={isPlaying}
-                onScrub={handleScrub}
-                onTogglePlay={() => setIsPlaying(p => !p)}
-                colors={colors}
-                fontFamily={fontFamily}
-              />
-            </View>
-          )}
+        <View style={styles.stripRow}>
+          <Ionicons name={iconName} size={13} color={colors.inkFaint} style={styles.stripIcon} />
+          <Text style={[styles.stripText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {`${weather.greeting} — ${weather.temp}°C, ${weather.description} ${preposition} ${weather.city}`}
+          </Text>
         </View>
-      </View>
-    </View>
+      </TouchableOpacity>
+
+      {/* ── Modal — same style as streak ─────────────────────────── */}
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={closeModal}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={closeModal}>
+          <Animated.View style={[styles.modalInner, { transform: [{ scale: scaleAnim }] }]}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+
+              {/* Phrase card — thin */}
+              <View style={[styles.phraseCard, cardStyle, { backgroundColor: glassAvailable ? 'transparent' : colors.surface }]}>
+                {glassAvailable && <GlassSurface cornerRadius={26} />}
+                <Text
+                  style={[styles.phraseText, { color: colors.inkDark, fontFamily: fontFamily.italic }]}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                >
+                  {phrase}
+                </Text>
+              </View>
+
+              <View style={{ height: 10 }} />
+
+              {/* Map card — large */}
+              {/*
+                The WebView is rendered first (fills card via absoluteFill).
+                LayerToggle + Scrubber are rendered AFTER it in the tree so they
+                sit on top in z-order and receive touches before the WebView.
+              */}
+              <View style={[styles.mapCard, cardStyle, { backgroundColor: glassAvailable ? 'transparent' : colors.card, height: MAP_H }]}>
+                {glassAvailable && <GlassSurface cornerRadius={26} />}
+
+                <WebView
+                  ref={webViewRef}
+                  source={{ html: mapHtml, baseUrl: 'https://bilinguist.app' }}
+                  style={[StyleSheet.absoluteFill, { borderRadius: 26 }]}
+                  scrollEnabled={false}
+                  bounces={false}
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
+                  originWhitelist={['*']}
+                  onMessage={e => {
+                    try {
+                      const msg = JSON.parse(e.nativeEvent.data);
+                      if (msg.type === 'ready') setMapReady(true);
+                    } catch {}
+                  }}
+                />
+
+                {/* Layer toggle — rendered after WebView → on top */}
+                <LayerToggle
+                  activeLayer={activeLayer}
+                  hasOwmKey={hasOwmKey}
+                  labels={labels}
+                  onSelect={handleLayerSelect}
+                />
+
+                {/* Scrubber — rendered after WebView → on top, receives gestures */}
+                {showScrubber && (
+                  <View style={styles.scrubberOverlay}>
+                    <Scrubber
+                      frames={frames}
+                      frameIdx={frameIdx}
+                      isPlaying={isPlaying}
+                      onScrub={idx => { setIsPlaying(false); setFrameIdx(idx); }}
+                      onTogglePlay={() => setIsPlaying(p => !p)}
+                    />
+                  </View>
+                )}
+              </View>
+
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableOpacity>
+        <SafeAreaView />
+      </Modal>
+    </>
   );
 }
 
-const CARD_RADIUS = 20;
+const CARD_RADIUS = 26;
 
 const styles = StyleSheet.create({
-  wrapper: {
-    marginHorizontal: 16,
-    marginBottom: Spacing.lg,
-    gap: 10,
-  },
+  strip:    { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: 'center' },
+  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  stripIcon:{ marginTop: 1 },
+  stripText:{ fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
-  // Top phrase card — same glass style as streak modal
-  phraseCard: {
-    borderRadius: CARD_RADIUS,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.85)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 8,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  phraseText: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  backdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  modalInner: { width: '100%' },
 
-  // Large map card
-  mapCard: {
-    borderRadius: CARD_RADIUS,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.85)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  mapClip: {
-    flex: 1,
-    borderRadius: CARD_RADIUS,
-    overflow: 'hidden',
-  },
-  scrubberOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderBottomLeftRadius: CARD_RADIUS,
-    borderBottomRightRadius: CARD_RADIUS,
-  },
+  phraseCard: { borderRadius: CARD_RADIUS, paddingVertical: 20, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  phraseText: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+
+  mapCard:        { borderRadius: CARD_RADIUS, overflow: 'hidden' },
+  scrubberOverlay:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
 });

@@ -282,7 +282,7 @@ export function LanguageBriefingSection({
       )}
 
       {/* Weather card — phrase + interactive radar map */}
-      {weather?.latitude != null && (
+      {weather && (
         <WeatherCard
           weather={weather}
           language={langCode}
