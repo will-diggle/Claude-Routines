@@ -156,10 +156,9 @@ const TEXT_SHADOW = {
   textShadowRadius: 4,
 } as const;
 
-function DataBadge({ values, layer }: { values: number[]; layer: StaticLayer }) {
+function DataBadge({ values, layer, selectedHour }: { values: number[]; layer: StaticLayer; selectedHour: number }) {
   if (!values.length) return null;
-  const currentHour = new Date().getHours();
-  const current = values[Math.min(currentHour, values.length - 1)] ?? 0;
+  const current = values[Math.min(selectedHour, values.length - 1)] ?? 0;
   const hi = Math.max(...values);
   const lo = Math.min(...values);
   const unit = layer === 'temperature' ? '°C' : layer === 'wind' ? 'km/h' : '%';
@@ -199,13 +198,19 @@ const dbStyles = StyleSheet.create({
   hilo:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.95)' },
 });
 
-function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }) {
+function HourlyGraph({ values, layer, selectedHour, onHourChange }: {
+  values: number[];
+  layer: StaticLayer;
+  selectedHour: number;
+  onHourChange: (h: number) => void;
+}) {
   if (!values.length) return null;
   const currentHour = new Date().getHours();
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
   const BAR_H = 36;
+  const trackWidth = useRef(0);
 
   function barH(v: number) { return Math.max(3, Math.round(((v - min) / range) * BAR_H)); }
   function barColor(v: number) {
@@ -214,12 +219,29 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
     return cloudBarColor(v);
   }
 
+  const scrubPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder:  () => true,
+    onPanResponderGrant: (e) => {
+      if (!trackWidth.current) return;
+      const x = Math.max(0, Math.min(e.nativeEvent.locationX, trackWidth.current));
+      onHourChange(Math.round((x / trackWidth.current) * 23));
+    },
+    onPanResponderMove: (e) => {
+      if (!trackWidth.current) return;
+      const x = Math.max(0, Math.min(e.nativeEvent.locationX, trackWidth.current));
+      onHourChange(Math.round((x / trackWidth.current) * 23));
+    },
+  }), [onHourChange]);
+
+  const thumbPct = `${(selectedHour / 23) * 100}%`;
+
   return (
     <View style={hgStyles.container}>
       <View style={hgStyles.barsRow}>
         {values.map((v, i) => {
-          const isPast    = i < currentHour;
-          const isCurrent = i === currentHour;
+          const isPast      = i < currentHour;
+          const isSelected  = i === selectedHour;
           return (
             <View key={i} style={hgStyles.barCol}>
               <View style={[
@@ -227,14 +249,25 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
                 {
                   height: barH(v),
                   backgroundColor: isPast ? 'rgba(255,255,255,0.18)' : barColor(v),
-                  opacity: isPast ? 0.5 : isCurrent ? 1 : 0.72,
+                  opacity: isPast ? 0.5 : isSelected ? 1 : 0.72,
                 },
-                isCurrent && hgStyles.barCurrent,
+                isSelected && hgStyles.barSelected,
               ]} />
             </View>
           );
         })}
       </View>
+
+      {/* Scrubber line + thumb */}
+      <View
+        style={hgStyles.scrubTrack}
+        onLayout={e => { trackWidth.current = e.nativeEvent.layout.width; }}
+        {...scrubPan.panHandlers}
+      >
+        <View style={hgStyles.scrubLine} />
+        <View style={[hgStyles.scrubThumb, { left: thumbPct as any }]} />
+      </View>
+
       <View style={hgStyles.timeRow}>
         {[0, 6, 12, 18, 23].map(h => (
           <Text key={h} style={[hgStyles.timeLbl, { left: `${(h / 23) * 100}%` as any }]}>
@@ -247,13 +280,16 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
 }
 
 const hgStyles = StyleSheet.create({
-  container:  { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
-  barsRow:    { flexDirection: 'row', alignItems: 'flex-end', height: 40, gap: 1 },
-  barCol:     { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  bar:        { width: '85%', borderRadius: 2, opacity: 0.6 },
-  barCurrent: { opacity: 1, borderWidth: 1, borderColor: '#fff' },
-  timeRow:    { position: 'relative', height: 14, marginTop: 2 },
-  timeLbl:    { position: 'absolute', fontSize: 8, color: '#fff', transform: [{ translateX: -10 }], textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  container:   { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 },
+  barsRow:     { flexDirection: 'row', alignItems: 'flex-end', height: 40, gap: 1 },
+  barCol:      { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bar:         { width: '85%', borderRadius: 2, opacity: 0.6 },
+  barSelected: { opacity: 1, borderWidth: 1, borderColor: '#fff' },
+  scrubTrack:  { height: 22, justifyContent: 'center', position: 'relative', marginTop: 4 },
+  scrubLine:   { position: 'absolute', left: 0, right: 0, height: 1.5, backgroundColor: 'rgba(255,255,255,0.45)', borderRadius: 1 },
+  scrubThumb:  { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff', top: '50%', marginTop: -9, marginLeft: -9, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 3, elevation: 4 },
+  timeRow:     { position: 'relative', height: 14, marginTop: 1 },
+  timeLbl:     { position: 'absolute', fontSize: 8, color: '#fff', transform: [{ translateX: -10 }], textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
 });
 
 // ── Scrubber ──────────────────────────────────────────────────────────────────
@@ -392,6 +428,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
   const [frameIdx, setFrameIdx]         = useState(0);
   const [isPlaying, setIsPlaying]       = useState(true);
   const [mapReady, setMapReady]         = useState(false);
+  const [selectedHour, setSelectedHour] = useState(new Date().getHours());
 
   const webViewRef = useRef<WebView>(null);
   const playRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -453,6 +490,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
   const handleLayerSelect = useCallback((layer: Layer) => {
     setActiveLayer(layer);
     setIsPlaying(layer === 'precipitation');
+    setSelectedHour(new Date().getHours());
   }, []);
 
   const [wordModal, setWordModal] = useState<{ word: string } | null>(null);
@@ -538,7 +576,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
                 </View>
 
                 {/* Top-left data badge — sits on top of mapClip */}
-                {showHourly && <DataBadge values={hourlyValues} layer={activeLayer as StaticLayer} />}
+                {showHourly && <DataBadge values={hourlyValues} layer={activeLayer as StaticLayer} selectedHour={selectedHour} />}
                 {showPrecipBadge && <PrecipBadge precipProbs={precipProbs} />}
 
                 {/* Layer toggle */}
@@ -553,10 +591,15 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
                   </View>
                 )}
 
-                {/* Hourly graph for temperature / wind / clouds */}
+                {/* Hourly graph + scrubber for temperature / wind / clouds */}
                 {showHourly && (
                   <View style={styles.scrubberOverlay}>
-                    <HourlyGraph values={hourlyValues} layer={activeLayer as StaticLayer} />
+                    <HourlyGraph
+                      values={hourlyValues}
+                      layer={activeLayer as StaticLayer}
+                      selectedHour={selectedHour}
+                      onHourChange={setSelectedHour}
+                    />
                   </View>
                 )}
               </View>
