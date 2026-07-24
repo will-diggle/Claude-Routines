@@ -443,7 +443,7 @@ export function FlashcardsScreen() {
             ]}
             pointerEvents={flipped ? 'none' : 'auto'}
           >
-            <SpringButton style={styles.faceTouchable} onPress={handleFlip}>
+            <SpringButton containerStyle={styles.faceTouchable} onPress={handleFlip}>
               <View style={[styles.cardMeta, { borderBottomColor: colors.borderLight }]}>
                 <Text style={[styles.cardLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                   {card.language.toUpperCase()}
