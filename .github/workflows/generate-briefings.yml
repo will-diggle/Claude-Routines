@@ -116,6 +116,8 @@ jobs:
           curl -s -X POST \
             -H "Title: ${NTFY_TITLE}" \
             -H "Tags: ${NTFY_EMOJI}" \
+            -H "Content-Type: text/markdown" \
+            -H "X-Icon: https://raw.githubusercontent.com/will-diggle/Claude-Routines/claude/build-app-from-brief-wNEna/bilinguist-brief/assets/icon-navy.png" \
             --data-binary "${NTFY_BODY}" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 

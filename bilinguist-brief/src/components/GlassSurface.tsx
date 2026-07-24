@@ -54,11 +54,16 @@ const styles = StyleSheet.create({
   expoGoFallback: { backgroundColor: 'rgba(252, 251, 250, 0.90)' },
 });
 
-function BlurFallback({ style, children, fallbackColor }: { style?: object; children?: React.ReactNode; fallbackColor?: string }) {
+function BlurFallback({ style, children, fallbackColor, colorScheme }: { style?: object; children?: React.ReactNode; fallbackColor?: string; colorScheme?: 'auto' | 'light' | 'dark' }) {
+  const tint = colorScheme === 'dark'
+    ? 'systemUltraThinMaterialDark'
+    : colorScheme === 'light'
+    ? 'systemUltraThinMaterialLight'
+    : 'systemUltraThinMaterial';
   return (
     <BlurView
       intensity={80}
-      tint="systemUltraThinMaterial"
+      tint={tint as any}
       style={[StyleSheet.absoluteFillObject, style]}
     >
       {children}
@@ -79,12 +84,13 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme, corn
 
   if (glassAvailable && NativeGlassView) {
     const GlassView = NativeGlassView;
-    const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
+    const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor} colorScheme={colorScheme}>{children}</BlurFallback>;
     return (
       <GlassBoundary fallback={blurFallback}>
         <GlassView
           style={[StyleSheet.absoluteFillObject, flatStyle]}
           cornerRadius={cornerRadius}
+          colorScheme={colorScheme ?? 'auto'}
           {...(intensity !== undefined ? { intensity } : {})}
         >
           {children}
@@ -93,7 +99,7 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme, corn
     );
   }
 
-  return <BlurFallback style={flatStyle} fallbackColor={fallbackColor}>{children}</BlurFallback>;
+  return <BlurFallback style={flatStyle} fallbackColor={fallbackColor} colorScheme={colorScheme}>{children}</BlurFallback>;
 }
 
 // On iOS 26+, wraps children in the native GlassContainer so adjacent glass elements merge.

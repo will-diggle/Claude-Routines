@@ -21,8 +21,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 type PracticeNav = NativeStackNavigationProp<PracticeStackParamList, 'PracticeHome'>;
 
 const PILE_META: Array<{ key: Pile; label: string; icon: any; description: string; tint: string; iconColor: string }> = [
-  { key: 'new', label: 'New Words', icon: 'add-circle-outline', description: 'Just saved, never practised', tint: 'rgba(45,175,170,0.14)', iconColor: '#2DAFAA' },
-  { key: 'learning', label: 'Learning', icon: 'refresh-outline', description: 'Practised but not yet consistent', tint: 'rgba(210,145,40,0.14)', iconColor: '#D29128' },
+  { key: 'new', label: 'New Words', icon: 'add-circle-outline', description: 'Never practised', tint: 'rgba(45,175,170,0.14)', iconColor: '#2DAFAA' },
+  { key: 'learning', label: 'Learning', icon: 'refresh-outline', description: 'Not yet consistent', tint: 'rgba(210,145,40,0.14)', iconColor: '#D29128' },
   { key: 'mastered', label: 'Mastered', icon: 'checkmark-circle-outline', description: 'Consistently correct', tint: 'rgba(85,155,95,0.14)', iconColor: '#559B5F' },
   { key: 'revisit', label: 'Revisit', icon: 'time-outline', description: 'Due for a refresher', tint: 'rgba(200,95,95,0.14)', iconColor: '#C85F5F' },
 ];

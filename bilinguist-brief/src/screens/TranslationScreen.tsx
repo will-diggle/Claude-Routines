@@ -15,6 +15,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GlassButton } from '../components/GlassButton';
 import { GlassSurface } from '../components/GlassSurface';
 import { Spacing } from '../theme';
 import { useNavPillStore } from '../store/useNavPillStore';
@@ -223,9 +224,9 @@ export function TranslationScreen() {
               <Text style={[styles.settingsTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Game Settings
               </Text>
-              <SpringButton onPress={() => setSettingsVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <GlassButton onPress={() => setSettingsVisible(false)} size={36} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close" size={20} color={colors.inkFaint} />
-              </SpringButton>
+              </GlassButton>
             </View>
 
             {/* Direction */}

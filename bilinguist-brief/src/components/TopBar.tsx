@@ -8,14 +8,12 @@ import type { BackgroundKey } from '../theme';
 const LOGOMARK = require('../../assets/logomark.png');
 const LOGOTYPE = require('../../assets/logotype.png');
 
-// Per-theme masthead lockups — logomark + logotype composed in the right ink
-// for each background. Used in the compact header so Settings & Practice
-// always show the correct colour variant.
+// Compact header lockups (solid-background versions) for Settings & Practice.
 const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
-  cream:    require('../../assets/masthead-cream.png'),
-  softGrey: require('../../assets/masthead-navy.png'),
-  white:    require('../../assets/masthead-white.png'),
-  night:    require('../../assets/masthead-black.png'),
+  cream:    require('../../assets/masthead-compact-cream.png'),
+  softGrey: require('../../assets/masthead-compact-navy.png'),
+  white:    require('../../assets/masthead-compact-white.png'),
+  night:    require('../../assets/masthead-compact-black.png'),
 };
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -173,8 +171,8 @@ const styles = StyleSheet.create({
   // Fixed pixel width & height so the container is always the same size
   // regardless of the masthead image's intrinsic dimensions.
   compactLockup: {
-    width: SCREEN_WIDTH - 12,
-    height: 48,
+    width: SCREEN_WIDTH - 48,
+    height: Math.round((SCREEN_WIDTH - 48) / 6.21),
     marginVertical: 6,
   },
   compactRule: {

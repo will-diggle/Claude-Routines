@@ -31,10 +31,10 @@ import { scheduleStreakReminder } from '../services/notifications';
 import { useIsFocused } from '@react-navigation/native';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
-  cream:    require('../../assets/masthead-cream.png'),
-  softGrey: require('../../assets/masthead-navy.png'),
-  white:    require('../../assets/masthead-white.png'),
-  night:    require('../../assets/masthead-black.png'),
+  cream:    require('../../assets/masthead-compact-cream.png'),
+  softGrey: require('../../assets/masthead-compact-navy.png'),
+  white:    require('../../assets/masthead-compact-white.png'),
+  night:    require('../../assets/masthead-compact-black.png'),
 };
 
 const CRESTS: Record<string, ReturnType<typeof require>> = {
@@ -46,9 +46,9 @@ const CRESTS: Record<string, ReturnType<typeof require>> = {
 
 const SCREEN_WIDTH  = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const LOCKUP_PADDING = 4;
-const LOCKUP_W = SCREEN_WIDTH - LOCKUP_PADDING * 2;
-const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
+const LOCKUP_PADDING = 0;
+const LOCKUP_W = Math.round(SCREEN_WIDTH * 1.18); // oversize to fill whitespace in PNG
+const LOCKUP_H = Math.round(LOCKUP_W / 6.21); // 4012×646 source ratio
 
 // "Native" word in each language (for level chip labels like "B2 / Natif")
 const NATIVE_WORD: Record<string, string> = {
@@ -679,8 +679,8 @@ export function BriefingScreen() {
             >
               <View style={styles.lockupWrap}>
                 <Image
-                  key={background}
-                  source={MASTHEADS[background] ?? MASTHEADS.cream}
+                  key={`masthead-${background}`}
+                  source={MASTHEADS[background] ?? MASTHEADS.white}
                   style={styles.lockup}
                   resizeMode="contain"
                 />
@@ -1068,8 +1068,10 @@ const styles = StyleSheet.create({
   lockupWrap: {
     width: SCREEN_WIDTH,
     paddingHorizontal: LOCKUP_PADDING,
-    paddingTop: 4,
-    paddingBottom: 2,
+    paddingTop: 8,
+    paddingBottom: 4,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   lockup: {
     width: LOCKUP_W,
@@ -1100,7 +1102,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 8,
+    paddingTop: 6,
     paddingBottom: 8,
   },
   editionRight: {

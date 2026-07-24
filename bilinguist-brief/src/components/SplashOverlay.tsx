@@ -7,10 +7,10 @@ import type { BackgroundKey } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 
 const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
-  cream:    require('../../assets/masthead-cream.png'),
-  softGrey: require('../../assets/masthead-navy.png'),
-  white:    require('../../assets/masthead-white.png'),
-  night:    require('../../assets/masthead-black.png'),
+  cream:    require('../../assets/masthead-compact-cream.png'),
+  softGrey: require('../../assets/masthead-compact-navy.png'),
+  white:    require('../../assets/masthead-compact-white.png'),
+  night:    require('../../assets/masthead-compact-black.png'),
 };
 
 const PHRASE_POOL: Record<string, string[]> = {
@@ -36,8 +36,8 @@ function pickPhrases(langs: string[]): string[] {
 }
 
 const SW = Dimensions.get('window').width;
-const LOGO_W = SW * 0.88;
-const LOGO_H = Math.round(LOGO_W / 5.17);
+const LOGO_W = SW - 32;
+const LOGO_H = Math.round(LOGO_W / 6.21);
 
 const FADE_MS  = 160;
 const HOLD_MS  = 260;

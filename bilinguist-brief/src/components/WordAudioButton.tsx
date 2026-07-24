@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useTheme } from '../hooks/useTheme';
+import { GlassButton } from './GlassButton';
 import type { LanguageCode } from '../store/useSettingsStore';
 
 // Uses Google Translate's unofficial TTS endpoint — free for short words.
@@ -75,18 +76,7 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
   const btnSize  = size === 'sm' ? 26 : 34;
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      activeOpacity={0.7}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      style={[styles.btn, {
-        width: btnSize,
-        height: btnSize,
-        borderRadius: btnSize / 2,
-        backgroundColor: colors.card,
-        borderColor: colors.borderLight,
-      }]}
-    >
+    <GlassButton onPress={handlePress} size={btnSize} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
       {state === 'loading' ? (
         <ActivityIndicator size="small" color={colors.inkFaint} />
       ) : (
@@ -96,18 +86,6 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
           color={colors.inkMid}
         />
       )}
-    </TouchableOpacity>
+    </GlassButton>
   );
 }
-
-const styles = StyleSheet.create({
-  btn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-  },
-});

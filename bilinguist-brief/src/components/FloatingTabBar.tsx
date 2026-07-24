@@ -335,28 +335,30 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function animCloseRight() {
     setRightOpen(false);
+    setRightNavMounted(false); // unmount immediately — don't wait for animation
+    rightFullOp.setValue(0);   // mini nav shows instantly; no fade-while-compressing
     Animated.parallel([
-      Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start(() => setRightNavMounted(false));
+    ]).start();
   }
 
   function animCloseBoth() {
     setLeftOpen(false);
     setRightOpen(false);
+    setRightNavMounted(false); // unmount immediately
     leftContextOp.setValue(0);
+    rightFullOp.setValue(0);   // mini nav shows instantly
     Animated.parallel([
-      Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start(() => setRightNavMounted(false));
+    ]).start();
   }
 
   function animToLeftOpen(targetW: number) {
@@ -366,8 +368,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightFullOp.setValue(0);
     leftContextOp.setValue(0);
     iconScaleAnim.setValue(SCALE_SMALL);
-    rightWidthAnim.setValue(FLOAT_TAB_H_LARGE);
     rightHeightAnim.setValue(FLOAT_TAB_H_LARGE);
+    // Defer the right-width snap one microtask so React can flush the
+    // setRightNavMounted(false) re-render before the native width changes.
+    // Without this, setValue() reaches native before the full-nav unmount
+    // and the three icons appear compressed in the 68px circle for one frame.
+    Promise.resolve().then(() => rightWidthAnim.setValue(FLOAT_TAB_H_LARGE));
     const targetH = FLOAT_TAB_H_LARGE;
     Animated.parallel([
       Animated.timing(leftHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),

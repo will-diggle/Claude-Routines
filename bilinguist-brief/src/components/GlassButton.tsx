@@ -11,6 +11,7 @@ interface Props {
   style?: ViewStyle;
   hitSlop?: { top: number; bottom: number; left: number; right: number };
   cornerRadius?: number;
+  disabled?: boolean;
 }
 
 export function GlassButton({
@@ -20,6 +21,7 @@ export function GlassButton({
   style,
   hitSlop = { top: 8, bottom: 8, left: 8, right: 8 },
   cornerRadius,
+  disabled = false,
 }: Props) {
   const { isDark } = useTheme();
   const radius = cornerRadius ?? size / 2;
@@ -58,9 +60,9 @@ export function GlassButton({
 
   return (
     <Pressable
-      onPressIn={pressIn}
-      onPressOut={pressOut}
-      onPress={handlePress}
+      onPressIn={disabled ? undefined : pressIn}
+      onPressOut={disabled ? undefined : pressOut}
+      onPress={disabled ? undefined : handlePress}
       hitSlop={hitSlop}
     >
       <Animated.View
@@ -70,6 +72,7 @@ export function GlassButton({
             height: size,
             borderRadius: radius,
             overflow: 'hidden',
+            opacity: disabled ? 0.35 : 1,
           },
           style,
           { transform: [{ scale }] },

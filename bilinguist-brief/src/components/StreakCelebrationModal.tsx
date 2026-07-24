@@ -3,7 +3,6 @@ import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Easing,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Accelerometer } from 'expo-sensors';
 import { GlassSurface, glassAvailable } from './GlassSurface';
 import { useTheme } from '../hooks/useTheme';
 import { Colors } from '../theme';
@@ -41,7 +40,19 @@ interface Props {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// ── Rim pieces (settle on card top edge) ─────────────────────────────────────
+const LANG_FLAG_EMOJI: Record<string, string> = {
+  fr: '🇫🇷', de: '🇩🇪', es: '🇪🇸', it: '🇮🇹',
+  sv: '🇸🇪', tr: '🇹🇷', hu: '🇭🇺', ar: '🇸🇦', en: '🇬🇧',
+};
+
+// ── Sin/cos keyframe tables for feather interpolation ─────────────────────────
+const KF_N       = 60;
+const KF_IN      = Array.from({ length: KF_N + 1 }, (_, i) => i / KF_N);
+const KF_SIN     = KF_IN.map(t => Math.sin(t * Math.PI * 2));
+const KF_COS_ABS = KF_IN.map(t => Math.abs(Math.cos(t * Math.PI * 2)));  // 1→0→1, no negative
+const KF_COS_RAW = KF_IN.map(t => Math.cos(t * Math.PI * 2));            // derivative for tilt
+
+// ── Rim pieces ────────────────────────────────────────────────────────────────
 
 const RIM_COUNT = 36;
 
@@ -59,9 +70,9 @@ function makeRimBaseConfig() {
   }));
 }
 
-// ── Cannon burst pieces (shoot from bottom corners) ───────────────────────────
+// ── Cannon burst pieces (original, no changes) ────────────────────────────────
 
-const CANNON_COUNT = 500;
+const CANNON_COUNT = 200;
 
 interface CannonPiece {
   animX:       Animated.Value;
@@ -71,6 +82,7 @@ interface CannonPiece {
   colorIdx:    number;
   size:        number;
   angle:       number;
+  shape:       PieceShape;
   driftFactor: number;
 }
 
@@ -79,13 +91,14 @@ function makeCannonPieces(): CannonPiece[] {
     const fromLeft = i < CANNON_COUNT / 2;
     const startX   = fromLeft ? 30 + Math.random() * 40 : SCREEN_WIDTH - 30 - Math.random() * 40;
     return {
-      animX:    new Animated.Value(startX),
-      animY:    new Animated.Value(SCREEN_HEIGHT - 80),
-      opacity:  new Animated.Value(0),
+      animX:       new Animated.Value(startX),
+      animY:       new Animated.Value(SCREEN_HEIGHT - 80),
+      opacity:     new Animated.Value(0),
       startX,
       colorIdx:    Math.floor(Math.random() * 5),
       size:        7 + Math.floor(Math.random() * 8),
       angle:       Math.floor(Math.random() * 360),
+      shape:       SHAPES[Math.floor(Math.random() * SHAPES.length)],
       driftFactor: 0.3 + Math.random() * 0.8,
     };
   });
@@ -93,10 +106,11 @@ function makeCannonPieces(): CannonPiece[] {
 
 // ── Continuous fall pieces ────────────────────────────────────────────────────
 
-const FALL_COUNT = 60;
+const FALL_COUNT = 120;
 
-type PieceShape = 'rect' | 'square' | 'circle';
-const SHAPES: PieceShape[] = ['rect', 'rect', 'rect', 'square', 'square', 'circle'];
+// Shared shape vocabulary — used by both cannon burst AND falling rain
+type PieceShape = 'pill' | 'square' | 'circle' | 'star' | 'flag';
+const SHAPES: PieceShape[] = ['pill', 'square', 'circle', 'star', 'star', 'star', 'star', 'flag', 'flag'];
 
 interface FallPiece {
   animY:       Animated.Value;
@@ -107,7 +121,17 @@ interface FallPiece {
   duration:    number;
   colorIdx:    number;
   shape:       PieceShape;
-  driftFactor: number; // each piece responds to tilt at a slightly different rate
+  driftFactor: number;
+  skew:        number;          // static bend angle (degrees) — simulates paper curving in wind
+  // feather physics animated values
+  swayAnim:    Animated.Value;  // 0→1 loops → sinusoidal translateX
+  flipAnim:    Animated.Value;  // 0→1 loops → scaleX (face-on/edge-on flutter)
+  twirlAnim:   Animated.Value;  // 0→1 per twirl burst (~15% of pieces)
+  swayAmp:     number;
+  swayPeriod:  number;
+  flipPeriod:  number;
+  tiltMax:     number;
+  isLooper:    boolean;
 }
 
 function makeFallPieces(): FallPiece[] {
@@ -119,41 +143,74 @@ function makeFallPieces(): FallPiece[] {
       animY:       new Animated.Value(initY),
       initY,
       x,
-      size:        6 + Math.floor(Math.random() * 9),
+      size:        7 + Math.floor(Math.random() * 9),
       angle:       -40 + Math.floor(Math.random() * 80),
       duration:    7000 + Math.floor(Math.random() * 7000),
       colorIdx:    Math.floor(Math.random() * 5),
       shape:       SHAPES[Math.floor(Math.random() * SHAPES.length)],
-      driftFactor: 0.5 + Math.random() * 1.0, // 0.5–1.5×
+      driftFactor: 0.5 + Math.random() * 1.0,
+      skew:        -18 + Math.random() * 36,   // –18° to +18°
+      swayAnim:    new Animated.Value(0),
+      flipAnim:    new Animated.Value(0),
+      twirlAnim:   new Animated.Value(0),
+      swayAmp:     22 + Math.random() * 28,
+      swayPeriod:  3500 + Math.random() * 3500,
+      flipPeriod:  2000 + Math.random() * 2500,
+      tiltMax:     0.35 + Math.random() * 0.30,
+      isLooper:    Math.random() < 0.15,
     };
   });
 }
 
-function FallPieceShape({ size, shape, color }: { size: number; shape: PieceShape; color: string }) {
+// Proper 5-pointed star via Unicode ★ character
+function StarShape({ size, color }: { size: number; color: string }) {
+  const fontSize = Math.max(10, Math.round(size * 1.2));
+  return (
+    <Text style={{ fontSize, color, lineHeight: fontSize, includeFontPadding: false }}>★</Text>
+  );
+}
+
+// Flag emoji — iOS renders these as proper country flag graphics
+function FlagShape({ emoji }: { emoji: string }) {
+  return (
+    <Text style={{ fontSize: 18, lineHeight: 20 }}>{emoji}</Text>
+  );
+}
+
+function FallPieceShape({ size, shape, color, flagEmoji }: { size: number; shape: PieceShape; color: string; flagEmoji?: string }) {
+  if (shape === 'flag') {
+    return <FlagShape emoji={flagEmoji ?? '🏳️'} />;
+  }
+  if (shape === 'star') {
+    return <StarShape size={size} color={color} />;
+  }
   if (shape === 'circle') {
-    const d = Math.max(4, Math.round(size * 0.6));
+    const d = Math.max(5, Math.round(size * 0.65));
     return <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: color }} />;
   }
   if (shape === 'square') {
-    const s = Math.max(4, Math.round(size * 0.7));
-    return <View style={{ width: s, height: s, backgroundColor: color, borderRadius: 1 }} />;
+    const s = Math.max(5, Math.round(size * 0.8));
+    return <View style={{ width: s, height: s, borderRadius: Math.round(s * 0.28), backgroundColor: color }} />;
   }
-  return (
-    <View style={{
-      width:           Math.max(6, size + 2),
-      height:          Math.max(3, Math.round(size * 0.45)),
-      backgroundColor: color,
-      borderRadius:    1,
-    }} />
-  );
+  // pill — fully rounded ends
+  const h = Math.max(4, Math.round(size * 0.50));
+  const w = Math.max(8, size + 3);
+  return <View style={{ width: w, height: h, borderRadius: h / 2, backgroundColor: color }} />;
 }
 
 export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
   const { colors, fontFamily } = useTheme();
 
-  const scaleAnim     = useRef(new Animated.Value(0.7)).current;
-  // Single tilt value shared by all falling pieces — springs toward accelerometer x
-  const tiltAnim      = useRef(new Animated.Value(0)).current;
+  const scaleAnim      = useRef(new Animated.Value(0.7)).current;
+  const tiltAnim       = useRef(new Animated.Value(0)).current;
+  const skyRotateAnim  = useRef(new Animated.Value(0)).current;
+  // Pre-computed once — maps radian angle to deg string for native driver
+  const skyRotateStr   = useRef(
+    skyRotateAnim.interpolate({
+      inputRange:  [-Math.PI, 0, Math.PI],
+      outputRange: ['-180deg', '0deg', '180deg'],
+    })
+  ).current;
 
   const rimBaseConfig = useRef(makeRimBaseConfig()).current;
   const rimAnims      = useRef(
@@ -164,11 +221,46 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
     }))
   ).current;
 
-  const cannonPieces   = useRef(makeCannonPieces()).current;
-  const cannonDriftXs  = useRef(
-    cannonPieces.map(p => Animated.add(p.animX, Animated.multiply(tiltAnim, new Animated.Value(p.driftFactor))))
+  const cannonPieces  = useRef(makeCannonPieces()).current;
+  const fallPieces    = useRef(makeFallPieces()).current;
+
+  // Cannon gyro drift — pre-computed, stable across renders
+  const cannonDriftXs = useRef(
+    cannonPieces.map(p =>
+      Animated.add(p.animX, Animated.multiply(tiltAnim, new Animated.Value(p.driftFactor)))
+    )
   ).current;
-  const fallPieces     = useRef(makeFallPieces()).current;
+
+  // Fall piece physics: combined (drift + sway) translateX plus flip scaleX and tilt rotate
+  // All pre-computed once so JSX never allocates new animated nodes per render.
+  const fallTransforms = useRef(
+    fallPieces.map(p => {
+      const swayX = p.swayAnim.interpolate({
+        inputRange:  KF_IN,
+        outputRange: KF_SIN.map(v => v * p.swayAmp),
+      });
+      const totalX = Animated.add(
+        Animated.multiply(tiltAnim, new Animated.Value(p.driftFactor)),
+        swayX,
+      );
+      const scaleX = p.flipAnim.interpolate({
+        inputRange:  KF_IN,
+        outputRange: KF_COS_ABS,
+      });
+      const tiltRotate = p.swayAnim.interpolate({
+        inputRange:  KF_IN,
+        outputRange: KF_COS_RAW.map(v => `${v * p.tiltMax}rad`),
+      });
+      const twirlRotate = p.twirlAnim.interpolate({
+        inputRange:  [0, 1],
+        outputRange: ['0deg', '360deg'],
+      });
+      return { totalX, scaleX, tiltRotate, twirlRotate };
+    })
+  ).current;
+
+  // Mutable ref for cleanup — stores all active timers for the feather animations
+  const featherTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const [cardTopY, setCardTopY] = useState<number | null>(null);
 
@@ -176,25 +268,38 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   useEffect(() => {
     if (!visible) return;
 
-    Accelerometer.setUpdateInterval(50); // 20fps is plenty
-    const sub = Accelerometer.addListener(({ x }) => {
-      // On iOS, tilting left raises +x, tilting right raises -x.
-      // We negate so positive tilt → pieces drift right (intuitive gravity).
-      Animated.spring(tiltAnim, {
-        toValue:         -x * 130, // ±130px max horizontal drift
-        useNativeDriver: true,
-        tension:         12,
-        friction:        7,
-      }).start();
-    });
+    let sub: { remove: () => void } | undefined;
+    try {
+      const { Accelerometer } = require('expo-sensors');
+      Accelerometer.setUpdateInterval(33);
+      sub = Accelerometer.addListener(({ x, y }: { x: number; y: number }) => {
+        // Lateral drift on individual pieces — wider range than before
+        Animated.spring(tiltAnim, {
+          toValue: x * 520, useNativeDriver: true, tension: 20, friction: 6,
+        }).start();
+        // Sky rotation: counter-rotate the rain layer so confetti always falls
+        // from real-world "up" regardless of phone orientation.
+        // atan2(x, -y) = 0 when upright, +π/2 when rotated 90° clockwise.
+        const phoneAngle = Math.atan2(x, -y);
+        Animated.spring(skyRotateAnim, {
+          toValue: -phoneAngle,
+          useNativeDriver: true,
+          tension: 12,   // lazy spring — pieces take a moment to "settle" with gravity
+          friction: 7,
+        }).start();
+      });
+    } catch {
+      // expo-sensors unavailable in Expo Go
+    }
 
     return () => {
-      sub.remove();
+      sub?.remove();
       tiltAnim.setValue(0);
+      skyRotateAnim.setValue(0);
     };
   }, [visible]);
 
-  // ── Cannon burst on open ──────────────────────────────────────────────────
+  // ── Cannon burst + feather rain ───────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
 
@@ -203,7 +308,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
       toValue: 1, tension: 200, friction: 6, useNativeDriver: true,
     }).start();
 
-    // Reset all pieces first, then start all animations together so they fire simultaneously
+    // Cannon burst — unchanged from original
     cannonPieces.forEach((piece) => {
       piece.animX.setValue(piece.startX);
       piece.animY.setValue(SCREEN_HEIGHT - 80);
@@ -216,16 +321,14 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         ? piece.startX + 60  + Math.random() * (SCREEN_WIDTH * 0.85)
         : piece.startX - 60  - Math.random() * (SCREEN_WIDTH * 0.85);
       const targetY  = 20 + Math.random() * (SCREEN_HEIGHT * 0.65);
-      const burstDur = 700 + Math.random() * 700;
-      const fallDur  = 1000 + Math.random() * 1200;
+      const burstDur = 500 + Math.random() * 400;
+      const fallDur  = 800 + Math.random() * 800;
 
       Animated.parallel([
-        // Horizontal burst only — tilt drift is layered on top in JSX
         Animated.timing(piece.animX, {
           toValue: targetX, duration: burstDur,
           easing: Easing.out(Easing.quad), useNativeDriver: true,
         }),
-        // Arc up to peak, then fall under gravity
         Animated.sequence([
           Animated.timing(piece.animY, {
             toValue: targetY, duration: burstDur,
@@ -233,41 +336,98 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
           }),
           Animated.timing(piece.animY, {
             toValue: SCREEN_HEIGHT + 120, duration: fallDur,
-            easing: Easing.in(Easing.quad), useNativeDriver: true,
+            easing: Easing.in(Easing.cubic), useNativeDriver: true,
           }),
         ]),
-        // Fade only in the last 20% of the fall
         Animated.sequence([
           Animated.delay(burstDur + fallDur * 0.8),
           Animated.timing(piece.opacity, {
-            toValue: 0, duration: fallDur * 0.2,
-            useNativeDriver: true,
+            toValue: 0, duration: fallDur * 0.2, useNativeDriver: true,
           }),
         ]),
       ]).start();
     });
 
-    // Start continuous rain
+    // Feather rain ─────────────────────────────────────────────────────────
+    // Phase offset via setTimeout (not Animated.sequence) so native-driver
+    // loops start cleanly without a JS-thread handoff.
     const BOTTOM = SCREEN_HEIGHT + 80;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
     fallPieces.forEach((piece) => {
       piece.animY.setValue(piece.initY);
+      piece.swayAnim.setValue(0);
+      piece.flipAnim.setValue(0);
+      piece.twirlAnim.setValue(0);
+
+      // Vertical fall — immediate loop, no phase offset needed
       Animated.loop(
         Animated.timing(piece.animY, {
-          toValue:         BOTTOM,
-          duration:        piece.duration,
-          easing:          Easing.linear,
-          useNativeDriver: true,
+          toValue: BOTTOM, duration: piece.duration,
+          easing: Easing.linear, useNativeDriver: true,
         })
       ).start();
+
+      // Sway — random startup delay spread across half a period
+      const swayDelay = Math.random() * (piece.swayPeriod / 2);
+      const t1 = setTimeout(() => {
+        Animated.loop(
+          Animated.timing(piece.swayAnim, {
+            toValue: 1, duration: piece.swayPeriod,
+            easing: Easing.linear, useNativeDriver: true,
+          })
+        ).start();
+      }, swayDelay);
+      timers.push(t1);
+
+      // 3D flutter — independent random delay
+      const flipDelay = Math.random() * (piece.flipPeriod / 2);
+      const t2 = setTimeout(() => {
+        Animated.loop(
+          Animated.timing(piece.flipAnim, {
+            toValue: 1, duration: piece.flipPeriod,
+            easing: Easing.linear, useNativeDriver: true,
+          })
+        ).start();
+      }, flipDelay);
+      timers.push(t2);
+
+      // 360° twirl for ~15% of pieces — recursive setTimeout so each twirl
+      // fires after a fresh random cooldown (avoids Animated.sequence + loop)
+      if (piece.isLooper) {
+        const scheduleTwirl = () => {
+          const cooldown = 2000 + Math.random() * 5000;
+          const t3 = setTimeout(() => {
+            piece.twirlAnim.setValue(0);
+            Animated.timing(piece.twirlAnim, {
+              toValue: 1, duration: 700,
+              easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+            }).start(({ finished }) => {
+              if (finished) scheduleTwirl();
+            });
+          }, cooldown);
+          timers.push(t3);
+        };
+        scheduleTwirl();
+      }
     });
 
+    featherTimers.current = timers;
+
     return () => {
-      cannonPieces.forEach((p) => { p.animX.stopAnimation(); p.animY.stopAnimation(); });
-      fallPieces.forEach((p) => p.animY.stopAnimation());
+      featherTimers.current.forEach(clearTimeout);
+      featherTimers.current = [];
+      cannonPieces.forEach((p) => { p.animX.stopAnimation(); p.animY.stopAnimation(); p.opacity.stopAnimation(); });
+      fallPieces.forEach((p) => {
+        p.animY.stopAnimation();
+        p.swayAnim.stopAnimation();
+        p.flipAnim.stopAnimation();
+        p.twirlAnim.stopAnimation();
+      });
     };
   }, [visible]);
 
-  // ── Rim pieces settle on card's top edge ──────────────────────────────────
+  // ── Rim pieces ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible || cardTopY === null) return;
     rimAnims.forEach((a) => {
@@ -300,6 +460,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const copy           = STREAK_COPY[langCode] ?? 'Your streak is on fire';
   const headline       = `${displayCount} day streak!`;
   const confettiColors = FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS;
+  const flagEmoji      = LANG_FLAG_EMOJI[langCode] ?? '🏳️';
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
@@ -337,6 +498,7 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
                 style={{
                   width: cfg.w, height: cfg.h,
                   backgroundColor: confettiColors[cfg.colorIndex % confettiColors.length],
+                  borderRadius: Math.ceil(cfg.h / 2),
                   opacity: rimAnims[i].opacity,
                   transform: [{ translateY: rimAnims[i].y }, { rotate: pieceRotate }],
                 }}
@@ -346,17 +508,13 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
         })}
       </View>
 
-      {/* Cannon burst pieces */}
+      {/* Cannon burst — same shapes as the falling rain */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {cannonPieces.map((piece, i) => (
           <Animated.View
             key={i}
             style={{
               position: 'absolute',
-              width:    piece.size,
-              height:   piece.size * 0.5,
-              backgroundColor: confettiColors[piece.colorIdx % confettiColors.length],
-              borderRadius: 2,
               opacity:  piece.opacity,
               transform: [
                 { translateX: cannonDriftXs[i] },
@@ -364,38 +522,50 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
                 { rotate: `${piece.angle}deg` },
               ],
             }}
-          />
+          >
+            <FallPieceShape
+              size={piece.size}
+              shape={piece.shape}
+              color={confettiColors[piece.colorIdx % confettiColors.length]}
+              flagEmoji={flagEmoji}
+            />
+          </Animated.View>
         ))}
       </View>
 
-      {/* Continuous fall — gyroscope-aware */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {/* Continuous fall — feather physics, sky-rotation layer tracks real-world up */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { transform: [{ rotate: skyRotateStr }] }]}>
         {fallPieces.map((piece, i) => {
-          // Each piece drifts at its own rate so they spread apart naturally
-          const driftX = Animated.multiply(tiltAnim, new Animated.Value(piece.driftFactor));
+          const ft = fallTransforms[i];
           return (
             <Animated.View
               key={i}
               style={{
                 position: 'absolute',
-                left:     piece.x,
+                left: piece.x,
                 transform: [
                   { translateY: piece.animY },
-                  { translateX: driftX },
+                  { translateX: ft.totalX },
+                  { scaleX: ft.scaleX },
+                  { rotate: `${piece.angle}deg` },
+                  { rotate: ft.tiltRotate },
+                  { rotate: ft.twirlRotate },
                 ],
               }}
             >
-              <View style={{ transform: [{ rotate: `${piece.angle}deg` }] }}>
+              {/* Static skewX gives each piece a unique paper-bend — no animation cost */}
+              <View style={{ transform: [{ skewX: `${piece.skew}deg` }] }}>
                 <FallPieceShape
                   size={piece.size}
                   shape={piece.shape}
                   color={confettiColors[piece.colorIdx % confettiColors.length]}
+                  flagEmoji={flagEmoji}
                 />
               </View>
             </Animated.View>
           );
         })}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
