@@ -147,7 +147,13 @@ function cloudBarColor(v: number): string {
   return `rgba(${lum},${lum},${lum},${0.55 + (v / 100) * 0.45})`;
 }
 
-// Top-left overlay showing current value + high/low
+// Top-left overlay — floating text, no background box
+const TEXT_SHADOW = {
+  textShadowColor: 'rgba(0,0,0,0.55)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 4,
+} as const;
+
 function DataBadge({ values, layer }: { values: number[]; layer: StaticLayer }) {
   if (!values.length) return null;
   const currentHour = new Date().getHours();
@@ -158,21 +164,37 @@ function DataBadge({ values, layer }: { values: number[]; layer: StaticLayer }) 
   const fmt = (v: number) => layer === 'temperature' ? `${v}°` : layer === 'wind' ? `${v}` : `${v}%`;
   return (
     <View style={dbStyles.badge}>
-      <Text style={dbStyles.big}>{fmt(current)}<Text style={dbStyles.unit}> {unit}</Text></Text>
+      <Text style={[dbStyles.big, TEXT_SHADOW]}>{fmt(current)}<Text style={[dbStyles.unit, TEXT_SHADOW]}> {unit}</Text></Text>
       <View style={dbStyles.hiloCol}>
-        <Text style={dbStyles.hilo}>↑ {fmt(hi)}</Text>
-        <Text style={dbStyles.hilo}>↓ {fmt(lo)}</Text>
+        <Text style={[dbStyles.hilo, TEXT_SHADOW]}>↑ {fmt(hi)}</Text>
+        <Text style={[dbStyles.hilo, TEXT_SHADOW]}>↓ {fmt(lo)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function PrecipBadge({ precipProbs }: { precipProbs: number[] }) {
+  if (!precipProbs.length) return null;
+  const currentHour = new Date().getHours();
+  const current = precipProbs[Math.min(currentHour, precipProbs.length - 1)] ?? 0;
+  const todayMax = Math.max(...precipProbs);
+  return (
+    <View style={dbStyles.badge}>
+      <Text style={[dbStyles.big, TEXT_SHADOW]}>{current}<Text style={[dbStyles.unit, TEXT_SHADOW]}>%</Text></Text>
+      <View style={dbStyles.hiloCol}>
+        <Text style={[dbStyles.hilo, TEXT_SHADOW]}>today</Text>
+        <Text style={[dbStyles.hilo, TEXT_SHADOW]}>↑ {todayMax}%</Text>
       </View>
     </View>
   );
 }
 
 const dbStyles = StyleSheet.create({
-  badge:   { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, paddingHorizontal: 13, paddingVertical: 9, zIndex: 10 },
+  badge:   { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 10 },
   big:     { fontSize: 26, fontWeight: '700', color: '#fff', lineHeight: 30 },
-  unit:    { fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,0.7)' },
+  unit:    { fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,0.9)' },
   hiloCol: { flexDirection: 'column', gap: 1 },
-  hilo:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.88)' },
+  hilo:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.95)' },
 });
 
 function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }) {
@@ -426,21 +448,25 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
     setIsPlaying(layer === 'precipitation');
   }, []);
 
+  const [wordModal, setWordModal] = useState<{ word: string } | null>(null);
+
   const showScrubber  = activeLayer === 'precipitation' && frames.length > 0;
   const hourlyValues  = activeLayer === 'temperature' ? (weather.hourlyTemps ?? [])
                       : activeLayer === 'wind'        ? (weather.hourlyWinds ?? [])
                       : activeLayer === 'clouds'      ? (weather.hourlyClouds ?? [])
                       : [];
-  const showHourly = activeLayer !== 'precipitation' && hourlyValues.length > 0;
+  const showHourly       = activeLayer !== 'precipitation' && hourlyValues.length > 0;
+  const precipProbs      = weather.hourlyPrecipProb ?? [];
+  const showPrecipBadge  = activeLayer === 'precipitation' && precipProbs.length > 0;
 
-  // Shared glass card border/shadow — mirrors streak modal
+  // Shadow + border on OUTER wrapper (no overflow:hidden — that clips shadows on iOS)
   const cardStyle = {
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.85)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.20,
-    shadowRadius: 40,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
     elevation: 20,
   } as const;
 
@@ -466,74 +492,61 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
           <Animated.View style={[styles.modalInner, { transform: [{ scale: scaleAnim }] }]}>
             <TouchableOpacity activeOpacity={1} onPress={() => {}}>
 
-              {/* Phrase card — thin */}
-              <View style={[styles.phraseCard, cardStyle, { backgroundColor: glassAvailable ? 'transparent' : colors.surface }]}>
+              {/* Phrase card — shadow on outer, no overflow:hidden so shadow shows */}
+              <View style={[styles.phraseOuter, cardStyle, { backgroundColor: glassAvailable ? 'transparent' : colors.bg }]}>
                 {glassAvailable && <GlassSurface cornerRadius={26} />}
-                <Text
-                  style={[styles.phraseText, { color: colors.inkDark, fontFamily: fontFamily.italic }]}
-                  numberOfLines={2}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                >
-                  {phrase}
-                </Text>
+                <View style={styles.phraseWords}>
+                  {phrase.split(' ').map((word, i) => (
+                    <TouchableOpacity key={i} activeOpacity={0.6}
+                      onPress={() => setWordModal({ word: word.replace(/[.,!?;:«»"]/g, '') })}>
+                      <Text style={[styles.phraseText, { color: colors.inkDark, fontFamily: fontFamily.italic }]}>{word} </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <View style={{ height: 10 }} />
 
-              {/* Map card — large */}
-              {/*
-                The WebView is rendered first (fills card via absoluteFill).
-                LayerToggle + Scrubber are rendered AFTER it in the tree so they
-                sit on top in z-order and receive touches before the WebView.
-              */}
-              <View style={[styles.mapCard, cardStyle, { backgroundColor: glassAvailable ? 'transparent' : colors.card, height: MAP_H }]}>
-                {glassAvailable && <GlassSurface cornerRadius={26} />}
+              {/* Map card outer — has shadow (no overflow:hidden) */}
+              <View style={[styles.mapOuter, cardStyle, { height: MAP_H }]}>
+                {/* Inner clip — overflow:hidden clips WebView to border radius */}
+                <View style={[StyleSheet.absoluteFill, styles.mapClip, { backgroundColor: glassAvailable ? 'transparent' : colors.card }]}>
+                  {glassAvailable && <GlassSurface cornerRadius={26} />}
+                  <WebView
+                    ref={webViewRef}
+                    source={{ html: mapHtml, baseUrl: 'https://bilinguist.app' }}
+                    style={StyleSheet.absoluteFill}
+                    scrollEnabled={false}
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    originWhitelist={['*']}
+                    onMessage={e => {
+                      try {
+                        const msg = JSON.parse(e.nativeEvent.data);
+                        if (msg.type === 'ready') setMapReady(true);
+                      } catch {}
+                    }}
+                  />
+                </View>
 
-                <WebView
-                  ref={webViewRef}
-                  source={{ html: mapHtml, baseUrl: 'https://bilinguist.app' }}
-                  style={[StyleSheet.absoluteFill, { borderRadius: 26 }]}
-                  scrollEnabled={false}
-                  bounces={false}
-                  showsVerticalScrollIndicator={false}
-                  showsHorizontalScrollIndicator={false}
-                  originWhitelist={['*']}
-                  onMessage={e => {
-                    try {
-                      const msg = JSON.parse(e.nativeEvent.data);
-                      if (msg.type === 'ready') setMapReady(true);
-                    } catch {}
-                  }}
-                />
+                {/* Top-left data badge — sits on top of mapClip */}
+                {showHourly && <DataBadge values={hourlyValues} layer={activeLayer as StaticLayer} />}
+                {showPrecipBadge && <PrecipBadge precipProbs={precipProbs} />}
 
-                {/* Top-left data badge for temperature / wind / clouds */}
-                {showHourly && (
-                  <DataBadge values={hourlyValues} layer={activeLayer as StaticLayer} />
-                )}
+                {/* Layer toggle */}
+                <LayerToggle activeLayer={activeLayer} hasOwmKey={hasOwmKey} labels={labels} onSelect={handleLayerSelect} />
 
-                {/* Layer toggle — rendered after WebView → on top */}
-                <LayerToggle
-                  activeLayer={activeLayer}
-                  hasOwmKey={hasOwmKey}
-                  labels={labels}
-                  onSelect={handleLayerSelect}
-                />
-
-                {/* Precipitation scrubber — rendered after WebView → receives gestures */}
+                {/* Precipitation scrubber */}
                 {showScrubber && (
                   <View style={styles.scrubberOverlay}>
-                    <Scrubber
-                      frames={frames}
-                      frameIdx={frameIdx}
-                      isPlaying={isPlaying}
+                    <Scrubber frames={frames} frameIdx={frameIdx} isPlaying={isPlaying}
                       onScrub={idx => { setIsPlaying(false); setFrameIdx(idx); }}
-                      onTogglePlay={() => setIsPlaying(p => !p)}
-                    />
+                      onTogglePlay={() => setIsPlaying(p => !p)} />
                   </View>
                 )}
 
-                {/* Hourly data graph for temperature / wind / clouds */}
+                {/* Hourly graph for temperature / wind / clouds */}
                 {showHourly && (
                   <View style={styles.scrubberOverlay}>
                     <HourlyGraph values={hourlyValues} layer={activeLayer as StaticLayer} />
@@ -546,6 +559,17 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
         </TouchableOpacity>
         <SafeAreaView />
       </Modal>
+      {/* Word definition mini-modal */}
+      {wordModal && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setWordModal(null)}>
+          <TouchableOpacity style={styles.wordBackdrop} activeOpacity={1} onPress={() => setWordModal(null)}>
+            <View style={[styles.wordSheet, { backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 12 }]}>
+              <Text style={[styles.wordHeadline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{wordModal.word}</Text>
+              <Text style={[styles.wordHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>Tap a word in the phrase to look it up</Text>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </>
   );
 }
@@ -561,9 +585,20 @@ const styles = StyleSheet.create({
   backdrop:   { flex: 1, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
   modalInner: { width: '100%' },
 
-  phraseCard: { borderRadius: CARD_RADIUS, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  phraseText: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  // Phrase card — NO overflow:hidden so shadow renders; content doesn't overflow the radius anyway
+  phraseOuter: { borderRadius: CARD_RADIUS, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  phraseWords: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
+  phraseText:  { fontSize: 15, lineHeight: 24 },
 
-  mapCard:        { borderRadius: CARD_RADIUS, overflow: 'hidden' },
-  scrubberOverlay:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.36)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
+  // Map card outer — NO overflow:hidden so shadow renders
+  mapOuter: { borderRadius: CARD_RADIUS },
+  // Map card inner — overflow:hidden clips WebView to border radius
+  mapClip:  { borderRadius: CARD_RADIUS, overflow: 'hidden' },
+
+  scrubberOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.36)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
+
+  wordBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end', paddingHorizontal: 20, paddingBottom: 40 },
+  wordSheet:    { borderRadius: 20, paddingVertical: 24, paddingHorizontal: 20 },
+  wordHeadline: { fontSize: 22, marginBottom: 6 },
+  wordHint:     { fontSize: 13 },
 });
