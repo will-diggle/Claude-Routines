@@ -12,6 +12,10 @@ export interface WeatherData {
   code: number;
   latitude: number;
   longitude: number;
+  // Hourly forecast for today (index = hour 0-23 local time)
+  hourlyTemps?: number[];
+  hourlyWinds?: number[];
+  hourlyClouds?: number[];
 }
 
 export interface RainviewerFrame {
@@ -229,6 +233,8 @@ export async function fetchWeather(
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${latitude}&longitude=${longitude}` +
       `&current=temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m,uv_index` +
+      `&hourly=temperature_2m,wind_speed_10m,cloudcover` +
+      `&forecast_days=1&timezone=auto` +
       `&temperature_unit=celsius&wind_speed_unit=kmh`;
 
     const res = await fetch(url);
@@ -245,7 +251,12 @@ export async function fetchWeather(
     const windKph      = Math.round(data.current?.wind_speed_10m ?? 0);
     const uvIndex      = Math.round(data.current?.uv_index ?? 0);
 
-    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex, code, latitude, longitude };
+    const hourlyRaw   = data.hourly ?? {};
+    const hourlyTemps = ((hourlyRaw.temperature_2m as number[]) ?? []).slice(0, 24).map(Math.round);
+    const hourlyWinds = ((hourlyRaw.wind_speed_10m as number[]) ?? []).slice(0, 24).map(Math.round);
+    const hourlyClouds = ((hourlyRaw.cloudcover as number[]) ?? []).slice(0, 24).map(Math.round);
+
+    return { temp, description, city, greeting, feelsLike, humidity, windKph, uvIndex, code, latitude, longitude, hourlyTemps, hourlyWinds, hourlyClouds };
   } catch {
     return null;
   }

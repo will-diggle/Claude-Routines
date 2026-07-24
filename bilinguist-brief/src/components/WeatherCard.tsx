@@ -124,6 +124,95 @@ function formatHour(unixSec: number): string {
   return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 }
 
+// ── Hourly graph (temperature / wind / clouds) ────────────────────────────────
+
+type StaticLayer = 'temperature' | 'wind' | 'clouds';
+
+function tempBarColor(v: number): string {
+  if (v < 0)   return '#818CF8';
+  if (v < 10)  return '#60A5FA';
+  if (v < 18)  return '#34D399';
+  if (v < 28)  return '#FBBF24';
+  return '#EF4444';
+}
+function windBarColor(v: number): string {
+  const t = Math.min(v / 60, 1);
+  const r = Math.round(255 - t * 196);
+  const g = Math.round(255 - t * 125);
+  const b = Math.round(255 - t * 9);
+  return `rgb(${r},${g},${b})`;
+}
+function cloudBarColor(v: number): string {
+  const lum = Math.round(200 - (v / 100) * 140);
+  return `rgba(${lum},${lum},${lum},${0.55 + (v / 100) * 0.45})`;
+}
+
+function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }) {
+  if (!values.length) return null;
+  const currentHour = new Date().getHours();
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const BAR_H = 36;
+
+  function barH(v: number) { return Math.max(3, Math.round(((v - min) / range) * BAR_H)); }
+  function barColor(v: number) {
+    if (layer === 'temperature') return tempBarColor(v);
+    if (layer === 'wind') return windBarColor(v);
+    return cloudBarColor(v);
+  }
+  function fmt(v: number) {
+    if (layer === 'temperature') return `${v}°`;
+    if (layer === 'wind') return `${v}`;
+    return `${v}%`;
+  }
+  const unit = layer === 'temperature' ? '°C' : layer === 'wind' ? 'km/h' : '% cloud';
+  const current = values[Math.min(currentHour, values.length - 1)] ?? 0;
+  const todayMax = max;
+  const todayMin = min;
+
+  return (
+    <View style={hgStyles.container}>
+      <View style={hgStyles.header}>
+        <Text style={hgStyles.currentVal}>{fmt(current)} <Text style={hgStyles.unit}>{unit}</Text></Text>
+        <Text style={hgStyles.minmax}>↑{fmt(todayMax)}  ↓{fmt(todayMin)}</Text>
+      </View>
+      <View style={hgStyles.barsRow}>
+        {values.map((v, i) => (
+          <View key={i} style={hgStyles.barCol}>
+            <View style={[
+              hgStyles.bar,
+              { height: barH(v), backgroundColor: barColor(v) },
+              i === currentHour && hgStyles.barCurrent,
+            ]} />
+          </View>
+        ))}
+      </View>
+      <View style={hgStyles.timeRow}>
+        {[0, 6, 12, 18, 23].map(h => (
+          <Text key={h} style={[hgStyles.timeLbl, { left: `${(h / 23) * 100}%` as any }]}>
+            {h === 0 ? '12a' : h === 6 ? '6a' : h === 12 ? '12p' : h === 18 ? '6p' : '11p'}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const hgStyles = StyleSheet.create({
+  container:  { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  header:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 },
+  currentVal: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  unit:       { fontSize: 10, fontWeight: '400', color: 'rgba(255,255,255,0.65)' },
+  minmax:     { fontSize: 10, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.2 },
+  barsRow:    { flexDirection: 'row', alignItems: 'flex-end', height: 40, gap: 1 },
+  barCol:     { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bar:        { width: '85%', borderRadius: 2, opacity: 0.6 },
+  barCurrent: { opacity: 1, borderWidth: 1, borderColor: '#fff' },
+  timeRow:    { position: 'relative', height: 14, marginTop: 2 },
+  timeLbl:    { position: 'absolute', fontSize: 8, color: 'rgba(255,255,255,0.55)', transform: [{ translateX: -10 }] },
+});
+
 // ── Scrubber ──────────────────────────────────────────────────────────────────
 
 function Scrubber({ frames, frameIdx, isPlaying, onScrub, onTogglePlay }: {
@@ -318,7 +407,12 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
     setIsPlaying(layer === 'precipitation');
   }, []);
 
-  const showScrubber = activeLayer === 'precipitation' && frames.length > 0;
+  const showScrubber  = activeLayer === 'precipitation' && frames.length > 0;
+  const hourlyValues  = activeLayer === 'temperature' ? (weather.hourlyTemps ?? [])
+                      : activeLayer === 'wind'        ? (weather.hourlyWinds ?? [])
+                      : activeLayer === 'clouds'      ? (weather.hourlyClouds ?? [])
+                      : [];
+  const showHourly = activeLayer !== 'precipitation' && hourlyValues.length > 0;
 
   // Shared glass card border/shadow — mirrors streak modal
   const cardStyle = {
@@ -402,7 +496,7 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
                   onSelect={handleLayerSelect}
                 />
 
-                {/* Scrubber — rendered after WebView → on top, receives gestures */}
+                {/* Precipitation scrubber — rendered after WebView → receives gestures */}
                 {showScrubber && (
                   <View style={styles.scrubberOverlay}>
                     <Scrubber
@@ -412,6 +506,13 @@ export function WeatherCard({ weather, language, level }: WeatherCardProps) {
                       onScrub={idx => { setIsPlaying(false); setFrameIdx(idx); }}
                       onTogglePlay={() => setIsPlaying(p => !p)}
                     />
+                  </View>
+                )}
+
+                {/* Hourly data graph for temperature / wind / clouds */}
+                {showHourly && (
+                  <View style={styles.scrubberOverlay}>
+                    <HourlyGraph values={hourlyValues} layer={activeLayer as StaticLayer} />
                   </View>
                 )}
               </View>
@@ -436,9 +537,9 @@ const styles = StyleSheet.create({
   backdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
   modalInner: { width: '100%' },
 
-  phraseCard: { borderRadius: CARD_RADIUS, paddingVertical: 20, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  phraseCard: { borderRadius: CARD_RADIUS, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   phraseText: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
 
   mapCard:        { borderRadius: CARD_RADIUS, overflow: 'hidden' },
-  scrubberOverlay:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.48)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
+  scrubberOverlay:{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.36)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
 });
