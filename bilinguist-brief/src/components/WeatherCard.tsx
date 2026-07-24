@@ -97,8 +97,10 @@ var map=L.map('map',{
   dragging:false,touchZoom:false,scrollWheelZoom:false,
   doubleClickZoom:false,zoomControl:false,attributionControl:false
 });
-/* Voyager — warm, colourful base map */
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+/* ESRI satellite imagery */
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(map);
+/* City/road labels layer on top of satellite */
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:0.9}).addTo(map);
 /* Pulsing location marker */
 var locIcon=L.divIcon({
   className:'',
