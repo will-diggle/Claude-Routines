@@ -24,7 +24,7 @@ GitHub data repo token stays server-side inside the Worker.
 
 Language, CEFR level, theme, and font are stored in `localStorage` only
 (`src/lib/preferences.ts`) — no accounts, no cookies, no sync. Defaults to
-Newsprint theme, English, A2, Lora.
+Press White theme, English, A2, Lora.
 
 ## Development
 

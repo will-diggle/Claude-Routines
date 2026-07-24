@@ -54,7 +54,7 @@ export const FONTS: { key: FontKey; label: string; cssVar: string }[] = [
 ];
 
 export const DEFAULTS = {
-  theme: 'cream' as ThemeKey,
+  theme: 'white' as ThemeKey,
   language: 'en' as LanguageCode,
   level: 'A2' as LanguageLevel,
   font: 'lora' as FontKey,
