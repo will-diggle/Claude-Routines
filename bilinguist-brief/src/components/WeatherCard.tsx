@@ -350,9 +350,9 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
           {layers.map(layer => (
             <TouchableOpacity key={layer} style={ltStyles.item} activeOpacity={0.7}
               onPress={() => { onSelect(layer); setOpen(false); }}>
-              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? '#fff' : 'rgba(255,255,255,0.7)'} style={{ width: 18 }} />
+              <Ionicons name={LAYER_ICONS[layer]} size={13} color={activeLayer === layer ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)'} style={{ width: 18 }} />
               <Text style={[ltStyles.itemText, activeLayer === layer && ltStyles.itemActive]}>{labels[layer]}</Text>
-              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="#fff" />}
+              {activeLayer === layer && <Ionicons name="checkmark" size={12} color="rgba(255,255,255,0.9)" />}
             </TouchableOpacity>
           ))}
         </View>
@@ -366,8 +366,8 @@ const ltStyles = StyleSheet.create({
   btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.38)', alignItems: 'center', justifyContent: 'center' },
   menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.38)', borderRadius: 12, paddingVertical: 4, minWidth: 155 },
   item:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
-  itemText:   { fontSize: 13, color: '#fff', flex: 1, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-  itemActive: { color: '#fff', fontWeight: '700' },
+  itemText:   { fontSize: 13, color: 'rgba(255,255,255,0.55)', flex: 1 },
+  itemActive: { color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
 });
 
 // ── WeatherCard ───────────────────────────────────────────────────────────────
