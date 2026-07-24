@@ -26,7 +26,7 @@ jobs:
 
       - name: Install Worker dependencies
         working-directory: bilinguist-worker
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Deploy Worker
         working-directory: bilinguist-worker
