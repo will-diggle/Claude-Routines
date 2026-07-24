@@ -383,12 +383,12 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightFullOp.setValue(0);
     leftContextOp.setValue(0);
     iconScaleAnim.setValue(SCALE_SMALL);
+    rightWidthAnim.setValue(FLOAT_TAB_H_LARGE);
     leftHeightAnim.setValue(FLOAT_TAB_H_LARGE);
     rightHeightAnim.setValue(FLOAT_TAB_H_LARGE);
     Animated.parallel([
-      Animated.timing(leftWidthAnim,  { toValue: targetW,           ...TM_LAYOUT_OPEN  }),
-      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftContextOp,  { toValue: 1, duration: 60, delay: 80, useNativeDriver: true }),
+      Animated.timing(leftWidthAnim, { toValue: targetW, ...TM_LAYOUT_OPEN }),
+      Animated.timing(leftContextOp, { toValue: 1, duration: 60, delay: 80, useNativeDriver: true }),
     ]).start();
   }
 
