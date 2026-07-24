@@ -191,7 +191,7 @@ function HourlyGraph({ values, layer }: { values: number[]; layer: StaticLayer }
       <View style={hgStyles.timeRow}>
         {[0, 6, 12, 18, 23].map(h => (
           <Text key={h} style={[hgStyles.timeLbl, { left: `${(h / 23) * 100}%` as any }]}>
-            {h === 0 ? '12a' : h === 6 ? '6a' : h === 12 ? '12p' : h === 18 ? '6p' : '11p'}
+            {`${h.toString().padStart(2, '0')}:00`}
           </Text>
         ))}
       </View>
