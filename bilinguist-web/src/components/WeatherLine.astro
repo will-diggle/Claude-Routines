@@ -1,0 +1,53 @@
+---
+---
+<div class="weather-line">
+  <div class="wrap">
+    <p id="weather-text" class="tagline weather-text" aria-live="polite"></p>
+  </div>
+</div>
+
+<script>
+  import { WEATHER_IN, fetchWeather, getBrowserLocation, type WeatherData } from '../lib/weather';
+  import { loadPreferences } from '../lib/preferences';
+  import type { LanguageCode } from '../lib/config';
+
+  const textEl = document.getElementById('weather-text') as HTMLParagraphElement;
+  let coords: { latitude: number; longitude: number } | null = null;
+  let coordsResolved = false;
+
+  function render(language: LanguageCode, data: WeatherData) {
+    const preposition = WEATHER_IN[language] ?? 'in';
+    textEl.textContent = `${data.greeting} — ${data.temp}°C, ${data.description} ${preposition} ${data.city}`;
+  }
+
+  async function loadWeather() {
+    const prefs = loadPreferences();
+
+    if (!coordsResolved) {
+      coords = await getBrowserLocation();
+      coordsResolved = true;
+    }
+
+    const data = await fetchWeather(prefs.language, coords);
+    if (data) render(prefs.language, data);
+  }
+
+  loadWeather();
+  window.addEventListener('bilinguist:preferences-changed', () => {
+    loadWeather();
+  });
+</script>
+
+<style>
+  .weather-line {
+    background: var(--color-bg);
+    padding-block: var(--space-sm);
+  }
+
+  .weather-text {
+    text-align: center;
+    color: var(--color-ink-faint);
+    margin: 0;
+    min-height: 1.2em;
+  }
+</style>

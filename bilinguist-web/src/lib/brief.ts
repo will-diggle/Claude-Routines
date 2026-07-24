@@ -1,4 +1,4 @@
-import { WORKER_BASE, type LanguageCode, type LanguageLevel } from './config';
+import { WORKER_BASE, type LanguageCode, type LanguageLevel, type ReadLength } from './config';
 
 export interface BriefArticle {
   genre: string;
@@ -28,13 +28,14 @@ export type BriefFetchResult =
   | { ok: true; brief: BriefLength; date: string }
   | { ok: false; reason: 'not_found' | 'network' | 'http'; status?: number };
 
-// Prefer the fullest variant the pipeline published for this lang/level —
-// no length restriction pre-paywall, so always show the longest available.
-const LENGTH_PREFERENCE = ['longer', 'medium', 'short'];
+// Falls back through this order if the user's preferred length isn't
+// published for this lang/level — no length restriction pre-paywall.
+const LENGTH_FALLBACK = ['longer', 'medium', 'short'];
 
 export async function fetchBrief(
   language: LanguageCode,
   level: LanguageLevel,
+  preferredLength: ReadLength,
 ): Promise<BriefFetchResult> {
   try {
     const url = `${WORKER_BASE}/latest?lang=${encodeURIComponent(language)}&level=${encodeURIComponent(level)}&t=${Date.now()}`;
@@ -45,8 +46,9 @@ export async function fetchBrief(
 
     const data: FilteredBriefResponse = await res.json();
     const availableLengths = Object.keys(data.lengths ?? {});
+    const preference = [preferredLength, ...LENGTH_FALLBACK];
     const chosen =
-      LENGTH_PREFERENCE.find((l) => availableLengths.includes(l)) ?? availableLengths[0];
+      preference.find((l) => availableLengths.includes(l)) ?? availableLengths[0];
 
     if (!chosen) return { ok: false, reason: 'not_found' };
 
