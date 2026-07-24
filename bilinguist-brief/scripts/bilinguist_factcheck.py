@@ -241,12 +241,12 @@ def main():
     raw = response.text or ""
     print(f"[factcheck] Response received ({len(raw)} chars)")
 
-    # Log token usage
+    # Log token usage (fields can be None when Gemini returns TOO_MANY_TOOL_CALLS)
     um = response.usage_metadata
     if um:
         print(
-            f"[factcheck] Tokens — input: {getattr(um, 'prompt_token_count', 0):,}, "
-            f"output: {getattr(um, 'candidates_token_count', 0):,}"
+            f"[factcheck] Tokens — input: {getattr(um, 'prompt_token_count', None) or 0:,}, "
+            f"output: {getattr(um, 'candidates_token_count', None) or 0:,}"
         )
 
     parsed = parse_json(raw)

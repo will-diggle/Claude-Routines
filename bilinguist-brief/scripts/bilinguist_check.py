@@ -65,6 +65,17 @@ WORD_TARGETS_LANG: dict[str, dict[str, dict[str, tuple[int, int]]]] = {
     },
 }
 
+def _word_color(avg: float, lo: int, hi: int) -> str:
+    """🟢 within range · 🟠 up to 15% outside · 🔴 more than 15% outside."""
+    if avg <= 0:
+        return "❌"
+    if lo <= avg <= hi:
+        return "🟢"
+    if avg < lo * 0.85 or avg > hi * 1.15:
+        return "🔴"
+    return "🟠"
+
+
 def _length_status(articles: list, level: str, length: str, lang: str = "") -> tuple[str, bool]:
     """Return (display_str, is_bad). is_bad = outside target range."""
     avg = _avg_body_words(articles)
@@ -74,7 +85,8 @@ def _length_status(articles: list, level: str, length: str, lang: str = "") -> t
     if not target:
         return avg_str, False
     lo, hi = target
-    is_bad = avg < lo * 0.70 or avg > hi * 1.25
+    color = _word_color(avg, lo, hi)
+    is_bad = color in ("🟠", "🔴")
     return avg_str, is_bad
 
 
@@ -145,7 +157,8 @@ def _factcheck_summary(script_dir: Path, date: str, total_stories: int = 0) -> t
         return "", None
 
     if data.get("error"):
-        return f"🔍 Fact-check: skipped ({data['error']})", None
+        msg = f"⚠️ Fact-check skipped — {data['error']}"
+        return f"🔍 Fact-check: skipped ({data['error']})", msg
 
     checked = data.get("stories_checked", 0)
     count   = data.get("corrections_count", 0)
@@ -172,8 +185,18 @@ def _language_table(
     native_grades: dict,
     issues: set[str],
 ) -> str:
-    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
-    lines = []
+    """Markdown table: languages × CEFR levels split into short/longer columns."""
+    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1"]
+
+    # Two columns per CEFR level (S = short, L = longer), plus Native
+    col_headers = []
+    for lvl in CEFR_ORDER:
+        col_headers += [f"{lvl} S", f"{lvl} L"]
+    col_headers.append("Native")
+
+    header = "| Lang | " + " | ".join(col_headers) + " |"
+    sep    = "|------|" + "|".join(["-----"] * len(col_headers)) + "|"
+    rows   = [header, sep]
 
     for lang, levels in LANGUAGE_LEVELS.items():
         flag      = LANG_FLAGS.get(lang, "  ")
@@ -184,44 +207,51 @@ def _language_table(
             if native_grade in CEFR_ORDER else len(CEFR_ORDER)
         )
 
-        parts = []
-        for level in levels:
-            if level == "Native":
-                lang_native = native_journalism.get(lang, {})
-                flat_arts = (
-                    [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
-                    if isinstance(lang_native, dict) else lang_native
-                )
-                count = len(flat_arts)
-                if count:
-                    avg_w = int(_avg_body_words(flat_arts))
-                    grade_label = f"[{native_grade}]" if native_grade else ""
-                    parts.append(f"Native✓{count}({avg_w}w){grade_label}")
-                else:
-                    parts.append("Native✗")
-            elif level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
-                continue  # intentionally skipped — P3 covers it
-            else:
-                row = []
-                for length in LENGTHS:
-                    key      = f"{lang_name} {level}/{length}"
-                    articles = (
-                        briefings.get(lang, {})
-                                 .get(level, {})
-                                 .get(length, {})
-                                 .get("articles", [])
-                    )
-                    count = len(articles)
-                    if count == 0:
-                        row.append("✗")
-                    else:
-                        avg_str, is_bad = _length_status(articles, level, length, lang)
-                        flag_char = "⚠" if (key in issues or is_bad) else "✓"
-                        row.append(f"{flag_char}{count}({avg_str})")
-                parts.append(f"{level}[{'/'.join(row)}]")
+        cells = []
 
-        lines.append(f"  {flag} {lang_name}: {' '.join(parts)}")
-    return "\n".join(lines)
+        for lvl in CEFR_ORDER:
+            if lvl not in levels:
+                cells += ["—", "—"]
+                continue
+            if CEFR_ORDER.index(lvl) >= skip_from_idx:
+                cells += ["↑", "↑"]
+                continue
+
+            for length in LENGTHS:
+                articles = (
+                    briefings.get(lang, {})
+                             .get(lvl, {})
+                             .get(length, {})
+                             .get("articles", [])
+                )
+                if not articles:
+                    cells.append("❌")
+                    continue
+                avg = _avg_body_words(articles)
+                lang_override = WORD_TARGETS_LANG.get(lang, {}).get(lvl, {})
+                target = lang_override.get(length) or WORD_TARGETS.get(lvl, {}).get(length)
+                color = _word_color(avg, *target) if target else "🟢"
+                cells.append(f"{color} {int(avg)}")
+
+        # Native column
+        if "Native" not in levels:
+            cells.append("—")
+        else:
+            lang_native = native_journalism.get(lang, {})
+            flat_arts = (
+                [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
+                if isinstance(lang_native, dict) else lang_native
+            )
+            if flat_arts:
+                avg_w = int(_avg_body_words(flat_arts))
+                grade_label = f" [{native_grade}]" if native_grade else ""
+                cells.append(f"🟢 {avg_w}w{grade_label}")
+            else:
+                cells.append("❌")
+
+        rows.append(f"| {flag} {lang_name} | " + " | ".join(cells) + " |")
+
+    return "\n".join(rows)
 
 
 def check(bundle_path: Path) -> int:
