@@ -1,11 +1,24 @@
 ---
+import { THEMES } from '../lib/config';
 ---
 <a href="/" class="masthead" aria-label="Bilinguist Brief — home">
-  <span class="logotype"></span>
+  {THEMES.map((t) => (
+    <img
+      src={`/masthead/${t.key}.jpg`}
+      alt="Bilinguist Brief"
+      class="masthead-img"
+      data-masthead-theme={t.key}
+      loading="eager"
+      fetchpriority="high"
+    />
+  ))}
 </a>
 <hr class="chrome-rule" />
 
 <style>
+  /* Uses the app's own masthead-compact-*.jpg lockups directly (one flat
+     image per theme, background baked in) instead of a tinted mask, for
+     pixel-exact parity with what BriefingScreen.tsx renders in the app. */
   .masthead {
     display: flex;
     justify-content: center;
@@ -17,25 +30,23 @@
 
   @media (min-width: 900px) {
     .masthead {
-      height: clamp(80px, 7vw, 128px);
+      height: clamp(80px, 7vw, 160px);
     }
   }
 
-  /* logotype.png is a black-on-transparent wordmark (no crest) — used as a
-     mask so it recolors to each theme's chrome color automatically, the
-     same way the app applies tintColor to LOGOTYPE in TopBar.tsx. */
-  .logotype {
-    display: block;
-    width: min(560px, 88%);
+  .masthead-img {
     height: 100%;
-    background-color: var(--color-chrome);
-    -webkit-mask-image: url('/logotype.png');
-    mask-image: url('/logotype.png');
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-size: contain;
-    mask-size: contain;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  /* Shown/hidden per theme via [data-theme] on <html> — no JS needed. */
+  :global([data-theme='white']) .masthead-img[data-masthead-theme='white'],
+  :global([data-theme='cream']) .masthead-img[data-masthead-theme='cream'],
+  :global([data-theme='softGrey']) .masthead-img[data-masthead-theme='softGrey'],
+  :global([data-theme='night']) .masthead-img[data-masthead-theme='night'] {
+    display: block;
   }
 </style>
