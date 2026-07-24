@@ -34,7 +34,7 @@ export const FLOAT_TAB_H_LARGE  = 68;
 export const FLOAT_TAB_H_SMALL  = 52; // closed/mini circle size
 export const FLOAT_TAB_H_FLAG      = 68; // unified with LARGE
 export const FLOAT_TAB_H_FLAG_2ROW = 108; // 2-row flag chip layout (5+ languages)
-export const FLOAT_TAB_BOTTOM   = 16;
+export const FLOAT_TAB_BOTTOM   = 6;
 // Pills float over content on all iOS versions — screens need this bottom padding.
 export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
 
@@ -71,6 +71,22 @@ function pillContentW(labels: string[]): number {
 function pillFlagOnlyW(count: number): number {
   const chipW = 24 + 7 * 2; // flag size 24 + 7px padding each side
   return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+}
+
+// Width for flag+text column chips — matches actual layout:
+//   contextItem paddingHorizontal:7 → 14px per chip
+//   chipGroup gap:7 between chips
+//   contextRow paddingLeft/Right:10 → 20px outer
+function pillFlagTextW(labels: string[], flagSize = 20): number {
+  const n = labels.length;
+  if (n === 0) return LEFT_MINI_W;
+  const ITEM_PAD = 14;
+  const GAP      = 7;
+  const itemsW = labels.reduce((sum, l) => {
+    const textW = l.length * (l === l.toUpperCase() ? 8.5 : 7.5);
+    return sum + Math.max(textW, flagSize) + ITEM_PAD;
+  }, 0);
+  return Math.min(itemsW + (n - 1) * GAP + ROW_PAD, LEFT_MAX_W);
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -201,7 +217,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
   const allLanguages    = useSettingsStore(useShallow((s) => s.languages));
-  const savedWords = useWordBankStore(useShallow((s) => s.words));
+  // Subscribe to a stable string key, not the full words array.
+  // The words array is backfilled every ~500ms which would re-render and drop animation frames.
+  const savedLangCodesKey = useWordBankStore(
+    (s) => [...new Set(s.words.map((w) => w.language))].sort().join(',')
+  );
   const {
     briefPageIndex, setBriefPageIndex,
     settingsSection, setSettingsSection,
@@ -225,18 +245,14 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const isAudioDocked  = briefingScrolled && isAudioVisible && !audioPillForcedUp;
 
   const savedLangCodes = useMemo(
-    () => [...new Set(savedWords.map((w) => w.language))].sort(),
-    [savedWords],
+    () => savedLangCodesKey ? savedLangCodesKey.split(',') : [],
+    [savedLangCodesKey],
   );
 
-  // Stable string keys — prevents spurious effect re-runs when savedWords updates
-  // (e.g. background backfill) without actually changing which languages exist.
   const activeLanguagesKey = activeLanguages.map((l) => l.code).join(',');
-  const savedLangCodesKey  = savedLangCodes.join(',');
 
-  const [leftOpen,       setLeftOpen]       = useState(false);
-  const [rightOpen,      setRightOpen]      = useState(false);
-  const [rightNavMounted, setRightNavMounted] = useState(false);
+  const [leftOpen,  setLeftOpen]  = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
 
   // Always-current refs — read in effects that omit these from deps to avoid stale closures
   const leftOpenRef  = useRef(false);
@@ -295,10 +311,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   // Layout props (width/height) can't use native driver — timing is smoother
   // than spring here because it avoids per-frame spring physics on the JS thread
-  // while layout recalculates simultaneously. Cubic ease-out feels lush and snappy.
-  const TM_LAYOUT_OPEN       = { duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE      = { duration: 160, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE_FAST = { duration: 90,  easing: Easing.in(Easing.cubic),  useNativeDriver: false } as const;
+  // while layout recalculates simultaneously.
+  // bezier(0.16,1,0.3,1) = expo-out: reaches 90% of target by 50% of duration → feels instant.
+  // bezier(0.7,0,0.84,0) = strong ease-in: snaps away fast on close.
+  const TM_LAYOUT_OPEN  = { duration: 130, easing: Easing.bezier(0.16, 1, 0.3, 1),    useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE = { duration: 85,  easing: Easing.bezier(0.7, 0, 0.84, 0),    useNativeDriver: false } as const;
   // Scale runs on UI thread via native driver — spring here is free (no layout cost).
   const SP_SCALE_OPEN  = { stiffness: 200, damping: 14, mass: 0.7, useNativeDriver: true } as const;
   const SP_SCALE_CLOSE = { stiffness: 320, damping: 28, mass: 0.8, useNativeDriver: true } as const;
@@ -306,73 +323,72 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function animCloseLeft() {
     setLeftOpen(false);
     setRightOpen(false);
-    setRightNavMounted(false);
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,  { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
+    ]).start(() => {
+      leftHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+      rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    });
   }
 
   function animOpenRight() {
     setLeftOpen(false);
     setRightOpen(true);
-    setRightNavMounted(true);
     leftContextOp.setValue(0);
+    leftHeightAnim.setValue(FLOAT_TAB_H_LARGE);
+    rightHeightAnim.setValue(FLOAT_TAB_H_LARGE);
     Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE,  ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 200, useNativeDriver: true }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
+      Animated.timing(rightWidthAnim, { toValue: RIGHT_MAX_W,       ...TM_LAYOUT_OPEN }),
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
+      Animated.timing(rightFullOp,    { toValue: 1, duration: 30, delay: 90, useNativeDriver: true }),
+      Animated.spring(iconScaleAnim,  { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
     ]).start();
   }
 
   function animCloseRight() {
     setRightOpen(false);
+    rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start(() => setRightNavMounted(false));
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,  { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
+    ]).start(() => {
+      leftHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+      rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    });
   }
 
   function animCloseBoth() {
     setLeftOpen(false);
     setRightOpen(false);
     leftContextOp.setValue(0);
+    rightFullOp.setValue(0);
     Animated.parallel([
-      Animated.timing(rightFullOp,     { toValue: 0, duration: 80, useNativeDriver: true }),
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start(() => setRightNavMounted(false));
+      Animated.timing(leftWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
+      Animated.spring(iconScaleAnim,  { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
+    ]).start(() => {
+      leftHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+      rightHeightAnim.setValue(FLOAT_TAB_H_SMALL);
+    });
   }
 
   function animToLeftOpen(targetW: number) {
     setRightOpen(false);
-    setRightNavMounted(false);
     setLeftOpen(true);
     rightFullOp.setValue(0);
     leftContextOp.setValue(0);
     iconScaleAnim.setValue(SCALE_SMALL);
-    rightWidthAnim.setValue(FLOAT_TAB_H_LARGE);
+    leftHeightAnim.setValue(FLOAT_TAB_H_LARGE);
     rightHeightAnim.setValue(FLOAT_TAB_H_LARGE);
-    const targetH = FLOAT_TAB_H_LARGE;
     Animated.parallel([
-      Animated.timing(leftHeightAnim, { toValue: targetH, ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,  { toValue: targetW, ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftContextOp,  { toValue: 1, duration: 80, delay: 140, useNativeDriver: true }),
+      Animated.timing(leftWidthAnim,  { toValue: targetW,           ...TM_LAYOUT_OPEN  }),
+      Animated.timing(rightWidthAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE }),
+      Animated.timing(leftContextOp,  { toValue: 1, duration: 60, delay: 80, useNativeDriver: true }),
     ]).start();
   }
 
@@ -381,19 +397,20 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function computeLeftExpandedW(forIndex?: number): number {
     const idx = forIndex ?? currentRouteIndex;
     if (idx === 0) {
+      // Single language — stay as a circle, nothing to choose between
+      if (activeLanguages.length <= 1) return FLOAT_TAB_H_LARGE;
       return pillFlagOnlyW(Math.min(activeLanguages.length, 5));
     }
     if (idx === 2) {
-      return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
+      return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s])) + 28;
     }
     // Practice — word-bank language filter
-    const plCodes  = savedLangCodes;
-    const plFull   = plCodes.length <= 3;
-    const plOver   = plCodes.length - 4;
-    const plLabels = plFull
-      ? plCodes.map(c => allLanguages.find(l => l.code === c)?.nativeName ?? langDisplayCode(c))
-      : plCodes.slice(0, 4).map(c => langDisplayCode(c));
-    return Math.max(pillContentW(['ALL', ...plLabels, ...(plOver > 0 ? [`+${plOver}`] : [])]), 100);
+    // No saved words yet → only "All", stay as a circle
+    if (savedLangCodes.length === 0) return FLOAT_TAB_H_LARGE;
+    const plVisible = savedLangCodes.slice(0, 4);
+    const plOver    = savedLangCodes.length - 4;
+    // Use display codes ('DE', 'FR') to match what the chips actually render
+    return Math.max(pillFlagTextW(['ALL', ...plVisible.map(c => langDisplayCode(c)), ...(plOver > 0 ? [`+${plOver}`] : [])]), 100);
   }
 
   // ── Press feel — GlassButton style (compress on pressIn, spring back on pressOut) ──
@@ -567,7 +584,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
         {glassAvailable && (
           <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-            <GlassSurface cornerRadius={100} />
+            <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} />
           </View>
         )}
         <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
@@ -617,7 +634,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
         {glassAvailable && (
           <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-            <GlassSurface cornerRadius={100} />
+            <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} />
           </View>
         )}
         <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
@@ -628,11 +645,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             {renderMiniNav()}
           </Animated.View>
 
-          {rightNavMounted && (
-            <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
-              {renderFullNav()}
-            </Animated.View>
-          )}
+          <Animated.View style={[styles.absoluteFill, { opacity: rightFullOp }]} pointerEvents={rightOpen ? 'auto' : 'none'}>
+            {renderFullNav()}
+          </Animated.View>
         </View>
       </Animated.View>
       </Animated.View>
