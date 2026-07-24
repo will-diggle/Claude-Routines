@@ -193,7 +193,7 @@ function PrecipBadge({ precipProbs }: { precipProbs: number[] }) {
 
 const dbStyles = StyleSheet.create({
   badge:   { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 10 },
-  big:     { fontSize: 26, fontWeight: '700', color: '#fff', lineHeight: 30 },
+  big:     { fontSize: 36, fontWeight: '700', color: '#fff', lineHeight: 40 },
   unit:    { fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,0.9)' },
   hiloCol: { flexDirection: 'column', gap: 1 },
   hilo:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.95)' },
@@ -253,7 +253,7 @@ const hgStyles = StyleSheet.create({
   bar:        { width: '85%', borderRadius: 2, opacity: 0.6 },
   barCurrent: { opacity: 1, borderWidth: 1, borderColor: '#fff' },
   timeRow:    { position: 'relative', height: 14, marginTop: 2 },
-  timeLbl:    { position: 'absolute', fontSize: 8, color: 'rgba(255,255,255,0.55)', transform: [{ translateX: -10 }] },
+  timeLbl:    { position: 'absolute', fontSize: 8, color: '#fff', transform: [{ translateX: -10 }], textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
 });
 
 // ── Scrubber ──────────────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ const scrubStyles = StyleSheet.create({
   fill:      { position: 'absolute', height: 2, backgroundColor: '#fff', borderRadius: 1, top: '50%', marginTop: -1 },
   nowMark:   { position: 'absolute', width: 2, height: 10, backgroundColor: '#93C5FD', borderRadius: 1, top: '50%', marginTop: -5, marginLeft: -1 },
   thumb:     { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#fff', top: '50%', marginTop: -7, marginLeft: -7, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2, elevation: 3 },
-  label:     { position: 'absolute', fontSize: 9, fontWeight: '600', top: '50%', marginTop: 8, transform: [{ translateX: -12 }] },
+  label:     { position: 'absolute', fontSize: 9, fontWeight: '600', top: '50%', marginTop: 8, transform: [{ translateX: -12 }], textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
 });
 
 // ── Layer toggle ──────────────────────────────────────────────────────────────
@@ -363,7 +363,7 @@ function LayerToggle({ activeLayer, hasOwmKey, labels, onSelect }: {
 
 const ltStyles = StyleSheet.create({
   wrapper:    { position: 'absolute', top: 10, right: 10, alignItems: 'flex-end', zIndex: 20 },
-  btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 5 },
+  btn:        { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.38)', alignItems: 'center', justifyContent: 'center' },
   menu:       { marginTop: 5, backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 12, paddingVertical: 4, minWidth: 155, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 },
   item:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
   itemText:   { fontSize: 13, color: '#333', flex: 1 },
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
   // Map card inner — overflow:hidden clips WebView to border radius
   mapClip:  { borderRadius: CARD_RADIUS, overflow: 'hidden' },
 
-  scrubberOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.36)', borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, zIndex: 10 },
+  scrubberOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 },
 
   wordBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end', paddingHorizontal: 20, paddingBottom: 40 },
   wordSheet:    { borderRadius: 20, paddingVertical: 24, paddingHorizontal: 20 },
