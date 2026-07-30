@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -38,8 +38,10 @@ export function DashboardScreen({ route, navigation }: Props) {
     buildHtml(isBilinguist ? BILINGUIST_DASHBOARD_HTML : DASHBOARD_HTML, isBilinguist ? BILINGUIST_DASHBOARD_JS : DASHBOARD_JS, null)
   );
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const rangeDaysRef = useRef(30);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (days?: number) => {
+    if (days != null) rangeDaysRef.current = days;
     setRefreshing(true);
     setError(null);
     try {
@@ -48,7 +50,7 @@ export function DashboardScreen({ route, navigation }: Props) {
 
       const data = isBilinguist
         ? await fetchBilinguistOverview(connection, apiKey, (done, total) => setProgress(`Fetching ${done}/${total}…`))
-        : await fetchOverview(connection, apiKey);
+        : await fetchOverview(connection, apiKey, rangeDaysRef.current);
 
       const [thisHtml, thisJs] = isBilinguist ? [BILINGUIST_DASHBOARD_HTML, BILINGUIST_DASHBOARD_JS] : [DASHBOARD_HTML, DASHBOARD_JS];
       if (loadedOnce && webRef.current) {
@@ -66,6 +68,20 @@ export function DashboardScreen({ route, navigation }: Props) {
     }
   }, [connection, loadedOnce, isBilinguist]);
 
+  // The generic dashboard's timeframe buttons live inside the WebView and
+  // have no direct way to call back into React Native other than
+  // postMessage — this is the other half of that bridge.
+  const handleWebViewMessage = useCallback((e: WebViewMessageEvent) => {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data);
+      if (msg?.type === 'setRange' && typeof msg.days === 'number') {
+        load(msg.days);
+      }
+    } catch {
+      // Not a message we understand — ignore.
+    }
+  }, [load]);
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +95,7 @@ export function DashboardScreen({ route, navigation }: Props) {
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.ink }]}>{connection.name}</Text>
-        <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={load} disabled={refreshing}>
+        <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={() => load()} disabled={refreshing}>
           <View style={styles.refreshBtnInner}>
             {refreshing ? <ActivityIndicator size="small" color={colors.ink} /> : <Ionicons name="refresh" size={20} color={colors.ink} />}
           </View>
@@ -106,6 +122,7 @@ export function DashboardScreen({ route, navigation }: Props) {
           source={{ html }}
           style={{ flex: 1, backgroundColor: colors.bg }}
           originWhitelist={['*']}
+          onMessage={handleWebViewMessage}
         />
       )}
     </View>

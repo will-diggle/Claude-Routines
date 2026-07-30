@@ -4,10 +4,18 @@
 // HTML string has no origin, so it can't fetch() a same-origin data.json —
 // same reasoning as posthog-dashboard's app-integration attempt, this time
 // built fresh for a project that isn't tied to bilinguist-brief).
+//
+// Timeframe changes are round-tripped through React Native rather than
+// handled purely client-side: unlike the Bilinguist dashboard (which
+// pre-fetches 90 days of daily aggregates up front and slices them in the
+// browser), this dashboard queries PostHog fresh for whatever window is
+// selected, so DashboardScreen.tsx needs to know which one to fetch. Buttons
+// here call window.ReactNativeWebView.postMessage(...); DashboardScreen
+// listens via WebView's onMessage and re-fetches.
 
 export const DASHBOARD_JS = `
-const PALETTE = { a: "var(--series-1)" };
 let DATA = window.__INITIAL_DATA__ || null;
+let selectedDays = (DATA && DATA.range_days) || 30;
 
 function fmt(n) {
   const v = Number(n) || 0;
@@ -59,25 +67,58 @@ function tableRows(items, cols) {
   ).join("");
 }
 
-function render() {
-  if (!DATA) return;
-  const users = deltaParts(DATA.unique_users_30d, DATA.unique_users_prev30d);
-  const events = deltaParts(DATA.total_events_30d, DATA.total_events_prev30d);
-  const sessions = deltaParts(DATA.sessions_30d, DATA.sessions_prev30d);
+const TIMEFRAME_LABELS = { 1: "Today", 7: "7 days", 30: "30 days", 90: "90 days" };
 
-  document.getElementById("kpi-users").textContent = fmt(DATA.unique_users_30d);
+function renderTimeframeButtons() {
+  const el = document.getElementById("timeframe-row");
+  el.innerHTML = [1, 7, 30, 90].map((days) =>
+    '<button class="tf-btn' + (days === selectedDays ? ' active' : '') + '" data-days="' + days + '">' + TIMEFRAME_LABELS[days] + '</button>'
+  ).join("");
+  el.querySelectorAll(".tf-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const days = Number(btn.dataset.days);
+      if (days === selectedDays) return;
+      selectedDays = days;
+      renderTimeframeButtons();
+      setLoading(true);
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "setRange", days: days }));
+      }
+    });
+  });
+}
+
+function setLoading(isLoading) {
+  document.getElementById("main-content").style.opacity = isLoading ? "0.4" : "1";
+}
+
+function render() {
+  renderTimeframeButtons();
+  setLoading(false);
+  if (!DATA) return;
+
+  const label = TIMEFRAME_LABELS[selectedDays] || (selectedDays + "d");
+  document.getElementById("kpi-users-label").textContent = "Unique users (" + label + ")";
+  document.getElementById("kpi-events-label").textContent = "Total events (" + label + ")";
+  document.getElementById("kpi-sessions-label").textContent = "Sessions (" + label + ")";
+
+  const users = deltaParts(DATA.unique_users, DATA.unique_users_prev);
+  const events = deltaParts(DATA.total_events, DATA.total_events_prev);
+  const sessions = deltaParts(DATA.sessions, DATA.sessions_prev);
+
+  document.getElementById("kpi-users").textContent = fmt(DATA.unique_users);
   document.getElementById("kpi-users-delta").textContent = users.arrow + " " + users.pct;
   document.getElementById("kpi-users-delta").className = "kpi-delta " + users.cls;
 
-  document.getElementById("kpi-events").textContent = fmt(DATA.total_events_30d);
+  document.getElementById("kpi-events").textContent = fmt(DATA.total_events);
   document.getElementById("kpi-events-delta").textContent = events.arrow + " " + events.pct;
   document.getElementById("kpi-events-delta").className = "kpi-delta " + events.cls;
 
-  document.getElementById("kpi-sessions").textContent = fmt(DATA.sessions_30d);
+  document.getElementById("kpi-sessions").textContent = fmt(DATA.sessions);
   document.getElementById("kpi-sessions-delta").textContent = sessions.arrow + " " + sessions.pct;
   document.getElementById("kpi-sessions-delta").className = "kpi-delta " + sessions.cls;
 
-  const perSession = DATA.sessions_30d ? (DATA.total_events_30d / DATA.sessions_30d).toFixed(1) : "\\u2013";
+  const perSession = DATA.sessions ? (DATA.total_events / DATA.sessions).toFixed(1) : "\\u2013";
   document.getElementById("kpi-per-session").textContent = perSession;
 
   document.getElementById("dau-chart").innerHTML = svgLineChart(DATA.dau_series);
@@ -95,6 +136,7 @@ function render() {
 
 window.__setData__ = function (newData) {
   DATA = newData;
+  selectedDays = newData.range_days || selectedDays;
   render();
 };
 
@@ -119,6 +161,14 @@ export const DASHBOARD_HTML = `<!doctype html>
   body { margin: 0; }
   .viz-root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); min-height: 100vh; }
   .main { padding: 18px 24px 50px; max-width: 1400px; margin: 0 auto; }
+  .timeframe-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tf-btn {
+    font-family: inherit; font-size: 12.5px; color: var(--text-secondary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 999px;
+    padding: 7px 14px; cursor: pointer;
+  }
+  .tf-btn.active { color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--series-1); }
+  #main-content { transition: opacity 0.15s ease; }
   .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
   @media (min-width: 640px) { .kpi-row { grid-template-columns: repeat(4, 1fr); } }
   .panel-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -148,34 +198,38 @@ export const DASHBOARD_HTML = `<!doctype html>
 <body>
 <div class="viz-root">
   <div class="main">
-    <div class="kpi-row">
-      <div class="kpi-card"><div class="kpi-label">Unique users (30d)</div><div class="kpi-value" id="kpi-users">–</div><div class="kpi-delta" id="kpi-users-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Total events (30d)</div><div class="kpi-value" id="kpi-events">–</div><div class="kpi-delta" id="kpi-events-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Sessions (30d)</div><div class="kpi-value" id="kpi-sessions">–</div><div class="kpi-delta" id="kpi-sessions-delta"></div></div>
-      <div class="kpi-card"><div class="kpi-label">Events / session</div><div class="kpi-value" id="kpi-per-session">–</div></div>
-    </div>
+    <div class="timeframe-row" id="timeframe-row"></div>
 
-    <div class="panel">
-      <div class="panel-title">Daily active users</div>
-      <div id="dau-chart"></div>
-    </div>
-
-    <div class="panel-grid">
-      <div class="panel">
-        <div class="panel-title">Top events</div>
-        <div id="top-events"></div>
+    <div id="main-content">
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-label" id="kpi-users-label">Unique users</div><div class="kpi-value" id="kpi-users">–</div><div class="kpi-delta" id="kpi-users-delta"></div></div>
+        <div class="kpi-card"><div class="kpi-label" id="kpi-events-label">Total events</div><div class="kpi-value" id="kpi-events">–</div><div class="kpi-delta" id="kpi-events-delta"></div></div>
+        <div class="kpi-card"><div class="kpi-label" id="kpi-sessions-label">Sessions</div><div class="kpi-value" id="kpi-sessions">–</div><div class="kpi-delta" id="kpi-sessions-delta"></div></div>
+        <div class="kpi-card"><div class="kpi-label">Events / session</div><div class="kpi-value" id="kpi-per-session">–</div></div>
       </div>
 
       <div class="panel">
-        <div class="panel-title">Top pages</div>
-        <table>
-          <thead><tr><th>Page</th><th>Views</th><th>Users</th></tr></thead>
-          <tbody id="top-pages-body"></tbody>
-        </table>
+        <div class="panel-title">Daily active users</div>
+        <div id="dau-chart"></div>
       </div>
-    </div>
 
-    <div id="last-synced-row">Last synced: <span id="last-synced">–</span></div>
+      <div class="panel-grid">
+        <div class="panel">
+          <div class="panel-title">Top events</div>
+          <div id="top-events"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Top pages</div>
+          <table>
+            <thead><tr><th>Page</th><th>Views</th><th>Users</th></tr></thead>
+            <tbody id="top-pages-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="last-synced-row">Last synced: <span id="last-synced">–</span></div>
+    </div>
   </div>
 </div>
 </body>

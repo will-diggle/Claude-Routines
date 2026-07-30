@@ -7,12 +7,13 @@ import type { Connection } from './connections';
 
 export interface OverviewData {
   generated_at: string;
-  unique_users_30d: number;
-  unique_users_prev30d: number;
-  total_events_30d: number;
-  total_events_prev30d: number;
-  sessions_30d: number;
-  sessions_prev30d: number;
+  range_days: number;
+  unique_users: number;
+  unique_users_prev: number;
+  total_events: number;
+  total_events_prev: number;
+  sessions: number;
+  sessions_prev: number;
   dau_series: { date: string; value: number }[];
   top_events: { name: string; count: number }[];
   top_pages: { path: string; views: number; users: number }[];
@@ -50,65 +51,74 @@ export async function testConnection(conn: Connection, apiKey: string): Promise<
   await runQuery(conn, apiKey, 'SELECT count() FROM events WHERE timestamp > now() - INTERVAL 1 DAY');
 }
 
-export async function fetchOverview(conn: Connection, apiKey: string): Promise<OverviewData> {
+export const TIMEFRAME_OPTIONS = [
+  { label: 'Today', days: 1 },
+  { label: '7 days', days: 7 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
+] as const;
+
+export async function fetchOverview(conn: Connection, apiKey: string, days: number = 30): Promise<OverviewData> {
+  const prevStart = days * 2;
   const [
-    uniqueUsers30d,
-    uniqueUsersPrev30d,
-    totalEvents30d,
-    totalEventsPrev30d,
-    sessions30d,
-    sessionsPrev30d,
+    uniqueUsers,
+    uniqueUsersPrev,
+    totalEvents,
+    totalEventsPrev,
+    sessions,
+    sessionsPrev,
     dauRows,
     topEventRows,
     topPageRows,
   ] = await Promise.all([
-    scalar(conn, apiKey, 'SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 30 DAY'),
+    scalar(conn, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL ${days} DAY`),
     scalar(
       conn,
       apiKey,
-      'SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 60 DAY AND timestamp <= now() - INTERVAL 30 DAY'
+      `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL ${prevStart} DAY AND timestamp <= now() - INTERVAL ${days} DAY`
     ),
-    scalar(conn, apiKey, 'SELECT count() FROM events WHERE timestamp > now() - INTERVAL 30 DAY'),
+    scalar(conn, apiKey, `SELECT count() FROM events WHERE timestamp > now() - INTERVAL ${days} DAY`),
     scalar(
       conn,
       apiKey,
-      'SELECT count() FROM events WHERE timestamp > now() - INTERVAL 60 DAY AND timestamp <= now() - INTERVAL 30 DAY'
-    ),
-    scalar(
-      conn,
-      apiKey,
-      "SELECT count(DISTINCT properties.$session_id) FROM events WHERE timestamp > now() - INTERVAL 30 DAY"
+      `SELECT count() FROM events WHERE timestamp > now() - INTERVAL ${prevStart} DAY AND timestamp <= now() - INTERVAL ${days} DAY`
     ),
     scalar(
       conn,
       apiKey,
-      "SELECT count(DISTINCT properties.$session_id) FROM events WHERE timestamp > now() - INTERVAL 60 DAY AND timestamp <= now() - INTERVAL 30 DAY"
+      `SELECT count(DISTINCT properties.$session_id) FROM events WHERE timestamp > now() - INTERVAL ${days} DAY`
+    ),
+    scalar(
+      conn,
+      apiKey,
+      `SELECT count(DISTINCT properties.$session_id) FROM events WHERE timestamp > now() - INTERVAL ${prevStart} DAY AND timestamp <= now() - INTERVAL ${days} DAY`
     ),
     runQuery(
       conn,
       apiKey,
-      'SELECT toDate(timestamp) AS day, count(DISTINCT person_id) AS dau FROM events WHERE timestamp > now() - INTERVAL 30 DAY GROUP BY day ORDER BY day'
+      `SELECT toDate(timestamp) AS day, count(DISTINCT person_id) AS dau FROM events WHERE timestamp > now() - INTERVAL ${days} DAY GROUP BY day ORDER BY day`
     ),
     runQuery(
       conn,
       apiKey,
-      'SELECT event, count() AS c FROM events WHERE timestamp > now() - INTERVAL 30 DAY GROUP BY event ORDER BY c DESC LIMIT 10'
+      `SELECT event, count() AS c FROM events WHERE timestamp > now() - INTERVAL ${days} DAY GROUP BY event ORDER BY c DESC LIMIT 10`
     ),
     runQuery(
       conn,
       apiKey,
-      "SELECT properties.$pathname AS path, count() AS views, count(DISTINCT person_id) AS users FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL 30 DAY GROUP BY path ORDER BY views DESC LIMIT 10"
+      `SELECT properties.$pathname AS path, count() AS views, count(DISTINCT person_id) AS users FROM events WHERE event = '$pageview' AND timestamp > now() - INTERVAL ${days} DAY GROUP BY path ORDER BY views DESC LIMIT 10`
     ),
   ]);
 
   return {
     generated_at: new Date().toISOString(),
-    unique_users_30d: uniqueUsers30d,
-    unique_users_prev30d: uniqueUsersPrev30d,
-    total_events_30d: totalEvents30d,
-    total_events_prev30d: totalEventsPrev30d,
-    sessions_30d: sessions30d,
-    sessions_prev30d: sessionsPrev30d,
+    range_days: days,
+    unique_users: uniqueUsers,
+    unique_users_prev: uniqueUsersPrev,
+    total_events: totalEvents,
+    total_events_prev: totalEventsPrev,
+    sessions,
+    sessions_prev: sessionsPrev,
     dau_series: dauRows.map((r) => ({ date: String(r[0]), value: Number(r[1]) })),
     top_events: topEventRows.map((r) => ({ name: String(r[0]), count: Number(r[1]) })),
     top_pages: topPageRows.map((r) => ({
