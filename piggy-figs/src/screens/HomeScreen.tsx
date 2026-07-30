@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { listConnections, removeConnection, type Connection } from '../lib/connections';
+import { GlassButton } from '../components/GlassButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -64,10 +65,16 @@ export function HomeScreen({ navigation }: Props) {
         )}
       />
 
-      <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('AddApp')}>
-        <Ionicons name="add-circle" size={20} color="#fff" />
-        <Text style={styles.addBtnText}>Add app</Text>
-      </TouchableOpacity>
+      <GlassButton
+        active
+        style={styles.addBtn}
+        onPress={() => navigation.navigate('AddApp')}
+      >
+        <View style={styles.addBtnInner}>
+          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Text style={styles.addBtnText}>Add app</Text>
+        </View>
+      </GlassButton>
     </View>
   );
 }
@@ -88,10 +95,12 @@ const styles = StyleSheet.create({
   tileName: { color: '#fff', fontSize: 15, fontWeight: '700' },
   tileSub: { color: '#898781', fontSize: 11.5, marginTop: 2 },
   addBtn: {
-    position: 'absolute', right: 20, bottom: 30,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#3987e5', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12,
+    position: 'absolute', right: 20, bottom: 30, borderRadius: 999,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
+  addBtnInner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 18, paddingVertical: 12,
   },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

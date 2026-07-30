@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  View, Text, TextInput, StyleSheet, ScrollView,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { addConnection, type DashboardKind } from '../lib/connections';
 import { testConnection } from '../lib/posthog';
+import { GlassButton } from '../components/GlassButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddApp'>;
 
@@ -80,20 +81,18 @@ export function AddAppScreen({ navigation }: Props) {
         <Field label="Region">
           <View style={styles.row}>
             {HOST_PRESETS.map((p) => (
-              <TouchableOpacity
+              <GlassButton
                 key={p.value}
-                style={[styles.chip, host === p.value && !customHost && styles.chipActive]}
+                active={host === p.value && !customHost}
+                style={styles.chip}
                 onPress={() => { setHost(p.value); setCustomHost(false); }}
               >
                 <Text style={[styles.chipText, host === p.value && !customHost && styles.chipTextActive]}>{p.label}</Text>
-              </TouchableOpacity>
+              </GlassButton>
             ))}
-            <TouchableOpacity
-              style={[styles.chip, customHost && styles.chipActive]}
-              onPress={() => setCustomHost(true)}
-            >
+            <GlassButton active={customHost} style={styles.chip} onPress={() => setCustomHost(true)}>
               <Text style={[styles.chipText, customHost && styles.chipTextActive]}>Custom</Text>
-            </TouchableOpacity>
+            </GlassButton>
           </View>
           {customHost && (
             <TextInput
@@ -110,14 +109,17 @@ export function AddAppScreen({ navigation }: Props) {
         <Field label="Dashboard type">
           <View style={{ gap: 8 }}>
             {DASHBOARD_KINDS.map((k) => (
-              <TouchableOpacity
+              <GlassButton
                 key={k.value}
-                style={[styles.kindOption, kind === k.value && styles.kindOptionActive]}
+                active={kind === k.value}
+                style={styles.kindOption}
                 onPress={() => setKind(k.value)}
               >
-                <Text style={[styles.kindLabel, kind === k.value && styles.chipTextActive]}>{k.label}</Text>
-                <Text style={styles.kindDescription}>{k.description}</Text>
-              </TouchableOpacity>
+                <View style={styles.kindOptionInner}>
+                  <Text style={[styles.kindLabel, kind === k.value && styles.chipTextActive]}>{k.label}</Text>
+                  <Text style={styles.kindDescription}>{k.description}</Text>
+                </View>
+              </GlassButton>
             ))}
           </View>
         </Field>
@@ -134,9 +136,11 @@ export function AddAppScreen({ navigation }: Props) {
           />
         </Field>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={testing}>
-          {testing ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Test & Save</Text>}
-        </TouchableOpacity>
+        <GlassButton active style={styles.saveBtn} onPress={handleSave} disabled={testing}>
+          <View style={styles.saveBtnInner}>
+            {testing ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Test & Save</Text>}
+          </View>
+        </GlassButton>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -162,23 +166,14 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 15,
   },
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-    backgroundColor: '#1a1a19', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  chipActive: { borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,0.15)' },
+  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   chipText: { color: '#c3c2b7', fontSize: 13 },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  kindOption: {
-    padding: 12, borderRadius: 10, backgroundColor: '#1a1a19',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  kindOptionActive: { borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,0.1)' },
+  kindOption: { borderRadius: 10 },
+  kindOptionInner: { padding: 12 },
   kindLabel: { color: '#c3c2b7', fontSize: 14, fontWeight: '600', marginBottom: 3 },
   kindDescription: { color: '#898781', fontSize: 11.5, lineHeight: 16 },
-  saveBtn: {
-    backgroundColor: '#3987e5', borderRadius: 10, paddingVertical: 14,
-    alignItems: 'center', marginTop: 10,
-  },
+  saveBtn: { borderRadius: 10, marginTop: 10 },
+  saveBtnInner: { paddingVertical: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

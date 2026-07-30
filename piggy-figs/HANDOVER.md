@@ -47,16 +47,48 @@ DAU trend, top events, top pages. If you want Bilinguist Brief's tile to
 show its specialized charts instead, that's a real upgrade path (see below)
 — not built here, to keep this app decoupled from that app's schema.
 
-## Status — built, typechecks, rendering verified; never run on-device
+## Status
 
 - `npx tsc --noEmit` passes clean.
-- The exact HTML the WebView loads was rendered in a headless browser with
-  injected fake PostHog-shaped data — KPIs, DAU chart, top events, top pages
-  all render correctly, `window.__setData__` live-updates without a reload,
-  zero console errors.
-- **Never launched in Expo Go, a simulator, or a device build.** That's the
-  next real test — `npx expo start` and open in Expo Go, or `eas build
-  --platform ios --profile preview` for a simulator/device build.
+- **Confirmed working on a real device**, via Expo Go, with a live Bilinguist
+  Brief PostHog project: adding a connection, testing credentials, and
+  pulling real KPI/event data all work end to end.
+- One real bug was found and fixed this way (not caught by any headless
+  test): AsyncStorage's native module isn't present in the Expo Go build
+  used, which broke "Test & Save" with "Native module is null, cannot access
+  legacy storage." Fixed by moving the connection list to `expo-secure-store`
+  — see the git history on `src/lib/connections.ts` for the full story.
+- Two dashboard types now exist per connection (`kind: 'generic' |
+  'bilinguist'`), chosen on Add App. Bilinguist mode's exact embedded HTML
+  (with `window.__EMBEDDED__`, no initial data, then a live `__setData__`
+  push) was verified in a headless browser — correct rendering, no console
+  errors — but **not yet confirmed on-device**, unlike the generic dashboard.
+
+### Liquid Glass buttons — needs a dev client, not Expo Go
+
+Buttons now use `expo-glass-effect`'s `GlassView` (Apple's real native
+Liquid Glass API, iOS 26+) via `src/components/GlassButton.tsx`. **This is a
+native module Expo Go does not bundle** — running `npx expo start --ios` as
+before will very likely fail to find it on iOS (Android silently falls back
+to a plain `View`, since `GlassView`'s non-iOS implementation doesn't touch
+the native module at all).
+
+To actually run this now, switch from Expo Go to a **development build**:
+
+```bash
+npx expo prebuild --platform ios   # generates ios/ from app.json, first time only
+npx expo run:ios                    # builds a custom dev client and launches it
+```
+
+(`expo-dev-client` is already installed.) This needs Xcode installed and
+will take longer than Expo Go's instant reload the first time, but supports
+the same fast-refresh workflow afterward. Alternatively, `eas build
+--profile development` builds it in the cloud instead of locally.
+
+`GlassButton` degrades gracefully (a plain tinted `View`, not a crash) on
+anything pre-iOS-26 or on Android — `isLiquidGlassAvailable()` gates the
+fallback styling — but the *module itself* still needs to be present in the
+binary, which is the part Expo Go can't provide.
 
 ## What's needed before TestFlight
 
@@ -71,10 +103,14 @@ show its specialized charts instead, that's a real upgrade path (see below)
    first submit) to get an `ascAppId`, then add it to `eas.json`'s
    `submit.production.ios.ascAppId` — left out for now since it doesn't
    exist yet (unlike `bilinguist-brief/eas.json`, which already has one).
-3. **Real device/Expo Go test** before trusting any of this — see "Status"
-   above.
-4. **App icon / branding assets.** Currently using Expo's default
-   placeholder icon (`assets/icon.png`). Replace before shipping.
+3. **On-device test of the dev-client build** (see Liquid Glass section
+   above) — the production TestFlight build uses the same native module, so
+   this needs to actually work in a dev client before shipping.
+4. **App icon / branding assets.** A logo was shared in chat (pig-in-mud,
+   "Piggy Figs" branding) but I have no way to save a pasted-in-chat image
+   to disk in this environment — still using Expo's placeholder icon. Send
+   it as a file attachment, or drop it at `assets/icon.png` yourself, and
+   I'll wire up the full icon set (adaptive icon, favicon, splash).
 
 ## Security notes
 

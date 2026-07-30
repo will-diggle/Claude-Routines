@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { BILINGUIST_DASHBOARD_HTML, BILINGUIST_DASHBOARD_JS } from '../dashboard
 import { getApiKey } from '../lib/connections';
 import { fetchOverview, PostHogQueryError } from '../lib/posthog';
 import { fetchBilinguistOverview } from '../lib/posthogBilinguist';
+import { GlassButton } from '../components/GlassButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
 
@@ -76,9 +77,11 @@ export function DashboardScreen({ route, navigation }: Props) {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.title}>{connection.name}</Text>
-        <TouchableOpacity onPress={load} disabled={refreshing}>
-          {refreshing ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="refresh" size={22} color="#fff" />}
-        </TouchableOpacity>
+        <GlassButton style={styles.refreshBtn} onPress={load} disabled={refreshing}>
+          <View style={styles.refreshBtnInner}>
+            {refreshing ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="refresh" size={20} color="#fff" />}
+          </View>
+        </GlassButton>
       </View>
 
       {error && (
@@ -114,6 +117,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingBottom: 12,
   },
   title: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  refreshBtn: { borderRadius: 999 },
+  refreshBtnInner: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   notice: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: '#2a1414' },
   noticeText: { fontSize: 12.5, color: '#e66767' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
