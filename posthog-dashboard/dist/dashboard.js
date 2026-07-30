@@ -424,11 +424,7 @@ function wireGlobalFilters() {
     const originalText = refreshBtn.textContent;
     refreshBtn.textContent = "Refreshing…";
     try {
-      // Configurable so an embedding shell (e.g. the iOS app's WebView) can
-      // point this at an absolute worker URL instead of a relative path,
-      // which wouldn't resolve inside a WebView. See HANDOVER.md.
-      const endpoint = window.__REFRESH_ENDPOINT__ || "/api/refresh-posthog";
-      const res = await fetch(endpoint, { method: "POST" });
+      const res = await fetch("/api/refresh-posthog", { method: "POST" });
       if (!res.ok) throw new Error(`refresh endpoint returned ${res.status}`);
       refreshBtn.textContent = "Refresh queued ✓";
     } catch (err) {
@@ -440,26 +436,10 @@ function wireGlobalFilters() {
   });
 }
 
-// Exposed so an embedding shell can push freshly-fetched data in without a
-// full page reload (e.g. the iOS app fetches data.json itself, since a
-// WebView's relative fetch("data.json") only works when the HTML was loaded
-// from a real http(s) origin, not when injected as an HTML string).
-window.__setData__ = function (newData) {
-  DATA = newData;
-  renderAll();
-};
-
 async function init() {
-  wireGlobalFilters();
-  if (window.__INITIAL_DATA__) {
-    // Data was injected by the embedding shell at load time (iOS app case).
-    DATA = window.__INITIAL_DATA__;
-    renderAll();
-    return;
-  }
-  const dataUrl = window.__DATA_URL__ || "data.json";
-  const res = await fetch(dataUrl);
+  const res = await fetch("data.json");
   DATA = await res.json();
+  wireGlobalFilters();
   renderAll();
 }
 
