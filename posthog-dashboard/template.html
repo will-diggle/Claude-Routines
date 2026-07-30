@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics — Overview</title>
+<style>
+  .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --surface-2:      #202020;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --good:           #0ca30c;
+    --critical:       #d03b3b;
+    --series-1:       #3987e5;
+    --seq-100: #0d366b; --seq-300: #104281; --seq-500: #1c5cab; --seq-700: #3987e5;
+  }
+  :root[data-theme="light"] .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --surface-2:      #ffffff;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --good:           #006300;
+    --critical:       #d03b3b;
+    --series-1:       #2a78d6;
+    --seq-100: #cde2fb; --seq-300: #6da7ec; --seq-500: #256abf; --seq-700: #104281;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); min-height: 100vh; display: flex; }
+  .sidebar { width: 232px; flex-shrink: 0; background: var(--surface-1); border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 22px; }
+  .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, var(--series-1), #9085e9); flex-shrink: 0; }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 11px; color: var(--text-muted); }
+  .nav-section-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 14px 10px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; color: var(--text-secondary); }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55; flex-shrink:0; }
+  .nav-item.active { background: var(--surface-2); color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+  .nav-item.active .dot { background: var(--series-1); opacity: 1; }
+  .sidebar-footer { margin-top: auto; padding: 10px; font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 14px; }
+  .main { flex: 1; min-width: 0; padding: 22px 30px 60px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; flex-wrap: wrap; gap: 12px; }
+  .topbar h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .topbar .subtitle { font-size: 12.5px; color: var(--text-muted); }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .kpi-label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .kpi-delta { font-size: 12px; margin-top: 6px; }
+  .kpi-delta.up { color: var(--good); }
+  .kpi-delta.down { color: var(--critical); }
+  .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .panel-title { font-size: 14px; font-weight: 600; }
+  .panel-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--grid); color: var(--text-secondary); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  tr:last-child td { border-bottom: none; }
+  .axis-label { font-size: 10px; fill: var(--text-muted); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .empty-note { font-size: 12px; color: var(--text-muted); padding: 20px 0; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">Pulse</div>
+        <div class="brand-sub">{{PROJECT_NAME}}</div>
+      </div>
+    </div>
+    <div class="nav-section-label">Analyze</div>
+    <div class="nav-item active"><span class="dot"></span>Overview</div>
+    <div class="nav-item"><span class="dot"></span>Events</div>
+    <div class="nav-item"><span class="dot"></span>User paths</div>
+    <div class="sidebar-footer">Connected via PostHog EU<br>Project {{PROJECT_ID}}</div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1>Overview</h1>
+        <div class="subtitle">Last synced {{GENERATED_AT}} · Live data</div>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Unique users (30d)</div>
+        <div class="kpi-value">{{UNIQUE_USERS}}</div>
+        <div class="kpi-delta {{USERS_DELTA_CLASS}}">{{USERS_DELTA_ARROW}} {{USERS_DELTA_PCT}} vs prior 30d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total events (30d)</div>
+        <div class="kpi-value">{{TOTAL_EVENTS}}</div>
+        <div class="kpi-delta {{EVENTS_DELTA_CLASS}}">{{EVENTS_DELTA_ARROW}} {{EVENTS_DELTA_PCT}} vs prior 30d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Sessions (30d)</div>
+        <div class="kpi-value">{{SESSIONS}}</div>
+        <div class="kpi-delta {{SESSIONS_DELTA_CLASS}}">{{SESSIONS_DELTA_ARROW}} {{SESSIONS_DELTA_PCT}} vs prior 30d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Events per session</div>
+        <div class="kpi-value">{{EVENTS_PER_SESSION}}</div>
+        <div class="kpi-delta">30-day average</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Daily active users</div>
+            <div class="panel-sub">Trend over last 30 days</div>
+          </div>
+        </div>
+        {{DAU_CHART}}
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Top events</div>
+            <div class="panel-sub">By volume, 30d</div>
+          </div>
+        </div>
+        <table><tbody>{{TOP_EVENTS_ROWS}}</tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Top pages</div>
+          <div class="panel-sub">By views, 30d</div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Page</th><th>Views</th><th>Unique users</th></tr></thead>
+        <tbody>{{TOP_PAGES_ROWS}}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>

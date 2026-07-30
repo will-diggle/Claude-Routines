@@ -1,0 +1,44 @@
+name: Refresh PostHog Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # every 6 hours
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch PostHog data
+        working-directory: posthog-dashboard
+        env:
+          POST_HOG_API: ${{ secrets.POST_HOG_API }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+        run: python3 fetch_data.py
+
+      - name: Render dashboard
+        working-directory: posthog-dashboard
+        env:
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: python3 render.py
+
+      - name: Commit updated dashboard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posthog-dashboard/data.json posthog-dashboard/dist/index.html
+          git diff --staged --quiet || git commit -m "Refresh PostHog dashboard data"
+          git push
