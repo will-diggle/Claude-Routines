@@ -6,16 +6,8 @@ An interactive analytics dashboard built against the Bilinguist Brief PostHog
 event schema: timeframe presets + custom range, language multi-select (9
 languages), CEFR level multi-select, an events-vs-unique-users toggle, and a
 **Compare** mode on most charts that splits it into two independently-filtered
-panels (e.g. "French A1 vs French A2"). It ships in two places:
-
-1. **Web** — `posthog-dashboard/dist/index.html`, not yet embedded in the
-   live website (integration task below).
-2. **iOS/iPad app** — an admin-only screen inside `bilinguist-brief`
-   (Settings → Admin → Analytics, gated by email), using the same dashboard
-   HTML/JS inlined into a WebView. See "iOS app integration" below — this is
-   built and typechecks, but **not yet wired to live data** (needs a backend
-   endpoint that doesn't exist yet) and has never run on a device or in a
-   real TestFlight build.
+panels (e.g. "French A1 vs French A2"). It is **not yet embedded in the live
+website** — that's the integration task below.
 
 ## How it works
 
@@ -96,76 +88,6 @@ The workflow already listens for `repository_dispatch: types: [refresh-posthog]`
 so once this Worker route + a scoped `GITHUB_DISPATCH_TOKEN` secret exist, the
 button works end to end. Until then it will show "Refresh unavailable" — that's
 expected, not a bug, since `/api/refresh-posthog` currently 404s.
-
-## iOS app integration (bilinguist-brief)
-
-```
-bilinguist-brief/src/
-  constants/admin.ts                       - email allowlist (isAdminEmail)
-  screens/SettingsScreen.tsx                - "Admin → Analytics" row (only
-                                               rendered when isAdminEmail(userEmail))
-  screens/analyticsDashboard/
-    AnalyticsScreen.tsx                     - full-screen Modal, WebView host
-    generatedAssets.ts                      - GENERATED, do not hand-edit
-    emptyData.ts                            - honest all-zero fallback dataset
-posthog-dashboard/sync-app-assets.mjs        - regenerates generatedAssets.ts
-```
-
-**Why the WebView needed dashboard.js changes.** A WebView given raw HTML via
-`source={{ html }}` (rather than a real URL) has no origin, so the page's own
-`<script src="dashboard.js">` and its `fetch("data.json")` both fail silently.
-`dashboard.js` (in `posthog-dashboard/dist/`, shared by web and app) now
-checks `window.__INITIAL_DATA__` first and only falls back to
-`fetch("data.json")` if that's absent — see `init()` near the bottom of the
-file. `window.__setData__(newData)` is also exposed so the app can push a
-live refresh into an already-rendered page without a full WebView reload.
-
-**Keeping the app in sync with the web dashboard.** `generatedAssets.ts` is a
-byte-for-byte snapshot of `dist/index.html` + `dist/dashboard.js` (the
-`<script src="dashboard.js">` tag is stripped and the JS inlined instead,
-since there's no file to point it at). **After editing anything in
-`posthog-dashboard/dist/`, run:**
-
-```bash
-node posthog-dashboard/sync-app-assets.mjs
-```
-
-and commit the regenerated `generatedAssets.ts` alongside your dashboard
-change — nothing enforces this automatically (no pre-commit hook or CI
-check), so it's easy to forget and let the app silently drift from web.
-
-### What's still needed before this is real on a device
-
-1. **A data endpoint the app can call.** `AnalyticsScreen.tsx` reads
-   `process.env.EXPO_PUBLIC_ANALYTICS_DATA_URL` — unset today, so the screen
-   shows the bundled all-empty placeholder with an on-screen notice
-   explaining why. This needs a `bilinguist-worker` route that serves
-   `posthog-dashboard/dist/data.json`'s contents (proxy from GitHub, or read
-   from KV synced by the same Action) — no credentials should ship in the
-   app bundle. Same underlying gap as the refresh-button endpoint above;
-   worth building both in the same pass.
-2. **Set the env vars** in `bilinguist-brief`'s EAS build config (`eas.json`,
-   same pattern as the existing `EXPO_PUBLIC_*` keys already injected there)
-   once the endpoint exists:
-   - `EXPO_PUBLIC_ANALYTICS_DATA_URL`
-   - `EXPO_PUBLIC_ANALYTICS_REFRESH_URL` (optional — button degrades to
-     "Refresh unavailable" without it)
-   - `EXPO_PUBLIC_ADMIN_EMAILS` (optional — defaults to the owner's email
-     hardcoded in `constants/admin.ts` if unset)
-3. **Never actually run on a device or in TestFlight.** Verification so far
-   is: `tsc --noEmit` clean on every new/changed file, and the *exact* HTML
-   string the WebView will load was rendered in a headless browser (Playwright)
-   confirming it shows a correct empty state with zero fabricated numbers
-   and that `window.__setData__` live-updates without a reload. That is not
-   the same as confirming it works inside `react-native-webview` on iOS —
-   test on a real build (`npx eas-cli build --platform ios --profile
-   production`, the same command the existing TestFlight workflow uses)
-   before considering this done.
-4. **iPad-specific layout check.** The dashboard's CSS grid (`.kpi-row`,
-   `.grid-2`) was designed for desktop web widths; it wasn't tuned against
-   an iPad viewport specifically. Worth a visual pass once it's running on
-   an actual iPad/simulator — likely fine given the grid is responsive, but
-   unverified.
 
 ## Chart-by-chart notes (read before changing anything)
 
