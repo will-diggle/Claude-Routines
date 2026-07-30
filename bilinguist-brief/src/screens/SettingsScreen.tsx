@@ -79,6 +79,8 @@ try {
 import Constants from 'expo-constants';
 import * as analytics from '../services/analytics';
 import { LegalDocModal, type LegalDoc } from './LegalDocModal';
+import { AnalyticsScreen } from './analyticsDashboard/AnalyticsScreen';
+import { isAdminEmail } from '../constants/admin';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
@@ -482,6 +484,7 @@ export function SettingsScreen() {
   const [supportState, setSupportState] = useState<'idle' | 'success' | 'error'>('idle');
   const [legalDocVisible, setLegalDocVisible] = useState(false);
   const [legalDocInitial, setLegalDocInitial] = useState<LegalDoc>('privacy');
+  const [analyticsVisible, setAnalyticsVisible] = useState(false);
 
   const [signInModalVisible, setSignInModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -1238,6 +1241,21 @@ export function SettingsScreen() {
                 </View>
               </View>
 
+              {isAdminEmail(userEmail) && (
+                <>
+                  <SectionHeader title="Admin" colors={colors} fontFamily={fontFamily} />
+                  <TouchableOpacity
+                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                    onPress={() => setAnalyticsVisible(true)}
+                  >
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Analytics
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                  </TouchableOpacity>
+                </>
+              )}
+
               {/* Legal & Support */}
               <SectionHeader title="Legal & Support" colors={colors} fontFamily={fontFamily} />
               <TouchableOpacity
@@ -1689,6 +1707,16 @@ export function SettingsScreen() {
         initialDoc={legalDocInitial}
         onClose={closeLegalDoc}
       />
+
+      {/* ── Admin-only Analytics ── */}
+      <Modal
+        visible={analyticsVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setAnalyticsVisible(false)}
+      >
+        <AnalyticsScreen onClose={() => setAnalyticsVisible(false)} />
+      </Modal>
 
     </SafeAreaView>
   );
