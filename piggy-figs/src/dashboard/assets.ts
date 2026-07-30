@@ -118,9 +118,11 @@ export const DASHBOARD_HTML = `<!doctype html>
   * { box-sizing: border-box; }
   body { margin: 0; }
   .viz-root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); min-height: 100vh; }
-  .main { padding: 18px 18px 50px; max-width: 900px; margin: 0 auto; }
+  .main { padding: 18px 24px 50px; max-width: 1400px; margin: 0 auto; }
   .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
   @media (min-width: 640px) { .kpi-row { grid-template-columns: repeat(4, 1fr); } }
+  .panel-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 900px) { .panel-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
   .kpi-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
   .kpi-label { font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px; }
   .kpi-value { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
@@ -158,17 +160,19 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div id="dau-chart"></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-title">Top events</div>
-      <div id="top-events"></div>
-    </div>
+    <div class="panel-grid">
+      <div class="panel">
+        <div class="panel-title">Top events</div>
+        <div id="top-events"></div>
+      </div>
 
-    <div class="panel">
-      <div class="panel-title">Top pages</div>
-      <table>
-        <thead><tr><th>Page</th><th>Views</th><th>Users</th></tr></thead>
-        <tbody id="top-pages-body"></tbody>
-      </table>
+      <div class="panel">
+        <div class="panel-title">Top pages</div>
+        <table>
+          <thead><tr><th>Page</th><th>Views</th><th>Users</th></tr></thead>
+          <tbody id="top-pages-body"></tbody>
+        </table>
+      </div>
     </div>
 
     <div id="last-synced-row">Last synced: <span id="last-synced">–</span></div>

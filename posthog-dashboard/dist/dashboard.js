@@ -356,6 +356,7 @@ function wireMiniFilters(chartId) {
 }
 
 function renderAll() {
+  if (!DATA) return; // nothing injected yet (embedded shell still fetching)
   renderKpis();
   Object.keys(CHART_DEFS).forEach(renderChart);
   document.getElementById("chart-wordFunnel-static") && (document.getElementById("chart-wordFunnel-static").innerHTML = buildWordFunnel(state.languages, state.levels));
@@ -419,27 +420,60 @@ function wireGlobalFilters() {
   });
 
   const refreshBtn = document.getElementById("refresh-btn");
-  refreshBtn.addEventListener("click", async () => {
-    refreshBtn.disabled = true;
-    const originalText = refreshBtn.textContent;
-    refreshBtn.textContent = "Refreshing…";
-    try {
-      const res = await fetch("/api/refresh-posthog", { method: "POST" });
-      if (!res.ok) throw new Error(`refresh endpoint returned ${res.status}`);
-      refreshBtn.textContent = "Refresh queued ✓";
-    } catch (err) {
-      console.error(err);
-      refreshBtn.textContent = "Refresh unavailable";
-    } finally {
-      setTimeout(() => { refreshBtn.textContent = originalText; refreshBtn.disabled = false; }, 4000);
-    }
-  });
+  if (window.__EMBEDDED__) {
+    // An embedding shell (e.g. piggy-figs' WebView) has its own native
+    // refresh control and calls window.__setData__ directly — the in-page
+    // button would just be a confusing second control pointing at a
+    // /api/refresh-posthog endpoint that doesn't exist in that context.
+    refreshBtn.style.display = "none";
+  } else {
+    refreshBtn.addEventListener("click", async () => {
+      refreshBtn.disabled = true;
+      const originalText = refreshBtn.textContent;
+      refreshBtn.textContent = "Refreshing…";
+      try {
+        const endpoint = window.__REFRESH_ENDPOINT__ || "/api/refresh-posthog";
+        const res = await fetch(endpoint, { method: "POST" });
+        if (!res.ok) throw new Error(`refresh endpoint returned ${res.status}`);
+        refreshBtn.textContent = "Refresh queued ✓";
+      } catch (err) {
+        console.error(err);
+        refreshBtn.textContent = "Refresh unavailable";
+      } finally {
+        setTimeout(() => { refreshBtn.textContent = originalText; refreshBtn.disabled = false; }, 4000);
+      }
+    });
+  }
 }
 
+// Exposed so an embedding shell can push freshly-fetched data in without a
+// full page reload (piggy-figs fetches PostHog data natively on-device and
+// injects it here, since a WebView loaded from an HTML string has no origin
+// to fetch("data.json") against).
+window.__setData__ = function (newData) {
+  DATA = newData;
+  renderAll();
+};
+
 async function init() {
-  const res = await fetch("data.json");
-  DATA = await res.json();
   wireGlobalFilters();
+  if (window.__EMBEDDED__) {
+    // An embedding shell always owns fetching (there's no same-origin
+    // data.json to fetch("data.json") against inside a WebView) — render
+    // with whatever was injected, even if that's null/empty, and rely on
+    // window.__setData__ for the real data once the shell's fetch resolves.
+    DATA = window.__INITIAL_DATA__ || null;
+    renderAll();
+    return;
+  }
+  if (window.__INITIAL_DATA__) {
+    DATA = window.__INITIAL_DATA__;
+    renderAll();
+    return;
+  }
+  const dataUrl = window.__DATA_URL__ || "data.json";
+  const res = await fetch(dataUrl);
+  DATA = await res.json();
   renderAll();
 }
 

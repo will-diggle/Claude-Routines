@@ -7,11 +7,14 @@
 // everything was moved to SecureStore instead, which Expo Go does support.
 import * as SecureStore from 'expo-secure-store';
 
+export type DashboardKind = 'generic' | 'bilinguist';
+
 export interface Connection {
   id: string;
   name: string;
   projectId: string;
   host: string; // e.g. https://eu.posthog.com
+  kind: DashboardKind;
 }
 
 const LIST_KEY = 'piggyfigs_connections_list';
@@ -25,7 +28,9 @@ export async function listConnections(): Promise<Connection[]> {
   const raw = await SecureStore.getItemAsync(LIST_KEY);
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as Connection[];
+    const list = JSON.parse(raw) as Connection[];
+    // Backfill for connections saved before `kind` existed.
+    return list.map((c) => ({ ...c, kind: c.kind ?? 'generic' }));
   } catch {
     return [];
   }
@@ -40,12 +45,14 @@ export async function addConnection(input: {
   projectId: string;
   host: string;
   apiKey: string;
+  kind: DashboardKind;
 }): Promise<Connection> {
   const conn: Connection = {
     id: genId(),
     name: input.name.trim(),
     projectId: input.projectId.trim(),
     host: input.host.trim().replace(/\/$/, ''),
+    kind: input.kind,
   };
   await SecureStore.setItemAsync(secretKey(conn.id), input.apiKey.trim());
   const list = await listConnections();

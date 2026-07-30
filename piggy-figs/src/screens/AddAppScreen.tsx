@@ -6,14 +6,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { addConnection } from '../lib/connections';
-import { fetchOverview } from '../lib/posthog';
+import { addConnection, type DashboardKind } from '../lib/connections';
+import { testConnection } from '../lib/posthog';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddApp'>;
 
 const HOST_PRESETS = [
   { label: 'EU Cloud', value: 'https://eu.posthog.com' },
   { label: 'US Cloud', value: 'https://us.posthog.com' },
+];
+
+const DASHBOARD_KINDS: { label: string; value: DashboardKind; description: string }[] = [
+  { label: 'Generic', value: 'generic', description: 'Unique users, events, sessions, top events & pages — works for any PostHog project.' },
+  { label: 'Bilinguist Brief', value: 'bilinguist', description: 'Language & CEFR-level filters, funnels, streaks — built for Bilinguist Brief’s specific events.' },
 ];
 
 export function AddAppScreen({ navigation }: Props) {
@@ -23,6 +28,7 @@ export function AddAppScreen({ navigation }: Props) {
   const [host, setHost] = useState(HOST_PRESETS[0].value);
   const [customHost, setCustomHost] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [kind, setKind] = useState<DashboardKind>('generic');
   const [testing, setTesting] = useState(false);
 
   async function handleSave() {
@@ -33,8 +39,9 @@ export function AddAppScreen({ navigation }: Props) {
     setTesting(true);
     try {
       // Verify the credentials actually work before saving, so a typo
-      // doesn't silently create a dead tile on the home screen.
-      await fetchOverview({ id: 'test', name, projectId, host }, apiKey);
+      // doesn't silently create a dead tile on the home screen. Deliberately
+      // a cheap single query, not the full (generic or Bilinguist) fetch.
+      await testConnection({ id: 'test', name, projectId, host, kind }, apiKey);
     } catch (e: any) {
       setTesting(false);
       Alert.alert(
@@ -44,7 +51,7 @@ export function AddAppScreen({ navigation }: Props) {
       return;
     }
     try {
-      await addConnection({ name, projectId, host, apiKey });
+      await addConnection({ name, projectId, host, apiKey, kind });
       setTesting(false);
       navigation.goBack();
     } catch (e: any) {
@@ -100,6 +107,21 @@ export function AddAppScreen({ navigation }: Props) {
           )}
         </Field>
 
+        <Field label="Dashboard type">
+          <View style={{ gap: 8 }}>
+            {DASHBOARD_KINDS.map((k) => (
+              <TouchableOpacity
+                key={k.value}
+                style={[styles.kindOption, kind === k.value && styles.kindOptionActive]}
+                onPress={() => setKind(k.value)}
+              >
+                <Text style={[styles.kindLabel, kind === k.value && styles.chipTextActive]}>{k.label}</Text>
+                <Text style={styles.kindDescription}>{k.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Field>
+
         <Field label="Personal API Key">
           <TextInput
             style={styles.input}
@@ -147,6 +169,13 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,0.15)' },
   chipText: { color: '#c3c2b7', fontSize: 13 },
   chipTextActive: { color: '#fff', fontWeight: '600' },
+  kindOption: {
+    padding: 12, borderRadius: 10, backgroundColor: '#1a1a19',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  kindOptionActive: { borderColor: '#3987e5', backgroundColor: 'rgba(57,135,229,0.1)' },
+  kindLabel: { color: '#c3c2b7', fontSize: 14, fontWeight: '600', marginBottom: 3 },
+  kindDescription: { color: '#898781', fontSize: 11.5, lineHeight: 16 },
   saveBtn: {
     backgroundColor: '#3987e5', borderRadius: 10, paddingVertical: 14,
     alignItems: 'center', marginTop: 10,

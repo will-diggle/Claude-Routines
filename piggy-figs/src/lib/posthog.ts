@@ -43,6 +43,13 @@ async function scalar(conn: Connection, apiKey: string, hogql: string): Promise<
   return rows[0]?.[0] ?? 0;
 }
 
+// Cheap credential check used by AddAppScreen — one query, not the full
+// overview fetch (or the 15-query Bilinguist fetch), so "Test & Save"
+// doesn't take as long as actually opening the dashboard.
+export async function testConnection(conn: Connection, apiKey: string): Promise<void> {
+  await runQuery(conn, apiKey, 'SELECT count() FROM events WHERE timestamp > now() - INTERVAL 1 DAY');
+}
+
 export async function fetchOverview(conn: Connection, apiKey: string): Promise<OverviewData> {
   const [
     uniqueUsers30d,
