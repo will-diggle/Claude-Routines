@@ -3,16 +3,14 @@ import {
   Animated, Pressable, StyleSheet, type ViewStyle, type StyleProp, type GestureResponderEvent,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 
-// iOS 26's native Liquid Glass, via expo-glass-effect's GlassView, styled to
-// the Bilinguist Brief design system's GlassButton spec: spring squeeze on
-// press-in (0.88x), bounce past 1x (1.12x) then settle on release, haptic on
-// every press, shadowOpacity 0.18 / shadowRadius 12, disabled opacity 0.35.
-// On anything that isn't iOS 26 (older iOS, Android, simulator without the
-// glass API), GlassView quietly renders as a plain <View> with none of its
-// props applied — so `fallbackBackground` keeps buttons legible instead of
-// turning invisible/transparent-on-black in that case.
+// A plain styled button — same shape, spring-press animation, and haptics as
+// the design system's GlassButton spec, but without expo-glass-effect's
+// native Liquid Glass material. That module's build tooling (a nested
+// xcodebuild + hand-assembled xcframework) turned out to be too fragile to
+// depend on right now and required a custom dev client instead of Expo Go.
+// Dropped so the app builds and runs in plain Expo Go again — see git
+// history on this file if reviving native Liquid Glass later.
 interface Props {
   onPress?: (e: GestureResponderEvent) => void;
   onLongPress?: (e: GestureResponderEvent) => void;
@@ -23,8 +21,6 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }
-
-const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 export function GlassButton({
   onPress,
@@ -62,21 +58,17 @@ export function GlassButton({
       onPressOut={pressOut}
       disabled={disabled}
     >
-      <Animated.View style={[{ transform: [{ scale }] }, disabled && styles.disabled]}>
-        <GlassView
-          style={[
-            styles.base,
-            !GLASS_AVAILABLE && { backgroundColor: active ? tintColor : fallbackBackground },
-            !GLASS_AVAILABLE && active && { borderColor: tintColor },
-            style,
-          ]}
-          glassEffectStyle="regular"
-          tintColor={active ? tintColor : undefined}
-          isInteractive
-          colorScheme="dark"
-        >
-          {children}
-        </GlassView>
+      <Animated.View
+        style={[
+          styles.base,
+          { backgroundColor: active ? tintColor : fallbackBackground },
+          active && { borderColor: tintColor },
+          { transform: [{ scale }] },
+          disabled && styles.disabled,
+          style,
+        ]}
+      >
+        {children}
       </Animated.View>
     </Pressable>
   );

@@ -64,31 +64,27 @@ show its specialized charts instead, that's a real upgrade path (see below)
   push) was verified in a headless browser — correct rendering, no console
   errors — but **not yet confirmed on-device**, unlike the generic dashboard.
 
-### Liquid Glass buttons — needs a dev client, not Expo Go
+### Liquid Glass — tried, reverted; app runs in plain Expo Go
 
-Buttons now use `expo-glass-effect`'s `GlassView` (Apple's real native
-Liquid Glass API, iOS 26+) via `src/components/GlassButton.tsx`. **This is a
-native module Expo Go does not bundle** — running `npx expo start --ios` as
-before will very likely fail to find it on iOS (Android silently falls back
-to a plain `View`, since `GlassView`'s non-iOS implementation doesn't touch
-the native module at all).
+An earlier version of `GlassButton` used `expo-glass-effect`'s native
+`GlassView` (Apple's real Liquid Glass API, iOS 26+). It required a custom
+dev client (`npx expo run:ios`, not Expo Go), and that module's build
+tooling — a nested `xcodebuild` call assembling a hand-built `.xcframework`,
+with its own hash-based caching — turned out to be too fragile to keep
+depending on: `abs()` overload ambiguity in its bundled Swift, cache
+invalidation problems even after `expo prebuild --clean`, opaque `-quiet`
+failures. After a lot of back-and-forth trying to fix it (see the git
+history — `expo-modules-jsi` Swift patch, `patch-package`, etc.), it was
+reverted rather than continuing to burn time on Expo's own build internals.
 
-To actually run this now, switch from Expo Go to a **development build**:
+`GlassButton` is now a plain `Pressable` + `Animated.View` — same shape,
+same spring-press-and-bounce animation, same haptics, no native glass
+material. **The app runs in plain Expo Go again**: `npx expo start --ios`
+works with no prebuild, no dev client, no Xcode build step.
 
-```bash
-npx expo prebuild --platform ios   # generates ios/ from app.json, first time only
-npx expo run:ios                    # builds a custom dev client and launches it
-```
-
-(`expo-dev-client` is already installed.) This needs Xcode installed and
-will take longer than Expo Go's instant reload the first time, but supports
-the same fast-refresh workflow afterward. Alternatively, `eas build
---profile development` builds it in the cloud instead of locally.
-
-`GlassButton` degrades gracefully (a plain tinted `View`, not a crash) on
-anything pre-iOS-26 or on Android — `isLiquidGlassAvailable()` gates the
-fallback styling — but the *module itself* still needs to be present in the
-binary, which is the part Expo Go can't provide.
+If real Liquid Glass is wanted later, revisit `expo-glass-effect` once it's
+had more time to mature, or budget real time for debugging its build script
+specifically — it is not a quick add.
 
 ## What's needed before TestFlight
 
@@ -103,9 +99,9 @@ binary, which is the part Expo Go can't provide.
    first submit) to get an `ascAppId`, then add it to `eas.json`'s
    `submit.production.ios.ascAppId` — left out for now since it doesn't
    exist yet (unlike `bilinguist-brief/eas.json`, which already has one).
-3. **On-device test of the dev-client build** (see Liquid Glass section
-   above) — the production TestFlight build uses the same native module, so
-   this needs to actually work in a dev client before shipping.
+3. **On-device test of the actual TestFlight build** — `eas build` produces
+   a real native binary even without a custom dev client, so this is still
+   worth a real device check before shipping.
 4. **App icon / branding assets.** A logo was shared in chat (pig-in-mud,
    "Piggy Figs" branding) but I have no way to save a pasted-in-chat image
    to disk in this environment — still using Expo's placeholder icon. Send
