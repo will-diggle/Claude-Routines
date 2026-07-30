@@ -11,6 +11,7 @@ import { getApiKey } from '../lib/connections';
 import { fetchOverview, PostHogQueryError } from '../lib/posthog';
 import { fetchBilinguistOverview } from '../lib/posthogBilinguist';
 import { GlassButton } from '../components/GlassButton';
+import { useTheme, SPACING, FONT_SERIF } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
 
@@ -27,6 +28,7 @@ export function DashboardScreen({ route, navigation }: Props) {
   const { connection } = route.params;
   const isBilinguist = connection.kind === 'bilinguist';
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,35 +76,35 @@ export function DashboardScreen({ route, navigation }: Props) {
   }, [navigation, connection.name]);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.title}>{connection.name}</Text>
-        <GlassButton style={styles.refreshBtn} onPress={load} disabled={refreshing}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.ink }]}>{connection.name}</Text>
+        <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={load} disabled={refreshing}>
           <View style={styles.refreshBtnInner}>
-            {refreshing ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="refresh" size={20} color="#fff" />}
+            {refreshing ? <ActivityIndicator size="small" color={colors.ink} /> : <Ionicons name="refresh" size={20} color={colors.ink} />}
           </View>
         </GlassButton>
       </View>
 
       {error && (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>{error}</Text>
+        <View style={[styles.notice, { backgroundColor: colors.accentRed + '22' }]}>
+          <Text style={[styles.noticeText, { color: colors.accentRed }]}>{error}</Text>
         </View>
       )}
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color="#3987e5" />
-          <Text style={styles.loadingText}>{progress ?? 'Loading from PostHog…'}</Text>
+          <ActivityIndicator color={colors.accentRed} />
+          <Text style={[styles.loadingText, { color: colors.inkMid }]}>{progress ?? 'Loading from PostHog…'}</Text>
           {isBilinguist && (
-            <Text style={styles.loadingSubtext}>Bilinguist Brief's dashboard pulls 15 separate event queries — first load can take a few seconds.</Text>
+            <Text style={[styles.loadingSubtext, { color: colors.inkFaint }]}>Bilinguist Brief's dashboard pulls 15 separate event queries — first load can take a few seconds.</Text>
           )}
         </View>
       ) : (
         <WebView
           ref={webRef}
           source={{ html }}
-          style={{ flex: 1, backgroundColor: '#0d0d0d' }}
+          style={{ flex: 1, backgroundColor: colors.bg }}
           originWhitelist={['*']}
         />
       )}
@@ -111,17 +113,17 @@ export function DashboardScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0d0d0d' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 18, paddingBottom: 12,
+    paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  title: { fontFamily: FONT_SERIF, fontSize: 20, fontWeight: '700' },
   refreshBtn: { borderRadius: 999 },
   refreshBtnInner: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  notice: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: '#2a1414' },
-  noticeText: { fontSize: 12.5, color: '#e66767' },
+  notice: { paddingHorizontal: SPACING.lg, paddingVertical: 10 },
+  noticeText: { fontSize: 12.5 },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
-  loadingText: { color: '#898781', fontSize: 13 },
-  loadingSubtext: { color: '#5c5b57', fontSize: 11.5, textAlign: 'center', lineHeight: 16 },
+  loadingText: { fontSize: 13 },
+  loadingSubtext: { fontSize: 11.5, textAlign: 'center', lineHeight: 16 },
 });

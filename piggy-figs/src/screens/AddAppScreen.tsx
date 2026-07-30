@@ -9,6 +9,7 @@ import type { RootStackParamList } from '../../App';
 import { addConnection, type DashboardKind } from '../lib/connections';
 import { testConnection } from '../lib/posthog';
 import { GlassButton } from '../components/GlassButton';
+import { useTheme, SPACING, RADIUS, LABEL_STYLE, FONT_SERIF } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddApp'>;
 
@@ -24,6 +25,7 @@ const DASHBOARD_KINDS: { label: string; value: DashboardKind; description: strin
 
 export function AddAppScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [projectId, setProjectId] = useState('');
   const [host, setHost] = useState(HOST_PRESETS[0].value);
@@ -62,83 +64,91 @@ export function AddAppScreen({ navigation }: Props) {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}>
-        <Text style={styles.title}>Add a PostHog app</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.ink }]}>Add a PostHog app</Text>
+        <Text style={[styles.subtitle, { color: colors.inkMid }]}>
           Uses a PostHog Personal API Key (read scopes: Event, Query) — not the public write key
           your app uses to send events. Create one in PostHog → Settings → Personal API Keys.
         </Text>
 
-        <Field label="App name">
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Bilinguist Brief" placeholderTextColor="#666" />
+        <Field label="App name" colors={colors}>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.ink }]}
+            value={name} onChangeText={setName} placeholder="e.g. Bilinguist Brief" placeholderTextColor={colors.inkFaint}
+          />
         </Field>
 
-        <Field label="PostHog Project ID">
-          <TextInput style={styles.input} value={projectId} onChangeText={setProjectId} placeholder="e.g. 208705" placeholderTextColor="#666" keyboardType="number-pad" />
+        <Field label="PostHog Project ID" colors={colors}>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.ink }]}
+            value={projectId} onChangeText={setProjectId} placeholder="e.g. 208705" placeholderTextColor={colors.inkFaint} keyboardType="number-pad"
+          />
         </Field>
 
-        <Field label="Region">
+        <Field label="Region" colors={colors}>
           <View style={styles.row}>
             {HOST_PRESETS.map((p) => (
               <GlassButton
                 key={p.value}
                 active={host === p.value && !customHost}
+                tintColor={colors.chrome}
                 style={styles.chip}
                 onPress={() => { setHost(p.value); setCustomHost(false); }}
               >
-                <Text style={[styles.chipText, host === p.value && !customHost && styles.chipTextActive]}>{p.label}</Text>
+                <Text style={[styles.chipText, { color: colors.inkMid }, host === p.value && !customHost && { color: colors.bg, fontWeight: '600' }]}>{p.label}</Text>
               </GlassButton>
             ))}
-            <GlassButton active={customHost} style={styles.chip} onPress={() => setCustomHost(true)}>
-              <Text style={[styles.chipText, customHost && styles.chipTextActive]}>Custom</Text>
+            <GlassButton active={customHost} tintColor={colors.chrome} style={styles.chip} onPress={() => setCustomHost(true)}>
+              <Text style={[styles.chipText, { color: colors.inkMid }, customHost && { color: colors.bg, fontWeight: '600' }]}>Custom</Text>
             </GlassButton>
           </View>
           {customHost && (
             <TextInput
-              style={[styles.input, { marginTop: 8 }]}
+              style={[styles.input, { marginTop: 8, backgroundColor: colors.surface, borderColor: colors.border, color: colors.ink }]}
               value={host}
               onChangeText={setHost}
               placeholder="https://your-posthog-instance.com"
-              placeholderTextColor="#666"
+              placeholderTextColor={colors.inkFaint}
               autoCapitalize="none"
             />
           )}
         </Field>
 
-        <Field label="Dashboard type">
-          <View style={{ gap: 8 }}>
+        <Field label="Dashboard type" colors={colors}>
+          <View style={{ gap: SPACING.sm }}>
             {DASHBOARD_KINDS.map((k) => (
               <GlassButton
                 key={k.value}
                 active={kind === k.value}
+                tintColor={colors.chrome}
                 style={styles.kindOption}
                 onPress={() => setKind(k.value)}
               >
                 <View style={styles.kindOptionInner}>
-                  <Text style={[styles.kindLabel, kind === k.value && styles.chipTextActive]}>{k.label}</Text>
-                  <Text style={styles.kindDescription}>{k.description}</Text>
+                  <Text style={[styles.kindLabel, { color: colors.inkMid }, kind === k.value && { color: colors.bg }]}>{k.label}</Text>
+                  <Text style={[styles.kindDescription, { color: kind === k.value ? colors.bg : colors.inkFaint, opacity: kind === k.value ? 0.8 : 1 }]}>{k.description}</Text>
                 </View>
               </GlassButton>
             ))}
           </View>
         </Field>
 
-        <Field label="Personal API Key">
+        <Field label="Personal API Key" colors={colors}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.ink }]}
             value={apiKey}
             onChangeText={setApiKey}
             placeholder="phx_..."
-            placeholderTextColor="#666"
+            placeholderTextColor={colors.inkFaint}
             autoCapitalize="none"
             secureTextEntry
           />
         </Field>
 
-        <GlassButton active style={styles.saveBtn} onPress={handleSave} disabled={testing}>
+        <GlassButton active tintColor={colors.accentRed} style={styles.saveBtn} onPress={handleSave} disabled={testing}>
           <View style={styles.saveBtnInner}>
-            {testing ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Test & Save</Text>}
+            {testing ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.saveBtnText, { color: colors.bg }]}>Test & Save</Text>}
           </View>
         </GlassButton>
       </ScrollView>
@@ -146,34 +156,33 @@ export function AddAppScreen({ navigation }: Props) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, colors, children }: { label: string; colors: ReturnType<typeof useTheme>['colors']; children: React.ReactNode }) {
   return (
-    <View style={{ marginBottom: 18 }}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={{ marginBottom: SPACING.lg }}>
+      <Text style={[styles.label, { color: colors.inkFaint }]}>{label}</Text>
       {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0d0d0d' },
-  scroll: { paddingHorizontal: 20 },
-  title: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 6 },
-  subtitle: { fontSize: 12.5, color: '#898781', marginBottom: 24, lineHeight: 18 },
-  label: { fontSize: 12, fontWeight: '600', color: '#c3c2b7', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  container: { flex: 1 },
+  scroll: { paddingHorizontal: SPACING.lg },
+  title: { fontFamily: FONT_SERIF, fontSize: 24, fontWeight: '700', marginBottom: SPACING.sm },
+  subtitle: { fontSize: 12.5, marginBottom: SPACING.lg, lineHeight: 18 },
+  label: { ...LABEL_STYLE, marginBottom: SPACING.sm },
   input: {
-    backgroundColor: '#1a1a19', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#fff', fontSize: 15,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.input, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
   },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  chipText: { color: '#c3c2b7', fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  kindOption: { borderRadius: 10 },
-  kindOptionInner: { padding: 12 },
-  kindLabel: { color: '#c3c2b7', fontSize: 14, fontWeight: '600', marginBottom: 3 },
-  kindDescription: { color: '#898781', fontSize: 11.5, lineHeight: 16 },
-  saveBtn: { borderRadius: 10, marginTop: 10 },
+  row: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
+  chip: { borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  chipText: { fontSize: 13 },
+  kindOption: { borderRadius: RADIUS.card },
+  kindOptionInner: { padding: SPACING.md },
+  kindLabel: { fontFamily: FONT_SERIF, fontSize: 14, fontWeight: '700', marginBottom: 3 },
+  kindDescription: { fontSize: 11.5, lineHeight: 16 },
+  saveBtn: { borderRadius: RADIUS.input, marginTop: SPACING.sm },
   saveBtnInner: { paddingVertical: 14, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  saveBtnText: { fontWeight: '700', fontSize: 15 },
 });
