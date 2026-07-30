@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilinguist Brief · Analytics</title>
+<style>
+  .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --surface-2: #202020;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --good: #0ca30c; --critical: #d03b3b;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+    --muted-series: #6b6a66;
+    --seq-100: #0d366b; --seq-300: #104281; --seq-500: #1c5cab; --seq-700: #3987e5;
+    --lvl-a1: #86b6ef; --lvl-a2: #6da7ec; --lvl-b1: #5598e7; --lvl-b2: #3987e5;
+    --lvl-c1: #2a78d6; --lvl-c2: #256abf; --lvl-native: #184f95;
+  }
+  :root[data-theme="light"] .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --page: #f9f9f7; --surface-2: #ffffff;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --good: #006300; --critical: #d03b3b;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+    --muted-series: #a3a29c;
+    --seq-100: #cde2fb; --seq-300: #6da7ec; --seq-500: #256abf; --seq-700: #104281;
+    --lvl-a1: #86b6ef; --lvl-a2: #6da7ec; --lvl-b1: #5598e7; --lvl-b2: #3987e5;
+    --lvl-c1: #2a78d6; --lvl-c2: #256abf; --lvl-native: #184f95;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); min-height: 100vh; }
+  .main { padding: 22px 30px 60px; max-width: 1280px; margin: 0 auto; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 12px; }
+  .topbar h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .topbar .subtitle { font-size: 12.5px; color: var(--text-muted); }
+  .btn { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); padding: 7px 14px; border-radius: 7px; cursor: pointer; font-family: inherit; }
+  .btn:hover { color: var(--text-primary); }
+  .btn.active { color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--series-1); }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* ---- Filter bar ---- */
+  .filterbar { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin: 16px 0 20px; display: flex; flex-direction: column; gap: 12px; }
+  .filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .filter-row .row-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); width: 96px; flex-shrink: 0; }
+  .preset-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  #custom-range { display: none; align-items: center; gap: 6px; }
+  #custom-range input[type="date"] { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary); border-radius: 6px; padding: 5px 8px; font-family: inherit; font-size: 12.5px; }
+  .check-pill { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); background: var(--surface-2); border: 1px solid var(--border); padding: 5px 9px; border-radius: 999px; cursor: pointer; user-select: none; }
+  .check-pill input { accent-color: var(--series-1); }
+  .toggle-switch { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); }
+  .toggle-switch input { width: 34px; height: 18px; accent-color: var(--series-1); }
+
+  /* ---- KPIs ---- */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .kpi-label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* ---- Panels ---- */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .panel.full { grid-column: 1 / -1; }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
+  .panel-title { font-size: 14px; font-weight: 600; }
+  .panel-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+  .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--text-secondary); flex-wrap: wrap; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .axis-label { font-size: 10px; fill: var(--text-muted); }
+  .empty-note { font-size: 12px; color: var(--text-muted); padding: 30px 0; text-align: center; }
+
+  .hbar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12.5px; }
+  .hbar-label { width: 150px; flex-shrink: 0; color: var(--text-secondary); }
+  .hbar-sub { color: var(--text-muted); font-size: 11px; }
+  .hbar-track { flex: 1; background: var(--grid); border-radius: 4px; height: 10px; overflow: hidden; }
+  .hbar-fill { height: 100%; background: var(--series-1); border-radius: 4px; }
+  .hbar-value { width: 60px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); font-weight: 600; }
+
+  .funnel-step { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .funnel-label { width: 150px; font-size: 12.5px; color: var(--text-secondary); flex-shrink: 0; }
+  .funnel-bar-wrap { flex: 1; background: var(--grid); border-radius: 6px; height: 24px; overflow: hidden; }
+  .funnel-bar { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 10px; font-size: 11.5px; font-weight: 600; color: #fff; background: var(--series-1); white-space: nowrap; }
+  .funnel-pct { width: 52px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .funnel-drop { font-size: 11px; color: var(--critical); width: 60px; text-align: right; }
+
+  .mini-filters { display: flex; gap: 6px; margin-bottom: 10px; }
+  .mini-select { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary); border-radius: 6px; padding: 5px 8px; font-family: inherit; font-size: 12px; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .compare-panel { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+
+  #last-synced-row { font-size: 11.5px; color: var(--text-muted); margin: 20px 0 0; text-align: right; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1>Bilinguist Brief · Analytics</h1>
+        <div class="subtitle">Live from PostHog EU · Project data refreshed every 6 hours</div>
+      </div>
+      <button id="refresh-btn" class="btn">Refresh now</button>
+    </div>
+
+    <div class="filterbar">
+      <div class="filter-row">
+        <div class="row-label">Timeframe</div>
+        <div class="preset-group">
+          <button class="btn" data-preset="today">Today</button>
+          <button class="btn" data-preset="7d">Last 7 days</button>
+          <button class="btn active" data-preset="30d">Last 30 days</button>
+          <button class="btn" data-preset="90d">Last 90 days</button>
+          <button class="btn" data-preset="month">This month</button>
+          <button class="btn" data-preset="custom">Custom range</button>
+        </div>
+        <div id="custom-range">
+          <input type="date" id="custom-start">
+          <span style="color:var(--text-muted)">to</span>
+          <input type="date" id="custom-end">
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="row-label">Language</div>
+        <div id="lang-checkboxes" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+      <div class="filter-row">
+        <div class="row-label">CEFR level</div>
+        <div id="level-checkboxes" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+      <div class="filter-row">
+        <div class="row-label">Count mode</div>
+        <label class="toggle-switch">
+          <span id="count-mode-label">Total events</span>
+          <input type="checkbox" id="count-mode">
+          <span>Unique users</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Briefs completed</div><div class="kpi-value" id="kpi-briefs">–</div></div>
+      <div class="kpi-card"><div class="kpi-label">Words saved</div><div class="kpi-value" id="kpi-words">–</div></div>
+      <div class="kpi-card"><div class="kpi-label">Active readers <span title="Sum of daily unique users; a person reading on multiple days is counted more than once. True cross-day dedup needs PostHog's person-merge, not available from this aggregate.">(≈)</span></div><div class="kpi-value" id="kpi-readers">–</div></div>
+      <div class="kpi-card"><div class="kpi-label">Avg. reading time</div><div class="kpi-value" id="kpi-avgtime">–</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Briefs read over time</div><div class="panel-sub">brief_completed — one line per language</div></div>
+          <button class="btn" data-compare-toggle="briefsOverTime">Compare</button>
+        </div>
+        <div id="chart-briefsOverTime"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Level breakdown per language</div><div class="panel-sub">brief_completed, stacked by CEFR level</div></div>
+          <button class="btn" data-compare-toggle="levelBreakdown">Compare</button>
+        </div>
+        <div id="chart-levelBreakdown"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Words saved by language</div><div class="panel-sub">word_saved, grouped by language</div></div>
+          <button class="btn" data-compare-toggle="wordsSaved">Compare</button>
+        </div>
+        <div id="chart-wordsSaved"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Word engagement funnel</div><div class="panel-sub">tapped → saved → tell me more → audio · counts per step, not a strict ordered funnel (see handover notes)</div></div>
+          <button class="btn" data-compare-toggle="wordFunnel">Compare</button>
+        </div>
+        <div id="chart-wordFunnel"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Game activity</div><div class="panel-sub">game_opened volume, with completion rate per game</div></div>
+        </div>
+        <div id="chart-gameActivity"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Streak health</div><div class="panel-sub">increments vs. losses vs. freeze usage</div></div>
+        </div>
+        <div id="chart-streakHealth"></div>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <div class="panel-head">
+        <div><div class="panel-title">Subscription funnel</div><div class="panel-sub">Global — no language/level filter applies. anonymous_session_started → user_signed_up → paywall_shown → subscription_started</div></div>
+      </div>
+      <div id="chart-subscriptionFunnel"></div>
+    </div>
+
+    <div id="last-synced-row">Data last synced: <span id="last-synced">–</span></div>
+  </div>
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>

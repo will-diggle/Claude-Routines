@@ -5,6 +5,9 @@
 node_modules/
 .expo/
 dist/
+# posthog-dashboard/dist is checked-in source + CI-generated data, not a build artifact
+!posthog-dashboard/dist/
+!posthog-dashboard/dist/**
 
 # Python
 __pycache__/
