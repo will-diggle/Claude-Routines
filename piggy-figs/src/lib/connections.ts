@@ -61,6 +61,28 @@ export async function addConnection(input: {
   return conn;
 }
 
+export async function updateConnection(
+  id: string,
+  input: { name: string; projectId: string; host: string; kind: DashboardKind; apiKey?: string }
+): Promise<void> {
+  const list = await listConnections();
+  const idx = list.findIndex((c) => c.id === id);
+  if (idx === -1) throw new Error('Connection not found');
+  list[idx] = {
+    ...list[idx],
+    name: input.name.trim(),
+    projectId: input.projectId.trim(),
+    host: input.host.trim().replace(/\/$/, ''),
+    kind: input.kind,
+  };
+  await saveList(list);
+  // Only touch the stored key if a new one was actually entered — leaving
+  // the field untouched in the edit form means "keep the existing key".
+  if (input.apiKey && input.apiKey.trim()) {
+    await SecureStore.setItemAsync(secretKey(id), input.apiKey.trim());
+  }
+}
+
 export async function removeConnection(id: string): Promise<void> {
   const list = await listConnections();
   await saveList(list.filter((c) => c.id !== id));

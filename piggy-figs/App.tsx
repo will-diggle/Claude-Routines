@@ -12,7 +12,7 @@ import { useTheme, FONT_SERIF } from './src/theme/tokens';
 
 export type RootStackParamList = {
   Home: undefined;
-  AddApp: undefined;
+  AddApp: { editing?: Connection } | undefined;
   Dashboard: { connection: Connection };
 };
 

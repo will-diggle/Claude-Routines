@@ -24,15 +24,29 @@ export function HomeScreen({ navigation }: Props) {
     }, [])
   );
 
-  function confirmRemove(conn: Connection) {
-    Alert.alert(conn.name, 'Remove this app from Piggy Figs? This deletes its stored API key from this device.', [
+  function showTileOptions(conn: Connection) {
+    Alert.alert(conn.name, undefined, [
       { text: 'Cancel', style: 'cancel' },
+      { text: 'Edit', onPress: () => navigation.navigate('AddApp', { editing: conn }) },
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: async () => {
-          await removeConnection(conn.id);
-          setConnections(await listConnections());
+        onPress: () => {
+          Alert.alert(
+            conn.name,
+            'Remove this app from Piggy Figs? This deletes its stored API key from this device.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Remove',
+                style: 'destructive',
+                onPress: async () => {
+                  await removeConnection(conn.id);
+                  setConnections(await listConnections());
+                },
+              },
+            ]
+          );
         },
       },
     ]);
@@ -62,7 +76,7 @@ export function HomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => navigation.navigate('Dashboard', { connection: item })}
-            onLongPress={() => confirmRemove(item)}
+            onLongPress={() => showTileOptions(item)}
           >
             <View style={[styles.tileIcon, { backgroundColor: TILE_COLORS[index % TILE_COLORS.length] }]}>
               <Text style={styles.tileIconText}>{item.name.slice(0, 1).toUpperCase()}</Text>

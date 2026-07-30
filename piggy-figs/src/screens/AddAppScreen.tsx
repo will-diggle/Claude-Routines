@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
-import { addConnection, type DashboardKind } from '../lib/connections';
+import { addConnection, updateConnection, getApiKey, type DashboardKind } from '../lib/connections';
 import { testConnection } from '../lib/posthog';
 import { GlassButton } from '../components/GlassButton';
 import { useTheme, SPACING, RADIUS, LABEL_STYLE, FONT_SERIF } from '../theme/tokens';
@@ -23,16 +23,31 @@ const DASHBOARD_KINDS: { label: string; value: DashboardKind; description: strin
   { label: 'Bilinguist Brief', value: 'bilinguist', description: 'Language & CEFR-level filters, funnels, streaks — built for Bilinguist Brief’s specific events.' },
 ];
 
-export function AddAppScreen({ navigation }: Props) {
+export function AddAppScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [name, setName] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [host, setHost] = useState(HOST_PRESETS[0].value);
-  const [customHost, setCustomHost] = useState(false);
+  const editing = route.params?.editing;
+
+  const [name, setName] = useState(editing?.name ?? '');
+  const [projectId, setProjectId] = useState(editing?.projectId ?? '');
+  const [host, setHost] = useState(editing?.host ?? HOST_PRESETS[0].value);
+  const [customHost, setCustomHost] = useState(editing ? !HOST_PRESETS.some((p) => p.value === editing.host) : false);
   const [apiKey, setApiKey] = useState('');
-  const [kind, setKind] = useState<DashboardKind>('generic');
+  const [kind, setKind] = useState<DashboardKind>(editing?.kind ?? 'generic');
   const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    navigation.setOptions({ title: editing ? 'Edit app' : 'Add app' });
+  }, [navigation, editing]);
+
+  // Pre-fill the API key field with the existing stored key so "Test & Save"
+  // works immediately without retyping it — the user only needs to change
+  // this field if they're actually rotating the key.
+  useEffect(() => {
+    if (editing) {
+      getApiKey(editing.id).then((key) => { if (key) setApiKey(key); });
+    }
+  }, [editing]);
 
   async function handleSave() {
     if (!name.trim() || !projectId.trim() || !host.trim() || !apiKey.trim()) {
@@ -44,7 +59,7 @@ export function AddAppScreen({ navigation }: Props) {
       // Verify the credentials actually work before saving, so a typo
       // doesn't silently create a dead tile on the home screen. Deliberately
       // a cheap single query, not the full (generic or Bilinguist) fetch.
-      await testConnection({ id: 'test', name, projectId, host, kind }, apiKey);
+      await testConnection({ id: editing?.id ?? 'test', name, projectId, host, kind }, apiKey);
     } catch (e: any) {
       setTesting(false);
       Alert.alert(
@@ -54,7 +69,11 @@ export function AddAppScreen({ navigation }: Props) {
       return;
     }
     try {
-      await addConnection({ name, projectId, host, apiKey, kind });
+      if (editing) {
+        await updateConnection(editing.id, { name, projectId, host, kind, apiKey });
+      } else {
+        await addConnection({ name, projectId, host, apiKey, kind });
+      }
       setTesting(false);
       navigation.goBack();
     } catch (e: any) {
@@ -66,7 +85,7 @@ export function AddAppScreen({ navigation }: Props) {
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }]}>
-        <Text style={[styles.title, { color: colors.ink }]}>Add a PostHog app</Text>
+        <Text style={[styles.title, { color: colors.ink }]}>{editing ? 'Edit app' : 'Add a PostHog app'}</Text>
         <Text style={[styles.subtitle, { color: colors.inkMid }]}>
           Uses a PostHog Personal API Key (read scopes: Event, Query) — not the public write key
           your app uses to send events. Create one in PostHog → Settings → Personal API Keys.
@@ -144,11 +163,14 @@ export function AddAppScreen({ navigation }: Props) {
             autoCapitalize="none"
             secureTextEntry
           />
+          {editing && (
+            <Text style={[styles.hint, { color: colors.inkFaint }]}>Pre-filled with the saved key — only change this if you're rotating it.</Text>
+          )}
         </Field>
 
         <GlassButton active tintColor={colors.accentRed} style={styles.saveBtn} onPress={handleSave} disabled={testing}>
           <View style={styles.saveBtnInner}>
-            {testing ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.saveBtnText, { color: colors.bg }]}>Test & Save</Text>}
+            {testing ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.saveBtnText, { color: colors.bg }]}>{editing ? 'Test & Save Changes' : 'Test & Save'}</Text>}
           </View>
         </GlassButton>
       </ScrollView>
@@ -171,6 +193,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: FONT_SERIF, fontSize: 24, fontWeight: '700', marginBottom: SPACING.sm },
   subtitle: { fontSize: 12.5, marginBottom: SPACING.lg, lineHeight: 18 },
   label: { ...LABEL_STYLE, marginBottom: SPACING.sm },
+  hint: { fontSize: 11, marginTop: 6, lineHeight: 15 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: RADIUS.input, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
