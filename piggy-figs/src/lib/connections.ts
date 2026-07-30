@@ -1,9 +1,10 @@
 // Storage for the PostHog projects ("connections") shown as tiles on the
-// home screen. Non-secret fields (name, project id, host) live in
-// AsyncStorage as a plain list; the Personal API Key for each connection is
-// stored separately in SecureStore (Keychain-backed on iOS) so it never sits
-// in a plain-text list on disk.
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// home screen. Everything lives in expo-secure-store (iOS Keychain) — the
+// connection list (name/project id/host) under one fixed key, and each
+// Personal API Key under its own per-connection key. Originally the list
+// used AsyncStorage, but Expo Go's current build doesn't ship that native
+// module ("Native module is null, cannot access legacy storage"), so
+// everything was moved to SecureStore instead, which Expo Go does support.
 import * as SecureStore from 'expo-secure-store';
 
 export interface Connection {
@@ -13,7 +14,7 @@ export interface Connection {
   host: string; // e.g. https://eu.posthog.com
 }
 
-const LIST_KEY = 'piggyfigs.connections.v1';
+const LIST_KEY = 'piggyfigs_connections_list';
 const secretKey = (id: string) => `piggyfigs_key_${id.replace(/[^a-zA-Z0-9_.\-]/g, '_')}`;
 
 function genId(): string {
@@ -21,7 +22,7 @@ function genId(): string {
 }
 
 export async function listConnections(): Promise<Connection[]> {
-  const raw = await AsyncStorage.getItem(LIST_KEY);
+  const raw = await SecureStore.getItemAsync(LIST_KEY);
   if (!raw) return [];
   try {
     return JSON.parse(raw) as Connection[];
@@ -31,7 +32,7 @@ export async function listConnections(): Promise<Connection[]> {
 }
 
 async function saveList(list: Connection[]): Promise<void> {
-  await AsyncStorage.setItem(LIST_KEY, JSON.stringify(list));
+  await SecureStore.setItemAsync(LIST_KEY, JSON.stringify(list));
 }
 
 export async function addConnection(input: {
