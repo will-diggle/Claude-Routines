@@ -114,13 +114,19 @@ def validate_story(story: dict) -> dict:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--prompt", default=PROMPT_FILE, help="Path to the Gemini prompt file")
+    args, _ = parser.parse_known_args()
+    prompt_file = args.prompt
+
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
 
     # 1. Load and prepare the prompt
-    raw_prompt = load_prompt(PROMPT_FILE)
+    raw_prompt = load_prompt(prompt_file)
     prompt = inject_date(raw_prompt)
-    print(f"[gather] Prompt loaded from '{PROMPT_FILE}' ({len(prompt)} chars)")
+    print(f"[gather] Prompt loaded from '{prompt_file}' ({len(prompt)} chars)")
 
     # 2. Initialise the Gemini client
     client = genai.Client(

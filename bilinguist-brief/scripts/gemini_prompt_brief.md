@@ -39,10 +39,16 @@ For each story, count how many of these 9 outlets are independently covering it 
 ─────────────────────────────────────────────
 
 
-GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD:
-Do not rely on a single source for Global News. For each candidate story, search the following outlets one by one using the query "[outlet name] top story today". An outlet counts toward the score ONLY if that story appears as the first result returned for that outlet. A story that is the lead result across many outlets is genuinely the most important story of the moment.
+GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (Version A — weighted top 3):
+Do not rely on a single source for Global News. For each of the 12 outlets below, search "[outlet name] top story today" and identify their top 3 stories in order. Then score every candidate story using this weighted system:
 
-Reference outlets for Global News scoring:
+- A story that is an outlet's #1 story = 3 points
+- A story that is an outlet's #2 story = 2 points
+- A story that is an outlet's #3 story = 1 point
+
+Maximum possible score = 72 (12 outlets × 6 points each).
+
+Reference outlets:
 
 - Reuters
 - Associated Press (AP)
@@ -50,14 +56,16 @@ Reference outlets for Global News scoring:
 - BBC News
 - The Guardian
 - Financial Times
+- New York Times
+- Washington Post
 - Le Monde
 - Der Spiegel
-- NHK World
 - Al Jazeera
+- NHK World
 
-SCORING: count how many outlets return that story as their first result. Rank the top 3 candidate stories by score. Highest score = first article. Record in outlets_covering only the outlets for which the story was the first result.
+SCORING: total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
 
-NOTE: You are checking search results only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant. Le Monde in French and Reuters in English count equally.
+NOTE: You are checking search results only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant.
 
 STORY SELECTION RULES:
 
