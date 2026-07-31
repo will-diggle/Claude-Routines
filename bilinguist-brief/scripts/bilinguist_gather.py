@@ -68,6 +68,41 @@ def inject_date(prompt: str) -> str:
     return prompt.replace("{DATE}", today)
 
 
+def inject_scraped_headlines(prompt: str) -> str:
+    """Replace {SCRAPED_HEADLINES} with pre-scraped outlet headlines if available."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    scraped_path = os.path.join(script_dir, f"scraped_headlines_{BRIEF_DATE}.json")
+
+    if not os.path.exists(scraped_path):
+        print("[gather] WARNING: No scraped headlines file found — Gemini will search itself", file=sys.stderr)
+        return prompt.replace("{SCRAPED_HEADLINES}", "(No pre-scraped headlines available — search each outlet yourself using the fallback method.)")
+
+    with open(scraped_path, "r", encoding="utf-8") as f:
+        scraped = json.load(f)
+
+    outlets = scraped.get("outlets", [])
+    lines = []
+    for outlet in outlets:
+        name = outlet["name"]
+        status = outlet.get("status", "unknown")
+        headlines = outlet.get("headlines", [])
+        if status == "ok" and headlines:
+            lines.append(f"  {name}:")
+            for i, h in enumerate(headlines, 1):
+                lines.append(f"    {i}. {h}")
+        else:
+            lines.append(f"  {name}: [{status}]")
+
+    succeeded = scraped.get("outlets_succeeded", 0)
+    attempted = scraped.get("outlets_attempted", 0)
+    note = scraped.get("note", "")
+    header = f"Scraped at {scraped.get('scraped_at', 'unknown')} ({succeeded}/{attempted} outlets succeeded). {note}"
+    block = header + "\n\n" + "\n".join(lines)
+
+    print(f"[gather] Injected scraped headlines: {succeeded}/{attempted} outlets")
+    return prompt.replace("{SCRAPED_HEADLINES}", block)
+
+
 def parse_llm_json(raw: str) -> dict | None:
     """
     Extract and parse a JSON object from LLM output.
@@ -126,6 +161,7 @@ def main():
     # 1. Load and prepare the prompt
     raw_prompt = load_prompt(prompt_file)
     prompt = inject_date(raw_prompt)
+    prompt = inject_scraped_headlines(prompt)
     print(f"[gather] Prompt loaded from '{prompt_file}' ({len(prompt)} chars)")
 
     # 2. Initialise the Gemini client

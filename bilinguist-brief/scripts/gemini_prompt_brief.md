@@ -41,23 +41,12 @@ For each story, count how many of these 9 outlets are independently covering it 
 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (Version A — weighted top 3):
 
-STEP 1 — PER-OUTLET SEARCH (do this before any scoring):
-For each of the 12 outlets below, search for their top stories using the primary query shown. If that search does not return at least one clear headline from that outlet, immediately retry using the fallback query. "Inconclusive" is a last resort — you must try both queries before using it. Record the actual headline text as found. Do not paraphrase. Do not use your training knowledge.
+STEP 1 — PRE-SCRAPED HEADLINES (use these directly — do not search for outlet headlines):
+The following headlines have been scraped from each outlet's RSS feed moments ago. They are today's actual top stories in the order each outlet published them. Use ONLY these for cross-reference scoring. Do not search for outlet homepages or top stories — that work is already done.
 
-Perform these searches in order:
+{SCRAPED_HEADLINES}
 
-1. Reuters — primary: "Reuters top stories today" — fallback: "Reuters"
-2. Associated Press (AP) — primary: "AP News top stories today" — fallback: "Associated Press news"
-3. Agence France-Presse (AFP) — primary: "AFP news top stories today" — fallback: "AFP news agency"
-4. BBC News — primary: "BBC News top stories today" — fallback: "BBC News"
-5. The Guardian — primary: "The Guardian top stories today" — fallback: "The Guardian news"
-6. Financial Times — primary: "Financial Times top stories today" — fallback: "FT.com news"
-7. New York Times — primary: "New York Times top stories today" — fallback: "NYT news today"
-8. Washington Post — primary: "Washington Post top stories today" — fallback: "Washington Post news"
-9. Le Monde — primary: "Le Monde actualités aujourd'hui" — fallback: "Le Monde"
-10. Der Spiegel — primary: "Spiegel aktuell heute" — fallback: "Der Spiegel"
-11. Al Jazeera — primary: "Al Jazeera top stories today" — fallback: "Al Jazeera English"
-12. NHK World — primary: "NHK World top stories today" — fallback: "NHK World news"
+For any outlet marked "failed" or "empty" above, assign it 0 points.
 
 STEP 2 — SCORING (only after completing Step 1):
 Using only the headlines recorded in Step 1, group stories that describe the same underlying event. Score each candidate story:
