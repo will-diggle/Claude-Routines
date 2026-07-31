@@ -42,22 +42,22 @@ For each story, count how many of these 9 outlets are independently covering it 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (Version A — weighted top 3):
 
 STEP 1 — PER-OUTLET SEARCH (do this before any scoring):
-For each of the 12 outlets below, perform the exact search query shown. Record the actual headline text your search returns for that outlet's top 3 stories. Do not paraphrase — write the headline as found. Do not use your training knowledge — if a search returns no clear result for an outlet, write "inconclusive" for that outlet and assign it 0 points.
+For each of the 12 outlets below, search for their top stories using the primary query shown. If that search does not return at least one clear headline from that outlet, immediately retry using the fallback query. "Inconclusive" is a last resort — you must try both queries before using it. Record the actual headline text as found. Do not paraphrase. Do not use your training knowledge.
 
 Perform these searches in order:
 
-1. Reuters — search: "reuters.com {DATE} top stories"
-2. Associated Press (AP) — search: "apnews.com {DATE} top stories"
-3. Agence France-Presse (AFP) — search: "afp.com {DATE} top stories"
-4. BBC News — search: "bbc.co.uk/news {DATE} top stories"
-5. The Guardian — search: "theguardian.com {DATE} top stories"
-6. Financial Times — search: "ft.com {DATE} top stories"
-7. New York Times — search: "nytimes.com {DATE} top stories"
-8. Washington Post — search: "washingtonpost.com {DATE} top stories"
-9. Le Monde — search: "lemonde.fr {DATE} top stories"
-10. Der Spiegel — search: "spiegel.de {DATE} top stories"
-11. Al Jazeera — search: "aljazeera.com {DATE} top stories"
-12. NHK World — search: "nhk.or.jp/nhkworld {DATE} top stories"
+1. Reuters — primary: "Reuters top stories today" — fallback: "Reuters"
+2. Associated Press (AP) — primary: "AP News top stories today" — fallback: "Associated Press news"
+3. Agence France-Presse (AFP) — primary: "AFP news top stories today" — fallback: "AFP news agency"
+4. BBC News — primary: "BBC News top stories today" — fallback: "BBC News"
+5. The Guardian — primary: "The Guardian top stories today" — fallback: "The Guardian news"
+6. Financial Times — primary: "Financial Times top stories today" — fallback: "FT.com news"
+7. New York Times — primary: "New York Times top stories today" — fallback: "NYT news today"
+8. Washington Post — primary: "Washington Post top stories today" — fallback: "Washington Post news"
+9. Le Monde — primary: "Le Monde actualités aujourd'hui" — fallback: "Le Monde"
+10. Der Spiegel — primary: "Spiegel aktuell heute" — fallback: "Der Spiegel"
+11. Al Jazeera — primary: "Al Jazeera top stories today" — fallback: "Al Jazeera English"
+12. NHK World — primary: "NHK World top stories today" — fallback: "NHK World news"
 
 STEP 2 — SCORING (only after completing Step 1):
 Using only the headlines recorded in Step 1, group stories that describe the same underlying event. Score each candidate story:
