@@ -8,8 +8,8 @@ LEVEL_DESCRIPTIONS: dict[str, str] = {
 
 # Per-length instruction. Only the relevant length is shown per call.
 LENGTH_INSTRUCTIONS: dict[str, str] = {
-    "short":  "",
-    "longer": "Write 2–3 paragraphs.",
+    "short":  "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. Do not go under {WORD_MIN} words. Do not exceed {WORD_MAX} words.",
+    "longer": "Write 2–3 paragraphs. Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. Do not go under {WORD_MIN} words. Do not exceed {WORD_MAX} words.",
 }
 
 # Per-language rules injected only when relevant. Fixes the "IF German is English" bug.
@@ -20,8 +20,12 @@ VARIANT_RULES: dict[str, str] = {
 
 # Simplified learner template. build_writing_prompt substitutes all {placeholders}.
 PROMPT_LEARNER_TEMPLATE = """\
-Write {WORD_COUNT}-word news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
+Write news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
+
+WORD COUNT — STRICT REQUIREMENT:
 {LENGTH_INSTRUCTION}
+This is a hard rule. If an article body is shorter than {WORD_MIN} words, expand it with relevant context from the fact-base. If it exceeds {WORD_MAX} words, trim it. Every article must land between {WORD_MIN} and {WORD_MAX} words — no exceptions.
+
 {VARIANT_RULE}
 OUTPUT FORMAT: {{"articles":[{{"genre":"...","slug":"...","headline":"...","body":"..."}}]}}
 Include the "slug" from the corresponding fact-base story in each article's slug field.
@@ -63,7 +67,7 @@ WRITING RULES:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
   * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- LENGTH AND STRUCTURE: 180–270 words across 2–3 paragraphs. First paragraph: core facts (who, what, when, where). Second paragraph: context and significance. Third paragraph (optional): reaction, wider implications, or outlook. Never pad, never cut mid-thought.
+- LENGTH AND STRUCTURE — STRICT: Each article body must be between 250 and 270 words across 2–3 paragraphs. Count every word before submitting. Do not go under 250 words — expand with context, reaction, or wider implications. Do not exceed 270 words — trim the least essential detail. First paragraph: core facts (who, what, when, where). Second paragraph: context and significance. Third paragraph (optional): reaction, wider implications, or outlook. Never pad with empty phrases, never cut mid-thought.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
@@ -105,7 +109,7 @@ WRITING RULES:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
   * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources.
-- LENGTH: 75–100 words per article. 1–2 paragraphs. Lead sentence covers the core fact (who, what, when). Remaining sentences add the most important context. Never pad, never cut mid-sentence.
+- LENGTH — STRICT: Each article body must be between 85 and 100 words. Count every word before submitting. Do not go under 85 words — add the next most important fact from the fact-base. Do not exceed 100 words — cut the least essential detail. 1–2 paragraphs. Lead sentence covers the core fact (who, what, when). Remaining sentences add the most important context. Never pad with empty phrases, never cut mid-sentence.
 - Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 

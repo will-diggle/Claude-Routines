@@ -346,16 +346,24 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     word_count = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
 
+    # Split "60–75" into word_min and word_max
+    parts = str(word_count).replace("–", "-").split("-")
+    word_min = parts[0].strip()
+    word_max = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+
     length_labels = {"short": "Concise", "medium": "Balanced", "longer": "Long-form"}
     length_label = length_labels.get(length, length)
 
     level_desc = LEVEL_DESCRIPTIONS.get(level, f"Certified CEFR {level}.")
     length_instr = LENGTH_INSTRUCTIONS.get(length, "")
+    length_instr = length_instr.replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
     variant_rule = VARIANT_RULES.get(lang, "")
 
     prompt = template
     prompt = prompt.replace("{LANGUAGE}", lang_name)
     prompt = prompt.replace("{WORD_COUNT}", str(word_count))
+    prompt = prompt.replace("{WORD_MIN}", word_min)
+    prompt = prompt.replace("{WORD_MAX}", word_max)
     prompt = prompt.replace("{LENGTH_LABEL}", length_label)
     prompt = prompt.replace("{LEVEL_DESCRIPTION}", level_desc)
     prompt = prompt.replace("{LENGTH_INSTRUCTION}", length_instr)
