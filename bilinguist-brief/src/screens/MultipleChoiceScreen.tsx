@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Dimensions, Animated, ScrollView } from 'react-native';
 import { SpringButton } from '../components/SpringButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -12,9 +12,10 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
-import { useNavPillStore } from '../store/useNavPillStore';
+import { useGameActive } from '../hooks/useGameActive';
 import { getCongratsLines } from '../utils/congrats';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -40,21 +41,22 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function buildQuestions(words: SavedWord[]): Question[] {
+function buildQuestions(words: SavedWord[], direction: 'word-to-translation' | 'translation-to-word'): Question[] {
   const practiceable = words.filter((w) => w.translation);
   if (practiceable.length < MIN_WORDS) return [];
 
   const picked = shuffle(practiceable).slice(0, MAX_QUESTIONS);
 
   return picked.map((word) => {
-    const distractors = shuffle(practiceable.filter((w) => w.id !== word.id))
-      .slice(0, 3)
-      .map((w) => w.translation);
-
-    const allOptions = shuffle([word.translation, ...distractors]);
-    const correctIndex = allOptions.indexOf(word.translation);
-
-    return { word, options: allOptions, correctIndex };
+    if (direction === 'translation-to-word') {
+      const distractors = shuffle(practiceable.filter((w) => w.id !== word.id)).slice(0, 3).map((w) => w.word);
+      const allOptions = shuffle([word.word, ...distractors]);
+      return { word, options: allOptions, correctIndex: allOptions.indexOf(word.word) };
+    } else {
+      const distractors = shuffle(practiceable.filter((w) => w.id !== word.id)).slice(0, 3).map((w) => w.translation!);
+      const allOptions = shuffle([word.translation!, ...distractors]);
+      return { word, options: allOptions, correctIndex: allOptions.indexOf(word.translation!) };
+    }
   });
 }
 
@@ -71,11 +73,7 @@ export function MultipleChoiceScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const setGameActive = useNavPillStore((s) => s.setGameActive);
-  useFocusEffect(useCallback(() => {
-    setGameActive(true);
-    return () => setGameActive(false);
-  }, [setGameActive]));
+  useGameActive();
   const route = useRoute<RouteProp<PracticeStackParamList, 'MultipleChoice'>>();
   const langFilter = route.params?.language;
   useFocusEffect(useCallback(() => {
@@ -87,16 +85,48 @@ export function MultipleChoiceScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
   const questions = useMemo(() => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
-    return buildQuestions(pool);
-  }, []);
-
+    return buildQuestions(pool, gameSettings.direction);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings.direction]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [correct, setCorrect] = useState(0);
-  const [done, setDone] = useState(false);
+  const [skipped, setSkipped] = useState(0);
+  const [done, setDone] = useState<{ correct: number; skipped: number; wrong: number } | null>(null);
+  const [results, setResults] = useState<Array<'correct' | 'wrong' | 'skipped'>>([]);
+
+  const flipAnim = useRef(new Animated.Value(0)).current;
+  const frontRotate = useMemo(() => flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }), [flipAnim]);
+  const backRotate = useMemo(() => flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] }), [flipAnim]);
+
+  useEffect(() => {
+    if (selected !== null) {
+      Animated.spring(flipAnim, { toValue: 1, friction: 7, tension: 10, useNativeDriver: true }).start();
+    }
+  }, [selected, flipAnim]);
+
+  useEffect(() => {
+    flipAnim.setValue(0);
+  }, [index, flipAnim]);
+
+  const prevDirection = useRef(gameSettings.direction);
+  useEffect(() => {
+    if (gameSettings.direction !== prevDirection.current) {
+      prevDirection.current = gameSettings.direction;
+      setIndex(0);
+      setSelected(null);
+      setCorrect(0);
+      setSkipped(0);
+      setDone(null);
+      setResults([]);
+      flipAnim.setValue(0);
+    }
+  }, [gameSettings.direction, flipAnim]);
 
   const eligibleCount = (langFilter && langFilter !== 'all'
     ? words.filter((w) => w.language === langFilter && w.translation)
@@ -119,10 +149,10 @@ export function MultipleChoiceScreen() {
   const q = questions[index];
 
   if (done) {
-    const isPerfect = correct === questions.length && questions.length > 0;
+    const isPerfect = done.correct === questions.length && questions.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Multiple Choice" current={questions.length} total={questions.length} />
+        <GameHeader title="Multiple Choice" current={questions.length} total={questions.length} results={results} />
         {isPerfect && (
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
@@ -134,8 +164,15 @@ export function MultipleChoiceScreen() {
             </Text>
           ))}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            {correct}/{questions.length} correct
+            Results
           </Text>
+          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+              <DoneStatRow icon="checkmark-circle-outline" tint="#43A047" label="Correct" value={done.correct} colors={colors} fontFamily={fontFamily} />
+              <DoneStatRow icon="arrow-forward-circle-outline" tint={colors.inkFaint} label="Skipped" value={done.skipped} colors={colors} fontFamily={fontFamily} />
+              <DoneStatRow icon="close-circle-outline" tint="#E53935" label="Wrong" value={done.wrong} colors={colors} fontFamily={fontFamily} />
+            </View>
+          </View>
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
@@ -159,47 +196,186 @@ export function MultipleChoiceScreen() {
   }
 
   function handleNext() {
-    if (index + 1 >= questions.length) {
-      recordSession();
-      analytics.trackGameCompleted('multiple_choice', langFilter ?? 'all', correct + (selected === q.correctIndex ? 1 : 0));
-      setDone(true);
+    const isLast = index + 1 >= questions.length;
+    if (selected === null) {
+      // Skip — don't record practice, just advance
+      const newSkipped = skipped + 1;
+      setResults((r) => [...r, 'skipped']);
+      if (isLast) {
+        recordSession();
+        analytics.trackGameCompleted('multiple_choice', langFilter ?? 'all', correct);
+        setDone({ correct, skipped: newSkipped, wrong: questions.length - correct - newSkipped });
+      } else {
+        setSkipped(newSkipped);
+        setIndex((i) => i + 1);
+      }
     } else {
-      setIndex(index + 1);
-      setSelected(null);
+      const lastCorrect = selected === q.correctIndex ? 1 : 0;
+      const totalCorrect = correct + lastCorrect;
+      setResults((r) => [...r, lastCorrect === 1 ? 'correct' : 'wrong']);
+      if (isLast) {
+        recordSession();
+        analytics.trackGameCompleted('multiple_choice', langFilter ?? 'all', totalCorrect);
+        setDone({ correct: totalCorrect, skipped, wrong: questions.length - totalCorrect - skipped });
+      } else {
+        setIndex((i) => i + 1);
+        setSelected(null);
+      }
     }
   }
 
   function optionStyle(i: number) {
     const base = [styles.option, { backgroundColor: colors.card, borderColor: colors.borderLight }] as any[];
     if (selected === null) return base;
-    if (i === q.correctIndex) return [...base, { borderColor: '#43A047', backgroundColor: '#43A04715', borderWidth: 1.5 }];
-    if (i === selected && selected !== q.correctIndex) return [...base, { borderColor: '#E53935', backgroundColor: '#E5393515', borderWidth: 1.5 }];
+    if (i === q.correctIndex) return [...base, { borderColor: '#43A047', backgroundColor: '#43A04715', borderWidth: 1 }];
+    if (i === selected && selected !== q.correctIndex) return [...base, { borderColor: '#E53935', backgroundColor: '#E5393515', borderWidth: 1 }];
     return [...base, { opacity: 0.42 }];
   }
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Multiple Choice" current={index + 1} total={questions.length} />
+      <GameHeader title="Multiple Choice" current={index + 1} total={questions.length} results={results} onSettingsPress={() => setSettingsVisible(true)} />
 
       <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        {/* Question tile — grows to fill available space */}
-        <View style={[styles.questionBox, {
-          backgroundColor: colors.card,
-          borderColor: colors.borderLight,
-          ...CARD_SHADOW,
-        }]}>
-          <Text style={[styles.questionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            What is the meaning of
-          </Text>
-          <View style={styles.questionWordRow}>
-            <Text style={[styles.questionWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-              {q.word.word}
+        {/* Question card — flips to reveal answer */}
+        <View style={[{ flex: 1, borderRadius: 16 }, CARD_SHADOW]}>
+          {/* Front face */}
+          <Animated.View style={[
+            StyleSheet.absoluteFill,
+            styles.cardFace,
+            { backgroundColor: colors.card, borderColor: colors.borderLight },
+            { transform: [{ perspective: 1200 }, { rotateY: frontRotate }], backfaceVisibility: 'hidden' },
+          ]}>
+            <Text style={[styles.questionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              {gameSettings.direction === 'translation-to-word' ? 'Which is the foreign word for' : 'What is the meaning of'}
             </Text>
-            <WordAudioButton word={q.word.word} language={q.word.language as LanguageCode} size="sm" />
-          </View>
-          <Text style={[styles.questionLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-            {q.word.language.toUpperCase()}
-          </Text>
+            <View style={styles.questionWordRow}>
+              <Text style={[styles.questionWord, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading + 6 }]}>
+                {gameSettings.direction === 'translation-to-word' ? q.word.translation : q.word.word}
+              </Text>
+              {gameSettings.direction !== 'translation-to-word' && (
+                <WordAudioButton word={q.word.word} language={q.word.language as LanguageCode} size="md" />
+              )}
+            </View>
+            <Text style={[styles.questionLang, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+              {q.word.language.toUpperCase()}
+            </Text>
+          </Animated.View>
+
+          {/* Back face — rich word info after answering */}
+          <Animated.View style={[
+            StyleSheet.absoluteFill,
+            {
+              borderRadius: 16,
+              borderWidth: StyleSheet.hairlineWidth,
+              backgroundColor: colors.card,
+              borderColor: colors.borderLight,
+              overflow: 'hidden',
+            },
+            { transform: [{ perspective: 1200 }, { rotateY: backRotate }], backfaceVisibility: 'hidden' },
+          ]}>
+            {selected !== null && (
+              <ScrollView
+                contentContainerStyle={styles.backScrollContent}
+                showsVerticalScrollIndicator
+                bounces={false}
+              >
+                {/* Result + word header */}
+                <View style={styles.backResultHeader}>
+                  <Ionicons
+                    name={selected === q.correctIndex ? 'checkmark-circle' : 'close-circle'}
+                    size={24}
+                    color={selected === q.correctIndex ? '#43A047' : '#E53935'}
+                  />
+                  <Text style={[styles.backWord, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                    {q.word.word}
+                  </Text>
+                  <WordAudioButton word={q.word.word} language={q.word.language as LanguageCode} size="sm" />
+                </View>
+
+                <Text style={[styles.backTranslationLarge, { color: colors.accentRed, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
+                  {q.word.translation}
+                </Text>
+
+                {/* Grammar tags */}
+                {(q.word.wordType || q.word.level || (q.word.forms as any)?.gender) ? (
+                  <Text style={[styles.backGrammarTags, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {[
+                      q.word.wordType ? q.word.wordType.charAt(0).toUpperCase() + q.word.wordType.slice(1) : null,
+                      (q.word.forms as any)?.gender ?? null,
+                      (q.word.meta as any)?.isRegular === true  ? 'Regular'   : null,
+                      (q.word.meta as any)?.isRegular === false ? 'Irregular' : null,
+                      (q.word.meta as any)?.auxiliary ?? null,
+                      q.word.level ?? null,
+                    ].filter(Boolean).join('  ·  ')}
+                  </Text>
+                ) : null}
+
+                {/* Explanation */}
+                {q.word.explanation ? (
+                  <>
+                    <View style={[styles.backCardDivider, { backgroundColor: colors.borderLight }]} />
+                    <Text style={[styles.backExplanation, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body - 1 }]}>
+                      {q.word.explanation}
+                    </Text>
+                  </>
+                ) : null}
+
+                {/* Example sentence */}
+                {q.word.exampleSentence ? (
+                  <View style={[styles.backBlockquote, { borderLeftColor: colors.accentRed }]}>
+                    <Text style={[styles.backBlockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
+                      „{q.word.exampleSentence}"
+                    </Text>
+                  </View>
+                ) : null}
+
+                {/* Pronunciation */}
+                {q.word.pronunciation ? (
+                  <Text style={[styles.backPronunciation, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                    {q.word.pronunciation}
+                  </Text>
+                ) : null}
+
+                {/* First verb tense */}
+                {(() => {
+                  const tenses: Array<{ label: string; table: Record<string, string> }> =
+                    (q.word.tenses && q.word.tenses.length > 0)
+                      ? q.word.tenses
+                      : q.word.verbTable && Object.keys(q.word.verbTable).length > 0
+                        ? [{ label: 'PRESENT', table: q.word.verbTable }]
+                        : [];
+                  if (tenses.length === 0) return null;
+                  const t = tenses[0];
+                  return (
+                    <>
+                      <View style={[styles.backCardDivider, { backgroundColor: colors.borderLight }]} />
+                      <Text style={[styles.backSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {t.label}
+                      </Text>
+                      {Object.entries(t.table).map(([pronoun, form]) => (
+                        <View key={pronoun} style={[styles.backConjRow, { borderTopColor: colors.borderLight }]}>
+                          <Text style={[styles.backConjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{pronoun}</Text>
+                          <Text style={[styles.backConjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{form}</Text>
+                        </View>
+                      ))}
+                    </>
+                  );
+                })()}
+
+                {/* Tip */}
+                {q.word.tip ? (
+                  <View style={[styles.backTipBox, { backgroundColor: colors.accentRed + '15', borderColor: colors.accentRed + '44' }]}>
+                    <Ionicons name="bulb-outline" size={13} color={colors.accentRed} />
+                    <Text style={[styles.backTipText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
+                      {q.word.tip}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={{ height: 80 }} />
+              </ScrollView>
+            )}
+          </Animated.View>
         </View>
 
         {/* Options */}
@@ -209,7 +385,6 @@ export function MultipleChoiceScreen() {
               key={i}
               style={optionStyle(i)}
               onPress={() => handleSelect(i)}
-              glass
               cornerRadius={12}
             >
               <Text style={[styles.optionLetter, {
@@ -220,7 +395,7 @@ export function MultipleChoiceScreen() {
               }]}>
                 {['A', 'B', 'C', 'D'][i]}
               </Text>
-              <Text style={[styles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              <Text style={[styles.optionText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body - 2 }]}>
                 {opt}
               </Text>
               {selected !== null && i === q.correctIndex && (
@@ -233,20 +408,29 @@ export function MultipleChoiceScreen() {
           ))}
         </View>
 
-        {selected !== null && (
-          <SpringButton
-            style={[styles.nextButton, { backgroundColor: colors.accentRed }]}
-            onPress={handleNext}
-            glass
-            cornerRadius={14}
-            haptic="medium"
-          >
-            <Text style={[styles.nextButtonText, { fontFamily: fontFamily.regular }]}>
-              {index + 1 >= questions.length ? 'Finish' : 'Next'}
-            </Text>
-          </SpringButton>
-        )}
+        <SpringButton
+          style={[styles.nextButton, {
+            backgroundColor: selected !== null ? colors.accentRed : colors.accentRed + '22',
+          }]}
+          onPress={handleNext}
+          cornerRadius={14}
+          haptic="medium"
+        >
+          <Text style={[styles.nextButtonText, {
+            fontFamily: fontFamily.regular,
+            color: selected !== null ? '#FFF' : colors.accentRed,
+          }]}>
+            {selected === null ? 'Skip' : index + 1 >= questions.length ? 'Finish' : 'Next'}
+          </Text>
+        </SpringButton>
       </View>
+
+      <GameSettingsSheet
+        visible={settingsVisible}
+        settings={gameSettings}
+        onClose={() => setSettingsVisible(false)}
+        onChange={setGameSettings}
+      />
     </View>
   );
 }
@@ -264,14 +448,13 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
 
-  questionBox: {
-    flex: 1,                         // ← fills available vertical space
+  cardFace: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.xl,
     alignItems: 'center',
-    justifyContent: 'center',        // centre content vertically in the tall box
+    justifyContent: 'center',
     gap: Spacing.sm,
   },
   questionLabel: { fontSize: 13, letterSpacing: 0.2 },
@@ -289,10 +472,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: Spacing.md,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.09,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   optionLetter: { fontSize: 13, width: 22, textAlign: 'center' },
   optionText: { flex: 1, lineHeight: 22 },
@@ -301,17 +484,54 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#C0392B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 6,
   },
   nextButtonText: { color: '#FFF', fontSize: 16 },
 
+  // Back face — rich content
+  backScrollContent: { padding: Spacing.md, gap: Spacing.sm, flexGrow: 1 },
+  backResultHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, justifyContent: 'center' },
+  backWord: { fontSize: 20 },
+  backTranslationLarge: { textAlign: 'center' },
+  backGrammarTags: { fontSize: 12, textAlign: 'center', letterSpacing: 0.2 },
+  backCardDivider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
+  backExplanation: { lineHeight: 20, textAlign: 'center' },
+  backBlockquote: { borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 6, marginTop: 2 },
+  backBlockquoteText: { fontSize: 13, lineHeight: 19 },
+  backPronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7 },
+  backSectionLabel: { fontSize: 10, letterSpacing: 1.5, textAlign: 'center', marginBottom: 2 },
+  backConjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
+  backConjPronoun: { fontSize: 12, flex: 1, fontStyle: 'italic' },
+  backConjForm: { fontSize: 12, flex: 1, textAlign: 'right' },
+  backTipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start', marginTop: 2 },
+  backTipText: { flex: 1, fontSize: 11, lineHeight: 17 },
+
   doneTitle: { textAlign: 'center' },
+  statsBox: {
+    width: '100%', borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12, shadowRadius: 10, elevation: 6,
+  },
+  statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
+  statLabel: { flex: 1, fontSize: 15 },
+  statValue: { fontSize: 20 },
   streakText: { fontSize: 20 },
   doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });
+
+function DoneStatRow({ icon, tint, label, value, colors, fontFamily }: any) {
+  return (
+    <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
+      <Ionicons name={icon} size={20} color={tint} style={{ width: 28 }} />
+      <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
+      <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
+    </View>
+  );
+}

@@ -110,7 +110,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'worldNews', 'ukPolitics', 'business', 'europe',
+  'weather', 'worldNews', 'ukPolitics', 'business', 'europe',
   'politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews',
 ];
 
@@ -118,6 +118,7 @@ const DEFAULT_SETTINGS: Settings = {
   languages: ALL_LANGUAGES,
   displayLanguage: 'en',
   topics: {
+    weather: true,
     worldNews: true,
     ukPolitics: true,
     politics: false,
@@ -259,13 +260,15 @@ export const useSettingsStore = create<SettingsStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const VALID = new Set(['worldNews', 'ukPolitics', 'politics', 'business', 'europe', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
-        const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => VALID.has(k));
-        VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
+        const ORDER_VALID = new Set(['weather', 'worldNews', 'ukPolitics', 'politics', 'business', 'europe', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
+        const TOPIC_VALID = ORDER_VALID;
+        const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => ORDER_VALID.has(k));
+        // Ensure weather appears at the front for existing users who didn't have it in topicOrder
+        if (!cleanOrder.includes('weather')) cleanOrder.unshift('weather');
+        ORDER_VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
         state.topicOrder = cleanOrder;
         const cleanTopics: any = {};
-        VALID.forEach((k) => {
-          // ukPolitics defaults on; coming-soon topics default off
+        TOPIC_VALID.forEach((k) => {
           const COMING_SOON = new Set(['politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
           cleanTopics[k] = state.topics?.[k] !== undefined
             ? state.topics[k]

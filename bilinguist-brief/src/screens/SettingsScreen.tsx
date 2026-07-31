@@ -1,20 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
+import { SectionHeader, SegmentedControl, TimeInput, DisplayPreview } from '../components/settings/SettingsControls';
+import { LanguageCard, nativeLabel, cardStyles, type LangCardProps } from '../components/settings/LanguageCard';
 
 
-// Length picker labels localised to each target language
-const LENGTH_LABELS: Record<string, readonly [string, string]> = {
-  fr: ['Concis',  'Long'],
-  de: ['Kurz',    'Lang'],
-  sv: ['Kort',    'Lång'],
-  en: ['Concise', 'Long'],
-  it: ['Conciso', 'Lungo'],
-  es: ['Conciso', 'Extenso'],
-  tr: ['Kısa',    'Uzun'],
-  hu: ['Rövid',   'Hosszú'],
-  ar: ['موجز',    'طويل'],
-};
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import {
@@ -45,7 +35,6 @@ import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel, langDisplayCode, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
-import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
@@ -79,6 +68,7 @@ try {
 import Constants from 'expo-constants';
 import * as analytics from '../services/analytics';
 import { LegalDocModal, type LegalDoc } from './LegalDocModal';
+import { GlassButton } from '../components/GlassButton';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
@@ -108,19 +98,6 @@ const SECTION_TO_INDEX: Record<SettingsSection, number> = {
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
 type CefrLevel = typeof CEFR_ORDER[number];
 
-// Localised word for "Native" in each language — used when building the label.
-const NATIVE_WORD: Record<string, string> = {
-  en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
-  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
-  tr: 'Yerel', hu: 'Anyanyelvi',
-};
-
-// Build the "B2 / Native" style label using today's graded CEFR level.
-// Falls back to NATIVE_WRITING_LEVEL (C1) if no grading data is available.
-function nativeLabel(langCode: string, grade?: LanguageLevel): string {
-  const g = grade ?? NATIVE_WRITING_LEVEL;
-  return `${g} / ${NATIVE_WORD[langCode] ?? 'Native'}`;
-}
 
 
 const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: string }[] = [
@@ -141,7 +118,8 @@ const GENRE_SETTINGS_DISCLAIMER: Record<string, string> = {
   asia:       'This genre may contain geopolitical vocabulary beyond A1',
 };
 
-const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean }[] = [
+const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean; pinned?: boolean }[] = [
+  { key: 'weather',     label: 'Weather' },
   { key: 'worldNews',   label: 'Global News' },
   { key: 'ukPolitics',  label: 'UK Politics' },
   { key: 'business',    label: 'Business & Economy' },
@@ -159,260 +137,6 @@ const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
 );
 const DEV_CODE = 'BILDEV';
 
-// --- Sub-components ---
-
-function SectionHeader({ title, colors, fontFamily }: { title: string; colors: any; fontFamily: any }) {
-  return (
-    <View style={sectionStyles.header}>
-      <Text style={[sectionStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-        {title}
-      </Text>
-    </View>
-  );
-}
-
-function SegmentedControl({
-  options,
-  value,
-  onChange,
-  colors,
-  fontFamily,
-  containerStyle,
-}: {
-  options: { label: string; value: string; optionFontSize?: number }[];
-  value: string;
-  onChange: (v: string) => void;
-  colors: any;
-  fontFamily: any;
-  containerStyle?: object;
-}) {
-  return (
-    <View style={[segStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }, containerStyle]}>
-      {options.map((opt, i) => {
-        const selected = opt.value === value;
-        return (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              segStyles.option,
-              selected && { backgroundColor: colors.chrome },
-              i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
-            ]}
-            onPress={() => onChange(opt.value)}
-          >
-            <Text
-              style={[
-                segStyles.label,
-                {
-                  fontFamily: selected ? fontFamily.bold : fontFamily.regular,
-                  color: selected ? colors.bg : colors.inkMid,
-                  fontSize: opt.optionFontSize ?? 13,
-                  lineHeight: (opt.optionFontSize ?? 13) * 1.2,
-                },
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-function TimeInput({
-  value,
-  onChange,
-  onCommit,
-  colors,
-  fontFamily,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onCommit?: () => void;
-  colors: any;
-  fontFamily: any;
-}) {
-  return (
-    <TextInput
-      style={[
-        timeStyles.input,
-        { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.card },
-      ]}
-      value={value}
-      onChangeText={(text) => {
-        const clean = text.replace(/[^0-9:]/g, '');
-        onChange(clean);
-      }}
-      onEndEditing={onCommit}
-      placeholder="HH:MM"
-      placeholderTextColor={colors.inkFaint}
-      keyboardType="numbers-and-punctuation"
-      maxLength={5}
-    />
-  );
-}
-
-function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; fontFamily: any; fontSize: any }) {
-  return (
-    <View style={[previewStyles.container, { backgroundColor: colors.bg, borderColor: colors.borderLight }]}>
-      <Text style={[previewStyles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading * 0.75 }]}>
-        La politique étrangère en débat
-      </Text>
-      <Text style={[previewStyles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body * 0.85 }]}>
-        Les dirigeants mondiaux se sont réunis à Genève pour discuter des nouvelles mesures climatiques dans un contexte de tensions géopolitiques croissantes.
-      </Text>
-    </View>
-  );
-}
-
-// --- Language card with animated expand ---
-
-interface LangCardProps {
-  lang: { code: string; nativeName: string; active: boolean; readLength?: string; level?: string };
-  isAnyDragging: boolean;
-  isDark: boolean;
-  colors: any;
-  fontFamily: any;
-  fontSize: any;
-  nativeGradeByLang: Record<string, any>;
-  onToggle: () => void;
-  onSetLength: (val: 'short' | 'longer') => void;
-  onPressLevel: () => void;
-  isDraggable?: boolean;
-}
-
-function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, isDraggable = true }: LangCardProps) {
-  const anim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
-  const [expandedHeight, setExpandedHeight] = useState(0);
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: lang.active ? 1 : 0,
-      duration: 240,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-  }, [lang.active]);
-
-  const langLabels = (LENGTH_LABELS[lang.code] ?? LENGTH_LABELS.en);
-
-  // Derive opacity and shadow from the same animated value — no separate re-render flash
-  const cardOpacity      = anim.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
-  const cardShadowOp     = anim.interpolate({ inputRange: [0, 1], outputRange: [0.07, 0.12] });
-  const cardElevation    = anim.interpolate({ inputRange: [0, 1], outputRange: [3, 5] });
-
-  return (
-    <Animated.View style={[lcStyles.card, {
-      backgroundColor: colors.card,
-      borderColor: colors.borderLight,
-      opacity: cardOpacity,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: cardShadowOp,
-      shadowRadius: 8,
-      elevation: cardElevation,
-    }]}>
-      <View style={lcStyles.mainRow}>
-        <Ionicons
-          name="reorder-three-outline"
-          size={20}
-          color={colors.inkFaint}
-          style={{ marginRight: 4, opacity: isDraggable ? 1 : 0 }}
-        />
-        <FlagCircle code={lang.code} size={28} />
-        <Text style={[lcStyles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-          {lang.nativeName}
-        </Text>
-        <Switch
-          value={lang.active}
-          onValueChange={onToggle}
-          trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-          thumbColor="#FFF"
-        />
-      </View>
-
-      {/* Animated expand section — always rendered so onLayout fires */}
-      <Animated.View style={{
-        height: expandedHeight > 0
-          ? anim.interpolate({ inputRange: [0, 1], outputRange: [0, expandedHeight] })
-          : undefined,
-        overflow: 'hidden',
-      }}>
-        <View onLayout={e => {
-          const h = e.nativeEvent.layout.height;
-          if (h > 0) setExpandedHeight(prev => prev || h);
-        }}>
-          {/* Length */}
-          <View style={[lcStyles.expandRow, { borderTopColor: colors.borderLight }]}>
-            <Text style={[lcStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Length</Text>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {(['short', 'longer'] as const).map((val, i) => {
-                const active = (lang.readLength ?? 'medium') === val;
-                return (
-                  <TouchableOpacity
-                    key={val}
-                    onPress={() => onSetLength(val)}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: active
-                        ? (isDark ? colors.inkFaint : colors.inkDark)
-                        : colors.borderMid,
-                      backgroundColor: active
-                        ? (isDark ? colors.borderMid : colors.inkDark)
-                        : 'transparent',
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, color: active ? colors.bg : colors.inkLight, fontFamily: fontFamily.regular }}>
-                      {langLabels[i]}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-          {/* Level */}
-          <TouchableOpacity style={[lcStyles.expandRow, { borderTopColor: colors.borderLight }]} onPress={onPressLevel}>
-            <Text style={[lcStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Level</Text>
-            <Text style={{ fontSize: 14, color: colors.inkDark, fontFamily: fontFamily.bold }}>
-              {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : (lang.level ?? 'B1')}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    </Animated.View>
-  );
-}
-
-const lcStyles = StyleSheet.create({
-  card: {
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  mainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
-    gap: Spacing.sm,
-  },
-  rowLabel: { flex: 1 },
-  expandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.sm,
-  },
-  expandLabel: { flex: 1, fontSize: 13 },
-});
 
 // --- Main screen ---
 
@@ -680,11 +404,12 @@ export function SettingsScreen() {
   }
 
   const COMING_SOON_KEYS = new Set(ALL_TOPIC_ITEMS.filter((t) => t.comingSoon).map((t) => t.key));
-  const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key)).map((key) => ({
-    key,
-    label: TOPIC_LABEL_MAP[key] ?? key,
-    comingSoon: COMING_SOON_KEYS.has(key),
-  }));
+  const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key))
+    .map((key) => ({
+      key,
+      label: TOPIC_LABEL_MAP[key] ?? key,
+      comingSoon: COMING_SOON_KEYS.has(key),
+    }));
 
   const levelModal = store.languages.find((l) => l.code === levelModalLang);
 
@@ -790,7 +515,7 @@ export function SettingsScreen() {
             renderItem={(item) => {
               const isOn = !item.comingSoon && store.topics[item.key];
               return (
-                <View style={[lcStyles.card, {
+                <View style={[cardStyles.card, {
                   backgroundColor: colors.card,
                   borderColor: colors.borderLight,
                   opacity: item.comingSoon ? 0.45 : (isOn ? 1 : 0.45),
@@ -800,7 +525,7 @@ export function SettingsScreen() {
                   shadowRadius: isOn ? 8 : 5,
                   elevation: isOn ? 5 : 3,
                 }]}>
-                  <View style={lcStyles.mainRow}>
+                  <View style={cardStyles.mainRow}>
                     <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4, opacity: isOn ? 1 : 0 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body, flex: 0 }]}>
@@ -1111,18 +836,14 @@ export function SettingsScreen() {
           <Animated.View
             style={[modalStyles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: sheetDragY }] }]}
           >
-            {/* Drag handle */}
-            <View style={sheetStyles.handleRow} {...sheetPanResponder.panHandlers}>
-              <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
-            </View>
-            <View style={sheetStyles.titleRow}>
-              <TouchableOpacity onPress={() => setSettingsSheetVisible(false)}>
+            <View style={[sheetStyles.titleRow, { paddingTop: Spacing.lg }]}>
+              <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
                 <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-              </TouchableOpacity>
+              </GlassButton>
               <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Settings
               </Text>
-              <View style={{ width: 24 }} />
+              <View style={{ width: 40 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -1603,13 +1324,13 @@ export function SettingsScreen() {
               <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
             </View>
             <View style={sheetStyles.titleRow}>
-              <TouchableOpacity onPress={closeSupportModal}>
+              <GlassButton onPress={closeSupportModal} size={40}>
                 <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-              </TouchableOpacity>
+              </GlassButton>
               <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Contact Support
               </Text>
-              <View style={{ width: 24 }} />
+              <View style={{ width: 40 }} />
             </View>
 
             {supportState === 'success' ? (
@@ -1821,67 +1542,6 @@ const styles = StyleSheet.create({
   devText: { fontSize: 13 },
 });
 
-const sectionStyles = StyleSheet.create({
-  header: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  title: { fontSize: 26 },
-});
-
-const segStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    marginHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: Spacing.xs,
-  },
-  option: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: { fontSize: 13 },
-});
-
-const timeStyles = StyleSheet.create({
-  input: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
-    fontSize: 15,
-    width: 72,
-    textAlign: 'center',
-  },
-});
-
-const previewStyles = StyleSheet.create({
-  container: {
-    marginHorizontal: Spacing.md,
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  headline: {
-    lineHeight: 28,
-    marginBottom: Spacing.xs,
-  },
-  body: {
-    lineHeight: 22,
-  },
-});
-
 const modalStyles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -1889,8 +1549,8 @@ const modalStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingBottom: 34,
     maxHeight: SCREEN_HEIGHT * 0.68,
   },

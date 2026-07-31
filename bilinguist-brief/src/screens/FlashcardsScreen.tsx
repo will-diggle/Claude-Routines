@@ -8,28 +8,32 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import WebView from 'react-native-webview';
+import { makeConfettiHtml } from '../utils/confettiHtml';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { lookupWord } from '../services/wordService';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { getCongratsLines } from '../utils/congrats';
+import { ALL_CONGRATS_POOL } from '../utils/congrats';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
-import { useNavPillStore } from '../store/useNavPillStore';
+import { useGameActive } from '../hooks/useGameActive';
 import { GlassButton } from '../components/GlassButton';
+import { GlassSurface } from '../components/GlassSurface';
 import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
 
 const { width: SW, height: SH } = Dimensions.get('window');
+const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
+const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
 const MAX_CARDS = 15;
 const CARD_W = SW - 48;
-const CARD_H = Math.min(Math.round(CARD_W * 1.55), Math.round(SH * 0.68));
+const CARD_H = Math.min(Math.round(CARD_W * 1.75), Math.round(SH * 0.78));
 const SWIPE_THRESHOLD = 80;
 const STACK_STRIP = 9;  // visible px of each stacked card below the one in front
 const STACK_SCALE = 0.04;
@@ -102,11 +106,7 @@ export function FlashcardsScreen() {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const setGameActive = useNavPillStore((s) => s.setGameActive);
-  useFocusEffect(useCallback(() => {
-    setGameActive(true);
-    return () => setGameActive(false);
-  }, [setGameActive]));
+  useGameActive();
   const route = useRoute<RouteProp<PracticeStackParamList, 'Flashcards'>>();
   const langFilter = route.params?.language;
   useFocusEffect(useCallback(() => {
@@ -115,8 +115,6 @@ export function FlashcardsScreen() {
   const { words, recordPractice, backfillWord } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
   const activeCodes = new Set(activeLanguages);
 
   const sessionWords = useMemo(() => {
@@ -154,6 +152,7 @@ export function FlashcardsScreen() {
   const [flipped, setFlipped] = useState(false);
   const [done, setDone]     = useState<{ correct: number; missed: number } | null>(null);
   const [tally, setTally]   = useState({ correct: 0, missed: 0 });
+  const [results, setResults] = useState<Array<'correct' | 'wrong'>>([]);
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
   const [activeDeclIdx, setActiveDeclIdx] = useState(0);
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
@@ -164,6 +163,38 @@ export function FlashcardsScreen() {
   const pan         = useRef(new Animated.ValueXY()).current;
   const flippedRef  = useRef(false);
   const lockRef     = useRef(false); // prevents double-triggers during animation
+  const [congratsPhrase, setCongratsPhrase] = useState(
+    () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)],
+  );
+  const congratsFadeAnim = useRef(new Animated.Value(1)).current;
+  const congratsCycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const isPerfect = done !== null && done.missed === 0 && sessionWords.length > 0;
+    if (!isPerfect) return;
+    let cancelled = false;
+    const pick = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
+    setCongratsPhrase(pick());
+    congratsFadeAnim.setValue(1);
+    function cycle() {
+      if (cancelled) return;
+      congratsCycleRef.current = setTimeout(() => {
+        if (cancelled) return;
+        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
+          if (cancelled) return;
+          setCongratsPhrase(pick());
+          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(() => cycle());
+        });
+      }, 2500);
+    }
+    cycle();
+    return () => {
+      cancelled = true;
+      if (congratsCycleRef.current) clearTimeout(congratsCycleRef.current);
+      congratsFadeAnim.stopAnimation();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
 
   function resetCard() {
     flipAnim.setValue(0);
@@ -199,6 +230,7 @@ export function FlashcardsScreen() {
       correct: tally.correct + (mark === 'got' ? 1 : 0),
       missed:  tally.missed  + (mark === 'no'  ? 1 : 0),
     };
+    setResults((r) => [...r, mark === 'got' ? 'correct' : 'wrong']);
     if (mark === 'got') recordPractice(card.id, true);
     if (mark === 'no')  recordPractice(card.id, false);
     if (index + 1 >= sessionWords.length) {
@@ -285,30 +317,26 @@ export function FlashcardsScreen() {
     const isPerfect = done.missed === 0 && sessionWords.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} />
         {isPerfect && (
-          <ConfettiCannon
-            count={180}
-            origin={{ x: SW / 2, y: -20 }}
-            autoStart fadeOut fallSpeed={2800}
-            colors={(() => {
-              // Derive colours from the actual session words — more reliable than langFilter
-              const sessionLangs = [...new Set(sessionWords.map((w) => w.language))];
-              if (sessionLangs.length === 1 && FLAG_COLORS[sessionLangs[0]]) {
-                return FLAG_COLORS[sessionLangs[0]];
-              }
-              const mixed = [...new Set(sessionLangs.flatMap((l) => FLAG_COLORS[l] ?? []))];
-              return mixed.length > 0 ? mixed : ['#E53935', '#43A047', '#1E88E5', '#FFB300'];
-            })()}
-          />
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <WebView
+              source={{ html: CONFETTI_HTML }}
+              style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
+              scrollEnabled={false}
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+            />
+          </View>
         )}
+        <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} results={results} />
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={colors.accentRed} />
-          {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
-              {line}
-            </Text>
-          ))}
+          {isPerfect && (
+            <Animated.Text style={[styles.congratsLine, { color: colors.accentRed, fontFamily: fontFamily.italic, opacity: congratsFadeAnim }]}>
+              {congratsPhrase}
+            </Animated.Text>
+          )}
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
             Session complete
           </Text>
@@ -375,6 +403,7 @@ export function FlashcardsScreen() {
         title="Flashcards"
         current={index + 1}
         total={sessionWords.length}
+        results={results}
         onSettingsPress={() => setSettingsVisible(true)}
       />
 
@@ -497,19 +526,17 @@ export function FlashcardsScreen() {
               </Text>
               {reversed && <WordAudioButton word={card.word} language={card.language as LanguageCode} size="md" />}
 
-              {/* Infinitive/noun pill — informational only, not tappable in game context */}
+              {/* Infinitive/noun pill — matches WordPopup style: label outside, lemma in bordered pill */}
               {flashPillLemma && (
-                <View style={[
-                  styles.flashPill,
-                  {
-                    backgroundColor: colors.card,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: colors.borderLight,
-                  },
-                ]}>
-                  <Text style={[styles.flashPillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                    {flashPillLabel}: {flashPillLemma}
+                <View style={styles.infinitivePillRow}>
+                  <Text style={[styles.infinitivePillLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {flashPillLabel}:
                   </Text>
+                  <View style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+                    <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                      {flashPillLemma}
+                    </Text>
+                  </View>
                 </View>
               )}
 
@@ -546,13 +573,6 @@ export function FlashcardsScreen() {
                     „{card.exampleSentence}"
                   </Text>
                 </View>
-              ) : null}
-
-              {/* Pronunciation — no slashes, grey italic */}
-              {card.pronunciation ? (
-                <Text style={[styles.pronunciation, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                  {card.pronunciation}
-                </Text>
               ) : null}
 
               {/* Forms — plain rows with centered FORMS header */}
@@ -706,32 +726,38 @@ export function FlashcardsScreen() {
               ) : null}
 
               {card.tip ? (
-                <View style={[styles.tipBox, { backgroundColor: colors.accentRed + '15', borderColor: colors.accentRed + '44' }]}>
-                  <Ionicons name="bulb-outline" size={13} color={colors.accentRed} />
+                <View style={[styles.tipBox, { borderColor: colors.borderMid }]}>
+                  <View style={styles.tipHeader}>
+                    <Ionicons name="bulb-outline" size={14} color={colors.accentRed} />
+                    <Text style={[styles.tipLabel, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>TIP</Text>
+                  </View>
                   <Text style={[styles.tipText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
                     {card.tip}
                   </Text>
                 </View>
               ) : null}
+              <View style={{ height: 16 }} />
             </ScrollView>
 
             {/* Swipe hints */}
-            <View style={[styles.swipeHints, { borderTopColor: colors.borderLight, backgroundColor: colors.card }]}>
+            <View style={[styles.swipeHintsDivider, { backgroundColor: colors.borderLight }]} />
+            <View style={[styles.swipeHints, { backgroundColor: colors.card }]}>
               <View style={styles.swipeHintSide}>
-                <Ionicons name="close-circle" size={18} color="#E53935" />
+                <Ionicons name="close-circle" size={24} color="#E53935" />
                 <Text style={[styles.swipeHintText, { color: '#E53935', fontFamily: fontFamily.regular }]}>No idea</Text>
               </View>
               <SpringButton
                 onPress={handleFlip}
-                hitSlop={{ top: 10, bottom: 10, left: 14, right: 14 }}
-                glass
-                cornerRadius={20}
+                style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
               >
+                <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                  <GlassSurface cornerRadius={22} colorScheme={colors.isNight ? 'dark' : 'light'} />
+                </View>
                 <Ionicons name="sync-outline" size={18} color={colors.inkFaint} />
               </SpringButton>
               <View style={styles.swipeHintSide}>
                 <Text style={[styles.swipeHintText, { color: '#43A047', fontFamily: fontFamily.regular }]}>Got it</Text>
-                <Ionicons name="checkmark-circle" size={18} color="#43A047" />
+                <Ionicons name="checkmark-circle" size={24} color="#43A047" />
               </View>
             </View>
 
@@ -835,7 +861,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   cardLang: { fontSize: 11, letterSpacing: 1.5 },
   pileBadge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
@@ -849,15 +874,14 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   frontWord: {
-    fontSize: 30,
+    fontSize: 38,
     textAlign: 'center',
-    lineHeight: 38,
+    lineHeight: 48,
   },
 
   tapHint: {
     paddingVertical: 14,
     alignItems: 'center',
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   tapHintText: { fontSize: 11, letterSpacing: 0.8 },
 
@@ -870,20 +894,24 @@ const styles = StyleSheet.create({
   },
   backTranslation: { textAlign: 'center', marginBottom: 2 },
   backDivider: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.sm },
-  flashPill: {
-    flexDirection: 'row', alignItems: 'center', alignSelf: 'center',
-    gap: 3, paddingHorizontal: 11, paddingVertical: 4, borderRadius: 99,
-    marginTop: 6,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+  infinitivePillRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 6, marginBottom: 8,
   },
-  flashPillText: { fontSize: 13 },
+  infinitivePillLabel: { fontSize: 13 },
+  infinitivePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 13, paddingVertical: 6,
+    borderRadius: 17, borderWidth: StyleSheet.hairlineWidth,
+  },
+  infinitivePillText: { fontSize: 14 },
   backExplanation: { lineHeight: 22, textAlign: 'center' },
-  pronunciation: { fontSize: 12, textAlign: 'center', letterSpacing: 0.5, opacity: 0.7, marginTop: 4 },
   backBlockquote: { borderLeftWidth: 3, paddingLeft: 12, paddingVertical: 8, marginTop: Spacing.sm },
   backBlockquoteText: { lineHeight: 20 },
-  tipBox: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.sm, borderRadius: 8, borderWidth: 1, alignItems: 'flex-start', marginTop: Spacing.xs },
-  tipText: { flex: 1, fontSize: 11, lineHeight: 17 },
+  tipBox: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, marginTop: Spacing.sm, marginBottom: Spacing.md },
+  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
+  tipLabel: { fontSize: 11, letterSpacing: 1.5 },
+  tipText: { fontSize: 13, lineHeight: 19 },
 
   // Grammar tags — dot-separated plain text
   grammarTags: { fontSize: 13, textAlign: 'center', letterSpacing: 0.2, paddingVertical: Spacing.xs },
@@ -911,13 +939,16 @@ const styles = StyleSheet.create({
   conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
   conjForm: { fontSize: 13, flex: 1, textAlign: 'right' },
 
+  swipeHintsDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.xl,
+  },
   swipeHints: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   swipeHintSide: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   swipeHintText: { fontSize: 12 },

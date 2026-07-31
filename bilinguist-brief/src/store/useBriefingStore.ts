@@ -330,8 +330,11 @@ export const useBriefingStore = create<BriefingStore>()(
 
         const weatherData = await fetchWeather(language, _userCoords ?? undefined);
         set((s) => ({
-          weather: weatherData,
-          weatherByLang: { ...s.weatherByLang, [language]: weatherData ?? undefined },
+          // On fetch failure keep any stale cached entry so weather doesn't vanish
+          weather: weatherData ?? s.weather,
+          weatherByLang: weatherData
+            ? { ...s.weatherByLang, [language]: weatherData }
+            : s.weatherByLang,
           isLoadingWeather: false,
         }));
       },

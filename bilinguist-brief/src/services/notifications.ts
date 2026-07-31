@@ -130,21 +130,25 @@ export async function scheduleMorningBriefNotification(
     let body = "Today's brief is ready.";
 
     try {
-      const { topicOrder = [], topics = {}, activeLanguageCodes = [] } = options;
-      const topGenreKey = topicOrder.find((k) => topics[k]);
-      if (topGenreKey) {
-        const genreLabel = TOPIC_LABELS[topGenreKey];
-        if (genreLabel) {
-          const result = await fetchTodayBundle();
-          if (result.ok) {
-            const headline = findHeadlineForGenre(result.bundle, activeLanguageCodes, genreLabel);
-            if (headline) body = headline;
+      const result = await fetchTodayBundle();
+      if (result.ok) {
+        if (result.bundle.daily_notification) {
+          body = result.bundle.daily_notification;
+        } else {
+          const { topicOrder = [], topics = {}, activeLanguageCodes = [] } = options;
+          const topGenreKey = topicOrder.find((k) => topics[k]);
+          if (topGenreKey) {
+            const genreLabel = TOPIC_LABELS[topGenreKey];
+            if (genreLabel) {
+              const headline = findHeadlineForGenre(result.bundle, activeLanguageCodes, genreLabel);
+              if (headline) body = headline;
+            }
           }
         }
       }
     } catch {}
 
-    await scheduleDaily(MORNING_NOTIFICATION_ID, 'Bilinguist Brief', body, time);
+    await scheduleDaily(MORNING_NOTIFICATION_ID, 'Morning Bilingual Briefing ☀️', body, time);
   } catch {}
 }
 

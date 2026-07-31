@@ -26,6 +26,14 @@ public class LiquidGlassView: ExpoView {
     effectView?.alpha = CGFloat(intensity)
   }
 
+  func setColorScheme(_ scheme: String) {
+    switch scheme {
+    case "dark":  overrideUserInterfaceStyle = .dark
+    case "light": overrideUserInterfaceStyle = .light
+    default:      overrideUserInterfaceStyle = .unspecified
+    }
+  }
+
   private func setupGlass() {
     if #available(iOS 26.0, *) {
       let effect = UIGlassEffect()

@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   expoGoFallback: { backgroundColor: 'rgba(252, 251, 250, 0.90)' },
 });
 
-function BlurFallback({ style, children, fallbackColor, colorScheme }: { style?: object; children?: React.ReactNode; fallbackColor?: string; colorScheme?: 'auto' | 'light' | 'dark' }) {
+function BlurFallback({ style, children, fallbackColor, colorScheme, intensity }: { style?: object; children?: React.ReactNode; fallbackColor?: string; colorScheme?: 'auto' | 'light' | 'dark'; intensity?: number }) {
   const tint = colorScheme === 'dark'
     ? 'systemUltraThinMaterialDark'
     : colorScheme === 'light'
@@ -62,7 +62,7 @@ function BlurFallback({ style, children, fallbackColor, colorScheme }: { style?:
     : 'systemUltraThinMaterial';
   return (
     <BlurView
-      intensity={80}
+      intensity={intensity ?? 80}
       tint={tint as any}
       style={[StyleSheet.absoluteFillObject, style]}
     >
@@ -84,7 +84,7 @@ export function GlassSurface({ style, children, fallbackColor, colorScheme, corn
 
   if (glassAvailable && NativeGlassView) {
     const GlassView = NativeGlassView;
-    const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor} colorScheme={colorScheme}>{children}</BlurFallback>;
+    const blurFallback = <BlurFallback style={flatStyle} fallbackColor={fallbackColor} colorScheme={colorScheme} intensity={intensity}>{children}</BlurFallback>;
     return (
       <GlassBoundary fallback={blurFallback}>
         <GlassView

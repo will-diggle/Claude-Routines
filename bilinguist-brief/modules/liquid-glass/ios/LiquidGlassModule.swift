@@ -10,6 +10,9 @@ public class LiquidGlassModule: Module {
       Prop("intensity") { (view: LiquidGlassView, value: Double) in
         view.setIntensity(value)
       }
+      Prop("colorScheme") { (view: LiquidGlassView, value: String) in
+        view.setColorScheme(value)
+      }
     }
   }
 }

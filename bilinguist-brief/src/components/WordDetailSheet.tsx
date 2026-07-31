@@ -13,6 +13,7 @@ import { useWordBankStore, type SavedWord, type Pile } from '../store/useWordBan
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import { verifyTenses } from '../services/wordLookup';
 import { lookupWord, type TenseTable } from '../services/wordService';
+import { translateWord } from '../services/deepl';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ', de: 'PRÄTERITUM', es: 'PRETÉRITO',
@@ -66,8 +67,17 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
   const [liveDecl, setLiveDecl] = useState<TenseTable[] | null>(null);
   const [nestedWord, setNestedWord] = useState<string | null>(null);
+  const [sentenceTranslation, setSentenceTranslation] = useState<string | null>(null);
 
   const backfillWord = useWordBankStore((s) => s.backfillWord);
+
+  useEffect(() => {
+    if (!word?.exampleSentence) { setSentenceTranslation(null); return; }
+    setSentenceTranslation(null);
+    translateWord(word.exampleSentence, word.language as LanguageCode)
+      .then((r) => { if (r?.translation) setSentenceTranslation(r.translation); })
+      .catch(() => {});
+  }, [word?.id]);
 
   useEffect(() => {
     if (!word) return;
@@ -132,7 +142,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) =>
-        scrollAtTop.current && g.dy > 6 && g.dy > Math.abs(g.dx) * 0.75,
+        scrollAtTop.current && g.dy > 18 && g.vy > 0.15 && g.dy > Math.abs(g.dx) * 1.5,
       onPanResponderMove: (_, g) => {
         if (g.dy > 0) dragY.setValue(g.dy);
       },
@@ -194,15 +204,10 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
           {...panResponder.panHandlers}
           style={[
             styles.sheet,
-            { backgroundColor: colors.surface, paddingBottom: insets.bottom + 8 },
+            { backgroundColor: colors.bg, paddingBottom: Math.max(insets.bottom, 8), marginTop: insets.top + 4 },
             { transform: [{ translateY: dragY }] },
           ]}
         >
-          {/* Drag handle — visual affordance; the whole sheet is now draggable */}
-          <View style={styles.handleArea}>
-            <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
-          </View>
-
           {/* Word row: stub · [mirror·word·🔊 centered] · ✕ */}
           <View style={styles.wordRow}>
             <View style={styles.wordStub} />
@@ -218,67 +223,52 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             </GlassButton>
           </View>
 
-        {/* Subtitle: pill (lemma, tappable) + IPA */}
-        {(dsSubtitleLemma || word.pronunciation) && (
-          <View style={styles.subtitleRow}>
-            {dsSubtitleLemma && (
-              <TouchableOpacity
-                onPress={() => setNestedWord(dsSubtitleLemma)}
-                activeOpacity={0.7}
-                style={[
-                  styles.infinitivePill,
-                  {
-                    backgroundColor: colors.card,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: colors.borderLight,
-                  },
-                ]}
-              >
-                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {dsPillLabel}: {dsSubtitleLemma}
-                </Text>
-                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
-              </TouchableOpacity>
-            )}
-            {word.pronunciation && (
-              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                {dsSubtitleLemma ? `· ${word.pronunciation}` : word.pronunciation}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        {/* Translation — large, centered */}
-        <View style={styles.translationBlock}>
-          <Text style={[styles.translationLarge, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            {word.translation || '—'}
-          </Text>
-        </View>
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        {/* Grammar tag row — plain text, same style as brief word popup */}
-        {word.wordType && (
-          <View style={styles.chipsRow}>
-            <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-              {[
-                word.wordType.charAt(0).toUpperCase() + word.wordType.slice(1),
-                word.pile !== 'new' ? word.pile.charAt(0).toUpperCase() + word.pile.slice(1) : null,
-              ].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-        )}
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
         <ScrollView
           style={styles.scrollArea}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={e => { scrollAtTop.current = e.nativeEvent.contentOffset.y <= 0; }}
+          keyboardShouldPersistTaps="handled"
         >
+          {/* Translation — large, centered, directly below word */}
+          <View style={styles.translationBlock}>
+            <Text style={[styles.translationLarge, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              {word.translation || '—'}
+            </Text>
+          </View>
+
+          {/* Infinitive pill row — label outside, lemma inside bordered pill (matches WordPopup) */}
+          {dsSubtitleLemma && (
+            <View style={styles.infinitivePillRow}>
+              <Text style={[styles.infinitivePillLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {dsPillLabel}:
+              </Text>
+              <TouchableOpacity
+                onPress={() => setNestedWord(dsSubtitleLemma)}
+                activeOpacity={0.8}
+                style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
+              >
+                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  {dsSubtitleLemma}
+                </Text>
+                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Grammar tag row */}
+          {word.wordType && (
+            <View style={styles.chipsRow}>
+              <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                {[
+                  word.wordType.charAt(0).toUpperCase() + word.wordType.slice(1),
+                  word.pile !== 'new' ? word.pile.charAt(0).toUpperCase() + word.pile.slice(1) : null,
+                ].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           {/* Explanation */}
           {word.explanation ? (
@@ -287,12 +277,17 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             </Text>
           ) : null}
 
-          {/* Example sentence — directly under definition */}
+          {/* Example sentence + English translation */}
           {word.exampleSentence ? (
             <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
               <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
                 „{word.exampleSentence}"
               </Text>
+              {sentenceTranslation ? (
+                <Text style={[styles.blockquoteTranslation, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  {sentenceTranslation}
+                </Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -370,15 +365,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
                         else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
                       }}
                       disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                          ? colors.borderLight : colors.borderMid,
-                      }]}
+                      style={[styles.tenseNavBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')) ? 0.35 : 1 }]}
                     >
-                      <Ionicons name="chevron-back" size={16} color={
-                        (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                          ? colors.borderMid : colors.inkDark
-                      } />
+                      <Ionicons name="chevron-back" size={16} color={colors.inkDark} />
                     </TouchableOpacity>
                     <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                       {navLabel}
@@ -389,15 +378,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
                         else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
                       }}
                       disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                          ? colors.borderLight : colors.borderMid,
-                      }]}
+                      style={[styles.tenseNavBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')) ? 0.35 : 1 }]}
                     >
-                      <Ionicons name="chevron-forward" size={16} color={
-                        (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                          ? colors.borderMid : colors.inkDark
-                      } />
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkDark} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -423,11 +406,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
                     <TouchableOpacity
                       onPress={() => setActiveTenseIdx((i) => Math.max(0, i - 1))}
                       disabled={activeTenseIdx === 0}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: activeTenseIdx === 0 ? colors.borderLight : colors.borderMid,
-                      }]}
+                      style={[styles.tenseNavBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: activeTenseIdx === 0 ? 0.35 : 1 }]}
                     >
-                      <Ionicons name="chevron-back" size={16} color={activeTenseIdx === 0 ? colors.borderMid : colors.inkDark} />
+                      <Ionicons name="chevron-back" size={16} color={colors.inkDark} />
                     </TouchableOpacity>
                     <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                       {activeTense.label}
@@ -435,11 +416,9 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
                     <TouchableOpacity
                       onPress={() => setActiveTenseIdx((i) => Math.min(tenses.length - 1, i + 1))}
                       disabled={activeTenseIdx === tenses.length - 1}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: activeTenseIdx === tenses.length - 1 ? colors.borderLight : colors.borderMid,
-                      }]}
+                      style={[styles.tenseNavBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: activeTenseIdx === tenses.length - 1 ? 0.35 : 1 }]}
                     >
-                      <Ionicons name="chevron-forward" size={16} color={activeTenseIdx === tenses.length - 1 ? colors.borderMid : colors.inkDark} />
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkDark} />
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -494,6 +473,8 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
             </View>
           )}
 
+          <View style={{ height: 100 }} />
+
         </ScrollView>
         </Animated.View>
       </View>
@@ -507,6 +488,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
           level={(word.level as LanguageLevel) ?? 'B1'}
           genre=""
           isNested
+          onDismissStart={dismissSheet}
           onClose={() => setNestedWord(null)}
         />
       )}
@@ -516,7 +498,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
 
 const styles = StyleSheet.create({
   modalContainer: { flex: 1 },
-  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%' },
+  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '92%', minHeight: '85%' },
 
   handleArea: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 40, alignItems: 'center' },
   handle: { width: 44, height: 5, borderRadius: 3 },
@@ -524,22 +506,22 @@ const styles = StyleSheet.create({
   // Word row: word · 🔊 · /IPA/ · ✕
   wordRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs, gap: 8,
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.xs, gap: 8,
   },
   wordStub: { width: 36 },
   wordCenterZone: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   wordSpeakerMirror: { width: 34 },
   wordText: { fontSize: 34, flexShrink: 1 },
   ipaInline: { fontSize: 13, letterSpacing: 0.5 },
-  subtitleRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs, flexWrap: 'wrap',
+  infinitivePillRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 6, marginBottom: 8,
   },
+  infinitivePillLabel: { fontSize: 13 },
   infinitivePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 11, paddingVertical: 4, borderRadius: 99,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 6, elevation: 3,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 13, paddingVertical: 6,
+    borderRadius: 17, borderWidth: StyleSheet.hairlineWidth,
   },
   infinitivePillText: { fontSize: 14 },
   subtitleIPA: { fontSize: 14, fontStyle: 'italic' },
@@ -570,12 +552,13 @@ const styles = StyleSheet.create({
   // Blockquote
   blockquote: { borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 10, marginTop: Spacing.sm, marginBottom: Spacing.xs },
   blockquoteText: { lineHeight: 22 },
+  blockquoteTranslation: { fontSize: 13, lineHeight: 20, marginTop: 4 },
 
   // Verb tenses — centered
   tenseSectionCenter: { alignItems: 'center', marginTop: Spacing.sm, marginBottom: Spacing.xs },
   tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
   tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tenseNavBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  tenseNavBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   tenseLabel: { fontSize: 11, letterSpacing: 1, width: 160, textAlign: 'center' },
   conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
@@ -595,7 +578,7 @@ const styles = StyleSheet.create({
   tipText: { fontSize: 13, lineHeight: 20 },
 
   // Pile move
-  pileButtons: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: Spacing.md, marginBottom: Spacing.md },
+  pileButtons: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: Spacing.sm, marginBottom: Spacing.xs },
   movePileBtn: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
   movePileBtnText: { fontSize: 13 },
 });

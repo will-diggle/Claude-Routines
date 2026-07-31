@@ -1,7 +1,9 @@
 import { SpringButton } from '../components/SpringButton';
+import { GlassButton } from '../components/GlassButton';
+import { BlurView } from 'expo-blur';
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, Animated, Modal,
+  View, Text, FlatList, StyleSheet, Animated, Modal, Pressable,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,7 +50,7 @@ const PILE_LABEL: Record<Pile | 'all', string> = {
 };
 
 export function WordBankListScreen() {
-  const { colors, fontFamily, fontSize } = useTheme();
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   const navigation = useNavigation<WordBankNav>();
   const route = useRoute<RouteProp<PracticeStackParamList, 'WordBankList'>>();
 
@@ -78,19 +80,23 @@ export function WordBankListScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       {/* Nav header */}
       <View style={[styles.navHeader, { borderBottomColor: colors.borderLight }]}>
-        <SpringButton onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-        </SpringButton>
+        <GlassButton onPress={() => navigation.goBack()} size={44}>
+          <Ionicons name="chevron-back" size={22} color={colors.inkDark} />
+        </GlassButton>
         <Text style={[styles.navTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {PILE_LABEL[selectedPile]} {filtered.length > 0 ? `· ${filtered.length}` : ''}
         </Text>
         {filtered.length > 0 ? (
           <SpringButton
-            style={[styles.practisePill, { borderColor: colors.chrome }]}
+            style={[styles.practisePill, { borderColor: colors.borderMid, overflow: 'hidden' }]}
             onPress={() => setGameModalVisible(true)}
-           
           >
-            <Text style={[styles.practisePillText, { color: colors.chrome, fontFamily: fontFamily.regular }]}>
+            <BlurView
+              intensity={isDark ? 60 : 70}
+              tint={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={[styles.practisePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
               Practice →
             </Text>
           </SpringButton>
@@ -164,23 +170,18 @@ export function WordBankListScreen() {
               }}
               friction={2}
               rightThreshold={60}
-              renderRightActions={(progress) => {
-                const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1], extrapolate: 'clamp' });
-                return (
-                  <Animated.View style={[styles.deleteAction, { transform: [{ scale }] }]}>
-                    <SpringButton
-                      style={styles.deleteActionInner}
-                      onPress={() => {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                        deleteWord(item.id);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={20} color="#FFF" />
-                      <Text style={[styles.deleteLabel, { fontFamily: fontFamily.regular }]}>Delete</Text>
-                    </SpringButton>
-                  </Animated.View>
-                );
-              }}
+              renderRightActions={() => (
+                <Pressable
+                  style={styles.deleteAction}
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    deleteWord(item.id);
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={22} color="#FFF" />
+                  <Text style={[styles.deleteLabel, { fontFamily: fontFamily.regular }]}>Delete</Text>
+                </Pressable>
+              )}
             >
               <SpringButton
                 style={[styles.wordRow, { borderBottomColor: colors.borderLight, backgroundColor: colors.bg }]}
@@ -228,8 +229,9 @@ export function WordBankListScreen() {
         animationType="slide"
         onRequestClose={() => setGameModalVisible(false)}
       >
-        <SpringButton style={modalStyles.overlay} onPress={() => setGameModalVisible(false)} />
-        <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+        <View style={modalStyles.backdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setGameModalVisible(false)} />
+          <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
           <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
           <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             {selectedLang !== 'all'
@@ -260,6 +262,7 @@ export function WordBankListScreen() {
           <SpringButton style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
             <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
           </SpringButton>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -287,16 +290,12 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
   emptyText: { fontSize: 15 },
   deleteAction: {
-    justifyContent: 'center',
-    marginBottom: StyleSheet.hairlineWidth,
-  },
-  deleteActionInner: {
     backgroundColor: '#E53935',
     justifyContent: 'center',
     alignItems: 'center',
-    width: 76,
-    gap: 4,
+    width: 82,
     alignSelf: 'stretch',
+    gap: 4,
   },
   deleteLabel: {
     color: '#FFF',
@@ -321,7 +320,7 @@ const styles = StyleSheet.create({
 });
 
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 34 },
   handle: {
     width: 36, height: 4, borderRadius: 2,

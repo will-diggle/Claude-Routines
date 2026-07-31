@@ -1,31 +1,34 @@
 import { SpringButton } from '../components/SpringButton';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity,
+  View, Text, StyleSheet, Animated, Easing, TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import WebView from 'react-native-webview';
+import { makeConfettiHtml } from '../utils/confettiHtml';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { useNavPillStore } from '../store/useNavPillStore';
-import { getCongratsLines } from '../utils/congrats';
+import { useGameActive } from '../hooks/useGameActive';
+import { ALL_CONGRATS_POOL } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
 import { GlassButton } from '../components/GlassButton';
 
-const SCREEN_W = Dimensions.get('window').width;
+const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
+const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
 
 const TIME_LIMIT       = 60;
 const PAIRS_PER_SCREEN = 6;
 const MIN_WORDS        = PAIRS_PER_SCREEN;
-const EXIT_DURATION    = 320;
+const FADE_DURATION    = 500;
+const MATCH_PAUSE      = 400;
 const SHAKE_THRESHOLD  = 10;
 
 interface Tile {
@@ -34,6 +37,8 @@ interface Tile {
   text: string;
   isNative: boolean;
 }
+
+interface SlotSel { side: 'left' | 'right'; idx: number }
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -44,11 +49,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function makeTiles(words: SavedWord[]): Tile[] {
-  return words.flatMap((w) => [
-    { id: `${w.id}-native`, pairId: w.id, text: w.word        || '—', isNative: true },
-    { id: `${w.id}-trans`,  pairId: w.id, text: w.translation || w.word || '—', isNative: false },
-  ]);
+function makePair(word: SavedWord): [Tile, Tile] {
+  return [
+    { id: `${word.id}-native`, pairId: word.id, text: word.word        || '—', isNative: true  },
+    { id: `${word.id}-trans`,  pairId: word.id, text: word.translation || word.word || '—', isNative: false },
+  ];
 }
 
 export function MatchingScreen() {
@@ -60,15 +65,13 @@ export function MatchingScreen() {
   const { words } = useWordBankStore();
   const { recordSession, streak, speedSnapHighScore, setSpeedSnapHighScore } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
-  const setGameActive = useNavPillStore((s) => s.setGameActive);
+  useGameActive();
   const scoreRef = useRef(0);
   const [isNewBest, setIsNewBest] = useState(false);
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), [isNewBest]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [congratsPhrase, setCongratsPhrase] = useState(
+    () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)],
+  );
 
-  useFocusEffect(useCallback(() => {
-    setGameActive(true);
-    return () => setGameActive(false);
-  }, [setGameActive]));
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('matching', langFilter ?? 'all');
   }, [langFilter]));
@@ -82,51 +85,40 @@ export function MatchingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
-  const [tiles, setTiles] = useState<Tile[]>([]);
-  const [wordPool, setWordPool] = useState<SavedWord[]>([]);
-  const [matched, setMatched] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<string | null>(null);
-  const [wrong, setWrong] = useState<[string, string] | null>(null);
-  const [score, setScore] = useState(0);
-  const [phase, setPhase] = useState<'playing' | 'done'>('playing');
+  // ── Slot-based grid: left = foreign word, right = English translation ───────
+  // Tiles stay in position on match; new pair fades in at the same two slots.
+  const [leftSlots,  setLeftSlots]  = useState<(Tile | null)[]>([]);
+  const [rightSlots, setRightSlots] = useState<(Tile | null)[]>([]);
+  const leftSlotsRef  = useRef<(Tile | null)[]>([]);
+  const rightSlotsRef = useRef<(Tile | null)[]>([]);
 
-  const tilesRef    = useRef<Tile[]>([]);
+  // Per-slot fade animations — reinitialised each game
+  const leftFades  = useRef<Animated.Value[]>([]);
+  const rightFades = useRef<Animated.Value[]>([]);
+
   const wordPoolRef = useRef<SavedWord[]>([]);
-  const timeLeftRef = useRef(TIME_LIMIT);
 
-  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wrongAnim      = useRef(new Animated.Value(0)).current;
-  const timerAnim      = useRef(new Animated.Value(TIME_LIMIT)).current;
-  const shakeAnim      = useRef(new Animated.Value(0)).current;
-  const shakeLoopRef   = useRef<Animated.CompositeAnimation | null>(null);
+  const [matched,  setMatched]  = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<SlotSel | null>(null);
+  const [wrong,    setWrong]    = useState<[SlotSel, SlotSel] | null>(null);
+
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [score,    setScore]    = useState(0);
+  const [phase,    setPhase]    = useState<'playing' | 'done'>('playing');
+
+  const timeLeftRef      = useRef(TIME_LIMIT);
+  const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wrongAnim        = useRef(new Animated.Value(0)).current;
+  const timerAnim        = useRef(new Animated.Value(TIME_LIMIT)).current;
+  const shakeAnim        = useRef(new Animated.Value(0)).current;
+  const shakeLoopRef     = useRef<Animated.CompositeAnimation | null>(null);
   const congratsFadeAnim = useRef(new Animated.Value(1)).current;
-  const [congratsIdx, setCongratsIdx] = useState(0);
   const congratsCycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const exitAnims = useRef(new Map<string, { y: Animated.Value; op: Animated.Value }>());
-
-  function getExitAnim(id: string) {
-    if (!exitAnims.current.has(id)) {
-      exitAnims.current.set(id, { y: new Animated.Value(0), op: new Animated.Value(1) });
-    }
-    return exitAnims.current.get(id)!;
-  }
-
-  function animateMatchOut(idA: string, idB: string, pairId: string) {
-    const a = getExitAnim(idA);
-    const b = getExitAnim(idB);
-    Animated.parallel([
-      Animated.timing(a.y,  { toValue: 600, duration: EXIT_DURATION, useNativeDriver: true, easing: Easing.in(Easing.cubic) }),
-      Animated.timing(a.op, { toValue: 0,   duration: EXIT_DURATION - 40, useNativeDriver: true }),
-      Animated.timing(b.y,  { toValue: 600, duration: EXIT_DURATION, useNativeDriver: true, easing: Easing.in(Easing.cubic) }),
-      Animated.timing(b.op, { toValue: 0,   duration: EXIT_DURATION - 40, useNativeDriver: true }),
-    ]).start(() => {
-      exitAnims.current.delete(idA);
-      exitAnims.current.delete(idB);
-      replacePairs(pairId);
-    });
-  }
+  const stopShake = useCallback(() => {
+    if (shakeLoopRef.current) { shakeLoopRef.current.stop(); shakeLoopRef.current = null; }
+    shakeAnim.setValue(0);
+  }, [shakeAnim]);
 
   const finishGame = useCallback((finalScore: number) => {
     recordSession();
@@ -141,63 +133,59 @@ export function MatchingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speedSnapHighScore]);
 
-  const stopShake = useCallback(() => {
-    if (shakeLoopRef.current) {
-      shakeLoopRef.current.stop();
-      shakeLoopRef.current = null;
-    }
-    shakeAnim.setValue(0);
-  }, [shakeAnim]);
-
   const initGame = useCallback((pool: SavedWord[]) => {
     stopShake();
     const first = pool.slice(0, PAIRS_PER_SCREEN);
-    const initialTiles = shuffle(makeTiles(first));
-    const restPool = pool.slice(PAIRS_PER_SCREEN);
-    tilesRef.current = initialTiles;
-    wordPoolRef.current = restPool;
-    timeLeftRef.current = TIME_LIMIT;
-    timerAnim.setValue(TIME_LIMIT);
-    setTiles(initialTiles);
-    setWordPool(restPool);
+    // Left column = foreign words, right column = English translations (independently shuffled)
+    const left  = shuffle(first.map((w) => makePair(w)[0]));
+    const right = shuffle(first.map((w) => makePair(w)[1]));
+
+    leftFades.current  = Array.from({ length: PAIRS_PER_SCREEN }, () => new Animated.Value(1));
+    rightFades.current = Array.from({ length: PAIRS_PER_SCREEN }, () => new Animated.Value(1));
+
+    leftSlotsRef.current  = left;
+    rightSlotsRef.current = right;
+    wordPoolRef.current   = pool.slice(PAIRS_PER_SCREEN);
+
+    setLeftSlots(left);
+    setRightSlots(right);
     setMatched(new Set());
     setSelected(null);
     setWrong(null);
     scoreRef.current = 0;
     setScore(0);
     setIsNewBest(false);
+    timeLeftRef.current = TIME_LIMIT;
+    timerAnim.setValue(TIME_LIMIT);
     setTimeLeft(TIME_LIMIT);
     setPhase('playing');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopShake, timerAnim]);
 
   useEffect(() => {
-    if (eligibleWords.length >= 2) {
-      initGame(eligibleWords);
-    }
+    if (eligibleWords.length >= 2) initGame(eligibleWords);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Congrats cycling ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'done' || !isNewBest || congratsLines.length === 0) return;
+    if (phase !== 'done' || !isNewBest) return;
     let cancelled = false;
-    let idx = 0;
+    const pick = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
+    setCongratsPhrase(pick());
     congratsFadeAnim.setValue(1);
-    setCongratsIdx(0);
-
     function cycle() {
       if (cancelled) return;
       congratsCycleRef.current = setTimeout(() => {
         if (cancelled) return;
-        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
           if (cancelled) return;
-          idx = (idx + 1) % congratsLines.length;
-          setCongratsIdx(idx);
-          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start(() => cycle());
+          setCongratsPhrase(pick());
+          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(() => cycle());
         });
-      }, 1500);
+      }, 2500);
     }
     cycle();
-
     return () => {
       cancelled = true;
       if (congratsCycleRef.current) clearTimeout(congratsCycleRef.current);
@@ -206,40 +194,32 @@ export function MatchingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, isNewBest]);
 
-  // Main countdown — smooth-animates the bar each tick
+  // ── Countdown timer ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'playing') return;
     timerRef.current = setInterval(() => {
       timeLeftRef.current -= 1;
       const next = timeLeftRef.current;
       Animated.timing(timerAnim, {
-        toValue: next,
-        duration: 950,
-        useNativeDriver: false,
-        easing: Easing.linear,
+        toValue: next, duration: 950, useNativeDriver: false, easing: Easing.linear,
       }).start();
-      if (next <= 0) {
-        clearInterval(timerRef.current!);
-        finishGame(scoreRef.current);
-      }
+      if (next <= 0) { clearInterval(timerRef.current!); finishGame(scoreRef.current); }
       setTimeLeft(next);
     }, 1000);
     return () => clearInterval(timerRef.current!);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // Shake when time is almost up
+  // ── Shake when time almost up ───────────────────────────────────────────────
   useEffect(() => {
     if (timeLeft <= SHAKE_THRESHOLD && timeLeft > 0 && phase === 'playing') {
       if (!shakeLoopRef.current) {
-        const loop = Animated.loop(
-          Animated.sequence([
-            Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 0, duration: 100, useNativeDriver: true }),
-          ])
-        );
+        const loop = Animated.loop(Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 5,  duration: 50,  useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -5, duration: 50,  useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 3,  duration: 50,  useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 0,  duration: 100, useNativeDriver: true }),
+        ]));
         shakeLoopRef.current = loop;
         loop.start();
       }
@@ -248,56 +228,89 @@ export function MatchingScreen() {
     }
   }, [timeLeft, phase, shakeAnim, stopShake]);
 
-  function replacePairs(pairId: string) {
-    const pool = wordPoolRef.current;
-    const currentTiles = tilesRef.current;
-    const cycling = pool.length === 0;
+  // ── Replace matched slots with the next word, fading in at same positions ──
+  function fillMatchedSlots(leftIdx: number, rightIdx: number, pairId: string) {
+    const pool     = wordPoolRef.current;
+    const curLeft  = leftSlotsRef.current;
+    const curRight = rightSlotsRef.current;
 
+    const cycling = pool.length === 0;
     if (cycling) setMatched(new Set());
 
     const activePool = cycling
-      ? shuffle(eligibleWords.filter((w) => !currentTiles.some((t) => t.pairId === w.id && t.pairId !== pairId)))
+      ? shuffle(eligibleWords.filter((w) =>
+          !curLeft.some((t) => t && t.pairId === w.id && t.pairId !== pairId) &&
+          !curRight.some((t) => t && t.pairId === w.id && t.pairId !== pairId)
+        ))
       : pool;
 
     if (activePool.length < 1) {
-      const remaining = currentTiles.filter((t) => t.pairId !== pairId);
-      tilesRef.current = remaining;
-      setTiles(remaining);
-      if (remaining.length === 0) finishGame(scoreRef.current);
+      const nextLeft  = curLeft.map((t, i)  => (i === leftIdx  ? null : t));
+      const nextRight = curRight.map((t, i) => (i === rightIdx ? null : t));
+      leftSlotsRef.current  = nextLeft;
+      rightSlotsRef.current = nextRight;
+      setLeftSlots(nextLeft);
+      setRightSlots(nextRight);
+      if (!nextLeft.some(Boolean) && !nextRight.some(Boolean)) finishGame(scoreRef.current);
       return;
     }
 
     const [next, ...rest] = activePool;
-    const withoutMatched = currentTiles.filter((t) => t.pairId !== pairId);
-    const newTiles = shuffle([...withoutMatched, ...makeTiles([next])]);
-    tilesRef.current = newTiles;
     wordPoolRef.current = rest;
-    setTiles(newTiles);
-    setWordPool(rest);
+    const [newLeft, newRight] = makePair(next);
+
+    leftFades.current[leftIdx].setValue(0);
+    rightFades.current[rightIdx].setValue(0);
+
+    const nextLeft  = curLeft.map((t, i)  => (i === leftIdx  ? newLeft  : t));
+    const nextRight = curRight.map((t, i) => (i === rightIdx ? newRight : t));
+    leftSlotsRef.current  = nextLeft;
+    rightSlotsRef.current = nextRight;
+    setLeftSlots(nextLeft);
+    setRightSlots(nextRight);
+
+    if (!cycling) setMatched((prev) => { const n = new Set(prev); n.delete(pairId); return n; });
+
+    Animated.parallel([
+      Animated.timing(leftFades.current[leftIdx],   { toValue: 1, duration: FADE_DURATION, useNativeDriver: true }),
+      Animated.timing(rightFades.current[rightIdx], { toValue: 1, duration: FADE_DURATION, useNativeDriver: true }),
+    ]).start();
   }
 
-  function handleTile(tile: Tile) {
-    if (matched.has(tile.pairId)) return;
-    if (wrong) return;
-    if (selected === tile.id) { setSelected(null); return; }
+  // Brief green-matched pause → fade out in place → fill with next word
+  function animateMatchOut(leftIdx: number, rightIdx: number, pairId: string) {
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(leftFades.current[leftIdx],   { toValue: 0, duration: FADE_DURATION, useNativeDriver: true }),
+        Animated.timing(rightFades.current[rightIdx], { toValue: 0, duration: FADE_DURATION, useNativeDriver: true }),
+      ]).start(() => fillMatchedSlots(leftIdx, rightIdx, pairId));
+    }, MATCH_PAUSE);
+  }
 
-    if (!selected) { setSelected(tile.id); return; }
+  // ── Tile interaction ────────────────────────────────────────────────────────
+  function handleTileTap(side: 'left' | 'right', idx: number) {
+    const tile = (side === 'left' ? leftSlotsRef.current : rightSlotsRef.current)[idx];
+    if (!tile || matched.has(tile.pairId) || wrong) return;
 
-    const first = tiles.find((t) => t.id === selected);
-    if (!first) { setSelected(tile.id); return; }
+    if (selected?.side === side && selected.idx === idx) { setSelected(null); return; }
+    if (!selected) { setSelected({ side, idx }); return; }
+    if (selected.side === side) { setSelected({ side, idx }); return; }
 
-    // Same column tapped — just switch selection, don't penalise
-    if (first.isNative === tile.isNative) { setSelected(tile.id); return; }
+    const firstTile = (selected.side === 'left' ? leftSlotsRef.current : rightSlotsRef.current)[selected.idx];
+    if (!firstTile) { setSelected({ side, idx }); return; }
 
-    if (first.pairId === tile.pairId && first.id !== tile.id) {
-      const newMatched = new Set(matched).add(tile.pairId);
-      setMatched(newMatched);
-      const firstId = selected;
+    const leftIdx  = selected.side === 'left' ? selected.idx : idx;
+    const rightIdx = selected.side === 'right' ? selected.idx : idx;
+
+    if (firstTile.pairId === tile.pairId) {
+      setMatched((prev) => new Set(prev).add(tile.pairId));
       setSelected(null);
       setScore((n) => { scoreRef.current = n + 1; return n + 1; });
-      animateMatchOut(firstId, tile.id, tile.pairId);
+      animateMatchOut(leftIdx, rightIdx, tile.pairId);
     } else {
-      setWrong([selected, tile.id]);
+      const selA: SlotSel = { side: selected.side, idx: selected.idx };
+      const selB: SlotSel = { side, idx };
+      setWrong([selA, selB]);
       Animated.sequence([
         Animated.timing(wrongAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
         Animated.timing(wrongAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
@@ -307,7 +320,7 @@ export function MatchingScreen() {
     }
   }
 
-  // Animated bar colour: green → orange → red
+  // ── Timer bar interpolations ────────────────────────────────────────────────
   const barColor = timerAnim.interpolate({
     inputRange: [0, TIME_LIMIT * 0.25, TIME_LIMIT * 0.5, TIME_LIMIT],
     outputRange: ['#E53935', '#E53935', '#E65100', '#43A047'],
@@ -318,11 +331,46 @@ export function MatchingScreen() {
     outputRange: ['0%', '100%'],
     extrapolate: 'clamp',
   });
-
   const timerFrac = timeLeft / TIME_LIMIT;
   const timerTextColor = timerFrac > 0.5 ? '#43A047' : timerFrac > 0.25 ? '#E65100' : '#E53935';
 
-  // ── Empty state ────────────────────────────────────────────────────────────
+  // ── Slot tile renderer ──────────────────────────────────────────────────────
+  function renderSlot(tile: Tile | null, side: 'left' | 'right', idx: number) {
+    const fade = (side === 'left' ? leftFades : rightFades).current[idx];
+    if (!tile || !fade) return <View key={`${side}-${idx}-empty`} style={{ flex: 1 }} />;
+
+    const isMatched  = matched.has(tile.pairId);
+    const isSelected = selected?.side === side && selected.idx === idx;
+    const isWrong    = wrong ? wrong.some((w) => w.side === side && w.idx === idx) : false;
+
+    const bgColor     = isMatched ? '#43A04730' : isWrong ? '#E5393522' : isSelected ? colors.borderMid + '60' : colors.card;
+    const borderColor = isMatched ? '#43A047'   : isWrong ? '#E53935'   : isSelected ? colors.borderMid      : colors.borderLight;
+    const borderWidth = (isMatched || isWrong || isSelected) ? 1.5 : StyleSheet.hairlineWidth;
+
+    return (
+      <Animated.View key={tile.id} style={{ flex: 1, opacity: fade }}>
+        <TouchableOpacity
+          activeOpacity={0.75}
+          style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
+          onPress={() => !isMatched && handleTileTap(side, idx)}
+          disabled={isMatched}
+        >
+          <Text
+            style={[styles.tileText, {
+              color: isMatched ? '#43A047' : colors.inkMid,
+              fontFamily: side === 'left' ? fontFamily.bold : fontFamily.regular,
+            }]}
+            numberOfLines={3}
+            adjustsFontSizeToFit
+          >
+            {tile.text}
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  }
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
   if (eligibleWords.length < MIN_WORDS) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
@@ -344,29 +392,40 @@ export function MatchingScreen() {
     );
   }
 
-  // ── Done screen ────────────────────────────────────────────────────────────
+  // ── Done screen ─────────────────────────────────────────────────────────────
   if (phase === 'done') {
     const accentColor = isNewBest ? colors.accentGold : colors.accentRed;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
+        {isNewBest && (
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <WebView
+              source={{ html: CONFETTI_HTML }}
+              style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
+              scrollEnabled={false}
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+            />
+          </View>
+        )}
         <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
           <GlassButton size={40} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
           </GlassButton>
-          <Text style={[styles.titleText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            SPEED SNAP
-          </Text>
+          <View style={styles.titleBlock}>
+            <Text style={[styles.titleText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              SPEED SNAP
+            </Text>
+          </View>
           <View style={{ width: 40 }} />
         </View>
-        {isNewBest && (
-          <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
-        )}
         <View style={styles.center}>
           <Ionicons name="trophy-outline" size={48} color={accentColor} />
           {isNewBest && (
             <>
-              <Animated.Text style={[styles.congratsLine, { color: colors.accentGold, fontFamily: fontFamily.bold, opacity: congratsFadeAnim }]}>
-                {congratsLines[congratsIdx] ?? ''}
+              <Animated.Text style={[styles.congratsLine, { color: colors.accentGold, fontFamily: fontFamily.italic, opacity: congratsFadeAnim }]}>
+                {congratsPhrase}
               </Animated.Text>
               <Text style={[styles.newBestBadge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
                 NEW BEST!
@@ -376,7 +435,6 @@ export function MatchingScreen() {
           <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             Session complete
           </Text>
-
           <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
             <View style={{ borderRadius: 12, overflow: 'hidden' }}>
               <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
@@ -393,7 +451,6 @@ export function MatchingScreen() {
               )}
             </View>
           </View>
-
           <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
             {streak} day streak
           </Text>
@@ -411,47 +468,10 @@ export function MatchingScreen() {
     );
   }
 
-  // ── Playing ────────────────────────────────────────────────────────────────
-  const leftTiles  = tiles.filter((t) => t.isNative);
-  const rightTiles = tiles.filter((t) => !t.isNative);
-  const numRows = Math.max(leftTiles.length, rightTiles.length);
-
-  function renderTile(tile: Tile | undefined) {
-    if (!tile) return <View style={{ flex: 1 }} />;
-    const isMatched  = matched.has(tile.pairId);
-    const isSelected = selected === tile.id;
-    const isWrong    = wrong?.includes(tile.id);
-    const { y: exitY, op: exitOp } = getExitAnim(tile.id);
-    const bgColor = isMatched ? '#43A04730' : isWrong ? '#E5393522' : isSelected ? colors.inkDark + '14' : colors.card;
-    const borderColor = isMatched ? '#43A047' : isWrong ? '#E53935' : isSelected ? colors.inkDark : colors.borderLight;
-    const borderWidth = (isMatched || isWrong || isSelected) ? 1.5 : StyleSheet.hairlineWidth;
-    return (
-      <Animated.View key={tile.id} style={{ flex: 1, transform: [{ translateY: exitY }], opacity: exitOp }}>
-        <TouchableOpacity
-          activeOpacity={0.75}
-          style={[styles.tile, { backgroundColor: bgColor, borderColor, borderWidth }]}
-          onPress={() => !isMatched && handleTile(tile)}
-          disabled={isMatched}
-        >
-          <Text
-            style={[styles.tileText, {
-              color: isMatched ? '#43A047' : isSelected ? colors.inkDark : colors.inkMid,
-              fontFamily: tile.isNative ? fontFamily.bold : fontFamily.regular,
-            }]}
-            numberOfLines={3}
-            adjustsFontSizeToFit
-          >
-            {tile.text}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }
-
+  // ── Playing ─────────────────────────────────────────────────────────────────
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
 
-      {/* ── Header: back | best+title | spacer ── */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <GlassButton size={40} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
@@ -469,12 +489,10 @@ export function MatchingScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* ── Smooth full-width timer bar ── */}
       <View style={styles.timerTrack}>
         <Animated.View style={[styles.timerFill, { backgroundColor: barColor, width: barWidth }]} />
       </View>
 
-      {/* ── Timer + score row ── */}
       <View style={styles.timerRow}>
         <Animated.Text style={[styles.timerText, {
           color: timerTextColor,
@@ -488,12 +506,12 @@ export function MatchingScreen() {
         </Text>
       </View>
 
-      {/* ── Card grid ── */}
+      {/* Left = foreign language, Right = English translation */}
       <View style={[styles.grid, { paddingBottom: insets.bottom + Spacing.md }]}>
-        {Array.from({ length: numRows }).map((_, rowIdx) => (
-          <View key={rowIdx} style={styles.gridRow}>
-            {renderTile(leftTiles[rowIdx])}
-            {renderTile(rightTiles[rowIdx])}
+        {Array.from({ length: PAIRS_PER_SCREEN }).map((_, i) => (
+          <View key={i} style={styles.gridRow}>
+            {renderSlot(leftSlots[i] ?? null, 'left', i)}
+            {renderSlot(rightSlots[i] ?? null, 'right', i)}
           </View>
         ))}
       </View>
@@ -514,8 +532,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   titleBlock: { flex: 1, alignItems: 'center' },
-  bestText: { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 1 },
-  titleText: { fontSize: 15, letterSpacing: 2, textTransform: 'uppercase' },
+  bestText:   { fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 1 },
+  titleText:  { fontSize: 15, letterSpacing: 2, textTransform: 'uppercase' },
 
   timerTrack: { height: 4, width: '100%', overflow: 'hidden' },
   timerFill:  { height: 4 },
@@ -557,17 +575,21 @@ const styles = StyleSheet.create({
   },
   tileText: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 
-  congratsLine:  { fontSize: 18, letterSpacing: 0.5 },
-  newBestBadge:  { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
-  doneTitle:     { fontSize: 22, textAlign: 'center' },
+  congratsLine: { fontSize: 18, letterSpacing: 0.5 },
+  newBestBadge: { fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
+  doneTitle:    { fontSize: 22, textAlign: 'center' },
   statsBox: {
     width: '100%', borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12, shadowRadius: 10, elevation: 6,
   },
-  statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
-  statLabel: { flex: 1, fontSize: 15 },
+  statRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md,
+  },
+  statLabel:  { flex: 1, fontSize: 15 },
   statValue:  { fontSize: 20 },
   streakText: { fontSize: 20 },
   doneBtn: {
@@ -576,5 +598,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 10, elevation: 6,
   },
   doneBtnText: { color: '#FFF', fontSize: 16 },
-  backLink: { fontSize: 14, textDecorationLine: 'underline' },
+  backLink:    { fontSize: 14, textDecorationLine: 'underline' },
 });

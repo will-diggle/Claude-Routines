@@ -1,14 +1,15 @@
 import { SpringButton } from '../components/SpringButton';
+import { BlurView } from 'expo-blur';
 import React, { useState, useMemo } from 'react';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
-import { View, Text, ScrollView, Modal, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, ScrollView, Modal, StyleSheet, Pressable } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type Pile, type SavedWord } from '../store/useWordBankStore';
-import type { LanguageCode } from '../store/useSettingsStore';
+import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
@@ -55,11 +56,18 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 
 export function PracticeScreen() {
   const onScrollTabBar = useScrollTabBar();
-  const { colors, fontFamily, fontSize } = useTheme();
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   const navigation = useNavigation<PracticeNav>();
   const words = useWordBankStore(useShallow((s) => s.words));
-  const streak = useStreakStore((s) => s.streak);
+  const { streak, freezeDatesUsed } = useStreakStore(useShallow((s) => ({ streak: s.streak, freezeDatesUsed: s.freezeDatesUsed })));
+  const activeLanguageCodes = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const selectedLang = useNavPillStore((s) => s.practiceLang);
+
+  const freezesRemaining = useMemo(() => {
+    const cutoff = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();
+    const used = activeLanguageCodes.reduce((sum, code) => sum + (freezeDatesUsed[code] ?? []).filter((d) => d >= cutoff).length, 0);
+    return Math.max(0, activeLanguageCodes.length * 2 - used);
+  }, [activeLanguageCodes, freezeDatesUsed]);
 
   const [gameModalVisible, setGameModalVisible] = useState(false);
   const [selectedWord, setSelectedWord] = useState<SavedWord | null>(null);
@@ -105,6 +113,9 @@ export function PracticeScreen() {
         shadowRadius: 6,
         elevation: 3,
       }]}>
+        {streak > 0 && freezesRemaining > 0 && (
+          <MaterialCommunityIcons name="snowflake" size={18} color="#5AC8FA" style={{ marginRight: 2 }} />
+        )}
         <Text style={[styles.streakNumber, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{streak}</Text>
         <Text style={[styles.streakLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>day streak</Text>
       </View>
@@ -239,21 +250,14 @@ export function PracticeScreen() {
               RECENTLY SAVED
             </Text>
             <SpringButton
-              style={[
-                styles.practisePill,
-                {
-                  backgroundColor: colors.card,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: colors.borderLight,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 3,
-                },
-              ]}
+              style={[styles.practisePill, { borderColor: colors.borderMid, overflow: 'hidden' }]}
               onPress={() => setGameModalVisible(true)}
-             
             >
+              <BlurView
+                intensity={isDark ? 60 : 70}
+                tint={isDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
               <Text style={[styles.practisePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
                 Practice →
               </Text>
@@ -315,8 +319,9 @@ export function PracticeScreen() {
       animationType="slide"
       onRequestClose={() => setGameModalVisible(false)}
     >
-      <SpringButton style={modalStyles.overlay} onPress={() => setGameModalVisible(false)} />
-      <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
+      <View style={modalStyles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setGameModalVisible(false)} />
+        <View style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
         <View style={[modalStyles.handle, { backgroundColor: colors.borderMid }]} />
         <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {selectedLang !== 'all' ? `Practice · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
@@ -345,6 +350,7 @@ export function PracticeScreen() {
         <SpringButton style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
           <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
         </SpringButton>
+        </View>
       </View>
     </Modal>
     </SafeAreaView>
@@ -505,8 +511,9 @@ const styles = StyleSheet.create({
 });
 
 const modalStyles = StyleSheet.create({
-  overlay: {
+  backdrop: {
     flex: 1,
+    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   sheet: {

@@ -183,14 +183,19 @@ function AppContent() {
   }, [appIcon]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto Night Mode — switch background theme with iOS dark mode.
+  // manualBackground is read via ref so changing it manually doesn't immediately
+  // re-trigger the effect and override the user's choice while iOS is still dark.
+  const manualBgRef = useRef(manualBackground);
+  useEffect(() => { manualBgRef.current = manualBackground; }, [manualBackground]);
+
   useEffect(() => {
     if (!autoNightMode) return;
     const isDarkOS = colorScheme === 'dark';
     const target: BackgroundKey = isDarkOS
-      ? (NIGHT_BG_MAP[manualBackground] ?? manualBackground)
-      : manualBackground;
+      ? (NIGHT_BG_MAP[manualBgRef.current] ?? manualBgRef.current)
+      : manualBgRef.current;
     setEffectiveBackground(target);
-  }, [colorScheme, autoNightMode, manualBackground]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [colorScheme, autoNightMode]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showSplash, setShowSplash] = useState(false);
   const [splashChecked, setSplashChecked] = useState(false);
 

@@ -43,13 +43,13 @@ MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 # Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
 # Stored as (min, max) tuples parsed from the "X–Y" strings.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
-    "A1":     {"short": (60, 70),    "longer": (130, 180)},
-    "A2":     {"short": (65, 80),    "longer": (140, 185)},
-    "B1":     {"short": (75, 90),    "longer": (160, 250)},
-    "B2":     {"short": (75, 95),    "longer": (170, 270)},
-    "C1":     {"short": (75, 100),   "longer": (200, 270)},
-    "C2":     {"short": (75, 100),   "longer": (200, 270)},
-    "Native": {"short": (75, 100),   "longer": (180, 270)},
+    "A1":     {"short": (60, 75),    "longer": (120, 140)},
+    "A2":     {"short": (65, 80),    "longer": (130, 150)},
+    "B1":     {"short": (75, 90),    "longer": (170, 190)},
+    "B2":     {"short": (75, 90),    "longer": (170, 190)},
+    "C1":     {"short": (85, 100),   "longer": (250, 270)},
+    "C2":     {"short": (85, 100),   "longer": (250, 270)},
+    "Native": {"short": (85, 100),   "longer": (250, 270)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached
@@ -258,15 +258,16 @@ def check(bundle_path: Path) -> int:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
 
-    briefings         = bundle.get("briefings", {})
-    native_journalism = bundle.get("nativeJournalism", {})
-    native_grades     = bundle.get("nativeGrades", {})
-    grading           = bundle.get("grading", {})
-    date              = bundle.get("date", "unknown")
-    volume            = bundle.get("volume", "?")
-    started_at        = bundle.get("startedAt")
-    finished_at       = bundle.get("finishedAt")
-    factbase          = bundle.get("factbase", [])
+    briefings             = bundle.get("briefings", {})
+    native_journalism     = bundle.get("nativeJournalism", {})
+    native_grades         = bundle.get("nativeGrades", {})
+    grading               = bundle.get("grading", {})
+    date                  = bundle.get("date", "unknown")
+    volume                = bundle.get("volume", "?")
+    started_at            = bundle.get("startedAt")
+    finished_at           = bundle.get("finishedAt")
+    factbase              = bundle.get("factbase", [])
+    daily_notification    = bundle.get("daily_notification", "")
 
     duration_str = ""
     if started_at and finished_at:
@@ -355,18 +356,22 @@ def check(bundle_path: Path) -> int:
     critical  = len(missing) > 0
 
     # ── Build title and body ───────────────────────────────────────────────────
+    ntfy_title = "Morning Bilingual Briefing ☀️"
+
     if not missing and not warnings:
-        title = f"Bilinguist Brief — {present}/{total} ✅"
+        title = f"{ntfy_title} — {present}/{total} ✅"
         emoji = "white_check_mark"
-        body_parts = [
-            header_line,
-            "",
-            table,
-        ]
+        body_parts = []
+        if daily_notification:
+            body_parts += [daily_notification, ""]
+        body_parts += [header_line, "", table]
     elif missing:
-        title = f"Bilinguist Brief — {present}/{total} ❌"
+        title = f"{ntfy_title} — {present}/{total} ❌"
         emoji = "rotating_light"
-        body_parts = [
+        body_parts = []
+        if daily_notification:
+            body_parts += [daily_notification, ""]
+        body_parts += [
             header_line,
             "",
             table,
@@ -374,9 +379,12 @@ def check(bundle_path: Path) -> int:
             f"Missing ({len(missing)}):",
         ] + [f"  ✗ {m}" for m in missing]
     else:
-        title = f"Bilinguist Brief — {present}/{total} ⚠️"
+        title = f"{ntfy_title} — {present}/{total} ⚠️"
         emoji = "warning"
-        body_parts = [
+        body_parts = []
+        if daily_notification:
+            body_parts += [daily_notification, ""]
+        body_parts += [
             header_line,
             "",
             table,
@@ -391,6 +399,21 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  {g}")
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
+
+    # Global News cross-reference scores
+    global_news = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
+    if global_news:
+        score_lines = ["📡 Global News scores:"]
+        for story in sorted(global_news, key=lambda s: s.get("cross_reference_score", {}).get("rank", 99)):
+            crs = story.get("cross_reference_score", {})
+            total_score = crs.get("total", "?")
+            outlets = ", ".join(crs.get("outlets_covering", []))
+            rank = crs.get("rank", "?")
+            slug = story.get("slug", "?")
+            score_lines.append(f"  #{rank} [{total_score}] {slug}")
+            if outlets:
+                score_lines.append(f"      {outlets}")
+        body_parts += [""] + score_lines
 
     if factcheck_str:
         body_parts += ["", factcheck_str]

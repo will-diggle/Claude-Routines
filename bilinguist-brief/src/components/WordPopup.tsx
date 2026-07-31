@@ -23,7 +23,9 @@ import { writeBackDictionary } from '../services/dictionaryService';
 import { Spacing } from '../theme';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
+import * as Haptics from 'expo-haptics';
 import { GlassButton } from './GlassButton';
+import { GlassSurface } from './GlassSurface';
 import { WordAudioButton } from './WordAudioButton';
 
 // Expand abbreviated case labels to full words
@@ -77,11 +79,13 @@ interface Props {
   level: LanguageLevel;
   genre?: string;
   onClose: () => void;
+  /** Called the instant this sheet starts dismissing — used by parent to dismiss simultaneously */
+  onDismissStart?: () => void;
   /** When true, shows a back arrow (←) instead of close (✕) — used for nested infinitive popup */
   isNested?: boolean;
 }
 
-export function WordPopup({ word, lemma, sentence, language, level, genre, onClose, isNested = false }: Props) {
+export function WordPopup({ word, lemma, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
   const lookupLemma = lemma ?? word ?? '';
 
   const { colors, fontFamily, fontSize, isDark } = useTheme();
@@ -99,6 +103,8 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   const [activeDeclIdx, setActiveDeclIdx] = useState(0);
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
   const [nestedWord, setNestedWord] = useState<string | null>(null);
+  const [exampleTranslation, setExampleTranslation] = useState<string | null>(null);
+  const [wordFormTranslation, setWordFormTranslation] = useState<string | null>(null);
 
   const alreadySaved = word ? isWordSaved(word, language) : false;
 
@@ -115,8 +121,9 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   }, []);
 
   const dismissSheet = useCallback(() => {
+    onDismissStart?.();
     Animated.timing(dragY, { toValue: 800, duration: 220, useNativeDriver: true }).start(() => onClose());
-  }, [onClose]);
+  }, [onClose, onDismissStart]);
 
   // Keep a stable ref so the panResponder closure never goes stale.
   const dismissRef = useRef(dismissSheet);
@@ -126,9 +133,9 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     PanResponder.create({
       // Don't claim on touch-start — let child ScrollViews handle taps/scroll.
       onStartShouldSetPanResponder: () => false,
-      // Claim when the scroll content is at top AND the gesture is clearly downward.
+      // Claim when the scroll content is at top AND the gesture is a deliberate downward pull.
       onMoveShouldSetPanResponder: (_, g) =>
-        scrollAtTop.current && g.dy > 6 && g.dy > Math.abs(g.dx) * 0.75,
+        scrollAtTop.current && g.dy > 18 && g.vy > 0.15 && g.dy > Math.abs(g.dx) * 1.5,
       onPanResponderMove: (_, g) => {
         if (g.dy > 0) dragY.setValue(g.dy);
       },
@@ -143,9 +150,19 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
   ).current;
 
   useEffect(() => {
+    if (!entry?.example) { setExampleTranslation(null); return; }
+    translateWord(entry.example, language).then(r => {
+      if (r?.translation) setExampleTranslation(r.translation);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.example]);
+
+  useEffect(() => {
     if (!word) return;
     setEntry(null);
     setQuickTranslation(null);
+    setExampleTranslation(null);
+    setWordFormTranslation(null);
     setIsLoading(true);
     setSaved(false);
     setActiveTenseIdx(0);
@@ -163,6 +180,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       translateWord(currentLemma, currentLang).then((result) => {
         if (result?.translation) setQuickTranslation(result.translation);
       }).catch(() => {});
+
 
       lookupWord(currentWord, currentLang, level, { sentence }).then(async (result) => {
         // If we got a verb back with only legacy 2-tense data, force-refresh to hit the worker backfill
@@ -278,8 +296,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
 
   return (
     <Modal visible animationType="none" transparent onRequestClose={dismissSheet}>
-      {/* Dimming overlay — fades in on entry, fades out as sheet is dragged down */}
-      <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', opacity: overlayOpacity }]} pointerEvents="none" />
+      {/* Dimming overlay — only on the root popup, not the nested one */}
+      {!isNested && (
+        <Animated.View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000', opacity: overlayOpacity }]} pointerEvents="none" />
+      )}
       <View style={styles.modalContainer}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={dismissSheet} />
 
@@ -287,15 +307,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           {...panResponder.panHandlers}
           style={[
             styles.sheet,
-            { backgroundColor: colors.surface, paddingBottom: insets.bottom + 8 },
+            { backgroundColor: colors.bg },
             { transform: [{ translateY: dragY }] },
           ]}
         >
-          {/* Drag handle — visual affordance; the whole sheet is now draggable */}
-          <View style={styles.handleArea}>
-            <View style={[styles.handle, { backgroundColor: colors.borderMid }]} />
-          </View>
-
           {/* Word row: [← back (nested only)] · [mirror·word·🔊 centred] · [✕ close] */}
           <View style={styles.wordRow}>
             {isNested ? (
@@ -321,94 +336,83 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             </GlassButton>
           </View>
 
-        {/* Subtitle: infinitive pill (tappable) + IPA plain text */}
-        {(subtitleLemma || entry?.pronunciation) && (
-          <View style={styles.subtitleRow}>
-            {subtitleLemma && !isNested ? (
-              <TouchableOpacity
-                onPress={() => setNestedWord(subtitleLemma)}
-                activeOpacity={0.7}
-                style={[
-                  styles.infinitivePill,
-                  {
-                    backgroundColor: colors.card,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: colors.borderLight,
-                  },
-                ]}
-              >
-                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  {pillLabel}: {subtitleLemma}
-                </Text>
-                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
-              </TouchableOpacity>
-            ) : subtitleLemma ? (
-              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                {subtitleLemma}
-              </Text>
-            ) : null}
-            {entry?.pronunciation && (
-              <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-                {subtitleLemma ? `· ${entry.pronunciation}` : entry.pronunciation}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        {/* Translation — centered, large (above chips) */}
-        <View style={styles.translationBlock}>
-          {displayTranslation ? (
-            <Text style={[styles.translationLarge, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              {displayTranslation}
-            </Text>
-          ) : isLoading ? (
-            <ActivityIndicator size="small" color={colors.inkFaint} style={{ marginVertical: 8 }} />
-          ) : (
-            <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Translation unavailable
-            </Text>
-          )}
-        </View>
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        {/* Grammar tags — dot-separated: word type in red, rest in inkFaint */}
-        {entry?.wordType && (
-          <View style={styles.chipsRow}>
-            <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-              {[
-                entry.wordType.charAt(0).toUpperCase() + entry.wordType.slice(1),
-                entry.wordType === 'noun' && entry.forms?.gender
-                  ? entry.forms.gender.charAt(0).toUpperCase() + entry.forms.gender.slice(1)
-                  : null,
-                entry.wordType === 'verb' && entry.meta?.isRegular === true  ? 'Regular'   : null,
-                entry.wordType === 'verb' && entry.meta?.isRegular === false ? 'Irregular' : null,
-                entry.wordType === 'verb' && entry.meta?.auxiliary ? entry.meta.auxiliary as string : null,
-                entry.wordType === 'verb' && entry.meta?.isSeparable ? 'Separable' : null,
-                entry.meta?.verbClass ? entry.meta.verbClass as string : null,
-                entry.level ?? null,
-              ].filter(Boolean).join('  ·  ')}
-            </Text>
-          </View>
-        )}
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        {/* Loading spinner — above scroll area so it's always visible */}
-        {isLoading && !entry && (
-          <View style={styles.loadingBody}>
-            <ActivityIndicator size="small" color={colors.inkFaint} />
-          </View>
-        )}
-
         <ScrollView
           style={styles.scrollArea}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={e => { scrollAtTop.current = e.nativeEvent.contentOffset.y <= 0; }}
+          keyboardShouldPersistTaps="handled"
         >
+          {/* Translation — centered, large */}
+          <View style={styles.translationBlock}>
+            {displayTranslation ? (
+              <Text style={[styles.translationLarge, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                {displayTranslation}
+              </Text>
+            ) : isLoading ? (
+              <ActivityIndicator size="small" color={colors.inkFaint} style={{ marginVertical: 8 }} />
+            ) : (
+              <Text style={[styles.translationError, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                Translation unavailable
+              </Text>
+            )}
+          </View>
+
+          {/* Infinitive pill — below translation, tappable to open nested popup */}
+          {subtitleLemma && !isNested && (
+            <View style={styles.infinitivePillRow}>
+              <Text style={[styles.infinitivePillLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {pillLabel}:
+              </Text>
+              <TouchableOpacity
+                onPress={() => setNestedWord(subtitleLemma)}
+                activeOpacity={0.8}
+                style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
+              >
+                <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                  {subtitleLemma}
+                </Text>
+                <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
+              </TouchableOpacity>
+            </View>
+          )}
+          {/* Nested context: show lemma plain (no tap) */}
+          {subtitleLemma && isNested && (
+            <Text style={[styles.subtitleIPA, { color: colors.inkFaint, fontFamily: fontFamily.italic, textAlign: 'center', marginBottom: 4 }]}>
+              {subtitleLemma}
+            </Text>
+          )}
+
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+
+          {/* Grammar tags — dot-separated: word type in red, rest in inkFaint */}
+          {entry?.wordType && (
+            <View style={styles.chipsRow}>
+              <Text style={[styles.grammarTags, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+                {[
+                  entry.wordType.charAt(0).toUpperCase() + entry.wordType.slice(1),
+                  entry.wordType === 'noun' && entry.forms?.gender
+                    ? entry.forms.gender.charAt(0).toUpperCase() + entry.forms.gender.slice(1)
+                    : null,
+                  entry.wordType === 'verb' && entry.meta?.isRegular === true  ? 'Regular'   : null,
+                  entry.wordType === 'verb' && entry.meta?.isRegular === false ? 'Irregular' : null,
+                  entry.wordType === 'verb' && entry.meta?.auxiliary ? entry.meta.auxiliary as string : null,
+                  entry.wordType === 'verb' && entry.meta?.isSeparable ? 'Separable' : null,
+                  entry.meta?.verbClass ? entry.meta.verbClass as string : null,
+                  entry.level ?? null,
+                ].filter(Boolean).join('  ·  ')}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+
+          {/* Loading spinner */}
+          {isLoading && !entry && (
+            <View style={styles.loadingBody}>
+              <ActivityIndicator size="small" color={colors.inkFaint} />
+            </View>
+          )}
 
           {/* Explanation */}
           {entry?.explanation && (
@@ -417,14 +421,70 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             </Text>
           )}
 
-          {/* Example sentence — directly under definition */}
-          {entry?.example && (
-            <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
-              <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
-                „{entry.example}"
-              </Text>
-            </View>
-          )}
+          {/* Example sentence + translation */}
+          {entry?.example && (() => {
+            const sentence = entry.example;
+            const target = word ?? '';
+            const idx = sentence.toLowerCase().indexOf(target.toLowerCase());
+            return (
+              <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
+                <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
+                  {'„'}
+                  {idx === -1 ? sentence : (
+                    <>
+                      {sentence.slice(0, idx)}
+                      <Text style={{ textDecorationLine: 'underline' }}>
+                        {sentence.slice(idx, idx + target.length)}
+                      </Text>
+                      {sentence.slice(idx + target.length)}
+                    </>
+                  )}
+                  {'"'}
+                </Text>
+                {exampleTranslation && (() => {
+                  // Primary: positional alignment — find which index the tapped word
+                  // sits at in the German sentence, highlight that same index in English.
+                  // Works for inflected forms ("hat" at pos 1 → "has" at pos 1) with no extra API call.
+                  const stripEdges = (w: string) => w.replace(/^[„"«]+|["».,!?;:]+$/g, '');
+                  const gWords = sentence.split(/\s+/);
+                  const gWordIdx = gWords.findIndex(
+                    w => stripEdges(w).toLowerCase() === (word ?? '').toLowerCase()
+                  );
+                  let engIdx = -1;
+                  let engLen = 0;
+                  if (gWordIdx !== -1) {
+                    const eWords = exampleTranslation.split(/\s+/);
+                    const eWord = gWordIdx < eWords.length ? stripEdges(eWords[gWordIdx]) : '';
+                    if (eWord) {
+                      const fi = exampleTranslation.indexOf(eWord);
+                      if (fi !== -1) { engIdx = fi; engLen = eWord.length; }
+                    }
+                  }
+                  // Fallback: match via display translation ("to have" → "have")
+                  if (engIdx === -1) {
+                    const fb = (displayTranslation ?? '').replace(/^to\s+/i, '').split(/[,;(]/)[0].trim();
+                    if (fb) {
+                      const fi = exampleTranslation.toLowerCase().indexOf(fb.toLowerCase());
+                      if (fi !== -1) { engIdx = fi; engLen = fb.length; }
+                    }
+                  }
+                  return (
+                    <Text style={[styles.blockquoteTranslation, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      {engIdx === -1 ? exampleTranslation : (
+                        <>
+                          {exampleTranslation.slice(0, engIdx)}
+                          <Text style={{ textDecorationLine: 'underline' }}>
+                            {exampleTranslation.slice(engIdx, engIdx + engLen)}
+                          </Text>
+                          {exampleTranslation.slice(engIdx + engLen)}
+                        </>
+                      )}
+                    </Text>
+                  );
+                })()}
+              </View>
+            );
+          })()}
 
           {/* Forms — plain rows with centered header */}
           {entry?.forms && Object.keys(entry.forms).length > 0 && (
@@ -505,15 +565,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
                         else { setActiveDeclIdx((i) => Math.max(0, i - 1)); setDeclNumber('sg'); }
                       }}
                       disabled={activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                          ? colors.borderLight : colors.borderMid,
-                      }]}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[styles.navBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg')) ? 0.3 : 1 }]}
                     >
-                      <Ionicons name="chevron-back" size={16} color={
-                        (activeDeclIdx === 0 && (split.mode !== 'split' || declNumber === 'sg'))
-                          ? colors.borderMid : colors.inkDark
-                      } />
+                      <Ionicons name="chevron-back" size={16} color={colors.inkMid} />
                     </TouchableOpacity>
                     <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                       {navLabel}
@@ -524,15 +579,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
                         else { setActiveDeclIdx((i) => Math.min(allDecl.length - 1, i + 1)); setDeclNumber('sg'); }
                       }}
                       disabled={activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                          ? colors.borderLight : colors.borderMid,
-                      }]}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[styles.navBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl')) ? 0.3 : 1 }]}
                     >
-                      <Ionicons name="chevron-forward" size={16} color={
-                        (activeDeclIdx === allDecl.length - 1 && (split.mode !== 'split' || declNumber === 'pl'))
-                          ? colors.borderMid : colors.inkDark
-                      } />
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkMid} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -558,11 +608,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
                     <TouchableOpacity
                       onPress={() => setActiveTenseIdx((i) => Math.max(0, i - 1))}
                       disabled={activeTenseIdx === 0}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: activeTenseIdx === 0 ? colors.borderLight : colors.borderMid,
-                      }]}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[styles.navBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: activeTenseIdx === 0 ? 0.3 : 1 }]}
                     >
-                      <Ionicons name="chevron-back" size={16} color={activeTenseIdx === 0 ? colors.borderMid : colors.inkDark} />
+                      <Ionicons name="chevron-back" size={16} color={colors.inkMid} />
                     </TouchableOpacity>
                     <Text style={[styles.tenseLabel, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
                       {activeTense.label}
@@ -570,11 +619,10 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
                     <TouchableOpacity
                       onPress={() => setActiveTenseIdx((i) => Math.min(tenses.length - 1, i + 1))}
                       disabled={activeTenseIdx === tenses.length - 1}
-                      style={[styles.tenseNavBtn, {
-                        backgroundColor: activeTenseIdx === tenses.length - 1 ? colors.borderLight : colors.borderMid,
-                      }]}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={[styles.navBtn, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: activeTenseIdx === tenses.length - 1 ? 0.3 : 1 }]}
                     >
-                      <Ionicons name="chevron-forward" size={16} color={activeTenseIdx === tenses.length - 1 ? colors.borderMid : colors.inkDark} />
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkMid} />
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -612,25 +660,46 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
             </View>
           )}
 
+          {/* Spacer so the spring-back never pulls the tip behind the save pill */}
+          <View style={{ height: 100 }} />
+
         </ScrollView>
 
-          <TouchableOpacity
-            style={[styles.saveButton, {
-              backgroundColor: isSaved ? colors.borderLight : isLoading ? colors.borderLight : colors.accentRed,
-              opacity: isLoading && !isSaved ? 0.5 : 1,
-            }]}
-            onPress={handleSave}
-            disabled={isSaved || isLoading}
-          >
-            <Ionicons name={isSaved ? 'checkmark-circle' : 'bookmark-outline'} size={18} color={isSaved ? colors.inkLight : '#FFF'} />
-            <Text style={[styles.saveText, { color: isSaved ? colors.inkLight : '#FFF', fontFamily: fontFamily.regular }]}>
-              {isSaved ? 'Saved to word bank' : 'Save word'}
-            </Text>
-          </TouchableOpacity>
         </Animated.View>
       </View>
 
-      {/* Nested popup for the infinitive/lemma — opens on top of this sheet */}
+      {/* Save pill — floats outside the sheet so no white box below it */}
+      <Animated.View
+        style={[styles.savePillWrap, { bottom: insets.bottom + 4 }, { transform: [{ translateY: dragY }] }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.saveShadow}>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              handleSave();
+            }}
+            disabled={isSaved || isLoading}
+            activeOpacity={0.8}
+            style={[styles.saveButton, {
+              opacity: isLoading && !isSaved ? 0.5 : 1,
+              backgroundColor: isDark ? 'rgba(40,40,40,0.88)' : 'rgba(255,255,255,0.88)',
+            }]}
+          >
+            <GlassSurface cornerRadius={99} colorScheme={isDark ? 'dark' : 'light'} intensity={100} />
+            <Text style={[styles.saveText, { color: isSaved ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular }]}>
+              {isSaved ? 'Saved to word bank' : 'Save word'}
+            </Text>
+            <Ionicons
+              name={isSaved ? 'checkmark' : 'bookmark-outline'}
+              size={16}
+              color={isSaved ? '#43A047' : colors.accentRed}
+            />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* Nested popup for the infinitive/lemma — X on nested closes both */}
       {nestedWord && !isNested && (
         <WordPopup
           word={nestedWord}
@@ -640,6 +709,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
           level={level}
           genre={genre}
           isNested
+          onDismissStart={dismissSheet}
           onClose={() => setNestedWord(null)}
         />
       )}
@@ -650,11 +720,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
 
 const styles = StyleSheet.create({
   modalContainer: { flex: 1 },
-  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%' },
-
-  // Handle + drag area — wider hit target so it's easy to grab
-  handleArea: { paddingTop: 14, paddingBottom: 8, paddingHorizontal: 40, alignItems: 'center' },
-  handle: { width: 44, height: 5, borderRadius: 3 },
+  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '96%', minHeight: '90%', paddingTop: 18 },
 
   // Word header: word · /IPA/ · 🔊 · ✕
   wordRow: {
@@ -667,7 +733,7 @@ const styles = StyleSheet.create({
   wordStub: { width: 36 },
   wordCenterZone: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   wordSpeakerMirror: { width: 34 },
-  wordText: { fontSize: 34, flexShrink: 1 },
+  wordText: { fontSize: 42, flexShrink: 1 },
 
   // Subtitle area — pill + IPA side by side
   subtitleRow: {
@@ -679,62 +745,68 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xs,
   },
+  infinitivePillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  infinitivePillLabel: { fontSize: 13 },
   infinitivePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 11,
-    paddingVertical: 4,
-    borderRadius: 99,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    gap: 4,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 17,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   infinitivePillText: { fontSize: 14 },
   subtitleIPA: { fontSize: 14, fontStyle: 'italic' },
 
   // Dividers
-  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: Spacing.sm },
+  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: Spacing.lg, marginVertical: 7 },
 
   // Translation block (above chips)
-  translationBlock: { alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
+  translationBlock: { alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 5 },
   translationLarge: { fontSize: 26, textAlign: 'center' },
   translationError: { fontSize: 14, textAlign: 'center' },
 
   // Grammar tags — dot-separated plain text row
   chipsRow: {
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.lg, paddingVertical: 5,
   },
   grammarTags: { fontSize: 13, textAlign: 'center', letterSpacing: 0.2 },
 
   // Scroll body
-  scrollArea: { paddingHorizontal: Spacing.lg, minHeight: 80 },
+  scrollArea: { flex: 1, paddingHorizontal: Spacing.lg, minHeight: 80 },
   loadingBody: { paddingVertical: Spacing.xl, alignItems: 'center' },
-  explanationCentered: { lineHeight: 24, textAlign: 'center', paddingVertical: Spacing.sm },
+  explanationCentered: { lineHeight: 23, textAlign: 'center', paddingVertical: Spacing.sm },
 
   // Forms plain list
-  formsList: { marginBottom: 4 },
-  formsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderTopWidth: StyleSheet.hairlineWidth },
+  formsList: { marginBottom: 2 },
+  formsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
   formsRowLabel: { fontSize: 13, fontStyle: 'italic' },
   formsRowValue: { fontSize: 15 },
 
-  // Blockquote example (now above verb tenses)
-  blockquote: { borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 10, marginTop: Spacing.sm, marginBottom: Spacing.xs },
-  blockquoteText: { lineHeight: 22 },
+  // Blockquote example
+  blockquote: { borderLeftWidth: 3, paddingLeft: 14, paddingVertical: 9, marginTop: Spacing.sm, marginBottom: 4 },
+  blockquoteText: { lineHeight: 20 },
+  blockquoteTranslation: { fontSize: 12, lineHeight: 17, marginTop: 4, opacity: 0.75 },
 
   // Verb tenses — centered layout
   tenseSectionCenter: {
     alignItems: 'center',
-    marginTop: Spacing.sm, marginBottom: Spacing.xs,
+    marginTop: Spacing.sm, marginBottom: 4,
   },
-  tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 6 },
-  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tenseNavBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  tenseSectionLabel: { fontSize: 10, letterSpacing: 1.5, marginBottom: 5 },
+  tenseNav: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  navBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   tenseLabel: { fontSize: 11, letterSpacing: 1, width: 160, textAlign: 'center' },
-  conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  conjRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderTopWidth: StyleSheet.hairlineWidth },
   conjPronoun: { fontSize: 13, flex: 1, fontStyle: 'italic' },
   conjForm: { fontSize: 13, flex: 1, textAlign: 'right' },
   // Three-column declension layout
@@ -745,10 +817,10 @@ const styles = StyleSheet.create({
   declValue: { flex: 1, fontSize: 13, textAlign: 'right' },
 
   // Tip box
-  tipBox: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 14, marginTop: Spacing.sm, marginBottom: Spacing.md },
-  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  tipBox: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, marginTop: Spacing.sm, marginBottom: Spacing.md },
+  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
   tipLabel: { fontSize: 11, letterSpacing: 1.5 },
-  tipText: { fontSize: 13, lineHeight: 20 },
+  tipText: { fontSize: 13, lineHeight: 19 },
 
   // Upgrade nudge
   upgradeRow: {
@@ -759,11 +831,23 @@ const styles = StyleSheet.create({
   },
   upgradeText: { fontSize: 13 },
 
-  // Save button
+  // Save pill — floats outside the sheet
+  savePillWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  saveShadow: {
+    borderRadius: 99,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 6,
+  },
   saveButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    marginHorizontal: Spacing.lg, marginTop: 6,
-    paddingVertical: 14, borderRadius: 10, gap: Spacing.sm,
+    paddingVertical: 16, paddingHorizontal: 28,
+    borderRadius: 99, overflow: 'hidden',
+    gap: 8,
   },
-  saveText: { fontSize: 16 },
+  saveText: { fontSize: 15 },
 });

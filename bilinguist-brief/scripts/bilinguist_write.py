@@ -246,13 +246,13 @@ LEVEL_LABELS: dict[str, str] = {
 }
 
 WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
-    "A1":     {"short": "60–70",   "longer": "130–180"},
-    "A2":     {"short": "65–80",   "longer": "140–185"},
-    "B1":     {"short": "75–90",   "longer": "160–250"},
-    "B2":     {"short": "75–95",   "longer": "170–270"},
-    "C1":     {"short": "75–100",  "longer": "200–270"},
-    "C2":     {"short": "75–100",  "longer": "200–270"},
-    "Native": {"short": "75–100",  "longer": "180–270"},
+    "A1":     {"short": "60–75",   "longer": "120–140"},
+    "A2":     {"short": "65–80",   "longer": "130–150"},
+    "B1":     {"short": "75–90",   "longer": "170–190"},
+    "B2":     {"short": "75–90",   "longer": "170–190"},
+    "C1":     {"short": "85–100",  "longer": "250–270"},
+    "C2":     {"short": "85–100",  "longer": "250–270"},
+    "Native": {"short": "85–100",  "longer": "250–270"},
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.

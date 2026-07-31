@@ -18,7 +18,7 @@ import { GameHeader } from '../components/GameHeader';
 import { GlassButton } from '../components/GlassButton';
 import { GlassSurface } from '../components/GlassSurface';
 import { Spacing } from '../theme';
-import { useNavPillStore } from '../store/useNavPillStore';
+import { useGameActive } from '../hooks/useGameActive';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
@@ -58,7 +58,7 @@ const CARD_SHADOW = {
 } as const;
 
 export function TranslationScreen() {
-  const { colors, fontFamily, fontSize } = useTheme();
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute<RouteProp<PracticeStackParamList, 'Translation'>>();
@@ -68,12 +68,7 @@ export function TranslationScreen() {
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
-  const setGameActive = useNavPillStore((s) => s.setGameActive);
-
-  useFocusEffect(useCallback(() => {
-    setGameActive(true);
-    return () => setGameActive(false);
-  }, [setGameActive]));
+  useGameActive();
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('translation', langFilter ?? 'all');
   }, [langFilter]));
@@ -100,6 +95,7 @@ export function TranslationScreen() {
   const [isCorrect, setIsCorrect] = useState(false);
   const [correct,  setCorrect]  = useState(0);
   const [done,     setDone]     = useState(false);
+  const [results,  setResults]  = useState<Array<'correct' | 'wrong'>>([]);
 
   // ── Settings modal ────────────────────────────────────────────────────────
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -154,7 +150,7 @@ export function TranslationScreen() {
     const isPerfect = correct === eligible.length && eligible.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} onSettingsPress={openSettings} />
+        <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} results={results} onSettingsPress={openSettings} />
         {isPerfect && (
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
@@ -189,6 +185,7 @@ export function TranslationScreen() {
   }
 
   function handleNext() {
+    setResults((r) => [...r, isCorrect ? 'correct' : 'wrong']);
     if (index + 1 >= eligible.length) {
       recordSession();
       analytics.trackGameCompleted('translation', langFilter ?? 'all', correct);
@@ -218,7 +215,7 @@ export function TranslationScreen() {
            
             style={[styles.settingsSheet, { ...CARD_SHADOW, overflow: 'hidden' }]}
           >
-            <GlassSurface cornerRadius={20} intensity={0.9} />
+            <GlassSurface cornerRadius={20} intensity={0.9} colorScheme={isDark ? 'dark' : 'light'} />
             {/* Header */}
             <View style={styles.settingsHeader}>
               <Text style={[styles.settingsTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
@@ -245,7 +242,7 @@ export function TranslationScreen() {
                   >
                     {active
                       ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
-                      : <GlassSurface cornerRadius={10} />
+                      : <GlassSurface cornerRadius={10} colorScheme={isDark ? 'dark' : 'light'} />
                     }
                     <Text style={[styles.pillText, {
                       color: active ? '#fff' : colors.inkMid,
@@ -274,7 +271,7 @@ export function TranslationScreen() {
                   >
                     {active
                       ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
-                      : <GlassSurface cornerRadius={10} />
+                      : <GlassSurface cornerRadius={10} colorScheme={isDark ? 'dark' : 'light'} />
                     }
                     <Text style={[styles.pillText, {
                       color: active ? '#fff' : colors.inkMid,
@@ -306,7 +303,7 @@ export function TranslationScreen() {
                         >
                           {active
                             ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
-                            : <GlassSurface cornerRadius={10} />
+                            : <GlassSurface cornerRadius={10} colorScheme={isDark ? 'dark' : 'light'} />
                           }
                           <Text style={[styles.pillText, {
                             color: active ? '#fff' : colors.inkMid,
@@ -345,6 +342,7 @@ export function TranslationScreen() {
         title="Translation Challenge"
         current={index + 1}
         total={eligible.length}
+        results={results}
         onSettingsPress={openSettings}
       />
 

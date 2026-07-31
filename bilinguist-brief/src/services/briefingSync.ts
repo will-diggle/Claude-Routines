@@ -8,6 +8,7 @@ export interface DailyBundle {
   date: string;
   generatedAt: number;
   volume?: number;
+  daily_notification?: string;
   factbase: FactbaseStory[];
   briefings: {
     [lang: string]: {

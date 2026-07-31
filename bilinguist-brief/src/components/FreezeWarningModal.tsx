@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, Animated, ScrollView,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FlagCircle } from './FlagCircle';
 import { useTheme } from '../hooks/useTheme';
 
@@ -52,7 +51,7 @@ export function FreezeWarningModal({ visible, langs, onDismiss }: Props) {
           style={[styles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}
           onStartShouldSetResponder={() => true}
         >
-          <MaterialCommunityIcons name="snowflake" size={52} color={FREEZE_BLUE} style={styles.freezeIcon} />
+          <Text style={[styles.freezeIcon, { fontSize: 48 }]}>🧊</Text>
 
           <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             Don't lose your streak!

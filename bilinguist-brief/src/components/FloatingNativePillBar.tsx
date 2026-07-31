@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useTheme } from '../hooks/useTheme';
 
 // Load the native module — null on Android / Expo Go (falls through to nothing)
 let NativePills: ReturnType<typeof requireNativeModule> | null = null;
@@ -16,6 +17,7 @@ export function FloatingNativePillBar({ navigation, state }: BottomTabBarProps) 
   const insets = useSafeAreaInsets();
   const activeRoute = state.routes[state.index]?.name ?? 'Briefing';
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
+  const { isDark } = useTheme();
 
   // Mount overlay once
   useEffect(() => {
@@ -36,6 +38,10 @@ export function FloatingNativePillBar({ navigation, state }: BottomTabBarProps) 
   useEffect(() => {
     NativePills?.setLanguages(activeLanguages.map((l) => l.code));
   }, [activeLanguages]);
+
+  useEffect(() => {
+    NativePills?.setDark(isDark);
+  }, [isDark]);
 
   // Handle tab press events from native pills
   useEffect(() => {

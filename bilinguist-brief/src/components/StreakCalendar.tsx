@@ -183,7 +183,7 @@ function MonthCalendar({ year, month, dayLanguages, frozenDays, activeLanguageCo
                 </View>
                 {isFrozen && (
                   <View style={calStyles.freezeIconWrap}>
-                    <Text style={calStyles.freezeIcon}>❄</Text>
+                    <Text style={calStyles.freezeIcon}>🧊</Text>
                   </View>
                 )}
                 {displayFlags.length > 0 && (

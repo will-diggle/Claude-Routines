@@ -5,7 +5,8 @@ import {
   NativeScrollEvent, NativeSyntheticEvent, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { briefingScrollY } from '../store/sharedBriefingScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
@@ -219,7 +220,9 @@ export function BriefingScreen() {
   const calSlideAnim = useRef(new Animated.Value(-12)).current;
   const calOpacityAnim = useRef(new Animated.Value(0)).current;
   const [streakAnchorY, setStreakAnchorY] = useState(0);
+  const [weatherModalY, setWeatherModalY] = useState(0);
   const streakButtonRefs = useRef<Record<string, any>>({});
+  const editionRowRef = useRef<View>(null);
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [freezeWarnVisible, setFreezeWarnVisible] = useState(false);
@@ -467,6 +470,17 @@ export function BriefingScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
+  // Retry weather for any active language whose data is missing (e.g. failed on first fetch)
+  useEffect(() => {
+    const missing = activeLanguages.filter((l) => !weatherByLang[l.code]);
+    if (missing.length === 0) return;
+    const t = setTimeout(() => {
+      missing.forEach((l) => loadWeather(l.code));
+    }, 4000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weatherByLang]);
+
   // Track brief_opened when user navigates between language pages
   useEffect(() => {
     const lang = activeLanguages[briefPageIndex];
@@ -601,7 +615,6 @@ export function BriefingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={handlePageScroll}
         onMomentumScrollEnd={handlePageScroll}
         style={styles.pager}
         overScrollMode="never"
@@ -697,7 +710,16 @@ export function BriefingScreen() {
               <View style={[styles.ruleOuterInset, { backgroundColor: hairline }]} />
 
               {/* Row 2: language·level (left) · streak (right) */}
-              <View style={styles.editionRow}>
+              <View
+                style={styles.editionRow}
+                ref={editionRowRef}
+                onLayout={() => {
+                  if (weatherModalY > 0) return;
+                  editionRowRef.current?.measure((_x, _y, _w, h, _px, py) => {
+                    if (py > 0) setWeatherModalY(py + h + 6);
+                  });
+                }}
+              >
                 <TouchableOpacity
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLevelPickerLang(lang.code); }}
                   activeOpacity={0.6}
@@ -736,7 +758,7 @@ export function BriefingScreen() {
                         </>
                       ) : isFrozen ? (
                         <>
-                          <MaterialCommunityIcons name="snowflake" size={17} color={streakColor} />
+                          <Text style={{ fontSize: 15 }}>🧊</Text>
                           <Text style={[styles.editionLabel, { color: streakColor, fontFamily: fontFamily.regular, fontSize: 15 }]}>
                             {streak}
                           </Text>
@@ -766,9 +788,11 @@ export function BriefingScreen() {
                 error={errorsFor[lang.code]}
                 isFirst
                 topics={topics}
-                weather={weatherByLang[lang.code] ?? null}
+                weather={(topics.weather ?? true) ? (weatherByLang[lang.code] ?? null) : null}
+                weatherModalY={weatherModalY}
                 isTransitioning={isTransitioning}
                 hideEditionHeader
+                bundleReceivedAt={bundleReceivedAt}
                 onRetry={() => {
                   clearError(lang.code);
                   loadBriefing(lang.code, level, length, true);
@@ -828,111 +852,132 @@ export function BriefingScreen() {
         style={[styles.statusFade, { height: insets.top + 28 }]}
       />
 
-      {/* ── Level + Length picker modal ─────────────────────────────────── */}
+      {/* ── Level + Length picker — dropdown tile style (matches streak calendar) ── */}
       <Modal
         visible={levelPickerLang !== null}
         transparent
         animationType="fade"
         onRequestClose={() => setLevelPickerLang(null)}
       >
+        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <TouchableOpacity
-          style={styles.modalBackdrop}
+          style={[styles.calendarBackdrop, { paddingTop: weatherModalY }]}
           activeOpacity={1}
           onPress={() => setLevelPickerLang(null)}
         >
-          <TouchableOpacity activeOpacity={1} style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                {activeLanguages.find(l => l.code === levelPickerLang)?.nativeName ?? ''} · Edition
-              </Text>
-              <TouchableOpacity
-                onPress={() => setLevelPickerLang(null)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={20} color={colors.inkFaint} />
-              </TouchableOpacity>
+          <TouchableOpacity activeOpacity={1}>
+
+            {/* Top tile — same height/style as streak flags tile */}
+            <View style={[styles.flagsTile, { backgroundColor: colors.card, borderColor: colors.borderLight, marginBottom: 8 }]}>
+              <View style={styles.flagsTileClip}>
+                <View style={[styles.flagsTileContent, { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 }]}>
+                  <FlagCircle code={(levelPickerLang ?? 'en') as LanguageCode} size={30} />
+                  <Text style={[styles.calFlagLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, flex: 1, fontSize: 17, letterSpacing: 0.1 }]}>
+                    {activeLanguages.find(l => l.code === levelPickerLang)?.nativeName ?? ''} · Edition
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            {/* Length toggle */}
-            <Text style={[styles.pickerSectionLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-              Length
-            </Text>
-            <View style={styles.lengthToggleRow}>
-              {(['short', 'longer'] as const).map((len) => {
-                const isActive = pickerLength === len;
-                return (
-                  <TouchableOpacity
-                    key={len}
-                    style={[styles.lengthChip, { borderColor: isActive ? colors.inkDark : colors.borderMid }, isActive && { backgroundColor: colors.inkDark }]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPickerLength(len);
-                      if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
-                      {len === 'short'
-                        ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
-                        : (LENGTH_LABELS[levelPickerLang ?? '']?.[1] ?? 'Long')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            {/* Main tile — length + level, fixed minHeight to match streak calendar */}
+            <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.borderLight, minHeight: 370 }]}>
+              <View style={{ padding: 16 }}>
+
+                {/* Length */}
+                <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Length
+                </Text>
+                <View style={[styles.lengthToggleRow, { marginBottom: 20 }]}>
+                  {(['short', 'longer'] as const).map((len) => {
+                    const isActive = pickerLength === len;
+                    return (
+                      <TouchableOpacity
+                        key={len}
+                        style={[
+                          styles.lengthChip,
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                          isActive && {
+                            backgroundColor: colors.inkDark,
+                            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.18, shadowRadius: 4, elevation: 3,
+                          },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setPickerLength(len);
+                          if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+                          {len === 'short'
+                            ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
+                            : (LENGTH_LABELS[levelPickerLang ?? '']?.[1] ?? 'Long')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Level chips */}
+                <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Level
+                </Text>
+                <View style={[styles.levelGrid, { paddingBottom: 4 }]}>
+                  {(() => {
+                    const lc = levelPickerLang as LanguageCode | null;
+                    const perLength = (lc ? availableLevelsByLangAndLength[lc]?.[pickerLength] : undefined) ?? [];
+                    const allForLang = (lc ? availableLevelsByLang[lc] : undefined) ?? [];
+                    const base = perLength.length > 0 ? perLength : allForLang;
+                    const nativeLevel = 'Native' as LanguageLevel;
+                    const levels = allForLang.includes(nativeLevel) && !base.includes(nativeLevel)
+                      ? [...base, nativeLevel]
+                      : base;
+                    return levels;
+                  })().map((lvl) => {
+                    const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
+                    const isActive = lvl === currentLevel;
+                    const grade = nativeGradeByLang[levelPickerLang as LanguageCode];
+                    const chipLabel = lvl === 'Native'
+                      ? `${grade ?? 'C1'} / ${NATIVE_WORD[levelPickerLang ?? ''] ?? 'Native'}`
+                      : lvl;
+                    return (
+                      <TouchableOpacity
+                        key={lvl}
+                        style={[
+                          styles.levelChip,
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                          isActive && {
+                            backgroundColor: colors.inkDark,
+                            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.18, shadowRadius: 4, elevation: 3,
+                          },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          const lc = levelPickerLang;
+                          if (lc) setLanguageLevel(lc as any, lvl);
+                          setLevelPickerLang(null);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.levelChipText,
+                          { color: isActive ? colors.bg : colors.inkMid, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
+                        ]}>
+                          {chipLabel}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                  Your brief will reload at the selected edition.
+                </Text>
+              </View>
             </View>
 
-            {/* Level chips — filtered to today's brief for the selected length */}
-            <Text style={[styles.pickerSectionLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-              Level
-            </Text>
-            <View style={styles.levelGrid}>
-              {(() => {
-                const lc = levelPickerLang as LanguageCode | null;
-                const perLength = (lc ? availableLevelsByLangAndLength[lc]?.[pickerLength] : undefined) ?? [];
-                const allForLang = (lc ? availableLevelsByLang[lc] : undefined) ?? [];
-                // Use per-length CEFR levels; always append Native if it exists (it has no length variant)
-                const base = perLength.length > 0 ? perLength : allForLang;
-                const nativeLevel = 'Native' as LanguageLevel;
-                const levels = allForLang.includes(nativeLevel) && !base.includes(nativeLevel)
-                  ? [...base, nativeLevel]
-                  : base;
-                return levels;
-              })().map((lvl) => {
-                const currentLevel = activeLanguages.find(l => l.code === levelPickerLang)?.level ?? 'B1';
-                const isActive = lvl === currentLevel;
-                const grade = nativeGradeByLang[levelPickerLang as LanguageCode];
-                const chipLabel = lvl === 'Native'
-                  ? `${grade ?? 'C1'} / ${NATIVE_WORD[levelPickerLang ?? ''] ?? 'Native'}`
-                  : lvl;
-                return (
-                  <TouchableOpacity
-                    key={lvl}
-                    style={[
-                      styles.levelChip,
-                      { borderColor: isActive ? (isDark ? colors.inkFaint : colors.inkDark) : colors.borderMid },
-                      isActive && { backgroundColor: isDark ? colors.borderMid : colors.inkDark },
-                    ]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      const lc = levelPickerLang;
-                      if (lc) setLanguageLevel(lc as any, lvl);
-                      setLevelPickerLang(null);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.levelChipText,
-                      { color: isActive ? colors.bg : colors.inkMid, fontFamily: isActive ? fontFamily.bold : fontFamily.regular },
-                    ]}>
-                      {chipLabel}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
-              Your brief will reload at the selected edition.
-            </Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -943,6 +988,7 @@ export function BriefingScreen() {
         animationType="fade"
         onRequestClose={closeStreakModal}
       >
+        <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <TouchableOpacity
           style={[styles.calendarBackdrop, { paddingTop: streakAnchorY }]}
           activeOpacity={1}
@@ -1049,7 +1095,7 @@ const styles = StyleSheet.create({
   ruleInner: { height: 1, width: SCREEN_WIDTH, marginVertical: 2 },
   hairline:  { height: StyleSheet.hairlineWidth, width: SCREEN_WIDTH },
   ruleInset:      { height: 1, marginHorizontal: 8, marginVertical: 5, borderRadius: 1 },
-  ruleOuterInset: { height: StyleSheet.hairlineWidth, marginHorizontal: 8, marginVertical: 2, borderRadius: 1 },
+  ruleOuterInset: { height: StyleSheet.hairlineWidth, marginHorizontal: 8, marginTop: 0, marginBottom: 12, borderRadius: 1 },
 
   citiesWrap: {
     width: SCREEN_WIDTH,
@@ -1062,14 +1108,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingTop: 2,
-    paddingBottom: 6,
+    paddingTop: 0,
+    paddingBottom: 12,
   },
   lockupWrap: {
     width: SCREEN_WIDTH,
     paddingHorizontal: LOCKUP_PADDING,
     paddingTop: 8,
-    paddingBottom: 4,
+    paddingBottom: 0,
     alignItems: 'center',
     overflow: 'hidden',
   },
@@ -1102,7 +1148,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 6,
+    paddingTop: 0,
     paddingBottom: 8,
   },
   editionRight: {
@@ -1161,10 +1207,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footerCrest: {
-    marginTop: 4,
-    width: 108,
-    height: 108,
-    opacity: 0.28,
+    marginTop: 12,
+    width: 44,
+    height: 44,
+    opacity: 0.45,
   },
   statusFade: {
     position: 'absolute',
@@ -1180,19 +1226,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-    maxHeight: '55%',
-  },
   calendarBackdrop: {
     flex: 1,
     backgroundColor: 'transparent',

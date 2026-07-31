@@ -1,8 +1,13 @@
 import React, { useRef, useCallback } from 'react';
-import { Animated, Pressable, StyleSheet, ViewStyle, GestureResponderEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, ViewStyle, GestureResponderEvent } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../hooks/useTheme';
+import { glassAvailable } from './GlassSurface';
+let LiquidGlassView: React.ComponentType<any> | null = null;
+if (glassAvailable) {
+  try { LiquidGlassView = require('../../modules/liquid-glass/src').LiquidGlassView; } catch { /* no-op */ }
+}
 
 interface Props {
   onPress: () => void;
@@ -65,24 +70,36 @@ export function GlassButton({
       onPress={disabled ? undefined : handlePress}
       hitSlop={hitSlop}
     >
+      {/* Shadow lives here — separated from overflow:hidden so it isn't clipped */}
       <Animated.View
         style={[
           {
             width: size,
             height: size,
             borderRadius: radius,
-            overflow: 'hidden',
             opacity: disabled ? 0.35 : 1,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.18,
+            shadowRadius: 12,
+            elevation: 6,
           },
           style,
           { transform: [{ scale }] },
         ]}
       >
-        <BlurView
-          intensity={isDark ? 60 : 70}
-          tint={isDark ? 'dark' : 'light'}
-          style={[StyleSheet.absoluteFill, styles.blur]}
-        />
+        {/* Glass clip — overflow:hidden here to keep glass within the circle */}
+        <View style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]}>
+          {glassAvailable && LiquidGlassView ? (
+            <LiquidGlassView cornerRadius={radius} style={StyleSheet.absoluteFill} />
+          ) : (
+            <BlurView
+              intensity={isDark ? 60 : 70}
+              tint={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
+        </View>
         <Animated.View style={styles.iconWrapper}>
           {children}
         </Animated.View>
@@ -92,9 +109,6 @@ export function GlassButton({
 }
 
 const styles = StyleSheet.create({
-  blur: {
-    borderRadius: 999,
-  },
   iconWrapper: {
     flex: 1,
     alignItems: 'center',

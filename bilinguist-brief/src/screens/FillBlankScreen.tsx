@@ -13,7 +13,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { Spacing } from '../theme';
-import { useNavPillStore } from '../store/useNavPillStore';
+import { useGameActive } from '../hooks/useGameActive';
 import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
@@ -62,11 +62,7 @@ export function FillBlankScreen() {
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
-  const setGameActive = useNavPillStore((s) => s.setGameActive);
-  useFocusEffect(useCallback(() => {
-    setGameActive(true);
-    return () => setGameActive(false);
-  }, [setGameActive]));
+  useGameActive();
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('fill_blank', langFilter ?? 'all');
   }, [langFilter]));
@@ -84,6 +80,7 @@ export function FillBlankScreen() {
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
+  const [results, setResults] = useState<Array<'correct' | 'wrong'>>([]);
 
   if (eligible.length === 0) {
     return (
@@ -105,7 +102,7 @@ export function FillBlankScreen() {
     const isPerfect = correct === eligible.length && eligible.length > 0;
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Fill in the Blank" current={eligible.length} total={eligible.length} />
+        <GameHeader title="Fill in the Blank" current={eligible.length} total={eligible.length} results={results} />
         {isPerfect && (
           <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
         )}
@@ -138,6 +135,7 @@ export function FillBlankScreen() {
   }
 
   function handleNext() {
+    setResults((r) => [...r, isCorrect ? 'correct' : 'wrong']);
     if (index + 1 >= eligible.length) {
       recordSession();
       analytics.trackGameCompleted('fill_blank', langFilter ?? 'all', correct);
@@ -152,7 +150,7 @@ export function FillBlankScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Fill in the Blank" current={index + 1} total={eligible.length} />
+      <GameHeader title="Fill in the Blank" current={index + 1} total={eligible.length} results={results} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}

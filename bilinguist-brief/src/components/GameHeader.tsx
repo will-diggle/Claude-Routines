@@ -11,17 +11,16 @@ interface Props {
   title?: string;
   current: number;
   total: number;
+  results?: Array<'correct' | 'wrong' | 'skipped'>;
   onSettingsPress?: () => void;
 }
 
-export function GameHeader({ title, current, total, onSettingsPress }: Props) {
+export function GameHeader({ title, current, total, results, onSettingsPress }: Props) {
   const navigation = useNavigation();
-  const { colors, fontFamily, isDark } = useTheme();
+  const { colors, fontFamily } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const progress = total > 0 ? current / total : 0;
-
-  const showProgress = total > 0;
+  const showPills = total > 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.bg, borderBottomColor: colors.borderLight }]}>
@@ -31,15 +30,41 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
           <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
         </GlassButton>
 
-        {/* Title centred in row (no progress) or progress bar */}
-        {showProgress ? (
-          <View style={[styles.progressTrack, { backgroundColor: colors.borderLight }]}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${progress * 100}%`, backgroundColor: colors.accentRed },
-              ]}
-            />
+        {/* Progress pills or title */}
+        {showPills ? (
+          <View style={styles.pillsRow}>
+            {Array.from({ length: total }, (_, i) => {
+              const outcome = results?.[i];
+              const pillColor = outcome === 'correct'
+                ? '#43A047'
+                : outcome === 'wrong'
+                ? '#E53935'
+                : outcome === 'skipped'
+                ? colors.inkFaint
+                : null;
+              const activeBg = i < current ? colors.accentRed : null;
+              const shadowColor = pillColor ?? activeBg;
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.pill,
+                    pillColor
+                      ? { backgroundColor: pillColor }
+                      : activeBg
+                      ? { backgroundColor: activeBg }
+                      : { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.borderMid },
+                    {
+                      shadowColor: shadowColor ?? '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: shadowColor != null ? 0.22 : 0.08,
+                      shadowRadius: 3,
+                      elevation: shadowColor != null ? 2 : 1,
+                    },
+                  ]}
+                />
+              );
+            })}
           </View>
         ) : title ? (
           <Text style={[styles.inlineTitle, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
@@ -49,13 +74,13 @@ export function GameHeader({ title, current, total, onSettingsPress }: Props) {
           <View style={{ flex: 1 }} />
         )}
 
-        {/* Settings gear — right glass button (or spacer to balance layout) */}
+        {/* Settings gear or spacer */}
         {onSettingsPress ? (
           <GlassButton onPress={onSettingsPress} size={40}>
             <Ionicons name="settings-outline" size={20} color={colors.inkDark} />
           </GlassButton>
         ) : (
-          <View style={styles.counter} />
+          <View style={styles.spacer} />
         )}
       </View>
     </View>
@@ -73,21 +98,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: 12,
   },
-  progressTrack: {
+  pillsRow: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
+  pill: {
+    flex: 1,
+    height: 7,
+    borderRadius: 4,
   },
-  counter: {
+  spacer: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   inlineTitle: {
     flex: 1,

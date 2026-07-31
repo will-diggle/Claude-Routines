@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share } from 'react-native';
+import React, { useRef, useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Share, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
@@ -13,7 +13,7 @@ import type { ArticleLength } from '../services/anthropic';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
-import { WeatherCard } from './WeatherCard';
+import { WeatherCard, WeatherCardHandle, codeToIcon, codeToColor, codeToNightIcon, codeToNightColor } from './WeatherCard';
 import { useBriefingStore } from '../store/useBriefingStore';
 
 // Maps the genre strings the API returns to settings topic keys
@@ -46,6 +46,7 @@ const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
   'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN',         hu: 'KÖZEL-KELET',         ar: 'الشرق الأوسط'     },
   'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA',               hu: 'AFRIKA',              ar: 'أفريقيا'           },
   'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER',         hu: 'JÓ HÍREK',            ar: 'أخبار سارة'        },
+  'WEATHER':             { en: 'WEATHER',             fr: 'MÉTÉO',                de: 'WETTER',                  es: 'TIEMPO',                it: 'METEO',                 sv: 'VÄDER',                hu: 'IDŐJÁRÁS',            ar: 'الطقس'             },
 };
 
 // Reverse map: any translated label (any language) → canonical English key.
@@ -81,6 +82,7 @@ const GENRE_COLORS: Record<string, string> = {
   'MIDDLE EAST':         '#8B5E3C',
   'AFRICA':              '#9B6B0C',
   'GOOD NEWS':           '#2E7D32',
+  'WEATHER':             '#B45309',
 };
 
 function genreColor(genre: string): string {
@@ -105,9 +107,38 @@ interface Props {
   isFirst: boolean;
   topics: Topics;
   weather?: WeatherData | null;
+  weatherModalY?: number;
   isTransitioning?: boolean;
   hideEditionHeader?: boolean;
+  bundleReceivedAt?: number | null;
   onRetry: () => void;
+}
+
+const LANG_LOCALE: Partial<Record<LanguageCode, string>> = {
+  en: 'en-GB', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+  es: 'es-ES', sv: 'sv-SE', tr: 'tr-TR', hu: 'hu-HU', ar: 'ar-SA',
+};
+
+const BRIEF_PUBLISHED: Partial<Record<LanguageCode, string>> = {
+  en: 'Brief published',
+  fr: 'Brief publié',
+  de: 'Brief veröffentlicht',
+  it: 'Brief pubblicato',
+  es: 'Brief publicado',
+  sv: 'Brief publicerat',
+  tr: 'Brief yayınlandı',
+  hu: 'Brief közzétéve',
+  ar: 'نُشر البريف',
+};
+
+function briefPublishedLabel(language: LanguageCode, ts: number): string {
+  const locale = LANG_LOCALE[language] ?? 'en-GB';
+  const d = new Date(ts);
+  const day = d.getDate();
+  const month = d.toLocaleDateString(locale, { month: 'short' });
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const prefix = BRIEF_PUBLISHED[language] ?? 'Brief published';
+  return `${prefix} ${day} ${month} · ${time}`;
 }
 
 function formatGeneratedAt(ts: number): string {
@@ -181,23 +212,62 @@ const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
   'ASIA':                'may contain geopolitical words beyond A1',
 };
 
+function WeatherSectionHeader({ language, level, weatherCode, utcOffsetSeconds, onOpenModal, publishedTs, iPadLayout }: { language: LanguageCode; level: LanguageLevel; weatherCode?: number; utcOffsetSeconds?: number; onOpenModal?: () => void; publishedTs?: number | null; iPadLayout?: boolean }) {
+  const { colors, fontFamily, isDark } = useTheme();
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const accent = GENRE_COLORS['WEATHER'];
+  const label = translateGenre('WEATHER', language);
+  const currentHour = Math.floor(((Date.now() / 1000) + (utcOffsetSeconds ?? 0)) / 3600) % 24;
+  const isLocationNight = currentHour < 5 || currentHour >= 20;
+  return (
+    <>
+      <View style={[styles.sectionHeader, { borderBottomColor: colors.borderLight }]}>
+        <View style={[styles.sectionColorBar, { backgroundColor: accent }]} />
+        <TappableText
+          text={label}
+          style={[styles.sectionLabel, { color: accent, fontFamily: fontFamily.bold }]}
+          activeWord={activeWord}
+          onWordPress={(_pos, word) => setActiveWord(word)}
+        />
+        {weatherCode !== undefined && !iPadLayout && (
+          <TouchableOpacity
+            onPress={onOpenModal}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={isLocationNight ? codeToNightIcon(weatherCode) : codeToIcon(weatherCode)}
+              size={18}
+              color={isLocationNight ? codeToNightColor(weatherCode, isDark) : codeToColor(weatherCode)}
+              style={{ marginLeft: 6 }}
+            />
+          </TouchableOpacity>
+        )}
+        {publishedTs ? (
+          <Text style={[styles.sectionDate, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginLeft: 'auto' }]}>
+            {briefPublishedLabel(language, publishedTs)}
+          </Text>
+        ) : null}
+      </View>
+      {activeWord && (
+        <WordPopup
+          word={activeWord}
+          sentence={label}
+          language={language}
+          level={level}
+          onClose={() => setActiveWord(null)}
+        />
+      )}
+    </>
+  );
+}
+
 function SectionHeader({
-  label, accent, language, level, genre, articles,
-}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string; articles: Article[] }) {
+  label, accent, language, level, genre, isFirst, publishedTs,
+}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string; isFirst?: boolean; publishedTs?: number | null }) {
   const { colors, fontFamily } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const briefDisclaimer = level === 'A1' ? GENRE_BRIEF_DISCLAIMER[genre.toUpperCase()] : undefined;
-
-  function handleShare() {
-    const intro = SHARE_INTRO[language] ?? SHARE_INTRO.en!;
-    const langName = LANG_NAME_EN[language] ?? language.toUpperCase();
-    const footer = `For more ${level} ${langName} stories, download the Bilinguist Brief.`;
-    const body = articles
-      .map(a => `${a.headline}\n\n${a.body}`)
-      .join('\n\n─\n\n');
-    const message = `${intro}\n\n${label}\n\n${body}\n\n─\n\n${footer}`;
-    Share.share({ message });
-  }
 
   return (
     <>
@@ -216,17 +286,11 @@ function SectionHeader({
             </Text>
           )}
         </View>
-        <TouchableOpacity
-          onPress={handleShare}
-          activeOpacity={0.6}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.sectionShareBtn}
-        >
-          <Ionicons name="share-social-outline" size={14} color={colors.inkFaint} />
-          <Text style={[styles.sectionShareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-            {SHARE_WORD[language] ?? 'Share'}
+        {isFirst && publishedTs ? (
+          <Text style={[styles.sectionDate, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+            {briefPublishedLabel(language, publishedTs)}
           </Text>
-        </TouchableOpacity>
+        ) : null}
       </View>
       {activeWord && (
         <WordPopup
@@ -252,23 +316,51 @@ export function LanguageBriefingSection({
   isFirst,
   topics,
   weather,
+  weatherModalY,
   isTransitioning = false,
   hideEditionHeader = false,
+  bundleReceivedAt,
   onRetry,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const setDeveloperMode = useSettingsStore((s) => s.setDeveloperMode);
   const nativeGradeByLang = useBriefingStore((s) => s.nativeGradeByLang);
+  const topicOrder = useSettingsStore((s) => s.topicOrder);
+
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const isIPad = winWidth >= 768;
+  const isLandscape = winWidth > winHeight;
 
   // Filter articles by enabled topics (client-side — no extra API call needed)
-  const visibleArticles = briefing?.articles.filter((a) => {
+  const visibleArticles = useMemo(() => (briefing?.articles.filter((a) => {
     const topicKey = GENRE_TO_TOPIC[a.genre.toUpperCase()];
     if (!topicKey) return true;
     return topics[topicKey] !== false;
-  }) ?? [];
+  }) ?? []), [briefing?.articles, topics]);
 
   const hasContent = visibleArticles.length > 0;
-  const genreGroups = groupByGenre(visibleArticles);
+
+  // Build a unified sorted render list — weather and article genre groups ordered by topicOrder
+  type RenderItem = { type: 'weather' } | { type: 'group'; group: GenreGroup };
+  const sortedItems = useMemo((): RenderItem[] => {
+    const groups = groupByGenre(visibleArticles);
+    const items: RenderItem[] = groups.map((group) => ({ type: 'group' as const, group }));
+    if (weather) items.push({ type: 'weather' as const });
+    return items.sort((a, b) => {
+      const aIdx = a.type === 'weather'
+        ? topicOrder.indexOf('weather')
+        : (() => { const k = GENRE_TO_TOPIC[a.group.genre] as string | undefined; return k ? topicOrder.indexOf(k) : 999; })();
+      const bIdx = b.type === 'weather'
+        ? topicOrder.indexOf('weather')
+        : (() => { const k = GENRE_TO_TOPIC[b.group.genre] as string | undefined; return k ? topicOrder.indexOf(k) : 999; })();
+      return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+    });
+  }, [visibleArticles, weather, topicOrder]);
+
+  // Keep genreGroups for hasContent check
+  const genreGroups = useMemo(() => sortedItems.filter((i) => i.type === 'group').map((i) => (i as { type: 'group'; group: GenreGroup }).group), [sortedItems]);
+
+  const weatherCardRef = useRef<WeatherCardHandle>(null);
 
   return (
     <View>
@@ -281,14 +373,7 @@ export function LanguageBriefingSection({
         </View>
       )}
 
-      {/* Weather card — phrase + interactive radar map */}
-      {weather && (
-        <WeatherCard
-          weather={weather}
-          language={langCode}
-          level={level}
-        />
-      )}
+      {/* Weather and article genre groups — rendered in topicOrder sequence */}
 
       {(isTransitioning || isGenerating || (!error && !briefing)) && <BriefingLoading long={length === 'longer'} />}
 
@@ -319,32 +404,87 @@ export function LanguageBriefingSection({
 
       {!isTransitioning && hasContent && (
         <>
-          {genreGroups.map((group, groupIndex) => {
-            const accent = genreColor(group.genre);
-            const label = translateGenre(group.genre, langCode);
-            return (
-              <View key={`${group.genre}-${groupIndex}`}>
-                {/* Section header — words are tappable, share button right */}
-                <SectionHeader label={label} accent={accent} language={langCode} level={level} genre={group.genre} articles={group.articles} />
-
-                {/* Articles in this genre group */}
-                {group.articles.map((article, articleIndex) => (
-                  <BriefingArticle
-                    key={`${article.genre}-${groupIndex}-${articleIndex}`}
-                    article={article}
-                    isLast={articleIndex === group.articles.length - 1}
+          {sortedItems.map((item, itemIndex) => {
+            if (item.type === 'weather') {
+              return (
+                <React.Fragment key="weather">
+                  <WeatherSectionHeader
+                    language={langCode} level={level} weatherCode={weather!.code}
+                    utcOffsetSeconds={weather!.utcOffsetSeconds}
+                    onOpenModal={() => weatherCardRef.current?.openModal()}
+                    publishedTs={bundleReceivedAt}
+                    iPadLayout={isIPad}
+                  />
+                  <WeatherCard
+                    ref={weatherCardRef}
+                    weather={weather!}
                     language={langCode}
                     level={level}
-                    genre={article.genre}
-                    date={briefing?.date ?? new Date().toISOString().split('T')[0]}
-                    locked={false}
-                    onLockedWordPress={() => {}}
+                    modalY={weatherModalY}
+                    iPadLayout={isIPad}
                   />
-                ))}
+                </React.Fragment>
+              );
+            }
+
+            const { group } = item;
+            const groupIndex = itemIndex;
+            const accent = genreColor(group.genre);
+            const label = translateGenre(group.genre, langCode);
+            const intro = SHARE_INTRO[langCode] ?? SHARE_INTRO.en!;
+            const langName = LANG_NAME_EN[langCode] ?? langCode.toUpperCase();
+            const shareFooter = `For more ${level} ${langName} stories, download the Bilinguist Brief.`;
+            const shareBody = group.articles.map(a => `${a.headline}\n\n${a.body}`).join('\n\n─\n\n');
+            const shareMsg = `${intro}\n\n${label}\n\n${shareBody}\n\n─\n\n${shareFooter}`;
+            const isFirstItem = itemIndex === 0;
+
+            // iPad column count: 3 for Global News in landscape, 2 otherwise
+            const isGlobalNews = group.genre === 'GLOBAL NEWS';
+            const colCount = isIPad ? (isGlobalNews && isLandscape ? 3 : 2) : 1;
+            const colPct = `${Math.floor(100 / colCount)}%` as `${number}%`;
+
+            return (
+              <View key={`${group.genre}-${groupIndex}`}>
+                <SectionHeader
+                  label={label}
+                  accent={accent}
+                  language={langCode}
+                  level={level}
+                  genre={group.genre}
+                  isFirst={isFirstItem}
+                  publishedTs={bundleReceivedAt}
+                />
+
+                <View style={isIPad ? { flexDirection: 'row', flexWrap: 'wrap' } : undefined}>
+                  {group.articles.map((article, articleIndex) => (
+                    <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
+                      <BriefingArticle
+                        article={article}
+                        isLast={!isIPad && articleIndex === group.articles.length - 1}
+                        language={langCode}
+                        level={level}
+                        genre={article.genre}
+                        date={briefing?.date ?? new Date().toISOString().split('T')[0]}
+                        locked={false}
+                        onLockedWordPress={() => {}}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => Share.share({ message: shareMsg })}
+                  activeOpacity={0.6}
+                  style={styles.groupShareBtn}
+                >
+                  <Ionicons name="share-social-outline" size={13} color={colors.inkFaint} />
+                  <Text style={[styles.sectionShareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    {SHARE_WORD[langCode] ?? 'Share'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             );
           })}
-
         </>
       )}
     </View>
@@ -413,15 +553,22 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginLeft: Spacing.sm,
   },
-  sectionShareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  sectionDate: {
+    fontSize: 11,
+    opacity: 0.6,
     paddingLeft: 8,
   },
   sectionShareLabel: {
     fontSize: 11,
     letterSpacing: 0.5,
+  },
+  groupShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    alignSelf: 'flex-end',
   },
 
   sectionFooter: {

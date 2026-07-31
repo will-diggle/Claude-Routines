@@ -74,7 +74,7 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange }: Prop
 
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            Study Options
+            Options
           </Text>
           <GlassButton onPress={onClose} size={36}>
             <Ionicons name="close" size={20} color={colors.inkMid} />
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   title: {
-    fontSize: 17,
+    fontSize: 22,
   },
   sectionLabel: {
     fontSize: 11,

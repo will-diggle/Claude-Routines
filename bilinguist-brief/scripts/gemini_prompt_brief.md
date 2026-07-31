@@ -40,36 +40,24 @@ For each story, count how many of these 9 outlets are independently covering it 
 
 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD:
-Do not rely on a single source for Global News. Search across all of the following outlets and score each candidate story by how many are independently covering it. The more outlets covering a story, the more globally significant it is.
+Do not rely on a single source for Global News. For each candidate story, search the following outlets one by one using the query "[outlet name] top story today". An outlet counts toward the score ONLY if that story appears as the first result returned for that outlet. A story that is the lead result across many outlets is genuinely the most important story of the moment.
 
 Reference outlets for Global News scoring:
-
-HIGH WEIGHT — global wire services (strong significance signal):
 
 - Reuters
 - Associated Press (AP)
 - Agence France-Presse (AFP)
-
-STANDARD WEIGHT — English-language global:
-
 - BBC News
 - The Guardian
 - Financial Times
-- The Economist (weekly — lower weight for breaking news)
+- Le Monde
+- Der Spiegel
+- NHK World
+- Al Jazeera
 
-CROSS-LINGUISTIC SIGNAL — non-English (story crossing language markets = stronger signal):
+SCORING: count how many outlets return that story as their first result. Rank the top 3 candidate stories by score. Highest score = first article. Record in outlets_covering only the outlets for which the story was the first result.
 
-- Le Monde (French)
-- Der Spiegel (German)
-
-REGIONAL BALANCE:
-
-- NHK World (Asia-Pacific)
-- Al Jazeera (Middle East and Global South)
-
-SCORING: count how many outlets are independently covering each candidate story. Rank the top 3 by score. Highest score = first article. A story appearing across 6+ outlets is almost certainly the most important story of the day.
-
-NOTE: You are checking whether outlets cover the same story — not reading or reproducing their writing. The language of the outlet is irrelevant. Le Monde in French and Reuters in English count equally as independent signals.
+NOTE: You are checking search results only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant. Le Monde in French and Reuters in English count equally.
 
 STORY SELECTION RULES:
 
@@ -105,13 +93,18 @@ GLOSSARY — pin the shared facts:
 - key_terms: the core descriptive terms for the event (e.g. "flood", "ceasefire", "interest rate").
 - This prevents facts drifting between separately generated editions.
 
+DAILY NOTIFICATION:
+Once you have selected and scored all stories, write a single push notification body combining the three Global News stories. Style: three short factual sentences, one per story, in rank order. No opinion, no filler, no call to action. Write it as a string in the "daily_notification" field at the top level of the JSON output.
+
+Example format: "60,000 migrants reach Ceuta as Spain deploys military. Russia and Ukraine exchange strikes overnight. Britain announces its budget date for October."
+
 OUTPUT FORMAT:
 Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble. Begin with { and end with }.
 
 Multi-point fields are ARRAYS OF SHORT STRINGS — one clean point per string. One short clause per string. No paragraphs inside strings. No unescaped quotation marks or newlines inside strings.
 
 Schema:
-{"factbase":[{
+{"daily_notification":"One sentence per Global News story, three sentences total.","factbase":[{
 "genre":"GLOBAL NEWS",
 "slug":"short-kebab-id",
 "cross_reference_score":{
@@ -130,6 +123,7 @@ Schema:
 
 FIELD RULES:
 
+- "daily_notification" is a top-level string — not inside factbase. Three sentences, one per Global News story in rank order. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
 - "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, Business & Economy, and Europe. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
 - "what_happened" must be in deliberate narrative order.
