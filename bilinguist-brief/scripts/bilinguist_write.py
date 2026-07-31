@@ -246,10 +246,10 @@ LEVEL_LABELS: dict[str, str] = {
 }
 
 WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
-    "A1":     {"short": "60–75",   "longer": "120–140"},
-    "A2":     {"short": "65–80",   "longer": "130–150"},
-    "B1":     {"short": "75–90",   "longer": "170–190"},
-    "B2":     {"short": "75–90",   "longer": "170–190"},
+    "A1":     {"short": "60–75",   "longer": "100–120"},
+    "A2":     {"short": "65–80",   "longer": "110–130"},
+    "B1":     {"short": "75–90",   "longer": "150–170"},
+    "B2":     {"short": "75–90",   "longer": "150–170"},
     "C1":     {"short": "85–100",  "longer": "250–270"},
     "C2":     {"short": "85–100",  "longer": "250–270"},
     "Native": {"short": "85–100",  "longer": "250–270"},

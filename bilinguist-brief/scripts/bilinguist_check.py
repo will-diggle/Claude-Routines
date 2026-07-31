@@ -43,10 +43,10 @@ MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 # Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
 # Stored as (min, max) tuples parsed from the "X–Y" strings.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
-    "A1":     {"short": (60, 75),    "longer": (120, 140)},
-    "A2":     {"short": (65, 80),    "longer": (130, 150)},
-    "B1":     {"short": (75, 90),    "longer": (170, 190)},
-    "B2":     {"short": (75, 90),    "longer": (170, 190)},
+    "A1":     {"short": (60, 75),    "longer": (100, 120)},
+    "A2":     {"short": (65, 80),    "longer": (110, 130)},
+    "B1":     {"short": (75, 90),    "longer": (150, 170)},
+    "B2":     {"short": (75, 90),    "longer": (150, 170)},
     "C1":     {"short": (85, 100),   "longer": (250, 270)},
     "C2":     {"short": (85, 100),   "longer": (250, 270)},
     "Native": {"short": (85, 100),   "longer": (250, 270)},
