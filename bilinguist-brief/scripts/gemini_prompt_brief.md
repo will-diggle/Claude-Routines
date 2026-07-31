@@ -40,7 +40,27 @@ For each story, count how many of these 9 outlets are independently covering it 
 
 
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (Version A — weighted top 3):
-Do not rely on a single source for Global News. For each of the 12 outlets below, search "[outlet name] top story today" and identify their top 3 stories in order. Then score every candidate story using this weighted system:
+
+STEP 1 — PER-OUTLET SEARCH (do this before any scoring):
+For each of the 12 outlets below, perform the exact search query shown. Record the actual headline text your search returns for that outlet's top 3 stories. Do not paraphrase — write the headline as found. Do not use your training knowledge — if a search returns no clear result for an outlet, write "inconclusive" for that outlet and assign it 0 points.
+
+Perform these searches in order:
+
+1. Reuters — search: "reuters.com {DATE} top stories"
+2. Associated Press (AP) — search: "apnews.com {DATE} top stories"
+3. Agence France-Presse (AFP) — search: "afp.com {DATE} top stories"
+4. BBC News — search: "bbc.co.uk/news {DATE} top stories"
+5. The Guardian — search: "theguardian.com {DATE} top stories"
+6. Financial Times — search: "ft.com {DATE} top stories"
+7. New York Times — search: "nytimes.com {DATE} top stories"
+8. Washington Post — search: "washingtonpost.com {DATE} top stories"
+9. Le Monde — search: "lemonde.fr {DATE} top stories"
+10. Der Spiegel — search: "spiegel.de {DATE} top stories"
+11. Al Jazeera — search: "aljazeera.com {DATE} top stories"
+12. NHK World — search: "nhk.or.jp/nhkworld {DATE} top stories"
+
+STEP 2 — SCORING (only after completing Step 1):
+Using only the headlines recorded in Step 1, group stories that describe the same underlying event. Score each candidate story:
 
 - A story that is an outlet's #1 story = 3 points
 - A story that is an outlet's #2 story = 2 points
@@ -48,22 +68,7 @@ Do not rely on a single source for Global News. For each of the 12 outlets below
 
 Maximum possible score = 72 (12 outlets × 6 points each).
 
-Reference outlets:
-
-- Reuters
-- Associated Press (AP)
-- Agence France-Presse (AFP)
-- BBC News
-- The Guardian
-- Financial Times
-- New York Times
-- Washington Post
-- Le Monde
-- Der Spiegel
-- Al Jazeera
-- NHK World
-
-SCORING: total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
+Total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
 
 NOTE: You are checking search results only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant.
 
