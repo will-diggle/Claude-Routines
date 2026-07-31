@@ -3,7 +3,7 @@ bilinguist_scrape.py
 ====================
 Stage 0 of the Bilinguist Brief daily pipeline.
 
-Fetches top headlines from 9 major news outlets via their public RSS feeds.
+Fetches top headlines from 12 major news outlets via their public RSS feeds.
 Outputs scraped_headlines_{DATE}.json for use by bilinguist_gather.py.
 
 No AI involved — pure Python HTTP + RSS parsing.
@@ -67,12 +67,25 @@ OUTLETS = [
     },
     {
         "name": "NHK World",
-        # Official English RSS not publicly linked — RSSHub bridge is the standard workaround
-        "rss": "https://rsshub.app/nhk/news/en",
+        # RSSHub bridge unreliable — Google News search is the stable workaround
+        "rss": "https://news.google.com/rss/search?q=site:www3.nhk.or.jp/nhkworld/",
     },
     {
         "name": "Al Jazeera",
         "rss": "https://www.aljazeera.com/xml/rss/all.xml",
+    },
+    {
+        "name": "CNN",
+        "rss": "http://rss.cnn.com/rss/edition_world.rss",
+    },
+    {
+        "name": "New York Times",
+        "rss": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+    },
+    {
+        "name": "Washington Post",
+        # No public RSS — Google News search is the workaround
+        "rss": "https://news.google.com/rss/search?q=site:washingtonpost.com",
     },
 ]
 
