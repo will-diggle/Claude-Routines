@@ -892,8 +892,10 @@ def main():
     with open(factbase_path, "r", encoding="utf-8") as f:
         gather_output = json.load(f)
 
-    factbase = gather_output.get("factbase", [])
-    gather_source = gather_output.get("model", "gemini")
+    factbase          = gather_output.get("factbase", [])
+    search_log        = gather_output.get("global_news_search_log", [])
+    daily_notification = gather_output.get("daily_notification", "")
+    gather_source     = gather_output.get("model", "gemini")
     # Use the gather stage's start time so the bundle duration covers the full pipeline
     started_at = gather_output.get("pipeline_started_at") or int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[write] Loaded {len(factbase)} stories from factbase (source: {gather_source})")
@@ -963,6 +965,8 @@ def main():
         "generatedAt": generated_at,
         "finishedAt": finished_at,
         "volume": current_volume,
+        "daily_notification": daily_notification,
+        "global_news_search_log": search_log,
         "factbase": factbase,
         "gatherSource": "gemini",
         "briefings": briefings,

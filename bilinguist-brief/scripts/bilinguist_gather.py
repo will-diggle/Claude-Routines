@@ -216,7 +216,17 @@ def main():
         sys.exit(1)
 
     factbase = parsed["factbase"]
+    search_log = parsed.get("global_news_search_log", [])
     print(f"[gather] Parsed {len(factbase)} stories from factbase")
+    if search_log:
+        print(f"[gather] Global News search log ({len(search_log)} outlets):")
+        for entry in search_log:
+            outlet = entry.get("outlet", "?")
+            stories = entry.get("stories", [])
+            for i, headline in enumerate(stories, 1):
+                print(f"  {outlet} #{i}: {headline}")
+    else:
+        print("[gather] WARNING: global_news_search_log missing from response", file=sys.stderr)
 
     # 7. Validate every story
     factbase = [validate_story(story) for story in factbase]
@@ -250,6 +260,7 @@ def main():
         "service_tier": winning_tier or "standard",
         "story_count": len(factbase),
         "usage_metadata": usage_metadata,
+        "global_news_search_log": search_log,
         "factbase": factbase,
     }
 

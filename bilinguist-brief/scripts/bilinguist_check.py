@@ -268,6 +268,7 @@ def check(bundle_path: Path) -> int:
     finished_at           = bundle.get("finishedAt")
     factbase              = bundle.get("factbase", [])
     daily_notification    = bundle.get("daily_notification", "")
+    search_log            = bundle.get("global_news_search_log", [])
 
     duration_str = ""
     if started_at and finished_at:
@@ -400,17 +401,29 @@ def check(bundle_path: Path) -> int:
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
 
+    # Global News search log (per-outlet Step 1 headlines)
+    if search_log:
+        log_lines = ["📋 Outlet search log:"]
+        for entry in search_log:
+            outlet = entry.get("outlet", "?")
+            stories = entry.get("stories", [])
+            truncated = [s[:60] + "…" if len(s) > 60 else s for s in stories]
+            log_lines.append(f"  {outlet}:")
+            for i, headline in enumerate(truncated, 1):
+                log_lines.append(f"    {i}. {headline}")
+        body_parts += [""] + log_lines
+
     # Global News cross-reference scores
     global_news = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
     if global_news:
-        score_lines = ["📡 Global News scores:"]
+        score_lines = ["📡 Global News scores (out of 72):"]
         for story in sorted(global_news, key=lambda s: s.get("cross_reference_score", {}).get("rank", 99)):
             crs = story.get("cross_reference_score", {})
             total_score = crs.get("total", "?")
             outlets = ", ".join(crs.get("outlets_covering", []))
             rank = crs.get("rank", "?")
-            slug = story.get("slug", "?")
-            score_lines.append(f"  #{rank} [{total_score}] {slug}")
+            headline = story.get("what_happened", ["?"])[0]
+            score_lines.append(f"  #{rank} [{total_score}/72] {headline}")
             if outlets:
                 score_lines.append(f"      {outlets}")
         body_parts += [""] + score_lines

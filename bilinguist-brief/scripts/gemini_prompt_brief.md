@@ -117,7 +117,7 @@ Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble.
 Multi-point fields are ARRAYS OF SHORT STRINGS — one clean point per string. One short clause per string. No paragraphs inside strings. No unescaped quotation marks or newlines inside strings.
 
 Schema:
-{"daily_notification":"One sentence per Global News story, three sentences total.","factbase":[{
+{"daily_notification":"One sentence per Global News story, three sentences total.","global_news_search_log":[{"outlet":"Reuters","stories":["headline 1 as found","headline 2 as found","headline 3 as found"]},{"outlet":"Associated Press (AP)","stories":["headline 1","headline 2","headline 3"]}],"factbase":[{
 "genre":"GLOBAL NEWS",
 "slug":"short-kebab-id",
 "cross_reference_score":{
@@ -137,6 +137,7 @@ Schema:
 FIELD RULES:
 
 - "daily_notification" is a top-level string — not inside factbase. Three sentences, one per Global News story in rank order. Never omit it.
+- "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the 12 outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 3 headline strings exactly as found in search results). This is your Step 1 working — populate it before scoring. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
 - "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, Business & Economy, and Europe. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
 - "what_happened" must be in deliberate narrative order.
