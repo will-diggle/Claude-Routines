@@ -59,7 +59,7 @@ Maximum possible score = 72 (12 outlets × 6 points each).
 
 Total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
 
-NOTE: You are checking search results only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant.
+NOTE: You are working from pre-scraped headlines only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant. Do not add any outlet that does not appear in the Step 1 headlines above.
 
 STORY SELECTION RULES:
 
