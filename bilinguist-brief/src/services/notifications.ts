@@ -24,7 +24,7 @@ const STREAK_REMINDER_HOUR = 18;
 const STREAK_REMINDER_MINUTE = 0;
 
 // The pipeline reliably finishes by this time each morning (shown as a hint in Settings UI).
-export const PIPELINE_READY_TIME = '07:00';
+export const PIPELINE_READY_TIME = '07:30';
 
 // Maps store topic keys to the genre label strings used in brief article data.
 const TOPIC_LABELS: Record<string, string> = {

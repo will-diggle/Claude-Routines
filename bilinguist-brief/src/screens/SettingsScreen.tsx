@@ -912,6 +912,7 @@ export function SettingsScreen() {
                 <TimeInput
                   value={store.briefingNotificationTime}
                   onChange={store.setBriefingNotificationTime}
+                  minTime="07:30"
                   onCommit={() => {
                     const { languages, topicOrder, topics, briefingNotificationTime } = store;
                     const { lastReadDates } = useStreakStore.getState();
