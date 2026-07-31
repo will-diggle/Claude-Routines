@@ -36,11 +36,13 @@ HEADERS = {
 OUTLETS = [
     {
         "name": "Reuters",
-        "rss": "https://feeds.reuters.com/reuters/topNews",
+        # Official RSS discontinued — Google News 24h filter is the reliable workaround
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:reuters.com&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "Associated Press (AP)",
-        "rss": "https://feeds.apnews.com/rss/apf-topnews",
+        # Official RSS discontinued — Google News 24h filter is the reliable workaround
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:apnews.com&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "BBC News",
@@ -60,11 +62,13 @@ OUTLETS = [
     },
     {
         "name": "Der Spiegel",
-        "rss": "https://www.spiegel.de/schlagzeilen/index.rss",
+        # International English feed rather than German domestic schlagzeilen
+        "rss": "https://www.spiegel.de/international/index.rss",
     },
     {
         "name": "NHK World",
-        "rss": "https://www3.nhk.or.jp/rss/news/cat0.soirees",
+        # Official English RSS not publicly linked — RSSHub bridge is the standard workaround
+        "rss": "https://rsshub.app/nhk/news/en",
     },
     {
         "name": "Al Jazeera",
