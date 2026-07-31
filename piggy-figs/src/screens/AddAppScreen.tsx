@@ -9,13 +9,22 @@ import type { RootStackParamList } from '../../App';
 import { addConnection, updateConnection, getApiKey, type DashboardKind } from '../lib/connections';
 import { testConnection } from '../lib/posthog';
 import { GlassButton } from '../components/GlassButton';
+import { SegmentedControl } from '../components/SegmentedControl';
 import { useTheme, SPACING, RADIUS, LABEL_STYLE, FONT_SERIF } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddApp'>;
 
-const HOST_PRESETS = [
-  { label: 'EU Cloud', value: 'https://eu.posthog.com' },
-  { label: 'US Cloud', value: 'https://us.posthog.com' },
+type RegionMode = 'eu' | 'us' | 'custom';
+
+const HOST_PRESETS: Record<Exclude<RegionMode, 'custom'>, string> = {
+  eu: 'https://eu.posthog.com',
+  us: 'https://us.posthog.com',
+};
+
+const REGION_OPTIONS: { label: string; value: RegionMode }[] = [
+  { label: 'EU Cloud', value: 'eu' },
+  { label: 'US Cloud', value: 'us' },
+  { label: 'Custom', value: 'custom' },
 ];
 
 const DASHBOARD_KINDS: { label: string; value: DashboardKind; description: string }[] = [
@@ -28,10 +37,13 @@ export function AddAppScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const editing = route.params?.editing;
 
+  const initialRegion: RegionMode =
+    editing?.host === HOST_PRESETS.eu ? 'eu' : editing?.host === HOST_PRESETS.us ? 'us' : editing ? 'custom' : 'eu';
+
   const [name, setName] = useState(editing?.name ?? '');
   const [projectId, setProjectId] = useState(editing?.projectId ?? '');
-  const [host, setHost] = useState(editing?.host ?? HOST_PRESETS[0].value);
-  const [customHost, setCustomHost] = useState(editing ? !HOST_PRESETS.some((p) => p.value === editing.host) : false);
+  const [regionMode, setRegionMode] = useState<RegionMode>(initialRegion);
+  const [host, setHost] = useState(editing?.host ?? HOST_PRESETS.eu);
   const [apiKey, setApiKey] = useState('');
   const [kind, setKind] = useState<DashboardKind>(editing?.kind ?? 'generic');
   const [testing, setTesting] = useState(false);
@@ -106,23 +118,15 @@ export function AddAppScreen({ navigation, route }: Props) {
         </Field>
 
         <Field label="Region" colors={colors}>
-          <View style={styles.row}>
-            {HOST_PRESETS.map((p) => (
-              <GlassButton
-                key={p.value}
-                active={host === p.value && !customHost}
-                tintColor={colors.chrome}
-                style={styles.chip}
-                onPress={() => { setHost(p.value); setCustomHost(false); }}
-              >
-                <Text style={[styles.chipText, { color: colors.inkMid }, host === p.value && !customHost && { color: colors.bg, fontWeight: '600' }]}>{p.label}</Text>
-              </GlassButton>
-            ))}
-            <GlassButton active={customHost} tintColor={colors.chrome} style={styles.chip} onPress={() => setCustomHost(true)}>
-              <Text style={[styles.chipText, { color: colors.inkMid }, customHost && { color: colors.bg, fontWeight: '600' }]}>Custom</Text>
-            </GlassButton>
-          </View>
-          {customHost && (
+          <SegmentedControl
+            options={REGION_OPTIONS}
+            value={regionMode}
+            onChange={(mode) => {
+              setRegionMode(mode);
+              if (mode !== 'custom') setHost(HOST_PRESETS[mode]);
+            }}
+          />
+          {regionMode === 'custom' && (
             <TextInput
               style={[styles.input, { marginTop: 8, backgroundColor: colors.surface, borderColor: colors.border, color: colors.ink }]}
               value={host}
@@ -135,22 +139,14 @@ export function AddAppScreen({ navigation, route }: Props) {
         </Field>
 
         <Field label="Dashboard type" colors={colors}>
-          <View style={{ gap: SPACING.sm }}>
-            {DASHBOARD_KINDS.map((k) => (
-              <GlassButton
-                key={k.value}
-                active={kind === k.value}
-                tintColor={colors.chrome}
-                style={styles.kindOption}
-                onPress={() => setKind(k.value)}
-              >
-                <View style={styles.kindOptionInner}>
-                  <Text style={[styles.kindLabel, { color: colors.inkMid }, kind === k.value && { color: colors.bg }]}>{k.label}</Text>
-                  <Text style={[styles.kindDescription, { color: kind === k.value ? colors.bg : colors.inkFaint, opacity: kind === k.value ? 0.8 : 1 }]}>{k.description}</Text>
-                </View>
-              </GlassButton>
-            ))}
-          </View>
+          <SegmentedControl
+            options={DASHBOARD_KINDS.map(({ label, value }) => ({ label, value }))}
+            value={kind}
+            onChange={setKind}
+          />
+          <Text style={[styles.kindDescription, { color: colors.inkFaint, marginTop: SPACING.sm }]}>
+            {DASHBOARD_KINDS.find((k) => k.value === kind)?.description}
+          </Text>
         </Field>
 
         <Field label="Personal API Key" colors={colors}>
@@ -198,12 +194,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: RADIUS.input, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
   },
-  row: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
-  chip: { borderRadius: RADIUS.pill, paddingHorizontal: 12, paddingVertical: 8 },
-  chipText: { fontSize: 13 },
-  kindOption: { borderRadius: RADIUS.card },
-  kindOptionInner: { padding: SPACING.md },
-  kindLabel: { fontFamily: FONT_SERIF, fontSize: 14, fontWeight: '700', marginBottom: 3 },
   kindDescription: { fontSize: 11.5, lineHeight: 16 },
   saveBtn: { borderRadius: RADIUS.input, marginTop: SPACING.sm },
   saveBtnInner: { paddingVertical: 14, alignItems: 'center' },
