@@ -212,15 +212,15 @@ CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"]
 # Testing phase matrix — add languages/levels here as pipeline is validated.
 
 LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A1", "A2", "B1", "B2", "C1", "Native"],
-    "de": ["A1", "A2", "B1", "B2", "C1", "Native"],
-    "sv": ["B2", "Native"],
-    "en": ["A1", "A2", "B1", "B2", "C1", "Native"],
-    "it": ["A1", "A2", "B1", "B2", "C1", "Native"],
+    "fr": ["A2", "Native"],
+    "de": ["A2", "Native"],
+    "sv": ["Native"],
+    "en": ["Native"],
+    "it": ["A2", "Native"],
     "es": ["A2"],
-    "tr": ["A1"],
-    "hu": ["Native"],  # Hungarian — native journalism only; CEFR levels added after P4a validation
-    "ar": ["A1", "Native"],
+    "tr": [],  # temporarily disabled to cut prompt cost during testing
+    "hu": [],  # temporarily disabled to cut prompt cost during testing
+    "ar": [],  # temporarily disabled to cut prompt cost during testing
 }
 
 LANGUAGE_NAMES: dict[str, str] = {

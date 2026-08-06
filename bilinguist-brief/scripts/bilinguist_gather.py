@@ -268,7 +268,7 @@ def main():
     factbase = [validate_story(story) for story in factbase]
 
     # 8. Log cross-reference scores for all genres (editorial audit)
-    scored_genres = ["GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY", "EUROPE"]
+    scored_genres = ["GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY"]
     for genre in scored_genres:
         genre_stories = [s for s in factbase if s.get("genre") == genre]
         if not genre_stories:

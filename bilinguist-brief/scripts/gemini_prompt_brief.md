@@ -31,14 +31,6 @@ Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal
 For each story, count how many of these 6 outlets are independently covering it and record as cross_reference_score.
 ─────────────────────────────────────────────
 
-─────────────────────────────────────────────
-EUROPE — 2 stories
-Significant European political, economic, social, or institutional developments — EU policy, elections, intra-European disputes, major national stories with continental relevance.
-Search primarily: Reuters, AP, Le Monde, Der Spiegel, Politico Europe, Euractiv, Euronews, The Guardian, Financial Times (9 outlets)
-For each story, count how many of these 9 outlets are independently covering it and record as cross_reference_score.
-─────────────────────────────────────────────
-
-
 GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (Version A — weighted top 3):
 
 STEP 1 — PRE-SCRAPED HEADLINES (use these directly — do not search for outlet headlines):
@@ -128,7 +120,7 @@ FIELD RULES:
 - "daily_notification" is a top-level string — not inside factbase. Three sentences, one per Global News story in rank order. Never omit it.
 - "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the 12 outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 3 headline strings exactly as found in search results). This is your Step 1 working — populate it before scoring. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
-- "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, Business & Economy, and Europe. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
+- "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, and Business & Economy. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
 - "what_happened" must be in deliberate narrative order.
 - Keep each story tight — enough to write a 300-word article from, no more.
 - CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty. Never omit a key. A missing key will crash the downstream parser.
