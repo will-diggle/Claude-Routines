@@ -28,6 +28,9 @@ import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const { width: SW } = Dimensions.get('window');
 const MAP_H = Math.round((SW - 56) * 0.88);
+// iPad inline panel: right column takes ~52% of screen width; map height proportional
+const IPAD_RIGHT_W = Math.round((SW - 36) * 0.52);
+const IPAD_MAP_H   = Math.round(IPAD_RIGHT_W * 0.80);
 const OWM_KEY = (process.env.EXPO_PUBLIC_OWM_KEY ?? '').trim();
 
 type Layer = 'precipitation' | 'temperature' | 'wind' | 'clouds';
@@ -916,16 +919,16 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
     return () => { if (playRef.current) clearInterval(playRef.current); };
   }, [isPlaying, activeLayer, frames.length]);
 
-  // Fetch city temps + refresh rain frames when modal opens or map is panned
+  // Fetch city temps + refresh rain frames when modal opens (phone) or on mount (iPad inline)
   useEffect(() => {
-    if (!modalVisible) return;
+    if (!modalVisible && !iPadLayout) return;
     let cancelled = false;
     fetchNearbyCityTemps(fetchLat, fetchLng).then(cities => {
       if (!cancelled && cities.length > 0) setCityTemps(cities);
     });
     loadFrames();
     return () => { cancelled = true; };
-  }, [modalVisible, fetchLat, fetchLng, loadFrames]);
+  }, [modalVisible, iPadLayout, fetchLat, fetchLng, loadFrames]);
 
   // Inject city markers once map + city data are ready; prepend user's own city
   // Re-runs when selectedHour changes so pills show the scrubbed hour's temperature
@@ -1043,50 +1046,118 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
           </Text>
         </View>
 
-        {/* iPad right panel — compact weather card */}
+        {/* iPad right panel — full weather map inline (replaces popup on phone) */}
         {iPadLayout && (
-          <View style={[styles.iPadPanel, { backgroundColor: colors.card, borderColor: colors.borderMid }]}>
-            <Ionicons name={iconName} size={40} color={iconColor} />
-            <Text style={[styles.iPadTemp, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              {Math.round(weather.temp)}°
-            </Text>
-            <Text style={[styles.iPadCity, { color: colors.inkFaint, fontFamily: fontFamily.regular }]} numberOfLines={1}>
-              {weather.city}
-            </Text>
-            <View style={styles.iPadTodRow}>
-              {(() => {
-                const [amLbl, noonLbl, pmLbl] = TOD_LABELS[language] ?? TOD_LABELS.en!;
-                const activeSlot = currentHour >= 5 && currentHour < 12 ? 0
-                  : currentHour >= 12 && currentHour < 17 ? 1 : 2;
-                return [
-                  { hour: 7,  label: amLbl,   night: false },
-                  { hour: 12, label: noonLbl, night: false },
-                  { hour: 21, label: pmLbl,   night: true  },
-                ].map(({ hour, label, night }, idx) => {
-                  const active = idx === activeSlot;
-                  const code = weather.hourlyCodes?.[hour] ?? weather.code ?? 0;
-                  const icon = night ? codeToNightIcon(code) : codeToIcon(code);
-                  const color = night ? codeToNightColor(code, isDark) : codeToColor(code);
-                  return (
-                    <View key={label} style={styles.iPadTodItem}>
-                      <Ionicons name={icon} size={active ? 20 : 16} color={color} />
-                      <Text style={{ fontSize: active ? 10 : 9, color: active ? colors.inkDark : colors.inkFaint, fontFamily: active ? fontFamily.bold : fontFamily.regular }}>{label}</Text>
-                    </View>
-                  );
-                });
-              })()}
+          <View style={{ width: IPAD_RIGHT_W }}>
+            {/* Date / city / time-of-day header */}
+            <View style={[styles.phraseOuter, {
+              backgroundColor: colors.card,
+              borderColor: colors.borderLight,
+              borderWidth: StyleSheet.hairlineWidth,
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 14,
+              marginBottom: 6,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+            }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 11, lineHeight: 15 }}>
+                  {localizedDate(language)}
+                </Text>
+                <Text style={{ color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 15, lineHeight: 20 }} numberOfLines={1}>
+                  {weather.city}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                {(() => {
+                  const [amLbl, noonLbl, pmLbl] = TOD_LABELS[language] ?? TOD_LABELS.en!;
+                  const activeSlot = currentHour >= 5 && currentHour < 12 ? 0
+                    : currentHour >= 12 && currentHour < 17 ? 1 : 2;
+                  return [
+                    { hour: 7,  label: amLbl,   night: false },
+                    { hour: 12, label: noonLbl, night: false },
+                    { hour: 21, label: pmLbl,   night: true  },
+                  ].map(({ hour, label, night }, idx) => {
+                    const active = idx === activeSlot;
+                    const code = weather.hourlyCodes?.[hour] ?? weather.code ?? 0;
+                    const icon = night ? codeToNightIcon(code) : codeToIcon(code);
+                    const color = night ? codeToNightColor(code, isDark) : codeToColor(code);
+                    return (
+                      <View key={label} style={{ alignItems: 'center', gap: 3 }}>
+                        <Ionicons name={icon} size={active ? 22 : 16} color={color} style={night ? { opacity: 0.75 } : undefined} />
+                        <Text style={{ fontSize: active ? 10 : 9, color: active ? colors.inkDark : colors.inkFaint, fontFamily: active ? fontFamily.bold : fontFamily.regular }}>{label}</Text>
+                      </View>
+                    );
+                  });
+                })()}
+              </View>
             </View>
-            {weather.hourlyTemps && weather.hourlyTemps.length > 0 && (
-              <Text style={[styles.iPadHiLo, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                {Math.round(highTemp)}° / {Math.round(lowTemp)}°
-              </Text>
-            )}
+
+            {/* Map */}
+            <View style={[styles.mapOuter, cardStyle, { height: IPAD_MAP_H }]}>
+              <View style={[StyleSheet.absoluteFill, styles.mapClip, { backgroundColor: glassAvailable ? 'transparent' : colors.card }]}>
+                {glassAvailable && <GlassSurface cornerRadius={CARD_RADIUS} colorScheme={isDark ? 'dark' : 'light'} />}
+                <WebView
+                  ref={webViewRef}
+                  source={{ html: mapHtml, baseUrl: 'https://bilinguist.app' }}
+                  style={StyleSheet.absoluteFill}
+                  scrollEnabled={false}
+                  bounces={false}
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
+                  originWhitelist={['*']}
+                  onMessage={e => {
+                    try {
+                      const msg = JSON.parse(e.nativeEvent.data);
+                      if (msg.type === 'ready') {
+                        setMapReady(true);
+                        if (activeLayer === 'precipitation' && frames.length > 0) {
+                          const safeIdx = Math.min(frameIdx, frames.length - 1);
+                          const url = rainviewerTileUrl(frames[safeIdx].path);
+                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}',6); true;`);
+                        } else if (activeLayer === 'clouds') {
+                          const url = owmTileUrl('clouds');
+                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
+                        }
+                      } else if (msg.type === 'mapMove') {
+                        setMapCenter({ lat: msg.lat, lng: msg.lng });
+                      }
+                    } catch {}
+                  }}
+                />
+              </View>
+
+              {(weather.hourlyTemps?.length ?? 0) > 0 && (
+                <DataBadge
+                  tempValues={(weather.hourlyTemps ?? []).slice(currentHour, currentHour + 24)}
+                  rainValues={(weather.hourlyPrecipProb ?? []).slice(currentHour, currentHour + 24)}
+                  windValues={(weather.hourlyWinds ?? []).slice(currentHour, currentHour + 24)}
+                  selectedHour={selectedHour}
+                  accentColor={MAP_STYLE_ACCENT[mapStyleKey]}
+                />
+              )}
+
+              <LayerToggle activeLayer={activeLayer} hasOwmKey={hasOwmKey} labels={labels} onSelect={handleLayerSelect} />
+
+              {showHourly && (
+                <View style={styles.scrubberOverlay}>
+                  <HourlyGraph
+                    values={hourlyValues}
+                    layer={activeLayer as StaticLayer}
+                    selectedHour={selectedHour}
+                    onHourChange={setSelectedHour}
+                    startHour={currentHour}
+                  />
+                </View>
+              )}
+            </View>
           </View>
         )}
       </View>
 
-      {/* ── Modal — same style as streak ─────────────────────────── */}
-      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={closeModal}>
+      {/* ── Modal — phone only; iPad shows the map inline above ───── */}
+      {!iPadLayout && <Modal visible={modalVisible} transparent animationType="none" onRequestClose={closeModal}>
         <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
         {/* Dismiss on tap OUTSIDE the card — Pressable sits behind the card in z-order */}
         <Pressable style={StyleSheet.absoluteFill} onPress={closeModal} />
@@ -1210,7 +1281,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
           </Animated.View>
         </View>
         <SafeAreaView />
-      </Modal>
+      </Modal>}
       {/* Word definition popup — same as article words */}
       {wordModal && (
         <WordPopup
