@@ -123,7 +123,7 @@ const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean; pinne
   { key: 'worldNews',   label: 'Global News' },
   { key: 'ukPolitics',  label: 'UK Politics' },
   { key: 'business',    label: 'Business & Economy' },
-  { key: 'europe',      label: 'Europe' },
+  { key: 'europe',      label: 'Europe',               comingSoon: true },
   { key: 'politics',    label: 'Politics',             comingSoon: true },
   { key: 'scienceTech', label: 'Science & Technology', comingSoon: true },
   { key: 'artsCulture', label: 'Arts & Culture',       comingSoon: true },
@@ -136,6 +136,7 @@ const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
 );
 const DEV_CODE = 'BILDEV';
+const COMING_SOON_LANGS = new Set(['tr', 'hu', 'ar']);
 
 
 // --- Main screen ---
@@ -464,7 +465,8 @@ export function SettingsScreen() {
                 fontFamily={fontFamily}
                 fontSize={fontSize}
                 nativeGradeByLang={nativeGradeByLang}
-                isDraggable={lang.active}
+                isDraggable={lang.active && !COMING_SOON_LANGS.has(lang.code)}
+                comingSoon={COMING_SOON_LANGS.has(lang.code)}
                 onToggle={() => {
                   const wasActive = lang.active;
                   store.toggleLanguage(lang.code);
