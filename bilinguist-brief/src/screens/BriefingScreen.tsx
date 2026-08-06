@@ -47,8 +47,9 @@ const CRESTS: Record<string, ReturnType<typeof require>> = {
 
 const SCREEN_WIDTH  = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const IS_TABLET = SCREEN_WIDTH >= 768;
 const LOCKUP_PADDING = 0;
-const LOCKUP_W = Math.round(SCREEN_WIDTH * 1.18); // oversize to fill whitespace in PNG
+const LOCKUP_W = Math.round(SCREEN_WIDTH * (IS_TABLET ? 0.55 : 1.18)); // oversize on phone to fill whitespace in PNG
 const LOCKUP_H = Math.round(LOCKUP_W / 6.21); // 4012×646 source ratio
 
 // "Native" word in each language (for level chip labels like "B2 / Natif")
