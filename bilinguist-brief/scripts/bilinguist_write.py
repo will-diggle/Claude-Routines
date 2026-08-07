@@ -636,7 +636,11 @@ def run_native_journalism(
 ) -> dict:
     """Stage 3 — generate native journalism for all languages × both lengths.
     Returns {lang: {short: [articles], longer: [articles]}}."""
-    native_langs = list(LANGUAGE_LEVELS.keys())
+    # Honour the language matrix: only write native journalism for active languages
+    # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
+    # so disabled languages (empty level lists) and levels-only languages still had
+    # native articles generated, graded, and shipped in the bundle.
+    native_langs = [lang for lang in ACTIVE_LANGUAGES if "Native" in LANGUAGE_LEVELS[lang]]
     tasks: list[_WriteTask] = []
     for lang in native_langs:
         tasks.append(_WriteTask(
