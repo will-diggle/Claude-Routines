@@ -1,0 +1,3773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Kartoffel" />
+<title>Die Kartoffel-Regatta — Raoul Barbe-bleue, Schloss Rheinsberg</title>
+<meta name="description" content="A rowing race across the Grienericksee past Schloss Rheinsberg, with the characters of Grétry's Raoul Barbe-bleue. Eat potatoes. Get bigger. Go faster." />
+<meta name="theme-color" content="#EDE3CE" />
+<style>
+/* ============================================================
+   Die Kartoffel-Regatta
+   Dressed after a summer evening at Schloss Rheinsberg: dusk over
+   the lake, the palace lit warm, the audience in blue chairs. The
+   cast portraits carry the page; everything else gets out of their
+   way. One committed theme — no light/dark switch.
+   ============================================================ */
+:root{
+  --night:     #0A1622;
+  --cream:     #F6EBD6;
+  --cream-dim: #B8A88E;
+  --glow:      #F0A868;
+  --gold:      #D9B36A;
+  --lake:      #4E8FB8;
+
+  --display: "Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --body: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --data: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{ box-sizing:border-box; }
+html,body{ height:100%; margin:0; }
+body{
+  background:var(--night); color:var(--cream);
+  font-family:var(--body); overflow:hidden;
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+  touch-action:manipulation;          /* no double-tap zoom on rapid tapping */
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+#stage, #frame, #viewport, canvas#screen, #touch, #touch .pad, #stickBase{
+  touch-action:none;
+}
+#stage{
+  position:fixed; inset:0; display:grid; place-items:center;
+  background:radial-gradient(120% 90% at 50% 0%, #1B3049 0%, var(--night) 72%);
+}
+#frame{ position:relative; width:100%; height:100%; overflow:hidden; }
+#viewport{
+  position:absolute; inset:0; margin:auto;
+  aspect-ratio:16/9; max-width:100%; max-height:100%;
+}
+canvas#screen{
+  position:absolute; inset:0; width:100%; height:100%;
+  display:block; image-rendering:pixelated; image-rendering:crisp-edges;
+  background:var(--lake);
+}
+.veil{
+  position:absolute; inset:0; display:none; place-items:start center;
+  padding:clamp(14px,4vh,44px) clamp(12px,4vw,32px);
+  overflow-y:auto;
+  background:linear-gradient(180deg, rgba(10,22,34,.60) 0%, rgba(10,22,34,.92) 58%);
+  backdrop-filter:blur(7px) saturate(.9);
+}
+.veil.on{ display:grid; }
+.playbill{
+  width:min(880px,100%); margin:auto;
+  display:flex; flex-direction:column; gap:clamp(14px,2.6vh,26px);
+}
+.eyebrow{
+  font-size:clamp(9.5px,1.4vw,11px);
+  letter-spacing:.38em; text-transform:uppercase;
+  color:var(--glow); text-align:center; opacity:.9;
+}
+h1{
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(38px,8.4vw,82px); line-height:.98;
+  margin:0; text-align:center; text-wrap:balance;
+  color:var(--cream); letter-spacing:-.012em;
+}
+h1 .sub{
+  display:block; font-family:var(--body);
+  font-size:clamp(10px,1.5vw,12.5px); font-weight:500;
+  letter-spacing:.24em; text-transform:uppercase;
+  color:var(--cream-dim); margin-top:1.1em;
+}
+h2{
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(24px,4.4vw,38px);
+  margin:0; text-align:center; text-wrap:balance; color:var(--cream);
+}
+.rule{
+  height:1px; border:0; margin:0;
+  background:linear-gradient(90deg,transparent,rgba(217,179,106,.5) 18%,rgba(217,179,106,.5) 82%,transparent);
+}
+.ornament{ display:none; }
+p.lede{
+  margin:0 auto; text-align:center;
+  font-size:clamp(14px,1.9vw,16.5px); line-height:1.62;
+  max-width:54ch; color:var(--cream-dim);
+}
+.cast{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(126px,1fr));
+  gap:clamp(8px,1.4vw,14px);
+}
+.role{
+  position:relative; display:block; width:100%; padding:0;
+  border:0; border-radius:3px;
+  background:linear-gradient(180deg, rgba(78,143,184,.20), rgba(10,22,34,.55));
+  cursor:pointer; overflow:hidden;
+  font-family:var(--body); color:var(--cream); text-align:left;
+  box-shadow:inset 0 0 0 1px rgba(246,235,214,.12);
+  transition:box-shadow .16s, transform .16s, background .16s;
+}
+.role:hover{ transform:translateY(-2px); box-shadow:inset 0 0 0 1px rgba(246,235,214,.32); }
+.role:focus-visible{ outline:2px solid var(--glow); outline-offset:2px; }
+.role[aria-pressed="true"]{
+  background:linear-gradient(180deg, rgba(240,168,104,.28), rgba(10,22,34,.74));
+  box-shadow:inset 0 0 0 2px var(--glow), 0 8px 26px rgba(240,168,104,.22);
+  transform:translateY(-2px);
+}
+.role .portrait{ display:block; width:100%; height:auto; image-rendering:pixelated; }
+.role .nm{
+  display:block; padding:9px 10px 0;
+  font-size:13px; font-weight:600; line-height:1.2; letter-spacing:-.005em;
+}
+.role .vo{
+  display:block; padding:3px 10px 0;
+  font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--cream-dim);
+}
+.role[aria-pressed="true"] .vo{ color:var(--glow); }
+.role .st{
+  display:grid; gap:2px; padding:8px 10px 11px;
+  font-family:var(--data); font-size:9px;
+  color:rgba(246,235,214,.5); white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.role .st i{ font-style:normal; color:var(--glow); letter-spacing:.1em; }
+.opts{ display:flex; flex-wrap:wrap; gap:7px; justify-content:center; align-items:center; }
+.opt{
+  font-family:var(--body); font-size:11px; font-weight:500;
+  letter-spacing:.1em; text-transform:uppercase;
+  padding:9px 15px; border-radius:100px;
+  background:rgba(246,235,214,.06);
+  border:1px solid rgba(246,235,214,.18);
+  color:var(--cream-dim); cursor:pointer;
+  transition:background .14s, color .14s, border-color .14s;
+}
+.opt:hover{ background:rgba(246,235,214,.13); color:var(--cream); }
+.opt[aria-pressed="true"]{ background:var(--cream); border-color:var(--cream); color:var(--night); }
+.opt:focus-visible{ outline:2px solid var(--glow); outline-offset:2px; }
+.go{
+  font-family:var(--display); font-size:clamp(20px,3.6vw,29px);
+  padding:.52em 1.9em; border-radius:100px;
+  background:linear-gradient(180deg, var(--glow), #DE8C4E);
+  color:#2A1408; border:0; cursor:pointer; align-self:center;
+  box-shadow:0 10px 30px rgba(240,168,104,.30);
+  transition:transform .12s, box-shadow .12s, filter .12s;
+}
+.go:hover{ filter:brightness(1.07); box-shadow:0 14px 38px rgba(240,168,104,.42); }
+.go:active{ transform:translateY(1px); }
+.go:focus-visible{ outline:2px solid var(--cream); outline-offset:3px; }
+.keys{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:8px 22px; font-size:12.5px; color:var(--cream-dim);
+  justify-items:center; text-align:center;
+}
+.keys div{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; justify-content:center; }
+.keys b{ color:var(--cream); font-weight:600; }
+kbd{
+  font-family:var(--data); font-size:10.5px;
+  background:rgba(246,235,214,.10);
+  border:1px solid rgba(246,235,214,.22); border-radius:5px;
+  padding:2px 6px; color:var(--cream); white-space:nowrap;
+}
+table.results{ width:100%; border-collapse:collapse; font-size:14px; }
+table.results th{
+  font-weight:600; font-size:9.5px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--cream-dim); text-align:left;
+  padding:0 10px 8px; border-bottom:1px solid rgba(217,179,106,.35);
+}
+table.results td{
+  padding:8px 10px; border-bottom:1px solid rgba(246,235,214,.09);
+  font-variant-numeric:tabular-nums;
+}
+table.results td.n{ font-family:var(--data); font-size:12.5px; }
+table.results tr.you{ background:rgba(240,168,104,.14); font-weight:600; color:var(--cream); }
+table.results tr.you td:first-child::after{ content:" \25C2"; color:var(--glow); }
+.scroller{ overflow-x:auto; }
+.toi{ text-align:center; font-family:var(--display);
+      font-size:clamp(22px,4.2vw,32px); color:var(--glow); }
+#confetti{
+  position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; z-index:0;
+}
+#lobby .playbill{ position:relative; z-index:1; }
+.code{
+  text-align:center; font-family:var(--data);
+  font-size:clamp(38px,10vw,72px); letter-spacing:.22em;
+  color:var(--glow); text-shadow:0 6px 30px rgba(240,168,104,.35);
+  padding-left:.22em;
+}
+.lobList{ display:grid; gap:6px; }
+.lobRow{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-radius:3px;
+  background:rgba(246,235,214,.06);
+  box-shadow:inset 0 0 0 1px rgba(246,235,214,.10);
+  font-size:14px;
+}
+.lobRow .who{ flex:1; }
+.lobRow .tag{
+  font-size:9px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--cream-dim);
+}
+.lobRow.me{ box-shadow:inset 0 0 0 2px var(--glow); }
+.lobRow .dot{ width:9px; height:9px; border-radius:50%; background:var(--cream-dim); }
+.lobRow.ready .dot{ background:#6FD08C; }
+.credit{ text-align:center; font-size:10px; letter-spacing:.18em;
+         text-transform:uppercase; color:rgba(246,235,214,.35); }
+#touch{ position:absolute; inset:0; display:none; pointer-events:none; }
+#touch.on{ display:block; }
+#touch .pad{
+  position:absolute; pointer-events:auto; display:grid; place-items:center;
+  border:2px solid rgba(246,235,214,.5);
+  background:rgba(10,22,34,.34); backdrop-filter:blur(3px);
+  color:rgba(246,235,214,.95); text-shadow:0 2px 6px rgba(0,0,0,.7);
+  user-select:none; -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent; touch-action:none;
+  transition:background .06s, transform .06s;
+}
+#touch .pad.down{ background:rgba(240,168,104,.55); transform:scale(.95); }
+#stickBase{
+  position:absolute; left:calc(4% + env(safe-area-inset-left)); bottom:calc(7% + env(safe-area-inset-bottom));
+  width:30vmin; height:30vmin; max-width:170px; max-height:170px;
+  border-radius:50%; border:2px solid rgba(246,235,214,.40);
+  background:rgba(10,22,34,.30); backdrop-filter:blur(3px);
+  pointer-events:auto; touch-action:none; display:grid; place-items:center;
+}
+#stickBase.down{ background:rgba(10,22,34,.50); border-color:rgba(240,168,104,.9); }
+#stickKnob{
+  width:44%; height:44%; border-radius:50%;
+  background:rgba(246,235,214,.68); border:2px solid rgba(240,168,104,.85);
+  transition:transform .04s linear; pointer-events:none;
+}
+#touch .s small{
+  display:block; font-size:.58em; letter-spacing:.06em;
+  text-transform:none; opacity:.7; margin-top:.3em;
+}
+#touch .s{
+  right:calc(4% + env(safe-area-inset-right)); bottom:calc(7% + env(safe-area-inset-bottom));
+  width:30vmin; height:30vmin; max-width:170px; max-height:170px;
+  border-radius:50%; font-size:min(4.6vmin,20px); font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase;
+}
+#touch .brake{
+  right:calc(4% + 32vmin + env(safe-area-inset-right)); bottom:calc(7% + env(safe-area-inset-bottom));
+  width:17vmin; height:17vmin; max-width:92px; max-height:92px;
+  border-radius:50%; font-size:min(3vmin,13px);
+  letter-spacing:.1em; text-transform:uppercase;
+}
+#rotate{
+  position:absolute; inset:0; display:none; place-items:center;
+  background:rgba(10,22,34,.94); color:var(--cream);
+  text-align:center; padding:28px; z-index:5; font-size:15px; line-height:1.6;
+}
+#rotate .ph{ font-family:var(--display); font-size:30px; display:block;
+             margin-bottom:.4em; color:var(--glow); }
+@media (orientation:portrait) and (max-width:820px){ #rotate.armed{ display:grid; } }
+@media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="frame">
+    <div id="viewport">
+    <canvas id="screen" width="512" height="288" aria-label="Rowing race on the Grienericksee"></canvas>
+
+    <div id="touch" aria-hidden="true">
+      <div id="stickBase"><div id="stickKnob"></div></div>
+      <div class="pad brake" data-k="brake">Back</div>
+      <div class="pad s" data-k="gas">Row<small>tap tap tap</small></div>
+    </div>
+    </div>
+
+    <div id="rotate">
+      <div>
+        <span class="ph">Turn the phone sideways</span>
+        The Grienericksee is wider than it is tall.
+      </div>
+    </div>
+
+    <!-- ============ TITLE / CAST ============ -->
+    <div class="veil on" id="menu">
+      <div class="playbill">
+        <div class="eyebrow">Schloss Rheinsberg &middot; Grienericksee</div>
+        <h1>Die Kartoffel-Regatta<span class="sub">Ein Wettrudern nach Grétry’s Raoul Barbe-bleue</span></h1>
+        <div class="ornament">✦ ❦ ✦</div>
+        <p class="lede">Race the cast! The more Kartoffeln you collect and eat, the faster &mdash; and the bigger &mdash; you become.</p>
+        <hr class="rule" />
+        <div class="eyebrow" style="text-align:left">The Cast</div>
+        <div class="cast" id="cast"></div>
+        <hr class="rule" />
+        <div class="opts">
+          <button class="opt" data-opt="players" data-val="1" aria-pressed="true">One rower</button>
+          <button class="opt" id="twoUp" data-opt="players" data-val="2" aria-pressed="false">Two, split screen</button>
+          <button class="opt" data-opt="laps" data-val="2" aria-pressed="true">2 laps</button>
+          <button class="opt" data-opt="laps" data-val="3" aria-pressed="false">3 laps</button>
+          <button class="opt" data-opt="laps" data-val="5" aria-pressed="false">5 laps</button>
+          <button class="opt" data-opt="field" data-val="6" aria-pressed="false">6 boats</button>
+          <button class="opt" data-opt="field" data-val="8" aria-pressed="true">8 boats</button>
+          <button class="opt" data-opt="field" data-val="99" aria-pressed="false">Whole company</button>
+          <button class="opt" data-opt="sound" data-val="1" aria-pressed="true" id="sndBtn">Sound on</button>
+        </div>
+        <div class="keys" id="keys"></div>
+        <button class="go" id="go">Take to the water</button>
+        <div class="opts">
+          <button class="opt" id="mpHost">Race your friends</button>
+          <button class="opt" id="mpJoin">Join with a code</button>
+        </div>
+        <div class="credit">Toi toi toi &middot; Build 27 — Leaderboard</div>
+      </div>
+    </div>
+
+    <!-- ============ LOBBY ============ -->
+    <div class="veil" id="lobby">
+      <canvas id="confetti"></canvas>
+      <div class="playbill">
+        <div class="eyebrow">Race together</div>
+        <h2 id="lobTitle">Room</h2>
+        <p class="lede" id="lobHint">Everyone opens the same link and types the code.</p>
+        <div class="code" id="lobCode">····</div>
+        <hr class="rule" />
+        <div class="eyebrow" style="text-align:left">In the boat house</div>
+        <div id="lobList" class="lobList"></div>
+        <hr class="rule" />
+        <div class="opts" id="lobOpts">
+          <button class="opt" id="lobBots" aria-pressed="true">Fill with bots</button>
+          <button class="opt" data-opt="laps" data-val="2" aria-pressed="true">2 laps</button>
+          <button class="opt" data-opt="laps" data-val="3" aria-pressed="false">3 laps</button>
+        </div>
+        <button class="go" id="lobStart">Start the race</button>
+        <div class="opts">
+          <button class="opt" id="lobLeave">Leave</button>
+        </div>
+        <div class="credit" id="lobNote"></div>
+      </div>
+    </div>
+
+    <!-- ============ RESULTS ============ -->
+    <div class="veil" id="results">
+      <div class="playbill">
+        <div class="eyebrow">Grienericksee &middot; Official Placings</div>
+        <h2 id="resTitle">The Regatta</h2>
+        <div class="ornament">✦ ❦ ✦</div>
+        <div class="scroller"><table class="results" id="resTable"></table></div>
+        <hr class="rule" />
+        <div class="toi" id="resQuip">Toi, toi, toi!</div>
+        <p class="lede" id="resNote"></p>
+        <div class="opts">
+          <button class="go" id="again">Row it again</button>
+          <button class="go" id="backToLobby" style="display:none">Back to the boat house</button>
+          <button class="opt" id="backToCast">Change rower</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+   DIE KARTOFFEL-REGATTA
+   A Mode-7 rowing race on the Grienericksee, Schloss Rheinsberg.
+   Everything below is procedural — no external assets, no network.
+   ================================================================ */
+
+/* ---------------------------------------------------------------
+   1. The cast — Grétry / Sedaine, Raoul Barbe-bleue (Paris, 1789)
+   Anne is Perrault's sister Anne, whom Vergy impersonates in Act II.
+   --------------------------------------------------------------- */
+const CAST = [
+  { id:"raoul",   name:"Raoul Barbe-bleue", voice:"Bass",     note:"Heaviest boat, highest top end, turns like a barge.",
+    accel:0.86, top:1.13, turn:0.84, spud:1.0,
+    hull:"#22305E", trim:"#12182F", coat:"#15151C", vest:"#15151C", shirt:"#F2EFE6",
+    skin:"#D8A87C", hair:"#241C18",  front:"jabot", hat:"none", beard:"#2B2636" },
+
+  { id:"isaure",  name:"Isaure",            voice:"Soprano",  note:"Even in every respect. The honest choice.",
+    accel:1.00, top:1.00, turn:1.00, spud:1.0,
+    hull:"#EFE8D6", trim:"#B9AE96", coat:"#E3BE64", vest:"#EFD79A", shirt:"#F6F2E4",
+    skin:"#E9C39C", hair:"#3A2A20",  front:"lacing", hat:"updo", beard:null },
+
+  { id:"vergy",   name:"Vergy",             voice:"Tenor",    note:"Off the line before anyone else. Fades on the long straight.",
+    accel:1.16, top:0.95, turn:1.06, spud:1.0,
+    hull:"#7FB2E2", trim:"#4E86BE", coat:"#E4DCC2", vest:"#D9CFAE", shirt:"#F4F1E8",
+    skin:"#E0B389", hair:"#C4A469",  front:"jabot", sleeve:"#F4F1E8", hat:"wide", hatCol:"#5A94CE", hatBand:"#1F3F66", beard:null },
+
+  { id:"anne",    name:"Sœur Anne",         voice:"Mezzo",    note:"A hat you could shelter under and a skirt to match. Sees the corner coming long before it arrives.",
+    accel:1.00, top:0.96, turn:1.21, spud:1.0,
+    hull:"#9FC4D8", trim:"#5E8299", coat:"#8FB0C6", vest:"#B9D0DE", shirt:"#F4F2EA",
+    skin:"#7A4A2E", hair:"#14100F",  front:"plain", hat:"picture", beard:null,
+    skirt:true },
+
+  { id:"osman",   name:"Osman",             voice:"Tenor",    note:"Slow to wake. Unstoppable once awake.",
+    accel:0.82, top:1.16, turn:0.80, spud:1.0,
+    hull:"#5A5C62", trim:"#35373C", coat:"#6E7076", vest:"#E7B77E", shirt:"#F3D9B4",
+    skin:"#E4C09A", hair:"#F0E2B8",  front:"jabot", hat:"wig", beard:null },
+
+  { id:"jeanne",  name:"Jeanne, bergère",   voice:"Soprano",  note:"Light little skiff. Nimble everywhere, imposing nowhere.",
+    accel:1.11, top:0.98, turn:1.15, spud:1.0,
+    hull:"#D9B84C", trim:"#9C7F23", coat:"#C8562F", vest:"#F0E6C4", shirt:"#F6F1DE",
+    skin:"#E3B489", hair:"#8A5A28",  front:"apron", sleeve:"#F6F1DE", hat:"straw", beard:null },
+
+  { id:"carabas", name:"Marquis de Carabas",voice:"Bass-bar.",note:"Every potato counts double. Ends the race enormous.",
+    accel:0.97, top:0.99, turn:0.99, spud:2.0,
+    hull:"#6B4A8C", trim:"#3E2A55", coat:"#6B4A8C", vest:"#D9C48E", shirt:"#F2EDE0",
+    skin:"#D6A57C", hair:"#EDE7D6",  front:"jabot", hat:"tricorn", beard:null },
+
+  { id:"bernhard", name:"Bernhard Forck",  voice:"Konzertmeister", front:"plain",
+    note:"Neugierig, detailverliebt, penibel, spaßig — and he is the one keeping time. His stroke never falters, so he carries his speed when everyone else is coasting.",
+    accel:1.06, top:1.00, turn:1.05, spud:1.0, glide:true,
+    hull:"#2C3444", trim:"#161B24", coat:"#1E2530", vest:"#232A36", shirt:"#39424E",
+    skin:"#E2B48C", hair:"#B7B2A8", hat:"curls", beard:null,
+    glasses:true, violin:true },
+  { id:"maja",     name:"Maja Jantar",      voice:"Regie", front:"plain",
+    note:"Passioniert, neugierig, verspielt, obsessiv. Nothing rattles the director — she barely loses way when someone runs into her.",
+    accel:1.06, top:0.98, turn:1.22, spud:1.0,
+    hull:"#3E9E96", trim:"#276B66", coat:"#15151A", vest:"#1C1C22", shirt:"#2A2A32",
+    skin:"#E6C0A0", hair:"#3A3038", hat:"waves", beard:null,
+    cuffs:"#101014", disc:true },
+  { id:"viola",    name:"Viola",           voice:"Ensemble", front:"plain",
+    note:"Turned up in shorts and a T-shirt while everyone else sweats in brocade. Quick off the mark and quick through the turns.",
+    accel:1.18, top:0.96, turn:1.14, spud:1.0,
+    hull:"#2FA3A0", trim:"#1C6E6C", coat:"#2FA3A0", vest:"#2FA3A0", shirt:"#EDF2F2",
+    skin:"#E4B892", hair:"#171418", hat:"ponytail", beard:null,
+    shorts:"#2C3A52", bare:true },
+  { id:"gaertnerin", name:"Die Gärtnerin", voice:"Sopran", front:"apron",
+    note:"She grew the things. Her reach is more than twice anyone else\u2019s, so she harvests Kartoffeln nobody else can get near.",
+    accel:1.03, top:0.99, turn:1.08, spud:1.0, reach:2.3,
+    hull:"#C4D3BC", trim:"#8FA487", coat:"#B8CBB0", vest:"#C6D6BE", shirt:"#F6F4EC",
+    skin:"#F0CDB0", hair:"#8A4A2A", hat:"braids", beard:null },
+  { id:"jacques",  name:"Jacques",         voice:"Bariton", front:"plain",
+    note:"Knows every shallow and reed bed on the lake, and loses far less way in them than anyone else.",
+    accel:1.04, top:1.00, turn:1.02, spud:1.0, shallow:true,
+    hull:"#7A6242", trim:"#4E3E28", coat:"#6B5334", vest:"#A88C57", shirt:"#EFE6D2",
+    skin:"#D9A87A", hair:"#2E2118", hat:"queue", beard:null },
+  { id:"joseph",   name:"Joseph",          voice:"Notes", front:"plain",
+    note:"Rowing with a clipboard on his lap, writing the whole thing down. He works the course out as he goes \u2014 every lap he finishes makes him faster.",
+    accel:1.02, top:0.96, turn:1.04, spud:1.0, studious:true,
+    hull:"#5A6675", trim:"#3A4048", coat:"#3E5C8A", vest:"#4A6A9C", shirt:"#EDF1F5",
+    skin:"#E0B389", hair:"#5A4028", hat:"short", beard:null,
+    sleeve:"#3E5C8A", notes:true },
+  { id:"carabi",  name:"Vicomte de Carabi", voice:"Tenor",    note:"Quick, greedy, faintly ridiculous. A good time.",
+    accel:1.05, top:1.02, turn:0.95, spud:1.0,
+    hull:"#D97A2B", trim:"#8E4A14", coat:"#C96A22", vest:"#F3C98B", shirt:"#F6F0DE",
+    skin:"#DFB086", hair:"#4A3120",  front:"jabot", hat:"tricorn", beard:null },
+];
+
+/* ---------------------------------------------------------------
+   2. Constants
+   --------------------------------------------------------------- */
+const MAP = 1600;                 // world is MAP x MAP units
+const W = 512, H = 288;           // internal render resolution
+const FOCAL = 120;                // Mode-7 focal length, in buffer px
+const CAM_H = 15;                 // camera height, world units
+const CAM_BACK = 23;              // camera distance behind the boat
+const FAR = 520;                  // draw distance
+const MAX_SPUD = 12;              // potato cap
+const SURF = { LAND:0, WATER:1, REED:2, BOOST:3, RAMP:4 };
+// Painted into the red channel of the surface canvas. The values are kept
+// far apart because a browser's colour management will not preserve 1, 2, 3.
+const ID = { LAND:"rgb(0,0,0)", WATER:"rgb(60,0,0)", REED:"rgb(120,0,0)", BOOST:"rgb(190,0,0)", RAMP:"rgb(250,0,0)" };
+
+/* Course spine. The lap starts on the stage in the palace courtyard, runs
+   right round the Grienericksee, then veers left on the far side into the
+   keyhole gate and the dungeon beyond, comes back out into daylight and
+   climbs to the Schloss, where the ramp throws you over the stage again. */
+const NODES = [
+  [800, 200],   // 0  the stage — start and finish, on the north shore
+  [1100, 250],
+  [1360, 440],
+  [1440, 740],  // 3  the eastern reach
+  [1370, 1060],
+  [1160, 1290],
+  [860, 1400],  // 6  the southern end of the lake
+  [560, 1340],
+  [300, 1150],
+  [170, 870],
+  [160, 570],   // 10 the pink gate and the tunnel
+  [290, 350],
+  [500, 230],
+  [650, 195],
+];
+const SCHLOSS = NODES[0].slice();   // the palace straddles the start line
+
+/* The tunnel. It is defined by position *along the course*, not by a region
+   of the map — on a figure of eight the two strands cross, and only one of
+   them goes underground. */
+const DUN_A = 580, DUN_B = 710;     // path steps the tunnel spans
+const DUN_F = 34;                   // how quickly it darkens at each end
+const GATE_I = 572;                 // the tunnel mouth
+const EXIT_I = 718;                 // and the portal back into daylight
+
+function tunnelAt(i){               // i in path steps, 0..900
+  if(i < DUN_A - DUN_F || i > DUN_B + DUN_F) return 0;
+  if(i >= DUN_A && i <= DUN_B) return 1;
+  return i < DUN_A ? (i - (DUN_A - DUN_F))/DUN_F : ((DUN_B + DUN_F) - i)/DUN_F;
+}
+function tunnelAtU(u){ return tunnelAt(u/SPINE_N*900); }
+
+/* How far the bore has climbed or plunged at a point along the tunnel. The
+   rock follows this, and so does the boat, so the passage rolls. */
+/* Where the eight crosses itself. Found once, so the tunnel can be told to
+   leave that patch of ground alone. */
+let CROSS = null;
+function findCrossing(){
+  const seg = i => [SPINE[i], SPINE[(i+1)%SPINE_N]];
+  const hit = (p1,p2,p3,p4)=>{
+    const d=(p2[0]-p1[0])*(p4[1]-p3[1])-(p2[1]-p1[1])*(p4[0]-p3[0]);
+    if(Math.abs(d)<1e-9) return null;
+    const t=((p3[0]-p1[0])*(p4[1]-p3[1])-(p3[1]-p1[1])*(p4[0]-p3[0]))/d;
+    const u=((p3[0]-p1[0])*(p2[1]-p1[1])-(p3[1]-p1[1])*(p2[0]-p1[0]))/d;
+    return (t<0||t>1||u<0||u>1) ? null : [p1[0]+t*(p2[0]-p1[0]), p1[1]+t*(p2[1]-p1[1])];
+  };
+  for(let i=0;i<SPINE_N;i++) for(let j=i+3;j<SPINE_N;j++){
+    if(i===0 && j===SPINE_N-1) continue;
+    const c = hit(...seg(i), ...seg(j));
+    if(c){
+      // whichever of the two is not underground is the one that crosses over
+      const iUnder = tunnelAtU(i) > 0;
+      CROSS = { x:c[0], y:c[1], overU: iUnder ? j : i, underU: iUnder ? i : j };
+      return;
+    }
+  }
+}
+/* The two strands run side by side for a stretch either side of the crossing,
+   so a simple radius is not enough — the tunnel has to stand clear of the
+   surface strand itself, wherever it happens to run. */
+function nearSurfaceStrand(x, y, r){
+  for(let k=0;k<SPINE_N;k++){
+    if(tunnelAtU(k) > 0) continue;                 // that one is underground
+    const dx = SPINE[k][0]-x, dy = SPINE[k][1]-y;
+    if(dx*dx + dy*dy < r*r) return true;
+  }
+  return false;
+}
+
+function tunnelRise(t){
+  const u = (t - GATE_I) / (EXIT_I - GATE_I);
+  return Math.sin(u*Math.PI*3.1)*13 + Math.sin(u*Math.PI*7.3 + 1.1)*6 - 4;
+}
+
+// The course resampled evenly. Progress, lap counting, ranking and the AI
+// racing line are all read off this, so they can never disagree.
+const START_I = 58;                       // the line sits past the palace, so a
+const START_U = Math.round(58/900*240);   // lap ends with the leap over the stage
+const RAMP_I  = 858;                // the big ramp, just short of the stage
+const HOP_I   = 548;                // a small ramp, a hop into the keyhole
+const SPINE_N = 240;
+const SPINE = [];
+function buildSpine(){
+  for(let i=0;i<SPINE_N;i++) SPINE.push(spline(i/SPINE_N*NODES.length));
+}
+
+/* ---------------------------------------------------------------
+   3. Small maths helpers
+   --------------------------------------------------------------- */
+const TAU = Math.PI*2;
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const lerp  = (a,b,t)=> a+(b-a)*t;
+function wrapAngle(a){ while(a> Math.PI) a-=TAU; while(a<-Math.PI) a+=TAU; return a; }
+
+// Catmull-Rom through the closed node loop.
+function spline(t){                       // t in [0, NODES.length)
+  const n = NODES.length;
+  const i = Math.floor(t), f = t - i;
+  const p0=NODES[(i-1+n)%n], p1=NODES[i%n], p2=NODES[(i+1)%n], p3=NODES[(i+2)%n];
+  const f2=f*f, f3=f2*f;
+  const x = 0.5*((2*p1[0]) + (-p0[0]+p2[0])*f + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*f2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*f3);
+  const y = 0.5*((2*p1[1]) + (-p0[1]+p2[1])*f + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*f2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*f3);
+  return [x,y];
+}
+function splineTangent(t){
+  const a = spline(t), b = spline(t+0.05);
+  const dx=b[0]-a[0], dy=b[1]-a[1];
+  const m=Math.hypot(dx,dy)||1;
+  return [dx/m, dy/m];
+}
+
+// Deterministic RNG so every player gets the same lake.
+let _seed = 0x5eed1789;
+function rnd(){ _seed ^= _seed<<13; _seed ^= _seed>>>17; _seed ^= _seed<<5; return ((_seed>>>0)/4294967296); }
+
+/* ---------------------------------------------------------------
+   4. Build the lake
+   Two canvases painted with identical geometry: one for looks, one
+   carrying the surface type in its red channel.
+   --------------------------------------------------------------- */
+let mapPix, surfArr, mapCanvas;
+const trees = [];
+
+function buildMap(){
+  mapCanvas = document.createElement("canvas");
+  mapCanvas.width = mapCanvas.height = MAP;
+  const g = mapCanvas.getContext("2d", { willReadFrequently:true });
+
+  const idc = document.createElement("canvas");
+  idc.width = idc.height = MAP;
+  const ig = idc.getContext("2d", { willReadFrequently:true });
+
+  // --- meadow and woodland all around ---
+  g.fillStyle = "#4E7C3A"; g.fillRect(0,0,MAP,MAP);
+  for(let i=0;i<26000;i++){
+    const x=rnd()*MAP, y=rnd()*MAP, s=1+rnd()*3;
+    const v = rnd();
+    g.fillStyle = v<0.45 ? "rgba(72,110,52,.55)" : v<0.8 ? "rgba(96,138,66,.5)" : "rgba(56,88,42,.5)";
+    g.fillRect(x,y,s,s);
+  }
+  ig.fillStyle = ID.LAND; ig.fillRect(0,0,MAP,MAP);
+
+  // --- sample the spine densely ---
+  const N = NODES.length, STEPS = 900, path = [];
+  for(let i=0;i<STEPS;i++) path.push(spline(i/STEPS*N));
+
+  // The lake pinches into a narrow channel where it runs through the palace
+  // courtyard, so the racing line has to thread between the two wings.
+  // The neighbouring stretches of lake are painted as broad overlapping discs,
+  // so the channel has to be imposed as a hard ceiling on the radius — and the
+  // funnel has to open slowly, or those neighbours simply flood it again.
+  const PAL_I = 0;                          // node 0, the palace and the start
+  const ring  = i => Math.min(Math.abs(i - PAL_I), STEPS - Math.abs(i - PAL_I));
+  // The courtyard is dry ground now — the water stops short of the palace on
+  // both sides and everybody flies over the top of it.
+  const chan  = i => 1e9;      // the courtyard is stamped over the lake below
+  const baseW = i => 232 + 19*Math.sin(i*0.031+0.6) + 13*Math.sin(i*0.0073+2.4);
+  const baseR = i => 262 + 22*Math.sin(i*0.031)     + 15*Math.sin(i*0.0091+1.7);
+  // the dungeon corridor is tighter still
+  const dchan = i => {
+    if(i < DUN_A - 90 || i > DUN_B + 90) return 1e9;
+    if(i >= DUN_A && i <= DUN_B) return 58;
+    const d = i < DUN_A ? DUN_A - i : i - DUN_B;
+    return 58 + 1.55*d;
+  };
+  const waterR = i => Math.min(baseW(i), chan(i), dchan(i));
+  const reedR  = i => Math.min(baseR(i), dchan(i) + 16);
+
+  // reed belt
+  ig.fillStyle = ID.REED;
+  path.forEach((p,i)=>{ const r=reedR(i);
+    g.fillStyle="#6E7C39"; g.beginPath(); g.arc(p[0],p[1],r,0,TAU); g.fill();
+    ig.beginPath(); ig.arc(p[0],p[1],r,0,TAU); ig.fill();
+  });
+  // reed speckle
+  path.forEach((p,i)=>{ if(i%4) return;
+    for(let k=0;k<26;k++){
+      const a=rnd()*TAU, r=waterR(i)+rnd()*(reedR(i)-waterR(i));
+      g.fillStyle = rnd()<0.5 ? "rgba(126,140,66,.75)" : "rgba(88,104,46,.75)";
+      g.fillRect(p[0]+Math.cos(a)*r, p[1]+Math.sin(a)*r, 2+rnd()*3, 2+rnd()*3);
+    }
+  });
+
+  // open water
+  ig.fillStyle = ID.WATER;
+  path.forEach((p,i)=>{ const r=waterR(i);
+    g.fillStyle="#2C86BC"; g.beginPath(); g.arc(p[0],p[1],r,0,TAU); g.fill();
+    ig.beginPath(); ig.arc(p[0],p[1],r,0,TAU); ig.fill();
+  });
+  // depth: pale shallows hugging the bank, deeper blue down the middle.
+  // Every spine point contributes a little, so the gradient stays smooth
+  // instead of breaking into discs.
+  g.lineWidth = 96;
+  g.strokeStyle = "rgba(146,200,224,.011)";
+  path.forEach((p,i)=>{
+    g.beginPath(); g.arc(p[0],p[1],waterR(i)*0.90,0,TAU); g.stroke();
+  });
+  for(let i=0;i<5200;i++){
+    const x=rnd()*MAP,y=rnd()*MAP;
+    g.fillStyle = rnd()<0.5 ? "rgba(255,255,255,.035)" : "rgba(10,60,96,.045)";
+    g.fillRect(x,y,2+rnd()*4,1);
+  }
+
+  // --- Toi-toi-toi boost pads, three of them, on the racing line ---
+  const padAt = [0.16,0.34,0.86];
+  ig.fillStyle = ID.BOOST;
+  padAt.forEach(f=>{
+    const i = Math.floor(f*STEPS), p = path[i];
+    const t = splineTangent(f*N), ang = Math.atan2(t[1],t[0]);
+    [g,ig].forEach((c,k)=>{
+      c.save(); c.translate(p[0],p[1]); c.rotate(ang);
+      if(k===0){
+        c.fillStyle="#E0B44A"; c.fillRect(-16,-34,32,68);
+        c.fillStyle="#FFF0BE"; c.fillRect(-16,-34,32,10); c.fillRect(-16,24,32,10);
+      } else { c.fillRect(-16,-34,32,68); }
+      c.restore();
+    });
+  });
+
+  // --- start & finish, downstream of the palace ---
+  {
+    const p = path[START_I], t = splineTangent(START_I/STEPS*N), ang = Math.atan2(t[1],t[0]);
+    g.save(); g.translate(p[0],p[1]); g.rotate(ang);
+    for(let k=-7;k<7;k++){
+      g.fillStyle = (k&1) ? "#F4EFE0" : "#7E1E2B";
+      g.fillRect(-7, k*12, 14, 12);
+    }
+    g.restore();
+  }
+
+  // --- the cobbled courtyard, and the quays along the channel ---
+  {
+    const pp = path[0];
+    const tg = splineTangent(0), ang = Math.atan2(tg[1],tg[0]);
+    g.save(); g.translate(pp[0],pp[1]); g.rotate(ang);
+
+    // the cobbles: warm grey stones in sandy mortar, exactly as the courtyard
+    g.fillStyle = "#B9AC90";
+    g.fillRect(-124, -86, 248, 146);
+    for(let y=-86; y<60; y+=7){
+      const stagger = ((y/7)|0) % 2 ? 4 : 0;
+      for(let x=-124+stagger; x<124; x+=8){
+        const v = rnd();
+        g.fillStyle = v<0.22 ? "#9E927A" : v<0.45 ? "#AEA184"
+                    : v<0.68 ? "#C2B79C" : v<0.86 ? "#8E8471" : "#CFC5AA";
+        g.fillRect(x + rnd()*1.4, y + rnd()*1.2, 6.4 + rnd()*1.4, 5.4 + rnd());
+      }
+    }
+    // worn tracks and a little moss between the stones
+    for(let i=0;i<520;i++){
+      const x=-124+rnd()*248, y=-86+rnd()*146;
+      g.fillStyle = rnd()<0.6 ? "rgba(120,112,92,.30)" : "rgba(96,110,72,.22)";
+      g.fillRect(x,y,1+rnd()*3,1+rnd()*2);
+    }
+
+    g.restore();
+
+    // The courtyard is dry land set into the lake — stamped over the water on
+    // the surface map too, not just painted, so boats cannot row across it.
+    ig.save();
+    ig.translate(pp[0], pp[1]); ig.rotate(ang);
+    ig.fillStyle = ID.LAND;
+    ig.fillRect(-124, -86, 248, 146);
+    ig.restore();
+
+  }
+
+  // --- the tunnel: stone laid along its own stretch of the course only ---
+  {
+    const nearCross = () => false;      // a single circuit crosses nothing
+    // a mask of just the tunnel strand, so the other strand of the eight
+    // (which crosses it on the surface) is left in daylight
+    g.save();
+    g.beginPath();
+    path.forEach((p,i)=>{ if(tunnelAt(i) <= 0 || nearCross(p)) return;
+      g.moveTo(p[0]+reedR(i)+34, p[1]);
+      g.arc(p[0], p[1], reedR(i)+34, 0, TAU);
+    });
+    g.clip();
+
+    g.fillStyle = "#332B33";
+    path.forEach((p,i)=>{ if(tunnelAt(i) <= 0 || nearCross(p)) return;
+      g.beginPath(); g.arc(p[0],p[1],reedR(i)+34,0,TAU); g.fill(); });
+
+    // coursed stone, damp, and blood — over the tunnel's own footprint
+    path.forEach((p,i)=>{
+      if(tunnelAt(i) <= 0 || i % 3 || nearCross(p)) return;
+      for(let k=0;k<40;k++){
+        const ang = rnd()*TAU, rr = rnd()*(reedR(i)+30);
+        const x = p[0]+Math.cos(ang)*rr, y = p[1]+Math.sin(ang)*rr;
+        const v = rnd();
+        g.fillStyle = v<0.34 ? "rgba(58,48,58,.85)" : v<0.7 ? "rgba(44,36,45,.85)" : "rgba(66,56,64,.8)";
+        g.fillRect(x, y, 12+rnd()*12, 5+rnd()*4);
+      }
+      for(let k=0;k<9;k++){
+        const ang = rnd()*TAU, rr = rnd()*(reedR(i)+28);
+        const x = p[0]+Math.cos(ang)*rr, y = p[1]+Math.sin(ang)*rr;
+        g.fillStyle = rnd()<0.5 ? "rgba(28,42,30,.30)" : "rgba(18,14,20,.35)";
+        g.fillRect(x,y,2+rnd()*6,1+rnd()*3);
+      }
+      if(rnd() < 0.45){
+        const ang = rnd()*TAU, rr = rnd()*(reedR(i)+24);
+        const x = p[0]+Math.cos(ang)*rr, y = p[1]+Math.sin(ang)*rr;
+        g.fillStyle = rnd()<0.5 ? "rgba(112,14,20,.72)" : "rgba(78,8,14,.66)";
+        const r = 3+rnd()*9;
+        g.beginPath(); g.ellipse(x,y,r,r*(0.5+rnd()*0.9),rnd()*TAU,0,TAU); g.fill();
+        for(let q=0;q<3;q++) g.fillRect(x+(rnd()-0.5)*r*2, y+r*0.6+q*3, 1+rnd()*2, 3+rnd()*7);
+      }
+    });
+
+    // and the blood the boats actually row through
+    path.forEach((p,i)=>{
+      if(tunnelAt(i) <= 0 || nearCross(p)) return;
+      g.fillStyle="#6E0F16"; g.beginPath(); g.arc(p[0],p[1],waterR(i),0,TAU); g.fill();
+    });
+    path.forEach((p,i)=>{
+      if(tunnelAt(i) <= 0 || nearCross(p)) return;
+      g.fillStyle="rgba(40,4,8,.55)"; g.beginPath(); g.arc(p[0],p[1],waterR(i)*0.60,0,TAU); g.fill();
+    });
+    g.restore();
+  }
+
+  // --- the two ramps: the big one at the palace, the hop into the keyhole ---
+  for(const i of [RAMP_I, HOP_I, 604, 632, 664, 692])
+  {
+    const pp = path[i];
+    const tg = splineTangent(i/STEPS*N), ang = Math.atan2(tg[1],tg[0]);
+    [g,ig].forEach((c,k)=>{
+      c.save(); c.translate(pp[0],pp[1]); c.rotate(ang);
+      const big = (i === RAMP_I), wd = big ? 26 : 10, ln = big ? 21 : 14;
+      if(k===0){
+        c.fillStyle="#8A6A3A"; c.fillRect(-wd,-ln,wd*2,ln*2);
+        c.fillStyle="#A98449"; c.fillRect(-wd+4,-ln,wd*2-8,ln*2);
+        c.fillStyle= big ? "#E0B44A" : "#E8679B"; c.fillRect(-wd,-ln,wd*2,6);
+        c.fillStyle= big ? "#FFF0BE" : "#F49CC0"; c.fillRect(-wd, ln-6,wd*2,6);
+      } else {
+        c.fillStyle = ID.RAMP; c.fillRect(-wd,-ln,wd*2,ln*2);
+      }
+      c.restore();
+    });
+  }
+
+  // --- trees on the bank ---
+  mapPix = g.getImageData(0,0,MAP,MAP);
+  const idPix = ig.getImageData(0,0,MAP,MAP).data;
+  surfArr = new Uint8Array(MAP*MAP);
+  for(let i=0,j=0;i<MAP*MAP;i++,j+=4){
+    const v = idPix[j];
+    surfArr[i] = v<30 ? SURF.LAND : v<90 ? SURF.WATER : v<160 ? SURF.REED
+                 : v<220 ? SURF.BOOST : SURF.RAMP;
+  }
+
+  for(let tries=0; tries<4000 && trees.length<130; tries++){
+    const x = rnd()*MAP, y = rnd()*MAP;
+    if(surfAt(x,y)!==SURF.LAND) continue;
+    // must be near the reed belt, and not on the Schloss lawn
+    let near=false;
+    for(let a=0;a<TAU;a+=TAU/12){ if(surfAt(x+Math.cos(a)*46, y+Math.sin(a)*46)===SURF.REED){ near=true; break; } }
+    if(!near) continue;
+    if(Math.hypot(x-SCHLOSS[0], y-SCHLOSS[1]) < 190) continue;
+    // nothing grows over the tunnel
+    let overTunnel = false;
+    for(let i=0;i<STEPS;i+=3){
+      if(tunnelAt(i) <= 0) continue;
+      if(Math.hypot(path[i][0]-x, path[i][1]-y) < reedR(i)+52){ overTunnel = true; break; }
+    }
+    if(overTunnel) continue;
+    const t = { x, y, h: 16+rnd()*16, w: 7+rnd()*5, k: rnd()<0.28 ? 1 : 0 };
+    t.model = treeModel(t.k, t.h, t.w);   // scenery never changes; build it once
+    trees.push(t);
+  }
+}
+
+function surfAt(x,y){
+  const ix = x|0, iy = y|0;
+  if(ix<0||iy<0||ix>=MAP||iy>=MAP) return SURF.LAND;
+  return surfArr[iy*MAP+ix];
+}
+
+/* ---------------------------------------------------------------
+   5. A very small box-based 3D renderer
+   Models are lists of axis-aligned boxes; each box becomes five
+   shaded quads. Painter's algorithm, fixed camera pitch.
+   --------------------------------------------------------------- */
+function shade(hex, k){
+  const n = parseInt(hex.slice(1),16);
+  const r = clamp(((n>>16)&255)*k,0,255)|0;
+  const g = clamp(((n>>8)&255)*k,0,255)|0;
+  const b = clamp((n&255)*k,0,255)|0;
+  return "rgb("+r+","+g+","+b+")";
+}
+/* An n-sided prism — the only way to get Rheinsberg's round towers out of a
+   renderer that otherwise knows nothing but boxes. */
+// Distant boats are a few pixels across, so they are built from far coarser
+// geometry. LOD=1 close up, LOD=0 across the lake.
+let LOD = 1;
+
+function prism(out, cx, cy, z, r, h, sides, col, twist, cap){
+  const t = twist || 0;
+  if(!LOD) sides = Math.min(sides, 5);
+  const px = k => [cx + Math.cos(t + k/sides*TAU)*r, cy + Math.sin(t + k/sides*TAU)*r];
+  for(let i=0;i<sides;i++){
+    const a = px(i), b = px(i+1);
+    const k = 0.80 + 0.20*(0.5 + 0.5*Math.cos(t + i/sides*TAU + 0.7));
+    out.push({ c:shade(col,k), v:[[a[0],a[1],z],[b[0],b[1],z],[b[0],b[1],z+h],[a[0],a[1],z+h]] });
+  }
+  if(cap === false) return;
+  for(let i=1;i+2<=sides-1;i+=2){                     // cap, fanned into quads
+    const q = k => { const p = px(k); return [p[0],p[1],z+h]; };
+    out.push({ c:shade(col,1.0), v:[q(0),q(i),q(i+1),q(i+2)] });
+  }
+}
+
+/* A ball, stacked out of four bands. Heads, cheeks, wigs, straw hats — the
+   difference between a character and a cube. */
+function orb(out, cx, cy, zBottom, r, col, sides, squash){
+  const S = LOD ? (sides || 9) : 5, sq = squash || 1;
+  const bands = LOD ? [-0.75, -0.25, 0.25, 0.75] : [-0.5, 0.5];
+  const n = bands.length, step = 2/n;
+  for(let i=0;i<n;i++){
+    const m  = bands[i];
+    const rr = r * Math.sqrt(1 - m*m*0.88);
+    const z0 = zBottom + r*sq*(1 + m - step/2);
+    prism(out, cx, cy, z0, rr, r*sq*step + 0.002, S, col, i*0.18, i===n-1);
+  }
+}
+
+/* box: centred on (x,y), sitting with its base at z, sized (w,d,h) */
+function box(out, x,y,z, w,d,h, col){
+  const x0=x-w/2, x1=x+w/2, y0=y-d/2, y1=y+d/2, z0=z, z1=z+h;
+  out.push({c:shade(col,1.00), v:[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]]}); // top
+  out.push({c:shade(col,0.84), v:[[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]]}); // -x
+  out.push({c:shade(col,0.92), v:[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]}); // +x
+  out.push({c:shade(col,0.97), v:[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]]}); // -y (the face side)
+  out.push({c:shade(col,0.76), v:[[x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0]]}); // +y
+}
+
+/* Place a model in the world at (cx,cy) with heading `yaw`, and project
+   every vertex through the same camera the ground uses. Doing it per
+   vertex rather than scaling a flat sprite is what keeps the Schloss
+   standing up straight instead of shearing as you row past it. */
+function drawModel(c, faces, cx, cy, yaw, cam, vy, vh, zoff, near){
+  const horizon = vy + vh*0.40;
+  const sn = Math.sin(cam.a), cs = Math.cos(cam.a);
+  const cw = Math.cos(yaw), sw = Math.sin(yaw);
+  const lift = zoff || 0;
+  const NEAR = near || 3;
+  const list = [];
+
+  for(let i=0;i<faces.length;i++){
+    const f = faces[i];
+    const p = new Array(8);
+    let depth = 0, ok = true;
+    for(let k=0;k<4;k++){
+      const v = f.v[k];
+      const wx = cx + cw*v[0] + sw*v[1];
+      const wy = cy - sw*v[0] + cw*v[1];
+      const dx = wx-cam.x, dy = wy-cam.y;
+      const zc = dx*sn + dy*cs;
+      if(zc < NEAR){ ok = false; break; }       // behind the near plane
+      const xc = dx*cs - dy*sn;
+      p[k*2]   = W/2 + xc*FOCAL/zc;
+      p[k*2+1] = horizon + (cam.h - v[2] - lift)*FOCAL/zc;
+      depth += zc;
+    }
+    if(!ok) continue;
+    list.push({ d: depth, c: f.c, p });
+  }
+
+  list.sort((a,b)=> b.d - a.d);                 // far faces first
+  for(let i=0;i<list.length;i++){
+    const q = list[i];
+    c.fillStyle = q.c;
+    c.beginPath();
+    c.moveTo(q.p[0],q.p[1]);
+    c.lineTo(q.p[2],q.p[3]);
+    c.lineTo(q.p[4],q.p[5]);
+    c.lineTo(q.p[6],q.p[7]);
+    c.closePath(); c.fill();
+  }
+}
+
+/* An upright disc in the x-z plane, approximated by horizontal slabs. Used
+   for Maja's ceramic labyrinth, which no cylinder primitive can stand up. */
+function upright(out, cx, cy, cz, r, thick, col, ringCol){
+  const N = 7;
+  for(let i=0;i<N;i++){
+    const u = (i - (N-1)/2) / ((N-1)/2);
+    const w = 2*r*Math.sqrt(Math.max(0.02, 1 - u*u));
+    const h = 2*r/N;
+    box(out, cx, cy, cz + u*r - h/2, w, thick, h*1.05, col);
+  }
+  if(!ringCol) return;
+  for(const [rr, hh] of [[0.72, 0.12],[0.44, 0.10],[0.18, 0.09]]){
+    const w = 2*r*rr;
+    box(out, cx, cy - thick*0.55, cz + r*0.10, w, thick*0.3, r*hh, ringCol);
+    box(out, cx, cy - thick*0.55, cz - r*rr*0.9, w, thick*0.3, r*hh, ringCol);
+  }
+  box(out, cx, cy - thick*0.55, cz - r*0.05, r*0.22, thick*0.3, r*0.85, ringCol);
+}
+
+/* --- the boats --------------------------------------------------
+   Local axes: +x starboard, +y bow (forward), +z up. Origin at the
+   waterline, amidships. `fat` is how many potatoes have been eaten.
+   ---------------------------------------------------------------- */
+const BOAT_SCALE = 1.35;   // the lake is wide; give the boats presence
+
+/* One rowing skiff with its character in it.
+
+   Proportions are deliberately cartoon rather than blocky: a big round head
+   carrying an actual face on a small rounded body, so a rower is recognisable
+   from across the lake and not merely a coloured cube. Costumes follow the
+   Rheinsberg production. `fat` is potatoes eaten — it widens the boat a little
+   and the rower enormously. */
+function boatModel(ch, fat, oar, swell, bust){
+  const f = [];
+  const bulk = 1 + fat*0.055;
+  const g = swell || 0;
+  const body = 1 + g;
+
+  if(!bust){
+    // ---- hull: a rounded skiff, not a crate ----
+    prism(f, 0,-2.30, -0.60, 1.15*bulk, 1.30, 10, ch.trim, 0, false);
+    box  (f, 0,-0.90, -0.60, 2.45*bulk, 2.50, 1.35, ch.hull);
+    box  (f, 0, 1.25, -0.60, 2.25*bulk, 2.40, 1.30, ch.hull);
+    prism(f, 0, 2.85, -0.55, 1.05*bulk, 1.20, 10, ch.hull, 0, false);
+    prism(f, 0, 3.55, -0.45, 0.52*bulk, 1.00, 8,  ch.trim);
+    box  (f, -1.26*bulk, 0.20, 0.62, 0.30, 5.60, 0.24, ch.trim);   // gunwales
+    box  (f,  1.26*bulk, 0.20, 0.62, 0.30, 5.60, 0.24, ch.trim);
+    box  (f, 0, 0.50, 0.60, 2.10*bulk, 0.42, 0.20, ch.trim);       // thwart
+
+    // pennant, so boats stay apart at distance
+    prism(f, 0,-2.85, 0.55, 0.10, 2.70, 6, "#7A6242", 0, false);
+    box  (f, 0.58,-2.85, 2.55, 1.15, 0.10, 0.62, ch.hull);
+  }
+
+  // ================= the rower =================
+  const TR = 0.70 * body;                       // torso radius — grows with every potato
+  const TH = 1.00 + g*0.62;                     // torso height
+  const TZ = 0.60;                              // sits on the thwart
+  const HR = 0.78 + g*0.52;                     // head radius — deliberately big
+  const HZ = TZ + TH - 0.06;                    // head sits on the shoulders
+
+  // lap and coat skirts
+  if(ch.skirt){
+    // a full skirt, spread over the thwart
+    prism(f, 0, 0.42, -0.16, TR*1.72, 0.30, 12, ch.coat, 0.15, false);
+    prism(f, 0, 0.42,  0.14, TR*1.46, 0.32, 12, ch.coat, 0.15, false);
+    prism(f, 0, 0.42,  0.46, TR*1.18, 0.34, 12, ch.coat, 0.15, false);
+    prism(f, 0, 0.42,  0.80, TR*0.96, 0.28, 12, ch.coat, 0.15);
+    prism(f, 0, 0.42, -0.20, TR*1.78, 0.15, 12, ch.vest, 0.15, false);   // the hem
+    for(let k=0;k<8;k++){                                                // pleats
+      const a2 = k/8*TAU;
+      box(f, Math.cos(a2)*TR*1.45, 0.42 + Math.sin(a2)*TR*1.45, -0.10,
+          0.16, 0.16, 0.62, shade(ch.coat, 0.86));
+    }
+  } else {
+    prism(f, 0, 0.55, 0.00, TR*1.05, 0.60, 10, ch.shorts || ch.coat, 0.15);
+  }
+  if(ch.bare) for(const sx of [-1,1])
+    orb(f, sx*TR*0.44, 0.55 - TR*0.34, 0.26, TR*0.34, ch.skin, 7, 0.85);
+
+  // torso, slightly barrelled
+  prism(f, 0,-0.28, TZ,          TR*0.94, TH*0.34, 10, ch.coat, 0.15, false);
+  prism(f, 0,-0.28, TZ+TH*0.34,  TR,      TH*0.40, 10, ch.coat, 0.15, false);
+  prism(f, 0,-0.28, TZ+TH*0.74,  TR*0.86, TH*0.28, 10, ch.coat, 0.15);
+
+  // ---- the costume front. A rower faces the stern, so this is the -y side. ----
+  const fy = -0.28 - TR*0.72;
+  if(ch.front === "jabot"){
+    prism(f, 0, fy*0.92, TZ+TH*0.10, TR*0.58, TH*0.74, 8, ch.vest, 0.4, false);
+    orb  (f, 0, fy, TZ+TH*0.60, TR*0.44, ch.shirt, 8, 0.80);       // the ruffle
+    orb  (f, 0, fy*0.98, TZ+TH*0.38, TR*0.36, ch.shirt, 8, 0.78);
+    orb  (f, 0, fy*0.94, TZ+TH*0.20, TR*0.27, ch.shirt, 8, 0.76);
+  } else if(ch.front === "lacing"){
+    prism(f, 0, fy*0.92, TZ, TR*0.66, TH*0.86, 8, ch.vest, 0.4, false);
+    orb  (f, 0, fy, TZ+TH*0.66, TR*0.40, ch.shirt, 8, 0.70);       // fichu at the neck
+    for(let k=0;k<5;k++)
+      box(f, 0, fy*1.03, TZ+TH*(0.14+k*0.12), TR*0.62, 0.12, TH*0.05, "#171717");
+    box(f, -TR*0.40, fy*1.02, TZ+TH*0.06, TR*0.14, 0.13, TH*0.74, "#171717");
+    box(f,  TR*0.40, fy*1.02, TZ+TH*0.06, TR*0.14, 0.13, TH*0.74, "#171717");
+  } else if(ch.front === "apron"){
+    prism(f, 0, fy*0.94, TZ, TR*0.70, TH*0.80, 8, ch.shirt, 0.4, false);
+  } else {
+    prism(f, 0, fy*0.92, TZ+TH*0.10, TR*0.56, TH*0.70, 8, ch.vest, 0.4, false);
+  }
+
+  // lapels and buttons for anyone in a coat
+  if(LOD && ch.front !== "apron"){
+    for(const sx of [-1,1]){
+      box(f, sx*TR*0.44, fy*0.86, TZ+TH*0.44, TR*0.30, 0.16, TH*0.46, shade(ch.coat, 1.14));
+      box(f, sx*TR*0.33, fy*0.88, TZ+TH*0.72, TR*0.26, 0.15, TH*0.22, shade(ch.coat, 1.20));
+    }
+    for(let k=0;k<3;k++)
+      box(f, 0, fy*0.98, TZ + TH*(0.20 + k*0.16), TR*0.13, 0.14, TH*0.07, shade(ch.vest, 1.35));
+  }
+
+  // ---- arms ----
+  const sw  = Math.sin(oar)*0.85;
+  const ah  = TZ + TH*0.52;
+  const slv = ch.bare ? ch.skin : (ch.sleeve || ch.coat);
+  const ay  = bust ? -0.28 - TR*0.50 : -0.28 + sw*0.75;
+  const al  = bust ? 0.60 : 0.90;
+  for(const sx of [-1,1]){
+    prism(f, sx*(TR+al*0.42), ay, ah, 0.30, al*0.9, 7, slv, 0, false);
+    orb  (f, sx*(TR+al*0.42), ay, ah+al*0.80, 0.20, slv, 7, 0.9);
+    if(ch.cuffs) prism(f, sx*(TR+al*0.86), ay, ah, 0.32, 0.20, 7, ch.cuffs, 0, false);
+    if(ch.bare)  prism(f, sx*(TR+al*0.14), ay, ah, 0.34, 0.30, 7, ch.coat, 0, false);
+    if(!bust){
+      orb(f, sx*(TR+0.98), -0.28+sw*0.85, ah-0.04, 0.19, ch.skin, 7, 0.85);
+      for(let q=0;q<3;q++)
+        box(f, sx*(TR+1.02), -0.28+sw*0.85 - 0.10 + q*0.10, ah-0.02,
+            0.16, 0.08, 0.09, shade(ch.skin, 0.92));
+    }
+  }
+
+  // ---- neck ----
+  prism(f, 0,-0.28, TZ+TH-0.14, TR*0.34, 0.34, 7, shade(ch.skin, 0.90), 0, false);
+
+  // ---- head ----
+  orb(f, 0,-0.28, HZ, HR, ch.skin, 9, 1.02);
+  const hc = HZ + HR*1.02;                       // centre height of the head
+  const fyF = -0.28 - HR*0.80;                   // the face plane
+
+  // Eyes, brows and mouth, each laid on the curve of the head rather than
+  // buried inside it — the head is an ellipsoid, so the depth of its surface
+  // has to be solved for at each feature's own position.
+  const surfY = (ux, uz) =>
+    -0.28 - HR*Math.sqrt(Math.max(0.05, 1 - uz*uz*0.88 - ux*ux));
+
+  if(LOD){
+    for(const sx of [-1,1]){
+      const ex = sx*0.32, ez = 0.10, ey = surfY(ex, ez);
+      box(f, ex*HR, ey, hc + ez*HR, HR*0.26, HR*0.15, HR*0.26, "#FBFBF6");
+      box(f, ex*HR, ey - HR*0.07, hc + ez*HR, HR*0.13, HR*0.10, HR*0.15, "#241A14");
+      box(f, ex*HR - sx*HR*0.03, ey - HR*0.11, hc + ez*HR + HR*0.04,
+          HR*0.05, HR*0.05, HR*0.05, "#FFFFFF");                          // catchlight
+      box(f, ex*HR, ey - HR*0.02, hc + ez*HR + HR*0.15,
+          HR*0.28, HR*0.12, HR*0.05, shade(ch.skin, 0.82));               // eyelid
+      const bz = 0.44, by = surfY(sx*0.31, bz);
+      box(f, sx*0.31*HR, by, hc + bz*HR, HR*0.30, HR*0.12, HR*0.09, ch.hair);
+      orb(f, sx*HR*0.95, -0.28 + HR*0.06, hc - HR*0.14, HR*0.20, ch.skin, 6, 1.25); // ear
+    }
+    // nose, mouth, and a little shading under the jaw
+    box(f, 0, surfY(0, -0.02) - HR*0.07, hc - HR*0.10, HR*0.15, HR*0.16, HR*0.24, ch.skin);
+    box(f, 0, surfY(0, -0.16) - HR*0.04, hc - HR*0.20, HR*0.16, HR*0.07, HR*0.05,
+        shade(ch.skin, 0.90));
+    box(f, 0, surfY(0,-0.40), hc - HR*0.40, HR*0.21, HR*0.10, HR*0.055, "#94564C");
+    box(f, 0, surfY(0,-0.66)+HR*0.09, hc - HR*0.70, HR*0.44, HR*0.07, HR*0.10,
+        shade(ch.skin, 0.94));
+
+    if(ch.glasses){                       // thin oval frames, a touch proud of the face
+      for(const sx of [-1,1]){
+        const gy = surfY(sx*0.32, 0.10) - HR*0.05;
+        box(f, sx*0.32*HR, gy, hc + 0.10*HR, HR*0.36, HR*0.05, HR*0.30, "#4A4A50");
+        box(f, sx*0.32*HR, gy - HR*0.02, hc + 0.10*HR, HR*0.28, HR*0.04, HR*0.22, "#CFE0E8");
+        box(f, sx*0.56*HR, surfY(sx*0.56,0.10), hc + 0.12*HR, HR*0.18, HR*0.06, HR*0.05, "#4A4A50");
+      }
+      box(f, 0, surfY(0,0.12) - HR*0.04, hc + 0.16*HR, HR*0.26, HR*0.05, HR*0.05, "#4A4A50");
+    }
+  }
+  // Raoul is stubbled rather than bearded, whatever his name promises
+  if(ch.beard && LOD){
+    box(f, 0, surfY(0,-0.62)+HR*0.06, hc - HR*0.74, HR*0.44, HR*0.14, HR*0.22, ch.beard);
+  }
+
+  // ---- hair and headgear ----
+  const top = hc + HR;
+  switch(ch.hat){
+    case "wide":     // Vergy: long fair hair under a broad black hat
+      orb  (f, 0,-0.28, hc-HR*0.10, HR*1.02, ch.hair, 9, 0.74);
+      for(const sx of [-1,1])
+        prism(f, sx*HR*0.80,-0.24, hc-HR*1.25, HR*0.36, HR*1.30, 7, ch.hair, 0, false);
+      prism(f, 0,-0.28+HR*0.30, hc-HR*1.30, HR*0.86, HR*1.20, 9, ch.hair, 0, false);
+      {
+        const HC = ch.hatCol || "#17171B", HB = ch.hatBand || "#4E7FA8";
+        prism(f, 0,-0.28, top-HR*0.02, HR*2.30, 0.17, 14, HC);            // a broad brim
+        prism(f, 0,-0.28, top+HR*0.12, HR*1.08, HR*0.66, 12, HC);         // crown
+        prism(f, 0,-0.28, top+HR*0.18, HR*1.15, HR*0.24, 12, HB, 0, false); // band
+        prism(f, 0,-0.28, top+HR*0.78, HR*1.02, 0.14, 12, HC);            // flat top
+        orb  (f, HR*1.15,-0.28+HR*0.24, top+HR*0.08, HR*0.30, HB, 6, 0.85); // a cockade
+      }
+      break;
+    case "tricorn":
+      orb  (f, 0,-0.28, hc-HR*0.06, HR*1.02, ch.hair, 9, 0.72);
+      prism(f, 0,-0.28, top-HR*0.22, HR*1.70, 0.14, 3, ch.trim, Math.PI/2);
+      prism(f, 0,-0.28, top-HR*0.10, HR*1.00, HR*0.58, 9, ch.trim);
+      break;
+    case "wig":      // Osman: powdered, swept up, rolled at the sides
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.06, ch.hair, 9, 0.86);
+      orb  (f, 0,-0.24, top-HR*0.34, HR*0.86, ch.hair, 9, 0.90);
+      for(const sx of [-1,1])
+        orb(f, sx*HR*0.86,-0.26, hc-HR*0.42, HR*0.42, ch.hair, 8, 1.25);
+      prism(f, 0,-0.28+HR*0.86, hc-HR*0.60, HR*0.30, HR*0.90, 7, ch.hair, 0, false);
+      break;
+    case "updo":     // Isaure, hair dressed high with a ringlet
+      orb  (f, 0,-0.28, hc-HR*0.02, HR*1.04, ch.hair, 9, 0.80);
+      orb  (f, 0,-0.24, top-HR*0.18, HR*0.62, ch.hair, 8, 0.96);
+      prism(f, 0,-0.28+HR*0.62, hc-HR*1.05, HR*0.30, HR*1.10, 7, ch.hair, 0, false);
+      break;
+    case "picture":  // a broad-brimmed hat, ribboned, worn over loose black hair
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.06, ch.hair, 9, 0.84);
+      for(const sx of [-1,1])
+        prism(f, sx*HR*0.66,-0.28+HR*0.08, hc-HR*1.20, HR*0.34, HR*1.28, 7, ch.hair, 0, false);
+      prism(f, 0,-0.28+HR*0.40, hc-HR*1.00, HR*0.80, HR*1.05, 9, ch.hair, 0, false);
+      prism(f, 0,-0.28, top+HR*0.02, HR*2.85, 0.17, 14, ch.shirt);          // the brim
+      prism(f, 0,-0.28, top+HR*0.19, HR*1.06, HR*0.58, 12, ch.shirt);        // crown
+      prism(f, 0,-0.28, top+HR*0.26, HR*1.13, HR*0.20, 12, ch.trim, 0, false); // ribbon
+      orb  (f, -HR*1.25,-0.28+HR*0.22, top+HR*0.06, HR*0.36, ch.trim, 6, 0.85);
+      orb  (f, -HR*1.05,-0.28+HR*0.34, top+HR*0.02, HR*0.26, ch.shirt, 6, 0.85);
+      break;
+    case "veil":
+      orb  (f, 0,-0.28+HR*0.22, hc+HR*0.04, HR*1.04, ch.shirt, 9, 0.86);
+      prism(f, 0,-0.28+HR*0.30, hc-HR*1.35, HR*1.06, HR*1.40, 10, ch.shirt, 0, false);
+      for(const sx of [-1,1])
+        prism(f, sx*HR*0.86,-0.28, hc-HR*0.90, HR*0.30, HR*1.10, 7, ch.shirt, 0, false);
+      break;
+    case "straw":
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.02, ch.hair, 9, 0.74);
+      prism(f, 0,-0.28, top-HR*0.20, HR*1.85, 0.13, 12, "#E0BE5E");
+      prism(f, 0,-0.28, top-HR*0.08, HR*0.95, HR*0.46, 10, "#CFA83E");
+      break;
+    case "short":    // Joseph: short brown hair, nothing on his head
+      orb(f, 0,-0.28, hc-HR*0.04, HR*1.05, ch.hair, 9, 0.74);
+      orb(f, -HR*0.44,-0.28+HR*0.30, hc+HR*0.16, HR*0.42, ch.hair, 6, 0.80);
+      orb(f,  HR*0.48,-0.28+HR*0.26, hc+HR*0.12, HR*0.38, ch.hair, 6, 0.80);
+      break;
+    case "queue":    // Jacques: dark hair, tied back out of the way
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.06, ch.hair, 9, 0.80);
+      orb  (f, 0,-0.28+HR*0.66, hc+HR*0.10, HR*0.30, ch.hair, 6, 1.0);
+      prism(f, 0,-0.28+HR*0.84, hc-HR*0.52, HR*0.22, HR*0.95, 7, ch.hair, 0, false);
+      break;
+    case "braids":   // the gardener: auburn plaits coiled over the ears
+      orb(f, 0,-0.28, hc-HR*0.04, HR*1.05, ch.hair, 9, 0.84);
+      for(const sx of [-1,1]){
+        orb(f, sx*HR*0.82,-0.28+HR*0.06, hc-HR*0.34, HR*0.40, ch.hair, 7, 1.15);
+        orb(f, sx*HR*0.74,-0.28+HR*0.10, hc+HR*0.16, HR*0.28, ch.hair, 6, 1.0);
+      }
+      orb(f, 0,-0.28+HR*0.72, hc-HR*0.22, HR*0.44, ch.hair, 7, 0.95);
+      break;
+    case "ponytail": // Viola: short black hair, gathered at the back
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.05, ch.hair, 9, 0.78);
+      orb  (f, 0,-0.28+HR*0.66, hc+HR*0.20, HR*0.30, ch.hair, 7, 1.0);   // the band
+      prism(f, 0,-0.28+HR*0.86, hc-HR*0.34, HR*0.24, HR*0.80, 7, ch.hair, 0, false);
+      break;
+    case "waves":    // Maja: dark shoulder-length waves, silvered at the temples
+      orb(f, 0,-0.28, hc-HR*0.04, HR*1.08, ch.hair, 9, 0.90);
+      for(const sx of [-1,1]){
+        prism(f, sx*HR*0.72,-0.28+HR*0.10, hc-HR*1.30, HR*0.36, HR*1.45, 7, ch.hair, 0, false);
+        orb  (f, sx*HR*0.82,-0.28+HR*0.16, hc-HR*0.30, HR*0.34, "#8E8A90", 6, 1.1);
+      }
+      prism(f, 0,-0.28+HR*0.62, hc-HR*1.10, HR*0.86, HR*1.30, 9, ch.hair, 0, false);
+      break;
+    case "curls":    // Bernhard: a great grey cloud of curls
+      orb(f, 0,-0.28, hc-HR*0.02, HR*1.10, ch.hair, 9, 0.92);
+      for(const c2 of [[-0.78,0.10,0.46],[0.80,0.06,0.42],[-0.46,0.62,0.40],
+                       [0.50,0.66,0.38],[0.00,0.86,0.42],[-0.66,-0.34,0.36],
+                       [0.70,-0.30,0.34]])
+        orb(f, c2[0]*HR, -0.28+HR*0.18, hc + c2[1]*HR, c2[2]*HR, ch.hair, 6, 1.0);
+      break;
+    default:         // Raoul: dark, unruly, no hat
+      orb  (f, 0,-0.28, hc-HR*0.04, HR*1.06, ch.hair, 9, 0.80);
+      orb  (f, -HR*0.60,-0.28+HR*0.24, hc+HR*0.34, HR*0.46, ch.hair, 7, 0.90);
+      orb  (f,  HR*0.66,-0.28+HR*0.18, hc+HR*0.26, HR*0.42, ch.hair, 7, 0.90);
+      orb  (f, 0,-0.28+HR*0.72, hc-HR*0.55, HR*0.66, ch.hair, 8, 0.86);
+  }
+
+  // ---- Joseph takes notes, even here ----
+  if(ch.notes){
+    const ny2 = -0.28 - TR*0.92;
+    box(f, 0, ny2, TZ + TH*0.06, TR*1.30, 0.16, TH*0.86, "#6B5A44");        // the board
+    box(f, 0, ny2 - 0.10, TZ + TH*0.10, TR*1.14, 0.10, TH*0.72, "#F6F2E6"); // paper
+    box(f, 0, ny2 - 0.14, TZ + TH*0.80, TR*0.46, 0.12, TH*0.10, "#3A3A40"); // the clip
+    for(let k=0;k<4;k++)                                                     // handwriting
+      box(f, -TR*0.10, ny2 - 0.16, TZ + TH*(0.22 + k*0.13), TR*0.66, 0.06, TH*0.035, "#8A8FA0");
+    box(f, TR*0.86, ny2 + 0.10, TZ + TH*0.44, 0.16, 0.16, 0.90, "#1E2430");  // the pen
+    box(f, TR*0.86, ny2 + 0.10, TZ + TH*1.34, 0.13, 0.13, 0.18, "#C9A227");
+  }
+
+  // ---- the director keeps her labyrinth with her ----
+  if(ch.disc){
+    upright(f, TR + 0.92, -0.28 - TR*0.30, TZ + TH*0.58, 0.98, 0.26,
+            "#3E9E96", "#CFE6DE");
+  }
+
+  // ---- the concertmaster brings his fiddle aboard ----
+  if(ch.violin){
+    const vy2 = -0.28 - TR*0.55, vz = TZ + TH*0.86;
+    orb  (f, -TR*0.62, vy2, vz, 0.46, "#8A4E24", 8, 0.42);          // belly
+    orb  (f, -TR*0.62, vy2, vz+0.05, 0.34, "#A2612E", 7, 0.46);
+    box  (f, -TR*0.62 - 0.44, vy2, vz+0.30, 0.90, 0.16, 0.10, "#5E3416"); // fingerboard
+    box  (f, -TR*0.62 - 0.92, vy2, vz+0.34, 0.18, 0.16, 0.20, "#5E3416"); // scroll
+    box  (f, -TR*0.62 - 0.40, vy2 - 0.06, vz+0.32, 0.86, 0.04, 0.03, "#E8E2D2"); // strings
+    // the bow, drawn across
+    box  (f, -TR*0.62 + 0.10, vy2 - 0.30, vz + 0.18, 2.30, 0.09, 0.07, "#6B4F28");
+    box  (f, -TR*0.62 + 0.10, vy2 - 0.30, vz + 0.11, 2.20, 0.05, 0.04, "#F2ECDC");
+  }
+
+  // ---- oars ----
+  if(!bust){
+    const ox = 1.45*bulk + 0.30;
+    box(f, -ox-1.1, -0.28+sw, 0.44, 2.6, 0.24, 0.18, "#8A6A3A");
+    box(f,  ox+1.1, -0.28+sw, 0.44, 2.6, 0.24, 0.18, "#8A6A3A");
+    box(f, -ox-2.7, -0.28+sw*1.7, 0.22, 0.8, 1.1, 0.13, "#6B4F28");
+    box(f,  ox+2.7, -0.28+sw*1.7, 0.22, 0.8, 1.1, 0.13, "#6B4F28");
+  }
+
+  for(const face of f) for(const v of face.v){ v[0]*=BOAT_SCALE; v[1]*=BOAT_SCALE; v[2]*=BOAT_SCALE; }
+  return f;
+}
+
+function potatoModel(bob){
+  const f=[];
+  box(f, 0,0, 0.2+bob, 2.2,2.9,1.6, "#C4862B");
+  box(f, 0,-1.15, 0.55+bob, 1.35,0.9,0.95, "#B07623");
+  box(f, 0.45,0.9, 0.6+bob, 0.8,0.8,0.8, "#D2954A");
+  box(f, -0.5,0.15, 1.78+bob, 0.5,0.5,0.3, "#7A5218");   // eye
+  box(f, 0.7,-0.5, 1.72+bob, 0.4,0.4,0.25, "#7A5218");   // another eye
+  return f;
+}
+function buoyModel(){
+  const f=[];
+  box(f,0,0,0, 1.5,1.5,1.6, "#C8302F");
+  box(f,0,0,1.6, 1.1,1.1,1.4, "#F2EDE0");
+  box(f,0,0,3.0, 0.5,0.5,1.2, "#3A3A3A");
+  return f;
+}
+function treeModel(kind, h, w){
+  const f=[];
+  box(f,0,0,0, w*0.28, w*0.28, h*0.42, "#5A4326");
+  if(kind===1){ // poplar
+    box(f,0,0,h*0.30, w*0.62, w*0.62, h*0.85, "#3F6B2E");
+    box(f,0,0,h*1.05, w*0.40, w*0.40, h*0.45, "#4C7C36");
+  } else {      // oak
+    box(f,0,0,h*0.36, w*1.25, w*1.25, h*0.55, "#3E6B2C");
+    box(f,0,0,h*0.82, w*0.85, w*0.85, h*0.36, "#4E8138");
+  }
+  return f;
+}
+
+/* ---- lettering ---------------------------------------------------------
+   The renderer knows nothing about text, so the words are built out of
+   blocks. Each row of a glyph is emitted as a single box per run of lit
+   pixels rather than one box per pixel, which is the difference between
+   132 boxes and 84 for the same words. */
+const GLYPH = {
+  "T": ["11111","00100","00100","00100","00100","00100","00100"],
+  "O": ["01110","10001","10001","10001","10001","10001","01110"],
+  "I": ["11111","00100","00100","00100","00100","00100","11111"],
+  "!": ["00100","00100","00100","00100","00100","00000","00100"],
+  " ": ["00000","00000","00000","00000","00000","00000","00000"],
+};
+
+function blockText(out, text, cx, cy, cz, px, depth, col){
+  const W_ = 5, H_ = 7, GAP = 1;
+  const total = text.length * (W_ + GAP) - GAP;
+  let penX = cx - (total * px) / 2;
+  for(const chRaw of text){
+    const g = GLYPH[chRaw.toUpperCase()] || GLYPH[" "];
+    for(let row=0; row<H_; row++){
+      const line = g[row];
+      let c = 0;
+      while(c < W_){
+        if(line[c] === "1"){
+          let run = 1;
+          while(c + run < W_ && line[c + run] === "1") run++;
+          box(out,
+              penX + (c + run/2) * px,
+              cy,
+              cz + (H_ - 1 - row) * px,
+              run * px * 1.02, depth, px * 1.02, col);
+          c += run;
+        } else c++;
+      }
+    }
+    penX += (W_ + GAP) * px;
+  }
+}
+
+/* Schloss Rheinsberg, and the open-air stage built into its colonnade.
+
+   Taken from photographs of the Rheinsberg production: warm ochre walls under
+   red pantile roofs, white columns, the round tower with its red cone, and the
+   balustrade with agave urns along the colonnade roof. The stage deck spans
+   the channel on piers — boats row beneath it, or take the ramp and sail over
+   the whole set, boulders and all. Local +y is the direction of travel. */
+function schlossModel(){
+  const f=[];
+  const WALL="#F0DCAF", WALL2="#E6CE9C", ROOF="#B5522C", ROOF2="#9C4423",
+        TRIM="#F8F3E6", GOLD="#C9A227", DECK="#EFE0C0", ROCK="#F2EFE6",
+        RED="#C0342B", DRAPE="#D9B45A", STEEL="#9AA0A4";
+
+  // The court is broad, as it is in life: the wings stand well back from the
+  // water so the audience has somewhere to sit between them.
+  const WX = 116;                        // centre of each wing
+  const PIER = 96;                       // where the stage piers stand
+
+  for(const side of [-1, 1]){
+    const X = side*WX;
+    box(f, X, -6, 0, 34, 112, 15, WALL);
+    box(f, X, -6, 15, 34, 112, 13, WALL2);
+    box(f, X, -6, 28, 39, 117, 7, ROOF);
+    box(f, X, -6, 35, 30, 108, 3, ROOF2);
+    for(let k=-3;k<=3;k+=1){                      // courtyard elevation only
+      const fx = X - side*17.4;
+      box(f, fx, -6 + k*12, 2, 1.6, 3.4, 25, TRIM);
+      box(f, fx, -6 + k*12 + 6, 5,  1.2, 4.4, 7, "#6E7A80");
+      box(f, fx, -6 + k*12 + 6, 17, 1.2, 4.4, 7, "#6E7A80");
+    }
+    box(f, X, -6, 0, 35, 114, 2.5, DECK);
+
+    // the round tower with its red cone
+    prism(f, X, 54, 0,  19, 17, 10, WALL,  Math.PI/10);
+    prism(f, X, 54, 17, 19, 13, 10, WALL2, Math.PI/10);
+    prism(f, X, 54, 30, 21, 2.5, 10, TRIM, Math.PI/10);
+    for(let k=0;k<7;k++){
+      const t0 = k/7;
+      prism(f, X, 54, 32.5 + t0*19, 19.5*(1-t0*0.92), 19/7 + 0.2, 10,
+            k>4 ? ROOF2 : ROOF, Math.PI/10);
+    }
+    prism(f, X, 54, 51.5, 1.2, 5, 6, GOLD, 0);
+  }
+
+  // ---- the stage, spanning the channel ----
+  const SY = 54, DZ = 9.5;
+  box(f, -PIER, SY, 0, 14, 15, DZ, WALL);
+  box(f,  PIER, SY, 0, 14, 15, DZ, WALL);
+  box(f, 0, SY, DZ-1.6, PIER*2, 16, 1.6, DECK);
+  box(f, 0, SY, DZ, PIER*2, 16, 0.5, "#E7D6B2");
+  box(f, 0, SY-8.6, DZ-3.2, 30, 2.6, 1.6, DECK);
+  box(f, 0, SY-9.8, DZ-4.8, 30, 2.6, 1.6, DECK);
+
+  // ---- the colonnade ----
+  for(let k=-5;k<=5;k++){
+    prism(f, k*17.5, SY+5.5, DZ, 2.2, 12, 8, TRIM, 0, false);
+    prism(f, k*17.5, SY+5.5, DZ+12, 2.8, 1.2, 8, TRIM);
+  }
+  box(f, 0, SY+5.5, DZ+13.2, PIER*2, 8, 2.2, TRIM);
+  box(f, 0, SY+5.5, DZ+15.4, PIER*2+6, 9, 1.6, "#2E2A2A");     // the dark roof
+  box(f, 0, SY+5.5, DZ+17.0, PIER*2+6, 9, 0.8, TRIM);
+  for(let k=-6;k<=6;k++) box(f, k*15.5, SY+5.5, DZ+17.8, 2.2, 8, 2.6, TRIM);
+  box(f, 0, SY+5.5, DZ+20.4, PIER*2+6, 9, 1.0, TRIM);
+  for(let k=-5;k<=5;k++){                                       // black urns
+    prism(f, k*17, SY+5.5, DZ+21.4, 1.3, 1.8, 8, TRIM);
+    orb  (f, k*17, SY+5.5, DZ+23.0, 1.5, "#26221F", 6, 1.2);
+  }
+
+  // ---- the set ----
+  const rocks = [[-46,3.4],[-24,2.3],[-3,4.0],[19,2.6],[40,3.1],[58,2.0]];
+  for(const [rx,rr] of rocks) orb(f, rx, SY-3.5, DZ+0.4, rr, ROCK, 8, 0.82);
+  box(f, -66, SY-1.5, DZ+0.4, 15, 9, 11, RED);
+  box(f, -66, SY-6.2, DZ+2.4, 3.2, 0.6, 5.5, "#8E241E");
+  box(f, -34, SY-5.0, DZ+0.4, 3.4, 3.4, 0.5, TRIM);
+  box(f, -34, SY-6.4, DZ+0.9, 3.4, 0.6, 4.2, TRIM);
+  orb(f, -104, SY-5.0, 0.4, 7.0, DRAPE, 7, 0.55);
+  orb(f,  104, SY-5.0, 0.4, 7.0, DRAPE, 7, 0.55);
+
+  // ---- the banner, strung high over the courtyard ----
+  {
+    const CLOTH="#F6EBD6", EDGE="#C9A227", INK="#7E1E2B",
+          POLE="#8A7F70", ROPE="#6E6458";
+    const BX = 196, BZ0 = 132, BH = 60, BY = SY - 4;
+
+    for(const sx of [-1,1]){                       // the poles
+      prism(f, sx*BX, BY, 0, 2.6, BZ0 + BH + 16, 8, POLE, 0, false);
+      prism(f, sx*BX, BY, BZ0 + BH + 16, 1.4, 5, 6, GOLD);
+      box  (f, sx*(BX - 7), BY, BZ0 + BH - 2, 14, 3, 2.4, ROPE);
+    }
+    box(f, 0, BY, BZ0 + BH,  BX*2, 3, 2.4, ROPE);  // the rope it hangs from
+
+    box(f, 0, BY, BZ0, BX*2 - 12, 3.4, BH, CLOTH); // the cloth
+    box(f, 0, BY, BZ0 + BH - 4, BX*2 - 6, 4.2, 4, EDGE);
+    box(f, 0, BY, BZ0,          BX*2 - 6, 4.2, 4, EDGE);
+    for(let k=-12;k<=12;k++)                        // scalloped lower edge
+      box(f, k*15.5, BY, BZ0 - 5, 9, 4.0, 6, EDGE);
+
+    blockText(f, "TOI TOI TOI!", 0, BY - 3.4, BZ0 + 15, 3.5, 3.0, INK);
+  }
+
+  // ---- the lighting scaffold ----
+  for(const dx of [-3.2, 3.2]) for(const dy of [-3.2, 3.2])
+    box(f, 104+dx, SY-1+dy, DZ, 0.7, 0.7, 26, STEEL);
+  for(let k=0;k<6;k++){
+    box(f, 104, SY-1, DZ+k*4.4, 7.1, 0.5, 0.5, STEEL);
+    box(f, 104, SY-1+3.2, DZ+k*4.4, 0.5, 7.1, 0.5, STEEL);
+  }
+  for(let k=0;k<3;k++) box(f, 104, SY-4.6, DZ+16+k*4, 1.6, 1.6, 1.6, "#2A2A2C");
+
+  return f;
+}
+
+
+/* ---- the pink gate, with its great black keyhole ----------------------
+   The wall is emitted as horizontal strips; at each height we work out how
+   wide the keyhole is and leave that much of the strip out, which is the only
+   way to cut a hole in a renderer that has no holes. */
+function keyholeModel(){
+  const f = [];
+  const PINK="#E8679B", PINK2="#CF5285", PINK3="#B84373", BLACK="#0C0A10";
+  const HALF = 118, TOP = 150, DEPTH = 132;
+  const R = 47, CZ = 66, SLOT_T = 15, SLOT_B = 31, SLOT_Z = 0;
+
+  const opening = z => {
+    const dz = z - CZ;
+    const circ = Math.abs(dz) <= R ? Math.sqrt(R*R - dz*dz) : 0;
+    const slot = (z <= CZ && z >= SLOT_Z) ? lerp(SLOT_T, SLOT_B, (CZ - z)/(CZ - SLOT_Z)) : 0;
+    return Math.max(circ, slot);
+  };
+
+  // --- a plain pink face, with the keyhole cut out of it ---
+  const N = 14, h = TOP/N;
+  for(let i=0;i<N;i++){
+    const z0 = i*h, o = opening(z0 + h/2);
+    if(o <= 0){
+      box(f, 0, 0, z0, HALF*2, 14, h*1.04, PINK);
+    } else {
+      const w = HALF - o;
+      for(const sx of [-1,1]){
+        box(f, sx*(o + w/2), 0, z0, w, 14, h*1.04, PINK);
+        box(f, sx*(o + 2.6), -2.0, z0, 5.2, 12, h*1.04, BLACK);
+      }
+    }
+  }
+
+  // --- the block itself ---
+  for(const sx of [-1,1]) box(f, sx*(HALF-7), DEPTH/2, 0, 15, DEPTH, TOP, PINK2);
+  box(f, 0, DEPTH/2, TOP, HALF*2+8, DEPTH+10, 10, PINK2);
+  for(let i=0;i<N;i++){                                    // the far face
+    const z0 = i*h, o = opening(z0 + h/2);
+    if(o <= 0){ box(f, 0, DEPTH, z0, HALF*2, 14, h*1.04, PINK2); }
+    else {
+      const w = HALF - o;
+      for(const sx of [-1,1]) box(f, sx*(o + w/2), DEPTH, z0, w, 14, h*1.04, PINK2);
+    }
+  }
+
+  // --- the throat, receding into the dark ---
+  const THROAT = ["#8A2C55","#5A1A36","#2C0B1C","#0B0209"];
+  for(let t=0;t<THROAT.length;t++){
+    const yy = 15 + t*((DEPTH-22)/THROAT.length);
+    for(let i=0;i<N;i++){
+      const z0 = i*h, o = opening(z0 + h/2);
+      if(o <= 0){ box(f, 0, yy, z0, HALF*2, 11, h*1.04, THROAT[t]); }
+      else {
+        const w = HALF - o;
+        for(const sx of [-1,1]) box(f, sx*(o + w/2), yy, z0, w, 11, h*1.04, THROAT[t]);
+      }
+    }
+  }
+
+  // --- ivy, over the parapet and trailing down every face ---
+  // Built coarse and in few, large clumps: drawn fine it ran to ten thousand
+  // faces on its own and swamped the frame.
+  const hash = n => { const x = Math.sin(n*127.1 + 311.7)*43758.5453; return x - Math.floor(x); };
+  const LEAF = ["#3E6B2C","#4E7C36","#2F5824","#5C8A3E","#356024"];
+  const leaf = i => LEAF[(i*7)%LEAF.length];
+  const wasLOD = LOD; LOD = 0;
+
+  for(let k=0;k<13;k++){                                  // the mat along the top
+    const x = -HALF + (k/12)*HALF*2;
+    const bulk = 11 + hash(k)*7;
+    orb(f, x, 4, TOP + 4, bulk, leaf(k), 6, 0.6);
+    orb(f, x, DEPTH - 6, TOP + 4, bulk*0.85, leaf(k+3), 6, 0.6);
+  }
+  for(let k=0;k<9;k++){                                   // strands down the front
+    const x = -HALF + 10 + (k/8)*(HALF*2 - 20);
+    const drop = 30 + hash(k+40)*80;
+    if(Math.abs(x) < opening(TOP - drop*0.5) + 14) continue;
+    for(let d=0; d<drop; d+=22)
+      orb(f, x + Math.sin(d*0.2 + k)*5, -3, TOP - d, 7 + hash(k*3+d)*4, leaf(k+d), 5, 0.8);
+  }
+  for(const sx of [-1,1]) for(let k=0;k<5;k++){           // and down the sides
+    const y = 12 + (k/4)*(DEPTH - 24);
+    const drop = 34 + hash(k + (sx>0?70:90))*76;
+    for(let d=0; d<drop; d+=22)
+      orb(f, sx*(HALF - 2), y + Math.sin(d*0.2 + k)*4, TOP - d,
+          6.5 + hash(k*5+d)*3.5, leaf(k+d+3), 5, 0.8);
+  }
+  for(let k=0;k<7;k++){                                   // tendrils round the arch
+    const ang = Math.PI*(0.08 + 0.84*(k/6));
+    const rr = R + 10;
+    orb(f, Math.cos(ang)*rr, -4, CZ + Math.sin(ang)*rr, 6, leaf(k+1), 5, 0.85);
+  }
+  LOD = wasLOD;
+
+  return f;
+}
+
+/* The blackness behind the keyhole. It has to be cut to the same silhouette
+   as the aperture: drawn as a plain slab it simply painted a black rectangle
+   over the front of the building. */
+function curtainModel(){
+  const f = [];
+  const TOP = 150, R = 47, CZ = 66, SLOT_T = 15, SLOT_B = 31;
+  const opening = z => {
+    const dz = z - CZ;
+    const circ = Math.abs(dz) <= R ? Math.sqrt(R*R - dz*dz) : 0;
+    const slot = z <= CZ ? lerp(SLOT_T, SLOT_B, (CZ - z)/CZ) : 0;
+    return Math.max(circ, slot);
+  };
+  const N = 30, h = TOP/N;
+  for(let i=0;i<N;i++){
+    const o = opening(i*h + h/2);
+    if(o > 0) box(f, 0, 9.0, i*h, o*2, 1.6, h*1.06, "#050409");
+  }
+  return f;
+}
+
+/* ---- things hanging in the dark -------------------------------------- */
+function skeletonModel(){
+  const f=[]; const B="#DCD6C2", B2="#BFB8A2", RUST="#5A4438";
+  prism(f, 0,0, 24, 0.5, 12, 5, RUST, 0, false);             // the chain
+  orb  (f, 0,0, 21.0, 2.4, B, 8, 1.0);                        // skull
+  for(const sx of [-1,1]) box(f, sx*1.0, -1.9, 22.2, 1.0, 0.5, 1.0, "#17131A"); // sockets
+  box(f, 0, 0, 19.4, 3.2, 1.6, 1.6, B2);                      // jaw
+  for(let k=0;k<5;k++) box(f, 0, 0, 13.5+k*1.4, 4.6-k*0.3, 2.2, 0.7, B);        // ribs
+  box(f, 0, 0, 12.0, 1.4, 1.2, 8.0, B2);                      // spine
+  for(const sx of [-1,1]){
+    box(f, sx*2.9, 0, 13.0, 0.8, 0.8, 7.5, B2);               // arms
+    box(f, sx*1.4, 0, 6.0, 0.9, 0.9, 6.5, B2);                // legs
+    box(f, sx*1.4, -0.8, 5.4, 1.0, 2.2, 0.8, B);              // feet
+  }
+  return f;
+}
+function corpseModel(){
+  const f=[]; const WRAP="#8E8672", WRAP2="#6E6656", RUST="#5A4438", BLOOD="#5E1016";
+  prism(f, 0,0, 26, 0.5, 10, 5, RUST, 0, false);
+  orb  (f, 0,0, 21.5, 2.7, WRAP, 7, 1.05);
+  prism(f, 0,0, 10.5, 2.6, 11.5, 7, WRAP, 0, false);
+  for(let k=0;k<5;k++) box(f, 0, 0, 12+k*2.4, 5.6, 5.6, 0.7, WRAP2);   // bindings
+  box(f, 0, -2.6, 14.0, 3.0, 0.8, 4.5, BLOOD);
+  box(f, 0, 0, 8.0, 2.2, 2.2, 3.0, WRAP2);
+  return f;
+}
+function cageModel(){
+  const f=[]; const IRON="#3E3630", IRON2="#544A40", B="#DCD6C2";
+  prism(f, 0,0, 30, 0.5, 8, 5, IRON2, 0, false);
+  box(f, 0,0, 28.5, 8.5, 8.5, 1.4, IRON2);                    // top hoop
+  box(f, 0,0, 14.5, 8.5, 8.5, 1.4, IRON2);                    // bottom hoop
+  for(const sx of [-1,1]) for(const sy of [-1,1])
+    box(f, sx*3.6, sy*3.6, 15, 1.0, 1.0, 14, IRON);
+  for(const sx of [-1,1]){
+    box(f, sx*3.6, 0, 15, 1.0, 7.6, 14, IRON);
+    box(f, 0, sx*3.6, 15, 7.6, 1.0, 14, IRON);
+  }
+  orb(f, 0.6, 0, 22.5, 2.1, B, 7, 1.0);                       // the occupant
+  for(let k=0;k<3;k++) box(f, 0.6, 0, 18+k*1.4, 3.4, 1.8, 0.6, B);
+  return f;
+}
+function chainsModel(){
+  const f=[]; const RUST="#5A4438", RUST2="#463428";
+  for(const sx of [-1, 0, 1]){
+    const len = 16 + Math.abs(sx)*7;
+    prism(f, sx*2.6, 0, 34-len, 0.55, len, 5, sx ? RUST2 : RUST, 0, false);
+    box(f, sx*2.6, 0, 33-len, 2.4, 1.2, 1.6, RUST);           // the shackle
+  }
+  return f;
+}
+function spiderModel(){
+  const f=[]; const BODY="#171018", LEG="#241A26", EYE="#C43A3A";
+  prism(f, 0,0, 26, 0.30, 12, 5, "#4A4450", 0, false);        // the thread
+  orb  (f, 0,0, 23.0, 1.5, BODY, 7, 0.9);                      // abdomen
+  orb  (f, 0,-1.7, 23.6, 0.95, BODY, 7, 0.9);                  // head
+  for(const sx of [-1,1]) box(f, sx*0.45, -2.4, 24.2, 0.34, 0.34, 0.34, EYE);
+  for(const sx of [-1,1]) for(let k=0;k<4;k++){
+    const sp = 1.2 + k*0.55;
+    box(f, sx*sp, -1.2 + k*0.9, 23.4, 2.2, 0.26, 0.26, LEG);
+    box(f, sx*(sp+1.1), -1.2 + k*0.9, 22.2, 0.26, 0.26, 1.6, LEG);
+  }
+  return f;
+}
+/* A slice of the tunnel: solid rock with a keyhole bored through it. Stack
+   these along the course and you are rowing down a keyhole-shaped bore. */
+function ringModel(kind){
+  const ROCK  = ["#332B33","#2A232B","#3C323C"][kind];
+  const ROCK2 = ["#241E26","#1E1922","#2C242E"][kind];
+  const f = [];
+  const HALF = 104, TOP = 132, DEEP = 58;
+  const R = 47, CZ = 66, SLOT_T = 16, SLOT_B = 33;
+  const opening = z => {
+    const dz = z - CZ;
+    const circ = Math.abs(dz) <= R ? Math.sqrt(R*R - dz*dz) : 0;
+    const slot = z <= CZ ? lerp(SLOT_T, SLOT_B, (CZ - z)/CZ) : 0;
+    return Math.max(circ, slot);
+  };
+  const N = 8, h = TOP/N;
+  for(let i=0;i<N;i++){
+    const z0 = i*h, o = opening(z0 + h/2);
+    if(o <= 0){
+      box(f, 0, 0, z0, HALF*2, DEEP, h*1.06, i%2 ? ROCK : ROCK2);
+    } else {
+      const w = HALF - o;
+      for(const sx of [-1,1]) box(f, sx*(o + w/2), 0, z0, w, DEEP, h*1.06, i%2 ? ROCK : ROCK2);
+    }
+  }
+  return f;
+}
+
+/* The culvert that carries the surface strand over the tunnel. */
+function bridgeModel(){
+  const f=[]; const S="#6E6458", S2="#584F45", CAP="#8A7F70";
+  for(const sx of [-1,1]){
+    box(f, sx*74, 0, -4, 34, 120, 20, S2);            // abutments
+    box(f, sx*74, 0, 16, 38, 126, 5, CAP);
+  }
+  box(f, 0, 0, 12, 116, 126, 8, S);                    // the deck
+  box(f, 0, 0, 20, 122, 132, 4, CAP);
+  for(const sy of [-1,1]){                             // parapets
+    box(f, 0, sy*60, 24, 122, 6, 9, CAP);
+    for(let k=-7;k<=7;k++) box(f, k*8.2, sy*60, 24, 3.4, 8, 12, S);
+  }
+  return f;
+}
+
+function roofModel(){
+  const f=[]; const R1="#2A2430", R2="#211B26", R3="#352D3A";
+  box(f, 0, 0, 0, 176, 16, 7, R1);                             // the slab
+  box(f, 0, 0, 7, 176, 16, 4, R2);
+  for(const sx of [-1,1]) box(f, sx*72, 0, -5, 26, 16, 6, R3);  // haunches
+  for(let k=-2;k<=2;k++) box(f, k*34, 0, -3, 9, 17, 4, R3);     // ribs
+  return f;
+}
+function stalactiteModel(){
+  const f=[]; const ST="#4A3E48", ST2="#3A303A";
+  for(let k=0;k<5;k++)
+    prism(f, 0, 0, 30 - k*4.4, 3.6 - k*0.68, 4.6, 6, k%2 ? ST : ST2, 0, false);
+  return f;
+}
+
+/* ---- bats ---------------------------------------------------------- */
+function batModel(pose){
+  const f = [];
+  const B = "#241C28", B2 = "#171220";
+  box(f, 0, 0, 0, 1.1, 1.7, 0.9, B);                    // body
+  box(f, 0, -0.95, 0.25, 0.7, 0.6, 0.6, B);             // head
+  for(const sx of [-1,1]){
+    box(f, sx*0.5, -0.9, 0.75, 0.22, 0.22, 0.45, B);    // ears
+    const up = [0.9, 0.2, -0.5][pose];
+    box(f, sx*1.9, 0.1, 0.3 + up, 2.6, 1.5, 0.20, B2);  // wings
+    box(f, sx*3.4, 0.1, 0.3 + up*1.5, 1.4, 1.1, 0.18, B2);
+  }
+  return f;
+}
+
+/* ---- the monster: enormous, and hobbling on two crutches ------------- */
+function monsterModel(){
+  const f = [];
+  const HIDE="#4A5A3E", HIDE2="#3A4832", BELLY="#6E7A52", HORN="#D8CDA8",
+        EYE="#F2D24A", WOOD="#7A5C34", BAND="#E8E2D2", BLOOD="#6E1418";
+  // legs — one of them bandaged and clearly not right
+  prism(f, -3.2, 0, 0, 2.2, 9.5, 8, HIDE2, 0, false);
+  prism(f,  3.4, 0, 0, 2.4, 6.0, 8, HIDE2, 0, false);
+  prism(f,  3.4, 0, 6.0, 2.6, 3.6, 8, BAND, 0, false);        // the strapping
+  box  (f,  3.4, -1.2, 7.2, 3.4, 0.8, 1.0, BLOOD);            // seeped through
+  prism(f,  3.6, -1.4, 0, 2.9, 1.8, 8, HIDE2, 0, false);      // the bad foot, swollen
+  // body
+  prism(f, 0, 0, 9.0, 5.4, 7.5, 10, HIDE, 0, false);
+  prism(f, 0,-2.6, 9.4, 3.9, 6.4, 9, BELLY, 0, false);
+  prism(f, 0, 0, 16.5, 4.6, 2.0, 10, HIDE, 0);                // shoulders
+  // head
+  orb  (f, 0,-0.7, 17.4, 3.5, HIDE, 9, 1.0);
+  for(const sx of [-1,1]){
+    box(f, sx*1.5, -4.0, 21.4, 1.5, 1.2, 1.1, EYE);           // eyes
+    box(f, sx*1.5, -4.3, 21.4, 0.7, 0.8, 0.7, "#160E08");
+    prism(f, sx*2.4, 0.6, 23.2, 0.9, 3.6, 6, HORN, 0);        // horns
+  }
+  box(f, 0, -4.2, 18.6, 4.2, 1.0, 0.9, "#2A1218");            // mouth
+  for(let k=-2;k<=2;k++) box(f, k*0.9, -4.5, 18.8, 0.45, 0.7, 0.8, BAND);  // teeth
+  // arms and the crutches under them
+  for(const sx of [-1,1]){
+    prism(f, sx*5.6, -0.6, 10.0, 1.5, 6.4, 7, HIDE, 0, false);
+    prism(f, sx*6.6, -1.4, 0.0, 0.75, 12.0, 6, WOOD, 0, false);   // shaft
+    box  (f, sx*6.6, -1.4, 12.0, 4.2, 1.4, 1.1, WOOD);            // the pad
+    box  (f, sx*6.6, -1.4, 6.4, 3.0, 1.0, 0.8, WOOD);             // grip
+  }
+  return f;
+}
+
+const MODEL = {
+  buoy: buoyModel(),
+  schloss: schlossModel(),
+  keyhole: keyholeModel(),
+  curtain: curtainModel(),
+  monster: monsterModel(),
+  bats: [batModel(0), batModel(1), batModel(2)],
+  hang: [skeletonModel(), corpseModel(), cageModel(), chainsModel(), stalactiteModel(), spiderModel()],
+  roof: roofModel(),
+  rings: [ringModel(0), ringModel(1), ringModel(2)],
+};
+// yaw that lines the courtyard up with the direction of travel
+const SCHLOSS_YAW = (()=>{ const t = splineTangent(0); return Math.atan2(t[0], t[1]); })();
+
+/* ---------------------------------------------------------------
+   5b. The audience on the quays either side of the stage
+   Poses are pre-built once and reused; the bounce is applied at draw
+   time as a height offset, so nothing is rebuilt per frame.
+   --------------------------------------------------------------- */
+const AUD_COATS = ["#4E6E8C","#8C4A4A","#5A6E48","#7A5A8C","#B0763A","#3E4A5A","#96604A","#5E7E7E"];
+const AUD_HAIR  = ["#2A1E16","#5A4028","#C4A469","#8A6A3A","#E0DAC8","#3A2A20"];
+const AUD_SKIN  = ["#E0B389","#D0A075","#C08A62","#EAC49E"];
+const ROW_MODELS = [];
+const ROW_FAR    = [];
+const ROWS       = [];
+const BATS       = [];
+const HANGING    = [];
+const DUNRING    = [];
+let GATE = null, EXIT = null, MONSTER = null;
+const GATES = [];
+
+function wallModel(kind, h){
+  const f = [];
+  const S1="#3A3038", S2="#2E2630", S3="#463A44", BLOOD="#5E1016";
+  for(let k=0;k<4;k++){
+    const z = k*(h/4);
+    box(f, 0, 0, z, 30 - (k%2)*3, 15, h/4 + 0.6, k%2 ? S1 : S2);
+  }
+  box(f, 0, -7.4, 0, 28, 1.6, h, kind===1 ? S3 : S1);          // face course
+  if(kind===2){                                                 // streaked
+    box(f, -4, -8.4, h*0.45, 2.4, 1.2, h*0.5, BLOOD);
+    box(f,  5, -8.4, h*0.30, 1.6, 1.2, h*0.34, BLOOD);
+  }
+  box(f, 0, 0, h, 34, 18, 3, S3);                               // corbel
+  return f;
+}
+
+function buildDungeon(){
+  const gi = Math.round(GATE_I/900*SPINE_N) % SPINE_N;
+  const gp = SPINE[gi], gt = splineTangent(gi/SPINE_N*NODES.length);
+  GATE = { x:gp[0], y:gp[1], yaw: Math.atan2(gt[0], gt[1]), entry:true };
+
+  // and the portal you come back out of, into daylight
+  const ei = Math.round(EXIT_I/900*SPINE_N) % SPINE_N;
+  const ep = SPINE[ei], et = splineTangent(ei/SPINE_N*NODES.length);
+  EXIT = { x:ep[0], y:ep[1], yaw: Math.atan2(et[0], et[1]), entry:false };
+  GATES.push(GATE, EXIT);
+
+  // the monster, on a ledge about halfway down
+  const mi = Math.round(700/900*SPINE_N) % SPINE_N;
+  const mp = SPINE[mi], mt = splineTangent(mi/SPINE_N*NODES.length);
+  MONSTER = { x: mp[0] + mt[1]*74, y: mp[1] - mt[0]*74,
+              yaw: Math.atan2(-mt[1], mt[0]) };
+
+  // The bore: keyhole-shaped rings all the way down, rising and falling so
+  // the tunnel rolls like a switchback.
+  let rn = 0;
+  for(let t = GATE_I + 16; t <= EXIT_I - 8; t += 11.4){
+    const si = Math.round(t/900*SPINE_N) % SPINE_N;
+    const p = SPINE[si], tg = splineTangent(si/SPINE_N*NODES.length);
+    DUNRING.push({ x:p[0], y:p[1], yaw: Math.atan2(tg[0], tg[1]),
+                   z: tunnelRise(t), m: rn % 3 });
+    rn++;
+  }
+
+  // skeletons, corpses, cages, chains, spiders
+  let hn = 0;
+  for(let t = GATE_I + 22; t <= EXIT_I - 10; t += 11){
+    const si = Math.round(t/900*SPINE_N) % SPINE_N;
+    const p = SPINE[si], tg = splineTangent(si/SPINE_N*NODES.length);
+    const side = (hn % 2) ? 1 : -1;
+    const off = side * (10 + (hn % 5)*7);
+    HANGING.push({ x: p[0] + tg[1]*off, y: p[1] - tg[0]*off,
+                   m: hn % 6, ph: hn*0.9,
+                   z: tunnelRise(t) + 34 + (hn % 4)*7 });
+    hn++;
+  }
+
+  // bats, wheeling under the roof
+  for(let i=0;i<22;i++){
+    const t = DUN_A + (i/22)*(DUN_B - DUN_A);
+    const si = Math.round(t/900*SPINE_N) % SPINE_N;
+    const p = SPINE[si];
+    BATS.push({ cx:p[0], cy:p[1], r: 18 + (i%4)*11, ph: i*1.31,
+                sp: 0.9 + (i%5)*0.22, h: tunnelRise(t) + 42 + (i%5)*7 });
+  }
+}
+
+/* A row of six spectators in their blue chairs. Built as one model so the
+   audience costs a handful of draw calls rather than a hundred. */
+function rowModel(seed, pose){
+  const f = [];
+  const CHAIR = "#2E5490", CHAIR2 = "#24406F", LEG = "#3A3A44";
+  for(let k=0;k<10;k++){
+    const x = (k - 4.5) * 7.4;
+    const c = AUD_COATS[(seed*7 + k*3) % AUD_COATS.length];
+    const hair = AUD_HAIR[(seed*5 + k) % AUD_HAIR.length];
+    const skin = AUD_SKIN[(seed*3 + k*2) % AUD_SKIN.length];
+
+    // the chair
+    box(f, x, 0.4, 0,   7.0, 6.6, 0.5, CHAIR2);        // seat pan
+    box(f, x, 0.4, 0.5, 6.2, 6.0, 0.6, CHAIR);
+    box(f, x, 3.2, 1.1, 6.2, 0.8, 5.0, CHAIR);         // back
+    for(const sx of [-1,1]) for(const sy of [-1,1])
+      box(f, x + sx*2.6, 0.4 + sy*2.6, -2.4, 0.6, 0.6, 2.4, LEG);
+
+    // the spectator on it
+    box  (f, x, -2.2, -2.4, 2.6, 1.6, 2.6, LEG);       // shins
+    box  (f, x, -0.9, 1.1,  3.0, 3.4, 0.9, LEG);       // thighs
+    prism(f, x, 0.6, 1.9, 2.0, 3.4, 7, c, 0, false);   // torso
+    for(const sx of [-1,1])
+      prism(f, x + sx*2.2, 0.2, 2.4, 0.7, 2.6, 6, c, 0, false);   // arms
+    orb  (f, x, 0.6, 5.2, 1.7, skin, 7, 1.0);          // head
+    orb  (f, x, 1.1, 5.6, 1.8, hair, 6, 0.66);         // hair
+    if(pose === 1){                                     // hands up, applauding
+      for(const sx of [-1,1]) orb(f, x + sx*1.5, -1.4, 6.4, 0.85, skin, 6, 0.9);
+    }
+  }
+  for(const face of f) for(const v of face.v){ v[0]*=0.36; v[1]*=0.36; v[2]*=0.36; }
+  return f;
+}
+
+/* The same row, for when it is only a few pixels tall: a chair, a body and a
+   head each. Three boxes a person instead of thirty. */
+function rowModelFar(seed){
+  const f = [];
+  for(let k=0;k<10;k++){
+    const x = (k - 4.5) * 7.4;
+    const c = AUD_COATS[(seed*7 + k*3) % AUD_COATS.length];
+    const hair = AUD_HAIR[(seed*5 + k) % AUD_HAIR.length];
+    box(f, x, 1.6, 0,   4.6, 4.6, 3.0, "#2A4A80");
+    box(f, x, 0.4, 1.9, 2.8, 2.4, 3.2, c);
+    box(f, x, 0.6, 5.1, 2.1, 2.1, 2.0, hair);
+  }
+  for(const face of f) for(const v of face.v){ v[0]*=0.36; v[1]*=0.36; v[2]*=0.36; }
+  return f;
+}
+
+function personModel(coat, hair, skin, pose){
+  const f = [];
+  prism(f, 0, 0, 0,    0.36, 0.92, 7, "#3A3A44", 0, false);          // legs
+  prism(f, 0, 0, 0.90, 0.44, 0.98, 8, coat, 0, false);               // body
+  orb  (f, 0, 0, 1.72, 0.40, skin, 8, 1.0);                          // head
+  orb  (f, 0, 0, 1.86, 0.42, hair, 7, 0.55);                         // hair
+  // arms: down, mid-clap, or hands together up
+  const ay = [0.0, -0.34, -0.46][pose];
+  const ax = [0.52, 0.34, 0.15][pose];
+  const az = [1.10, 1.42, 1.62][pose];
+  for(const sx of [-1,1]) prism(f, sx*ax, ay, az, 0.16, 0.50, 6, coat, 0, false);
+  if(pose === 2) orb(f, 0, ay-0.06, az+0.42, 0.20, skin, 6, 0.9);    // hands met
+  // the palace is enormous; scale the crowd up so they still read as people
+  for(const face of f) for(const v of face.v){ v[0]*=1.45; v[1]*=1.45; v[2]*=1.45; }
+  return f;
+}
+
+function buildAudience(){
+  // Rows of chairs on the cobbles, fanning out either side of the water and
+  // all facing the stage.
+  for(let seed=0; seed<3; seed++){
+    ROW_MODELS[seed] = [];
+    LOD = 1;
+    for(let ps=0; ps<2; ps++) ROW_MODELS[seed][ps] = rowModel(seed, ps);
+    ROW_FAR[seed] = rowModelFar(seed);
+  }
+  // The courtyard is dry, so the house simply fills it: ranks of chairs across
+  // the whole floor, facing the stage, with the racing line right overhead.
+  const cw2 = Math.cos(SCHLOSS_YAW), sw2 = Math.sin(SCHLOSS_YAW);
+  for(let row=0; row<8; row++){
+    const ly = 30 - row*11;
+    for(let blk=-1; blk<=1; blk++){
+      const lx = blk*34 + (row % 2 ? 8 : 0);
+      ROWS.push({
+        x: SCHLOSS[0] + cw2*lx + sw2*ly,
+        y: SCHLOSS[1] - sw2*lx + cw2*ly,
+        m: (row + blk + 5) % 3,
+        ph: row*0.6 + blk*1.3,
+      });
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   6. Game state
+   --------------------------------------------------------------- */
+const cvs = document.getElementById("screen");
+// Drive the canvas backing store from W/H so the two can never disagree —
+// a mismatch silently clips putImageData and eats the edges of the frame.
+cvs.width = W; cvs.height = H;
+const ctx = cvs.getContext("2d", { alpha:false });
+ctx.imageSmoothingEnabled = false;
+const img = ctx.createImageData(W,H);
+const buf = new Uint32Array(img.data.buffer);
+const mapData = () => mapPix.data;
+let mapU32;
+
+const G = {
+  mode:"menu",          // menu | countdown | race | done
+  players:1,
+  laps:2,
+  field:8,
+  sound:true,
+  pick:1,               // index into CAST for player 1
+  pick2:0,
+  boats:[],
+  potatoes:[],
+  buoys:[],
+  t:0,                  // race clock, seconds
+  countdown:3,
+  raceStart:0,
+  touchUI:false,
+  net:false, netOrder:null,
+  parts: [],        // confetti and firework sparks
+  pending: [],      // bursts waiting to go off
+  lastShow: -9,
+};
+
+/* ---------------------------------------------------------------
+   7. Boats
+   --------------------------------------------------------------- */
+/* Nearest course sample to a spawn point, forced to sit behind the line so
+   the first crossing starts the race rather than completing a lap. */
+function startU(x,y){
+  let best=0, bd=Infinity;
+  for(let i=0;i<SPINE_N;i++){
+    const dx=SPINE[i][0]-x, dy=SPINE[i][1]-y, d=dx*dx+dy*dy;
+    if(d<bd){ bd=d; best=i; }
+  }
+  return best < SPINE_N*0.5 ? SPINE_N-2 : best;
+}
+
+function makeBoat(ch, human, lane, hue){
+  const SP = START_I/900*NODES.length;
+  const [px,py] = spline(SP);
+  const t = splineTangent(SP);
+  const ang = Math.atan2(t[0], t[1]);            // our angle: 0 = +y
+  const nx = Math.cos(ang), ny = -Math.sin(ang); // starboard vector
+  const back = 14 + lane * 11;
+  const bx = px + nx*((lane%4)-1.5)*17 - t[0]*back;
+  const by = py + ny*((lane%4)-1.5)*17 - t[1]*back;
+  return {
+    ch, human, lane,
+    x: bx, y: by,
+    a: ang,
+    sp: 0,
+    fat: 0,
+    oar: Math.random()*TAU,
+    u: (START_U - 2 + SPINE_N) % SPINE_N, lap: -1, prog: 0,
+    z: 0, vz: 0, camZ: 0, rise: 0, camRise: 0, airFx: 0, gateJam: 0, lost: 0,
+    strokeFx: 0, autoT: 0,
+    kx: 0, ky: 0,
+    boost: 0, stun: 0,
+    lastStroke: -9,
+    finished: false, time: 0, place: 0,
+    aiSkill: 0.55 + Math.random()*0.4,
+    aiJit: Math.random()*TAU,
+    camA: ang, camX: bx - t[0]*CAM_BACK, camY: by - t[1]*CAM_BACK,
+    spudFx: 0, boostFx: 0,
+  };
+}
+
+/* Tuned so one lap of the Grienericksee takes a little over 20 seconds —
+   long enough to hunt potatoes, short enough to keep a party interested. */
+const BASE_TOP = 1.30, BASE_ACC = 0.030, BASE_TURN = 0.022;
+
+/* Potatoes are the whole joke, so they have to be felt as well as seen.
+   Each one is worth a real 6% on the top end. The player swells three times
+   faster than the rest of the field — by the last lap you are a barge with a
+   giant in it, and everyone watching can see exactly why you are winning. */
+function girth(b){ return b.fat * (b.human ? 0.42 : 0.05); }
+
+function boatStats(b){
+  const laps = b.ch.studious ? Math.max(0, b.lap) * 0.06 : 0;   // he works it out
+  const top  = BASE_TOP * b.ch.top * (1 + b.fat*0.085 + laps);
+  const acc  = BASE_ACC * b.ch.accel * (1 - b.fat*0.012);
+  const turn = BASE_TURN * b.ch.turn * Math.max(0.40, 1 - b.fat*0.042);
+  const rad  = 4.2 + b.fat*(b.human ? 0.85 : 0.34);
+  return { top, acc, turn, rad };
+}
+
+/* ---------------------------------------------------------------
+   7b. Confetti and fireworks over the stage
+   --------------------------------------------------------------- */
+const CONFETTI = ["#E4C24A","#C0342B","#F4EFE0","#4E7FA8","#6E8C48","#C9A227","#D97A2B","#7E1E2B"];
+const SPARKS   = ["#FFE9A8","#FFD24A","#FF8A3D","#FF5A5A","#FFFFFF","#9BE7FF","#C7A0FF"];
+
+function spawnConfetti(cx, cy, cz, n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*TAU, r = Math.random()*78;
+    G.parts.push({
+      x: cx + Math.cos(a)*r, y: cy + Math.sin(a)*r, z: cz + Math.random()*22,
+      vx:(Math.random()-0.5)*0.20, vy:(Math.random()-0.5)*0.20, vz:-0.05-Math.random()*0.06,
+      g: 0.0016, drag: 0.995,
+      life: 3.2 + Math.random()*2.4, fade: 1.0,
+      size: 0.42 + Math.random()*0.5,
+      col: CONFETTI[(Math.random()*CONFETTI.length)|0],
+      flutter: true,
+    });
+  }
+}
+function spawnBurst(cx, cy, cz){
+  const col = SPARKS[(Math.random()*SPARKS.length)|0];
+  for(let i=0;i<26;i++){
+    const a = Math.random()*TAU, e = Math.random()*Math.PI - Math.PI/2;
+    const sp = 0.42 + Math.random()*0.42;
+    G.parts.push({
+      x: cx, y: cy, z: cz,
+      vx: Math.cos(a)*Math.cos(e)*sp, vy: Math.sin(a)*Math.cos(e)*sp, vz: Math.sin(e)*sp,
+      g: 0.011, drag: 0.965,
+      life: 1.1 + Math.random()*0.9, fade: 0.8,
+      size: 0.8 + Math.random()*0.7,
+      col: Math.random()<0.22 ? "#FFFFFF" : col,
+      flutter: false,
+    });
+  }
+}
+
+/* Fired when a boat leaves the ramp: the set gets a send-off. */
+function stageShow(){
+  if(G.t - G.lastShow < 2.4) return;
+  G.lastShow = G.t;
+  const sx = SCHLOSS[0], sy = SCHLOSS[1];
+  spawnConfetti(sx, sy, 40, 260);
+  for(let i=0;i<8;i++){
+    const a = Math.random()*TAU, r = 16 + Math.random()*46;
+    G.pending.push({ at: G.t + 0.10 + i*0.22,
+                     x: sx + Math.cos(a)*r, y: sy + Math.sin(a)*r,
+                     z: 40 + Math.random()*26 });
+  }
+}
+
+function stepParticles(dt){
+  for(let i=G.pending.length-1;i>=0;i--){
+    if(G.t >= G.pending[i].at){
+      const b = G.pending[i];
+      spawnBurst(b.x, b.y, b.z);
+      SFX.firework();
+      G.pending.splice(i,1);
+    }
+  }
+  for(let i=G.parts.length-1;i>=0;i--){
+    const q = G.parts[i];
+    q.life -= dt;
+    if(q.life <= 0 || q.z < -2){ G.parts.splice(i,1); continue; }
+    const k = 60*dt;
+    q.vz -= q.g*k;
+    q.vx *= Math.pow(q.drag, k); q.vy *= Math.pow(q.drag, k); q.vz *= Math.pow(q.drag, k);
+    if(q.flutter){
+      q.vx += Math.sin((q.z + G.t*3)*1.7)*0.004*k;
+      q.vy += Math.cos((q.z + G.t*2.3)*1.9)*0.004*k;
+    }
+    q.x += q.vx*k; q.y += q.vy*k; q.z += q.vz*k;
+  }
+  // grit and drips out of the tunnel roof, wherever the player happens to be
+  const who = G.boats.find(b=>b.human===1);
+  if(who && tunnelAtU(who.u) > 0.4 && G.parts.length < 340){
+    for(let i=0;i<2;i++){
+      const a = Math.random()*TAU, r = 20 + Math.random()*90;
+      G.parts.push({
+        x: who.x + Math.cos(a)*r, y: who.y + Math.sin(a)*r, z: 52,
+        vx:0, vy:0, vz:-0.18 - Math.random()*0.22,
+        g: 0.010, drag: 1,
+        life: 2.4, fade: 0.7,
+        size: 0.30 + Math.random()*0.45,
+        col: Math.random()<0.4 ? "#8E1A20" : (Math.random()<0.5 ? "#4A4450" : "#6B6270"),
+        flutter: false,
+      });
+    }
+  }
+  if(G.parts.length > 760) G.parts.splice(0, G.parts.length-760);
+}
+
+/* ---------------------------------------------------------------
+   8. Input
+   --------------------------------------------------------------- */
+const keys = Object.create(null);
+const touchState = { steer:0, stick:false, gas:false, brake:false, strokeEdge:false };
+addEventListener("keydown", e=>{
+  if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  if(!keys[e.code]) keys[e.code+"_edge"] = true;
+  keys[e.code]=true;
+});
+addEventListener("keyup",   e=>{ keys[e.code]=false; });
+
+/* Safari zooms on a quick double-tap even with the viewport locked, and rowing
+   is nothing but quick taps. Refuse the gestures outright. */
+["gesturestart","gesturechange","gestureend"].forEach(ev=>
+  document.addEventListener(ev, e=>e.preventDefault(), { passive:false }));
+document.addEventListener("dblclick", e=>e.preventDefault(), { passive:false });
+let __lastTap = 0;
+document.addEventListener("touchend", e=>{
+  const now = e.timeStamp;
+  if(now - __lastTap < 320) e.preventDefault();   // a second tap is a zoom, not a gesture
+  __lastTap = now;
+}, { passive:false });
+
+/*
+ A thumb-stick on the left for steering and an accelerator on the right.
+   Pointer events give multi-touch for free, so both hands work at once. */
+const IS_TOUCH = matchMedia("(pointer:coarse)").matches || "ontouchstart" in window;
+
+(function(){
+  const base = document.getElementById("stickBase");
+  const knob = document.getElementById("stickKnob");
+  if(base){
+    let id = null, cx = 0, cy = 0, rad = 1;
+    const grab = e => {
+      e.preventDefault();
+      const r = base.getBoundingClientRect();
+      cx = r.left + r.width/2; cy = r.top + r.height/2; rad = r.width/2;
+      id = e.pointerId; base.setPointerCapture(id);
+      touchState.stick = true; base.classList.add("down");
+      audio(); move(e);
+    };
+    const move = e => {
+      if(id === null || e.pointerId !== id) return;
+      const dx = clamp((e.clientX - cx)/rad, -1, 1);
+      const dy = clamp((e.clientY - cy)/rad, -1, 1);
+      touchState.steer = dx;
+      knob.style.transform = "translate("+(dx*rad*0.55)+"px,"+(dy*rad*0.42)+"px)";
+    };
+    const drop = e => {
+      if(id !== null && e.pointerId !== id) return;
+      id = null; touchState.stick = false; touchState.steer = 0;
+      base.classList.remove("down");
+      knob.style.transform = "translate(0,0)";
+    };
+    base.addEventListener("pointerdown", grab);
+    base.addEventListener("pointermove", move);
+    base.addEventListener("pointerup", drop);
+    base.addEventListener("pointercancel", drop);
+    base.addEventListener("contextmenu", e=>e.preventDefault());
+  }
+
+  document.querySelectorAll("#touch .pad").forEach(pad=>{
+    const k = pad.dataset.k;
+    const on  = e => { e.preventDefault(); pad.setPointerCapture&&pad.setPointerCapture(e.pointerId);
+                       pad.classList.add("down"); touchState[k]=true;
+                       if(k === "gas") touchState.strokeEdge = true;   // one tap, one stroke
+                       audio(); };
+    const off = e => { e.preventDefault(); pad.classList.remove("down"); touchState[k]=false; };
+    pad.addEventListener("pointerdown", on);
+    pad.addEventListener("pointerup", off);
+    pad.addEventListener("pointercancel", off);
+    pad.addEventListener("pointerleave", off);
+    pad.addEventListener("contextmenu", e=>e.preventDefault());
+  });
+})();
+
+function readInput(b, which){
+  if(which===1){
+    let steer = (keys.ArrowLeft?-1:0) + (keys.ArrowRight?1:0);
+    if(touchState.stick) steer = touchState.steer;      // analogue thumb
+    const stroke = !!keys.ArrowUp_edge || touchState.strokeEdge;
+    keys.ArrowUp_edge = false; touchState.strokeEdge = false;
+    return { steer: clamp(steer,-1,1), stroke,
+             held: !!keys.ArrowUp || touchState.gas,
+             brake: !!keys.ArrowDown || touchState.brake };
+  } else {
+    const stroke = !!keys.KeyW_edge; keys.KeyW_edge = false;
+    return { steer: (keys.KeyA?-1:0) + (keys.KeyD?1:0), stroke,
+             held: !!keys.KeyW, brake: !!keys.KeyS };
+  }
+}
+
+/* ---------------------------------------------------------------
+   9. Sound — a handful of oscillator blips, nothing more
+   --------------------------------------------------------------- */
+let actx = null;
+function audio(){ if(!actx && G.sound){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function blip(freq, dur, type, gain){
+  if(!G.sound) return; const a = audio(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type||"triangle"; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(gain||0.16, a.currentTime+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime+dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime+dur+0.02);
+}
+const SFX = {
+  spud:  ()=>{ blip(360,0.10,"square",0.10); setTimeout(()=>blip(540,0.12,"square",0.10),55); },
+  good:  ()=>blip(660,0.09,"triangle",0.12),
+  great: ()=>{ blip(660,0.08,"triangle",0.13); setTimeout(()=>blip(990,0.12,"triangle",0.12),50); },
+  miss:  ()=>blip(150,0.10,"sawtooth",0.05),
+  boost: ()=>{ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.13,"triangle",0.11), i*55)); },
+  bump:  ()=>blip(96,0.13,"sawtooth",0.09),
+  tick:  ()=>blip(440,0.10,"square",0.12),
+  off:   ()=>{ [523,659,784].forEach((f,i)=>setTimeout(()=>blip(f,0.18,"triangle",0.14), i*70)); },
+  lap:   ()=>{ [784,880].forEach((f,i)=>setTimeout(()=>blip(f,0.14,"triangle",0.12), i*90)); },
+  firework: ()=>{ blip(180+Math.random()*90,0.09,"sawtooth",0.07); setTimeout(()=>blip(90,0.28,"sawtooth",0.05),70); },
+  fin:   ()=>{ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>blip(f,0.22,"triangle",0.13), i*110)); },
+};
+
+/* ---------------------------------------------------------------
+   10. Simulation
+   --------------------------------------------------------------- */
+function resetRace(){
+  G.boats = [];
+  G.potatoes = [];
+  G.buoys = [];
+  G.t = 0; G.countdown = 3.6; G.mode = "countdown";
+  G.parts.length = 0; G.pending.length = 0; G.lastShow = -9;
+
+  const order = [];
+  if(G.net && G.netOrder){ order.push(...G.netOrder); }
+  else order.push(G.pick);
+  if(G.players===2) order.push(G.pick2);
+  // Everyone the players picked, then a random draw from the rest of the
+  // company up to the chosen field size.
+  const rest = [];
+  CAST.forEach((c,i)=>{ if(!order.includes(i)) rest.push(i); });
+  for(let i=rest.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [rest[i],rest[j]]=[rest[j],rest[i]]; }
+  const want = Math.min(G.field, CAST.length);
+  while(order.length < want && rest.length) order.push(rest.shift());
+
+  order.forEach((ci,lane)=>{
+    const human = (lane===0) ? 1 : (G.players===2 && lane===1 ? 2 : 0);
+    const b = makeBoat(CAST[ci], human, lane);
+    if(G.net && lane > 0 && NET.slots && NET.slots[lane-1] !== undefined){
+      b.remote = NET.slots[lane-1];      // someone else is rowing this one
+    }
+    G.boats.push(b);
+  });
+
+  // potatoes along the racing line, scattered laterally
+  const N = NODES.length;
+  for(let i=0;i<78;i++){
+    const t = (i/78)*N + 0.11;
+    const p = spline(t), tg = splineTangent(t);
+    const off = ((i*37)%7 - 3) * 26;
+    const x = p[0] + tg[1]*off, y = p[1] - tg[0]*off;
+    if(surfAt(x,y)!==SURF.WATER) continue;
+    G.potatoes.push({ x, y, gone:0, bob:Math.random()*TAU });
+  }
+  // buoys marking the inside of each bend
+  for(let i=0;i<N;i++){
+    for(const s of [-1,1]){
+      const t = i + 0.5;
+      const p = spline(t), tg = splineTangent(t);
+      const off = s * 150;
+      const x = p[0] + tg[1]*off, y = p[1] - tg[0]*off;
+      if(surfAt(x,y)!==SURF.WATER) continue;
+      G.buoys.push({ x, y });
+    }
+  }
+}
+
+function step(dt){
+  if(G.mode==="countdown"){
+    const before = Math.ceil(G.countdown-0.6);
+    G.countdown -= dt;
+    const after = Math.ceil(G.countdown-0.6);
+    if(after!==before && after>=1 && after<=3) SFX.tick();
+    if(G.countdown<=0.6 && before>0 && after<=0) SFX.off();
+    if(G.countdown<=0){ G.mode="race"; }
+  } else if(G.mode==="race"){
+    G.t += dt;
+  }
+  const racing = G.mode==="race";
+
+  for(const b of G.boats){
+    if(b.finished){ decay(b,dt); continue; }
+    const st = boatStats(b);
+
+    // ---- the oars just turn over while you hold the accelerator ----
+    b.oar += dt * (1.1 + b.sp*0.5) * TAU;
+
+    if(b.remote){ netFollow(b, dt); decay(b, dt); continue; }
+
+    let steer=0, brake=false, throttle=0;
+    if(b.human && racing){
+      const inp = readInput(b, b.human);
+      steer = inp.steer; brake = inp.brake;
+
+      // Every tap is one pull on the oars. Row faster and the boat goes
+      // faster; the water takes it back the moment you stop.
+      let pull = inp.stroke;
+      b.autoT = (b.autoT || 0) + dt;
+      if(inp.held && b.autoT > 0.50){ pull = true; }     // holding paddles gently
+      if(pull){
+        b.autoT = 0;
+        b.sp += st.top * 0.135;
+        b.oar += 1.9;                                     // the oars answer at once
+        b.strokeFx = 0.22;
+      }
+      throttle = 0;                                       // no cruise for people
+    } else if(racing){
+      const ai = aiDrive(b, dt);
+      steer = ai.steer; brake = ai.brake; throttle = ai.throttle;
+    }
+
+    // ---- surface ----
+    const surf = surfAt(b.x, b.y);
+    let drag = 0.988, cruise = racing ? st.top * throttle : 0;
+    if(b.human) cruise = 0;
+
+    // The ramp throws you clean over the palace: over the colonnade, over the
+    // domes, and down into the lake on the far side. Row through the courtyard
+    // instead if you would rather keep your oars.
+    if(surf===SURF.RAMP && b.z<=0 && racing){
+      const nearGate = tunnelAtU(b.u) > 0.10 ||
+                       (GATE && Math.hypot(b.x-GATE.x, b.y-GATE.y) < 210);
+      if(nearGate){
+        b.vz = 0.58;                    // just a hop, up into the keyhole
+        b.z  = 0.01;
+        b.sp = Math.max(b.sp, st.top*1.05) * 1.12;
+        b.airFx = 0.7;
+        if(b.human) SFX.good();
+      } else {
+        // Guaranteed clearance. The ramp is a set piece, so it also straightens
+        // you onto the line of the course — launching on whatever heading you
+        // happened to have was landing people in among the audience.
+        const tg = splineTangent(b.u/SPINE_N*NODES.length);
+        b.a += wrapAngle(Math.atan2(tg[0], tg[1]) - b.a) * 0.92;
+        b.vz = 1.58;
+        b.z  = 0.01;
+        b.sp = Math.max(b.sp, st.top*1.55) * 1.72;
+        b.airFx = 1.2;
+        stageShow();
+        if(b.human) SFX.boost();
+      }
+    }
+
+    if(b.z > 0){
+      // airborne: no water under the hull, and only a touch of steerage
+      b.z  += b.vz * 60*dt;
+      b.vz -= 0.0190 * 60*dt;
+      drag = 0.9985;
+      cruise = b.sp;
+      if(b.z <= 0){
+        b.z = 0; b.vz = 0;
+        if(surfAt(b.x,b.y)===SURF.LAND){        // came down short, on the lawn
+          b.sp *= 0.5; b.stun = 0.45;
+          if(b.human) SFX.bump();
+        } else {
+          b.sp *= 0.92;
+          if(b.human) SFX.spud();
+        }
+      }
+    }
+    else if(surf===SURF.REED){
+      drag = b.ch.shallow ? 0.984 : 0.972;
+      if(!b.human) cruise = Math.min(cruise, st.top*(b.ch.shallow ? 0.86 : 0.62));
+      else if(b.sp > st.top*0.70) b.sp = lerp(b.sp, st.top*0.70, 0.10);
+    }
+    else if(surf===SURF.LAND){
+      drag = b.ch.shallow ? 0.972 : 0.958;
+      if(!b.human) cruise = Math.min(cruise, st.top*(b.ch.shallow ? 0.62 : 0.45));
+      else if(b.sp > st.top*0.50) b.sp = lerp(b.sp, st.top*0.50, 0.12);
+    }
+    else if(surf===SURF.BOOST){
+      if(b.boost < 0.4){ if(b.human) SFX.boost(); }
+      b.boost = 1.15;
+    }
+
+    if(b.boost>0){ b.boost -= dt; b.boostFx = 0.6; }
+    if(b.stun>0){ b.stun -= dt; cruise *= 0.35; }
+
+    // ---- longitudinal ----
+    const target = brake ? 0 : cruise * (b.boost>0 ? 1.55 : 1);
+    if(b.sp < target) b.sp += st.acc * 60 * dt;
+    const rowing = b.human ? (b.strokeFx > 0 || b.boost > 0) : (throttle > 0 || b.boost > 0);
+    const coast = rowing ? drag : drag * (b.ch.glide ? 0.9985 : 0.995);
+    b.sp *= Math.pow(coast, dt*60);
+    if(brake) b.sp *= Math.pow(0.90, dt*60);
+    const capped = st.top * (b.boost>0 ? 1.6 : 1.18);
+    if(b.sp > capped) b.sp = lerp(b.sp, capped, 0.25);
+    if(b.sp < 0) b.sp = 0;
+
+    // ---- steering: bigger boats swing wider ----
+    // You keep enough steerage in the air to pick your landing — without it
+    // the ramp is a trap rather than a shortcut.
+    const grip = clamp(b.sp / (st.top*0.5), 0, 1) * (b.z>0 ? 0.30 : 1);
+    b.a += steer * st.turn * 60*dt * grip;
+
+    b.x += (Math.sin(b.a) * b.sp + b.kx) * 60*dt;
+    b.y += (Math.cos(b.a) * b.sp + b.ky) * 60*dt;
+    const kd = Math.pow(0.90, 60*dt);
+    b.kx *= kd; b.ky *= kd;
+    b.x = clamp(b.x, 4, MAP-5); b.y = clamp(b.y, 4, MAP-5);
+
+    // A boat cannot row up the bank. If it has run aground, the shore
+    // eases it back toward open water instead of stranding it there.
+    const sf = b.z<=0 ? surfAt(b.x,b.y) : SURF.WATER;
+    if(b.z<=0 && (sf===SURF.LAND || (sf===SURF.REED && b.sp < st.top*0.30))){
+      let ax=0, ay=0, n=0;
+      for(let k=0;k<12;k++){
+        const th = k/12*TAU;
+        for(const rr of [14,28,46]){
+          const sx = b.x+Math.cos(th)*rr, sy = b.y+Math.sin(th)*rr;
+          if(surfAt(sx,sy)!==SURF.LAND){ ax+=Math.cos(th); ay+=Math.sin(th); n++; break; }
+        }
+      }
+      if(n){
+        const m = Math.hypot(ax,ay)||1;
+        const shove = sf===SURF.LAND ? 3.4 : 1.8;
+        b.x += ax/m * shove * 60*dt;
+        b.y += ay/m * shove * 60*dt;
+        // and turn the bow back toward open water, so you are not left
+        // pointing into the bank with no idea which way to steer
+        const want = Math.atan2(ax/m, ay/m);
+        b.a += wrapAngle(want - b.a) * Math.min(1, 2.2*dt);
+      }
+    }
+
+    // ---- potatoes ----
+    const eatR = st.rad + 5*(b.ch.reach || 1);
+    for(const p of G.potatoes){
+      if(p.gone>0 || b.z>0) continue;
+      const dx=p.x-b.x, dy=p.y-b.y;
+      if(dx*dx+dy*dy < eatR*eatR){
+        p.gone = 7;
+        const before = b.fat;
+        b.fat = Math.min(MAX_SPUD, b.fat + b.ch.spud);
+        if(b.fat > before){
+          b.sp += 0.85;          // an immediate shove, so you feel it land
+          b.boost = Math.max(b.boost, 0.5);
+          b.spudFx = 1.0;
+          if(b.human) SFX.spud();
+        }
+      }
+    }
+
+    // ---- the pink gate: solid pink, except through the keyhole ----
+    for(const gate of GATES){
+      if(b.z >= 86) break;
+      const gx = b.x - gate.x, gy = b.y - gate.y;
+      const fwd = gx*Math.sin(gate.yaw) + gy*Math.cos(gate.yaw);   // across the wall
+      const lat = gx*Math.cos(gate.yaw) - gy*Math.sin(gate.yaw);   // along it
+      // The wall is 236 units wide, not infinite — without this bound the gate
+      // blocks an invisible line right across the map.
+      if(Math.abs(fwd) < 9 + st.rad && Math.abs(lat) < 150){
+        const R = 47, CZ = 66;
+        const dz = b.z - CZ;
+        const circ = Math.abs(dz) <= R ? Math.sqrt(R*R - dz*dz) : 0;
+        const slot = b.z <= CZ ? lerp(15, 31, (CZ - b.z)/CZ) : 0;
+        const open = Math.max(circ, slot);
+        if(Math.abs(lat) + st.rad*0.45 > open){
+          const push = (7 + st.rad) - Math.abs(fwd);
+          const sgn = fwd < 0 ? -1 : 1;
+          b.x += Math.sin(gate.yaw)*push*sgn;
+          b.y += Math.cos(gate.yaw)*push*sgn;
+          // Slide along the wall toward the keyhole rather than teleporting
+          // through it — being shoved sideways with no warning felt like a bug.
+          const toward = lat > 0 ? -1 : 1;
+          b.x += Math.cos(gate.yaw)*toward*3.2*60*dt;
+          b.y -= Math.sin(gate.yaw)*toward*3.2*60*dt;
+          b.sp *= 0.88;
+          b.gateJam = (b.gateJam || 0) + dt;
+          if(b.gateJam > 5){ b.x = gate.x; b.y = gate.y; b.gateJam = 0; }
+        } else {
+          b.gateJam = 0;
+          if(b.human) SFX.bump();
+        }
+      }
+    }
+
+    // ---- buoys ----
+    for(const q of G.buoys){
+      if(b.z>0) break;
+      const dx=q.x-b.x, dy=q.y-b.y, r=st.rad+4;
+      const d2=dx*dx+dy*dy;
+      if(d2 < r*r){
+        const d=Math.sqrt(d2)||1;
+        b.x -= dx/d*(r-d); b.y -= dy/d*(r-d);
+        b.sp *= b.ch.disc ? 0.90 : 0.75; b.stun = b.ch.disc ? 0.08 : 0.2;
+        if(b.human) SFX.bump();
+      }
+    }
+
+    // ---- progress along the course ----
+    // Where you are is measured as the nearest point on the course itself,
+    // searched in a forward-only window. A wide line round a bend still
+    // counts, which proximity-to-a-checkpoint never did.
+    // A boat shoved right off the course cannot find its way back with a
+    // forward-only search, so if it is hopelessly lost, re-acquire globally.
+    const here = SPINE[b.u];
+    if(Math.hypot(b.x-here[0], b.y-here[1]) > 250){
+      b.lost = (b.lost || 0) + dt;
+      if(b.lost > 1.5){
+        // Search near the boat's last known place, never the whole course: on
+        // a figure of eight the other strand runs right past this one, and a
+        // global search would happily jump the boat onto it.
+        let bi = b.u, bd = Infinity;
+        for(let k=-70;k<=70;k++){
+          const i = (b.u + k + SPINE_N) % SPINE_N;
+          const dx = SPINE[i][0]-b.x, dy = SPINE[i][1]-b.y, d = dx*dx+dy*dy;
+          if(d < bd){ bd = d; bi = i; }
+        }
+        b.u = bi; b.lost = 0;
+      }
+    } else b.lost = 0;
+
+    let bestK = 0, bestD = Infinity;
+    for(let k=-5;k<=44;k++){
+      const p = SPINE[(b.u + k + SPINE_N) % SPINE_N];
+      const ex = p[0]-b.x, ey = p[1]-b.y;
+      const d2 = ex*ex + ey*ey;
+      if(d2 < bestD){ bestD = d2; bestK = k; }
+    }
+    // did that step carry us over the finish banner?
+    const from = b.u;
+    if(bestK > 0 && ((START_U - from - 1 + SPINE_N) % SPINE_N) < bestK){
+      b.lap++;
+      if(b.human && b.lap > 0 && b.lap < G.laps) SFX.lap();
+      if(b.lap >= 0) stageShow();          // the house celebrates every crossing
+      if(b.lap >= G.laps && !b.finished){
+        b.finished = true; b.time = G.t;
+        b.place = G.boats.filter(o=>o.finished).length;
+        if(b.human){ SFX.fin(); if(G.net && NET.on) netSend({ t:"fin", time: b.time, fat: b.fat }); }
+      }
+    } else if(bestK < 0 && ((from - START_U + SPINE_N) % SPINE_N) < -bestK){
+      b.lap--;                                // backed over the line
+    }
+    b.u = (from + bestK + SPINE_N) % SPINE_N;
+    b.prog = b.lap*SPINE_N + ((b.u - START_U + SPINE_N) % SPINE_N);
+
+    // the tunnel climbs and plunges; the boat goes with it
+    const dun = tunnelAtU(b.u);
+    b.rise = dun > 0 ? tunnelRise(b.u/SPINE_N*900) * dun : 0;
+
+    decay(b, dt);
+  }
+
+  // ---- boat-on-boat: dodgems ----
+  for(let i=0;i<G.boats.length;i++){
+    for(let j=i+1;j<G.boats.length;j++){
+      const a=G.boats[i], b=G.boats[j];
+      if(a.z>0 || b.z>0) continue;
+      const r = boatStats(a).rad + boatStats(b).rad;
+      const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy;
+      if(d2 >= r*r || d2 <= 0.01) continue;
+
+      const d = Math.sqrt(d2), ux = dx/d, uy = dy/d;
+      const ma = 1 + a.fat*0.16, mb = 1 + b.fat*0.16, tot = ma + mb;
+
+      // pull them apart first, the heavier one giving least ground
+      const push = (r-d)/2;
+      a.x -= ux*push*(2*mb/tot); a.y -= uy*push*(2*mb/tot);
+      b.x += ux*push*(2*ma/tot); b.y += uy*push*(2*ma/tot);
+
+      // then bounce: a proper elastic knock along the line of contact
+      const avx = Math.sin(a.a)*a.sp + a.kx, avy = Math.cos(a.a)*a.sp + a.ky;
+      const bvx = Math.sin(b.a)*b.sp + b.kx, bvy = Math.cos(b.a)*b.sp + b.ky;
+      const closing = (bvx-avx)*ux + (bvy-avy)*uy;
+      if(closing < 0){
+        const REST = 1.55;                       // springy, like the real thing
+        const jimp = -(1+REST)*closing / (1/ma + 1/mb);
+        a.kx -= ux*jimp/ma; a.ky -= uy*jimp/ma;
+        b.kx += ux*jimp/mb; b.ky += uy*jimp/mb;
+
+        // a glancing blow slews you round as well
+        const tang = -(bvx-avx)*uy + (bvy-avy)*ux;
+        a.a -= tang*0.30; b.a += tang*0.30;
+
+        // and both of you lose a little way — the lighter boat more
+        a.sp *= (a.ch.disc ? 0.97 : 0.93) - 0.05*(mb/tot);
+        b.sp *= (b.ch.disc ? 0.97 : 0.93) - 0.05*(ma/tot);
+        if((a.human||b.human) && Math.abs(closing) > 0.4) SFX.bump();
+      }
+      // nobody gets flung off the lake
+      for(const o of [a,b]){
+        const k = Math.hypot(o.kx, o.ky);
+        if(k > 2.2){ o.kx *= 2.2/k; o.ky *= 2.2/k; }
+      }
+    }
+  }
+
+  if(G.net && NET.on && G.mode !== "menu"){
+    const me = G.boats.find(b=>b.human===1);
+    const now = performance.now();
+    if(me && now - NET.sendAt > 66){
+      NET.sendAt = now;
+      netSend({ t:"s", x:+me.x.toFixed(1), y:+me.y.toFixed(1), a:+me.a.toFixed(3),
+                f:me.fat, u:me.u, l:me.lap, z:+me.z.toFixed(1) });
+    }
+  }
+
+  stepParticles(dt);
+
+  // ---- potato respawn ----
+  for(const p of G.potatoes){ if(p.gone>0) p.gone -= dt; }
+
+  // ---- standings ----
+  const rank = G.boats.slice().sort((x,y)=> y.prog - x.prog);
+  rank.forEach((b,i)=> b.rank = i+1);
+
+  // ---- end of race ----
+  const humans = G.boats.filter(b=>b.human);
+  if(G.mode==="race" && humans.length && humans.every(b=>b.finished) && !G.net) endRace();
+}
+
+/* Draw a remote boat towards where its owner says it is. Snapping would look
+   like teleporting on a patchy connection, so we ease. */
+function netFollow(b, dt){
+  const r = NET.remote.get(b.remote);
+  if(!r || !r.b) return;
+  const k = 1 - Math.pow(0.0008, dt);
+  b.x += (r.b.x - b.x) * k;
+  b.y += (r.b.y - b.y) * k;
+  b.a += wrapAngle(r.b.ang - b.a) * k;
+  b.z += (r.b.z - b.z) * k;
+  b.fat = r.b.fat;
+  b.u = r.b.u; b.lap = r.b.lap;
+  b.prog = b.lap*SPINE_N + ((b.u - START_U + SPINE_N) % SPINE_N);
+  // enough speed for the wake and the oars to look right
+  if(r.a) b.sp = Math.min(3, Math.hypot(r.b.x-r.a.x, r.b.y-r.a.y) / 0.066 / 60);
+  b.oar += dt * (1.1 + b.sp*0.5) * TAU;
+  if(b.lap >= G.laps) b.finished = true;
+}
+
+function decay(b,dt){
+  if(b.spudFx>0)  b.spudFx  -= dt;
+  if(b.strokeFx>0) b.strokeFx -= dt;
+  if(b.airFx>0)   b.airFx   -= dt;
+  b.camZ = lerp(b.camZ, b.z, 1 - Math.pow(0.004, dt));
+  b.camRise = lerp(b.camRise || 0, b.rise || 0, 1 - Math.pow(0.02, dt));
+  if(b.boostFx>0) b.boostFx -= dt;
+  // camera lag
+  const back = CAM_BACK + b.sp*3.4;
+  const tx = b.x - Math.sin(b.a)*back;
+  const ty = b.y - Math.cos(b.a)*back;
+  const k = 1 - Math.pow(0.0006, dt);
+  b.camX = lerp(b.camX, tx, k);
+  b.camY = lerp(b.camY, ty, k);
+  b.camA = b.camA + wrapAngle(b.a - b.camA) * (1 - Math.pow(0.0009, dt));
+}
+
+/* ---- the crews you are racing ---- */
+function aiDrive(b, dt){
+  const N = NODES.length;
+  // Aim up the spine — but shorten the sight line until the point we are
+  // aiming at is actually water, so nobody steers across a headland.
+  let tx, ty;
+  const ahead = Math.round(b.sp*3);
+
+  const look = [15, 11, 7, 4, 2];
+  for(let i=0;i<look.length;i++){
+    const p = SPINE[(b.u + look[i] + ahead) % SPINE_N];
+    tx = p[0]; ty = p[1];
+    const sf = surfAt(tx,ty);
+    if(sf===SURF.WATER || sf===SURF.BOOST) break;
+  }
+  // Approaching the pink gate, forget the racing line and thread the keyhole.
+  for(const gate of (b.z < 40 ? GATES : [])){
+    const gx = b.x - gate.x, gy = b.y - gate.y;
+    if(gx*gx + gy*gy > 200*200) continue;      // only when the portal is actually near
+    const fwd = gx*Math.sin(gate.yaw) + gy*Math.cos(gate.yaw);
+    const lat = gx*Math.cos(gate.yaw) - gy*Math.sin(gate.yaw);
+    if(fwd < 8 && fwd > -190 && Math.abs(lat) < 150){
+      const aim = Math.atan2(gate.x - b.x, gate.y - b.y);
+      return { steer: clamp(wrapAngle(aim - b.a)*3.0, -1, 1), brake:false, throttle:0.9 };
+    }
+  }
+
+  if(b.z > 0){                       // in the air: line up the landing
+    const p = SPINE[(b.u + 26) % SPINE_N];
+    const want = Math.atan2(p[0]-b.x, p[1]-b.y);
+    return { steer: clamp(wrapAngle(want-b.a)*2.2, -1, 1), brake:false, throttle:0.9 };
+  }
+  // aground: forget the racing line, just get back on the water
+  if(surfAt(b.x,b.y)===SURF.LAND){
+    const p = SPINE[(b.u + 1) % SPINE_N];
+    tx = p[0]; ty = p[1];
+  }
+
+  // detour for a nearby potato — they want to be big too
+  let best=null, bd=110*110;
+  for(const p of G.potatoes){
+    if(p.gone>0) continue;
+    const dx=p.x-b.x, dy=p.y-b.y, d2=dx*dx+dy*dy;
+    const fwd = dx*Math.sin(b.a)+dy*Math.cos(b.a);
+    if(fwd>0 && d2<bd){ bd=d2; best=p; }
+  }
+  if(best && b.fat<MAX_SPUD){ tx = lerp(tx,best.x,0.6); ty = lerp(ty,best.y,0.6); }
+
+  b.aiJit += dt*0.7;
+  tx += Math.sin(b.aiJit)*26*(1-b.aiSkill);
+  ty += Math.cos(b.aiJit*1.3)*26*(1-b.aiSkill);
+
+  const want = Math.atan2(tx-b.x, ty-b.y);
+  const err  = wrapAngle(want - b.a);
+  const steer = clamp(err*2.6, -1, 1);
+
+  // rubber band, gently, so the pack stays together
+  const lead = G.boats.filter(o=>o.human)[0];
+  if(lead){
+    const gap = lead.prog - b.prog;
+    b.aiSkill = clamp(b.aiSkill + gap*0.000025*dt*60, 0.35, 1.0);
+  }
+
+  return { steer, brake: Math.abs(err)>1.9 && b.sp>1.8,
+           throttle: 0.72 + b.aiSkill*0.28 };
+}
+
+/* ---------------------------------------------------------------
+   11. Rendering
+   --------------------------------------------------------------- */
+function prepMapU32(){
+  mapU32 = new Uint32Array(mapPix.data.buffer);
+}
+
+/* Mode-7 ground + sky for one viewport. */
+function renderGround(cam, vy, vh, time){
+  const horizon = vy + vh*0.40;
+  const sin = Math.sin(cam.a), cos = Math.cos(cam.a);
+
+  // --- sky, or a stone ceiling if we are under the dungeon ---
+  const dark = cam.dark || 0;
+  for(let y=vy; y<horizon; y++){
+    const f = (y-vy)/Math.max(1,(horizon-vy));
+    let r = lerp(58,150,f*f), g = lerp(140,201,f), bl = lerp(214,232,f);
+    if(dark > 0){
+      r = lerp(r, lerp(7,22,f), dark);
+      g = lerp(g, lerp(5,17,f), dark);
+      bl= lerp(bl, lerp(10,25,f), dark);
+    }
+    const c = (255<<24)|((bl|0)<<16)|((g|0)<<8)|(r|0);
+    const row = y*W;
+    for(let x=0;x<W;x++) buf[row+x] = c;
+  }
+  // clouds drift with the heading, so turning feels real
+  const showSky = dark < 0.55;
+  const drift = (cam.a/TAU)*W*3;
+  for(let ci=0; showSky && ci<7; ci++){
+    const cx = (((ci*167 + 40) - drift) % (W*1.6) + W*1.6) % (W*1.6) - W*0.3;
+    const cy = vy + vh*0.07 + (ci%3)*vh*0.075;
+    const cw = 26+ (ci*13)%34, ch = 4 + (ci%3)*2;
+    for(let y=cy|0; y<(cy+ch)|0 && y<horizon; y++){
+      if(y<vy) continue;
+      const shr = Math.abs(y-(cy+ch/2))/(ch/2);
+      const half = (cw*(1-shr*0.55))|0;
+      const row=y*W;
+      for(let x=(cx-half)|0; x<(cx+half)|0; x++){
+        if(x<0||x>=W) continue;
+        buf[row+x] = 0xFFFFFFFF;
+      }
+    }
+  }
+  // far shore: a dark treeline just above the horizon
+  if(showSky) for(let x=0;x<W;x++){
+    const n = Math.sin((x+drift)*0.07)*1.6 + Math.sin((x+drift)*0.021)*2.4 + Math.sin((x+drift)*0.005)*3.0;
+    const top = (horizon - 4 - n)|0;
+    for(let y=Math.max(vy,top); y<horizon; y++) buf[y*W+x] = 0xFF2E5A38;
+  }
+
+  // --- the lake, by Mode 7 ---
+  const wave = time*1.9;
+  for(let sy=Math.ceil(horizon); sy<vy+vh; sy++){
+    const dy = sy - horizon;
+    const z = (cam.h * FOCAL) / dy;
+    const row = sy*W;
+    if(z > FAR){
+      for(let x=0;x<W;x++) buf[row+x] = 0xFF3E6A46;
+      continue;
+    }
+    const fog = clamp((z-FAR*0.58)/(FAR*0.42), 0, 1);
+    const rip = z < 150 ? 1 - z/150 : 0;
+    const px = cam.x + sin*z, py = cam.y + cos*z;
+    const stepW = z / FOCAL;
+    const rx = cos*stepW, ry = -sin*stepW;
+    let wx = px - rx*(W/2), wy = py - ry*(W/2);
+
+    for(let x=0;x<W;x++,wx+=rx,wy+=ry){
+      const ix = wx|0, iy = wy|0;
+      let c;
+      if(ix<0||iy<0||ix>=MAP||iy>=MAP){
+        c = 0xFF2E5A38;
+      } else {
+        const idx = iy*MAP+ix;
+        c = mapU32[idx];
+        const s = surfArr[idx];
+        if(rip > 0 && (s===SURF.WATER || s===SURF.BOOST)){
+          // Ripples are drawn in world space, so at distance one screen
+          // pixel spans many wavelengths and they alias into blotches.
+          // Fading them out with range keeps the far lake clean and blue.
+          const w = Math.sin(wx*0.13 + wave) + Math.sin(wy*0.19 - wave*1.3) + Math.sin((wx+wy)*0.07 + wave*0.6);
+          if(w > 1.55){
+            const k = (46*rip*(1 - dark*0.75))|0;
+            c = (c & 0xFF000000) |
+                (Math.min(255,((c>>16)&255)+k)<<16) |
+                (Math.min(255,((c>>8)&255)+k)<<8) |
+                (Math.min(255,(c&255)+k));
+          } else if(w < -1.7){
+            const k = 1 - 0.16*rip;
+            c = (c & 0xFF000000) |
+                ((((c>>16)&255)*k|0)<<16) |
+                ((((c>>8)&255)*k|0)<<8) |
+                (((c&255)*k|0));
+          }
+        }
+      }
+      if(fog>0){
+        const f=fog*0.72, g2=1-f;
+        const fr = lerp(150, 10, dark), fg = lerp(190, 7, dark), fb = lerp(214, 13, dark);
+        c = 0xFF000000 |
+            ((((c>>16&255)*g2 + fb*f)|0)<<16) |
+            ((((c>>8&255)*g2 + fg*f)|0)<<8) |
+            (((c&255)*g2 + fr*f)|0);
+      }
+      buf[row+x] = c;
+    }
+  }
+}
+
+/* Project a world point into a viewport. Returns null if behind. */
+function project(cam, x, y, vy, vh){
+  const dx = x-cam.x, dy = y-cam.y;
+  const sn = Math.sin(cam.a), cs = Math.cos(cam.a);
+  const zc = dx*sn + dy*cs;
+  if(zc < 3) return null;
+  const xc = dx*cs - dy*sn;
+  const horizon = vy + vh*0.40;
+  return {
+    sx: W/2 + xc*FOCAL/zc,
+    sy: horizon + cam.h*FOCAL/zc,
+    sc: FOCAL/zc,
+    z: zc
+  };
+}
+
+function renderSprites(cam, vy, vh, time, self){
+  const items = [];
+  const push = (x,y,fn)=>{
+    const p = project(cam,x,y,vy,vh);
+    if(!p || p.z>FAR) return;
+    if(p.sx < -700 || p.sx > W+700) return;
+    items.push({p, fn});
+  };
+
+  // --- the Schloss, its stage turned to the water ---
+  push(SCHLOSS[0], SCHLOSS[1], (c,p)=>{
+    drawModel(c, MODEL.schloss, SCHLOSS[0], SCHLOSS[1], SCHLOSS_YAW, cam, vy, vh);
+  });
+
+  // --- the seated audience, rows of blue chairs facing the stage ---
+  for(const rw of ROWS){
+    push(rw.x, rw.y, (c,p)=>{
+      if(p.z > 300) return;
+      const t = time*2.2 + rw.ph;
+      const bob = Math.max(0, Math.sin(t))*0.55;
+      const model = p.z < 46
+        ? ROW_MODELS[rw.m][Math.sin(t*0.8) > 0.1 ? 1 : 0]
+        : ROW_FAR[rw.m];
+      drawModel(c, model, rw.x, rw.y, SCHLOSS_YAW + Math.PI, cam, vy, vh, 2.0 + bob);
+    });
+  }
+
+  // --- trees on the bank ---
+  for(const t of trees){
+    push(t.x, t.y, (c,p)=>{
+      if(p.z > 300) return;
+      drawModel(c, t.model, t.x, t.y, 0, cam, vy, vh);
+    });
+  }
+
+  // --- the keyhole bore ---
+  // A tunnel occludes itself: only the nearest rings can be seen, but the
+  // painter's algorithm was filling every one of them regardless. Draw the
+  // closest handful and no more, which lets the draw distance be generous
+  // without the cost, so nothing pops into view.
+  {
+    const sn = Math.sin(cam.a), cs = Math.cos(cam.a);
+    const near = [];
+    for(const r of DUNRING){
+      const zc = (r.x-cam.x)*sn + (r.y-cam.y)*cs;
+      if(zc > 2 && zc < 520) near.push({ r, zc });
+    }
+    near.sort((a,b)=> a.zc - b.zc);
+    for(let i=0; i<Math.min(6, near.length); i++){
+      const r = near[i].r;
+      push(r.x, r.y, (c,p)=>{
+        drawModel(c, MODEL.rings[r.m], r.x, r.y, r.yaw, cam, vy, vh, r.z);
+      });
+    }
+  }
+
+  // --- skeletons, corpses, cages, chains, spiders ---
+  {
+    const sn = Math.sin(cam.a), cs = Math.cos(cam.a);
+    const near = [];
+    for(const hg of HANGING){
+      const zc = (hg.x-cam.x)*sn + (hg.y-cam.y)*cs;
+      if(zc > 2 && zc < 420) near.push({ hg, zc });
+    }
+    near.sort((a,b)=> a.zc - b.zc);
+    for(let i=0; i<Math.min(8, near.length); i++){
+      const hg = near[i].hg;
+      push(hg.x, hg.y, (c,p)=>{
+        drawModel(c, MODEL.hang[hg.m], hg.x, hg.y,
+                  Math.sin(time*0.8 + hg.ph)*0.09 + hg.ph, cam, vy, vh, hg.z);
+      });
+    }
+  }
+
+  // --- the two pink portals ---
+  for(const gate of GATES) push(gate.x, gate.y, (c,p)=>{
+    drawModel(c, MODEL.keyhole, gate.x, gate.y, gate.yaw, cam, vy, vh);
+    // The way in keeps its secret; the way out shows you the sky.
+    if(!gate.entry) return;
+    const dx = cam.x - gate.x, dy = cam.y - gate.y;
+    if(dx*Math.sin(gate.yaw) + dy*Math.cos(gate.yaw) < -34)
+      drawModel(c, MODEL.curtain, gate.x, gate.y, gate.yaw, cam, vy, vh);
+  });
+
+  // --- the monster, hobbling ---
+  if(MONSTER) push(MONSTER.x, MONSTER.y, (c,p)=>{
+    if(p.z > 220) return;
+    const t = time*1.5;
+    drawModel(c, MODEL.monster, MONSTER.x, MONSTER.y,
+              MONSTER.yaw + Math.sin(t*0.5)*0.10, cam, vy, vh,
+              Math.max(0, Math.sin(t))*1.4);
+  });
+
+  // --- bats ---
+  for(const bt of BATS){
+    const ang = time*bt.sp + bt.ph;
+    const bx = bt.cx + Math.cos(ang)*bt.r, by = bt.cy + Math.sin(ang*1.3)*bt.r;
+    push(bx, by, (c,p)=>{
+      if(p.z > 300) return;
+      drawModel(c, MODEL.bats[(((time*9 + bt.ph*3)|0) % 3)], bx, by,
+                ang + Math.PI/2, cam, vy, vh, bt.h + Math.sin(ang*2.1)*5);
+    });
+  }
+
+  // --- buoys and potatoes ---
+  for(const q of G.buoys){
+    push(q.x, q.y, (c,p)=>{ drawModel(c, MODEL.buoy, q.x, q.y, 0, cam, vy, vh); });
+  }
+  for(const sp of G.potatoes){
+    if(sp.gone>0) continue;
+    push(sp.x, sp.y, (c,p)=>{
+      c.fillStyle="rgba(255,236,180,.16)";
+      c.beginPath(); c.ellipse(p.sx, p.sy, 2.2*p.sc, 0.9*p.sc, 0,0,TAU); c.fill();
+      drawModel(c, potatoModel(Math.sin(time*3 + sp.bob)*0.28), sp.x, sp.y,
+                time*0.9 + sp.bob, cam, vy, vh);
+    });
+  }
+
+  // --- the boats ---
+  for(const b of G.boats){
+    push(b.x, b.y, (c,p)=>{
+      // wake at the waterline — or, in the air, a shadow where you will land
+      const wk = clamp(b.sp/2.2,0,1);
+      const gr = (4.4+b.fat*0.34)*p.sc, gr2 = (1.3+b.fat*0.10)*p.sc;
+      if(b.z > 0 || Math.abs(b.rise||0) > 3){
+        c.fillStyle = "rgba(12,40,60,"+(0.26/(1+b.z*0.035)).toFixed(3)+")";
+        c.beginPath(); c.ellipse(p.sx, p.sy, gr*0.9, gr2*0.9, 0,0,TAU); c.fill();
+      } else {
+        c.fillStyle = "rgba(255,255,255,"+(0.05+0.16*wk).toFixed(3)+")";
+        c.beginPath(); c.ellipse(p.sx, p.sy+0.5*p.sc, gr, gr2, 0,0,TAU); c.fill();
+      }
+      if(b.boost>0){
+        c.fillStyle="rgba(224,180,74,.42)";
+        c.beginPath(); c.ellipse(p.sx, p.sy+0.5*p.sc, (7.5+b.fat*0.5)*p.sc, 2.2*p.sc, 0,0,TAU); c.fill();
+      }
+      LOD = p.z < 78 ? 1 : 0;
+      drawModel(c, boatModel(b.ch, b.fat, b.oar, girth(b)), b.x, b.y, b.a,
+                cam, vy, vh, b.z + (b.rise||0));
+      LOD = 1;
+      if(p.z < 95 && b!==self){
+        const sz = Math.max(4, Math.min(9, 6*p.sc*1.6));
+        c.font = "600 "+sz.toFixed(1)+'px '+F_UI;
+        c.textAlign="center";
+        const ty = p.sy - (10+b.fat*0.5)*p.sc - 3;
+        const tag = b.ch.name.split(",")[0];
+        c.fillStyle="rgba(20,26,16,.55)"; c.fillText(tag, p.sx+0.7, ty+0.7);
+        c.fillStyle= b.human ? "#F0A868" : "rgba(255,255,255,.86)";
+        c.fillText(tag, p.sx, ty);
+        c.textAlign="left";
+      }
+      if(b.spudFx>0 && p.z < 130){
+        c.globalAlpha = clamp(b.spudFx/0.6,0,1);
+        c.fillStyle="#F0A868";
+        c.font="bold 9px "+F_UI;
+        c.textAlign="center";
+        c.fillText("KARTOFFEL!", p.sx, p.sy - (16+b.fat)*p.sc - 8 - (0.6-b.spudFx)*22);
+        c.textAlign="left"; c.globalAlpha=1;
+      }
+    });
+  }
+
+  // --- confetti and sparks, billboarded at their own height ---
+  for(const q of G.parts){
+    push(q.x, q.y, (c,p)=>{
+      const sz = Math.max(1, q.size*p.sc);
+      c.globalAlpha = clamp(q.life/q.fade, 0, 1);
+      c.fillStyle = q.col;
+      c.fillRect(p.sx - sz/2, p.sy - q.z*p.sc - sz/2, sz, q.flutter ? sz*0.62 : sz);
+      c.globalAlpha = 1;
+    });
+  }
+
+  items.sort((a,b)=> b.p.z - a.p.z);
+  for(const it of items) it.fn(ctx, it.p);
+}
+
+/* ---------------------------------------------------------------
+   12. HUD
+   --------------------------------------------------------------- */
+/* Canvas font shorthand is invalid unless multi-word families are quoted —
+   an unquoted "Bodoni 72" silently voids the whole assignment. */
+const F_DISPLAY = '"Iowan Old Style", Palatino, Georgia, serif';
+const F_UI      = '-apple-system, "Segoe UI", system-ui, sans-serif';
+const F_MONO    = 'ui-monospace, Menlo, monospace';
+
+function fmt(t){
+  const m = Math.floor(t/60), s = t-m*60;
+  return m+":"+(s<10?"0":"")+s.toFixed(2);
+}
+const ORD = ["","1st","2nd","3rd","4th","5th","6th","7th","8th","9th","10th"];
+
+function renderHUD(b, vx, vy, vw, vh, compact){
+  const c = ctx;
+  c.save();
+  c.beginPath(); c.rect(vx,vy,vw,vh); c.clip();
+  // The HUD is laid out in the original 480x270 space and scaled up, so the
+  // render buffer can grow without every offset below needing re-tuning.
+  const HS = W/480;
+  c.scale(HS,HS);
+  vx/=HS; vy/=HS; vw/=HS; vh/=HS;
+
+  const pad = 6;
+  // --- position ---
+  c.textAlign="left";
+  c.fillStyle="rgba(18,24,14,.5)";
+  c.fillRect(vx+pad, vy+pad, compact?52:64, compact?18:22);
+  c.fillStyle="#FFE9A8";
+  c.font = (compact?"13":"16")+"px "+F_DISPLAY;
+  c.fillText(ORD[b.rank]||"–", vx+pad+5, vy+pad+(compact?13:16));
+  c.font = (compact?"7":"8")+"px "+F_UI;
+  c.fillStyle="rgba(255,255,255,.7)";
+  c.fillText("of "+G.boats.length, vx+pad+(compact?30:38), vy+pad+(compact?13:16));
+
+  // --- lap + clock ---
+  c.textAlign="right";
+  c.fillStyle="rgba(18,24,14,.5)";
+  c.fillRect(vx+vw-pad-72, vy+pad, 72, compact?18:22);
+  c.fillStyle="#F2EDE0";
+  c.font = (compact?"10":"12")+"px "+F_MONO;
+  c.fillText(fmt(G.t), vx+vw-pad-5, vy+pad+(compact?12:15));
+  c.font="7px "+F_UI;
+  c.fillStyle="rgba(255,255,255,.75)";
+  c.fillText("LAP "+clamp(b.lap+1,1,G.laps)+" / "+G.laps, vx+vw-pad-5, vy+pad+(compact?18:22)+8);
+  c.textAlign="left";
+
+  // --- potato tally ---
+  // With thumb controls up, the bottom corners belong to the player's hands,
+  // so the tally and the map move to the top of the screen instead.
+  const touchUI = G.touchUI;
+  const tx = touchUI ? vx+vw-pad-96 : vx+pad;
+  const py = touchUI ? vy+pad+54     : vy+vh-pad-13;
+  c.fillStyle="rgba(18,24,14,.5)";
+  c.fillRect(tx, py-9, 96, 19);
+  c.fillStyle="#D9A24A";
+  for(let i=0;i<MAX_SPUD;i++){
+    c.globalAlpha = i < b.fat ? 1 : 0.18;
+    c.fillRect(tx+4+i*7, py-4, 5, 8);
+  }
+  c.globalAlpha=1;
+  c.font="7px "+F_UI;
+  c.fillStyle="rgba(255,255,255,.8)";
+  c.fillText("KARTOFFELN "+b.fat, tx+4, py+8);
+
+  // --- speed ---
+  const bw = Math.min(150, vw*0.4), bx = vx+vw/2-bw/2, by = vy+vh-pad-(touchUI?40:12);
+  const st = boatStats(b);
+  c.fillStyle="rgba(18,24,14,.5)"; c.fillRect(bx-3, by-4, bw+6, 12);
+  c.fillStyle="rgba(255,255,255,.22)"; c.fillRect(bx, by, bw, 5);
+  c.fillStyle = b.boost>0 ? "#E0B44A" : "#7BD46B";
+  c.fillRect(bx, by, bw*clamp(b.sp/(st.top*1.6),0,1), 5);
+  c.font="7px "+F_UI; c.fillStyle="rgba(255,255,255,.75)"; c.textAlign="center";
+  c.fillText("SPEED", vx+vw/2, by-6);
+  c.textAlign="left";
+
+  // --- the order of the race, live ---
+  {
+    const board = G.boats.slice().sort((x,y)=> (x.rank||99) - (y.rank||99));
+    const me = b;
+    const TOP = 4;
+    const shown = board.slice(0, TOP);
+    if(!shown.includes(me) && me.rank) shown.push(me);      // always show yourself
+
+    const lw = compact ? 74 : 96, lh = 11;
+    const lx = touchUI ? vx+pad : vx+vw-pad-lw;
+    const ly = touchUI ? vy+pad+34 : vy+vh-pad-(shown.length*lh+13);
+
+    c.fillStyle = "rgba(10,22,34,.55)";
+    c.fillRect(lx, ly, lw, shown.length*lh + 13);
+    c.font = "7px "+F_UI;
+    c.fillStyle = "rgba(246,235,214,.65)";
+    c.fillText("ORDER", lx+5, ly+9);
+
+    for(let i=0;i<shown.length;i++){
+      const o = shown[i], y = ly + 13 + i*lh;
+      const mine = (o === me);
+      if(mine){ c.fillStyle = "rgba(240,168,104,.28)"; c.fillRect(lx+1, y, lw-2, lh-1); }
+      c.font = (mine ? "600 " : "") + "8px " + F_UI;
+      c.fillStyle = mine ? "#F0A868" : "rgba(246,235,214,.9)";
+      c.fillText(String(o.rank || "-"), lx+5, y+8);
+      const tag = o.ch.name.split(",")[0].replace("Barbe-bleue","Barbe-bl.");
+      c.fillText(tag.length > 13 ? tag.slice(0,12)+"." : tag, lx+15, y+8);
+      // potatoes eaten
+      c.fillStyle = mine ? "#F0A868" : "#D9A24A";
+      c.textAlign = "right";
+      c.fillText(String(o.fat), lx+lw-5, y+8);
+      c.textAlign = "left";
+    }
+  }
+
+  // --- countdown ---
+  if(G.mode==="countdown"){
+    const n = Math.ceil(G.countdown-0.6);
+    c.textAlign="center";
+    if(n>0){
+      c.font="46px "+F_DISPLAY;
+      c.fillStyle="rgba(18,24,14,.5)"; c.fillText(n, vx+vw/2+2, vy+vh/2+2);
+      c.fillStyle="#FFF3CF"; c.fillText(n, vx+vw/2, vy+vh/2);
+    } else {
+      c.font="34px "+F_DISPLAY;
+      c.fillStyle="rgba(18,24,14,.5)"; c.fillText("Toi toi toi!", vx+vw/2+2, vy+vh/2+2);
+      c.fillStyle="#FFE9A8"; c.fillText("Toi toi toi!", vx+vw/2, vy+vh/2);
+    }
+    c.textAlign="left";
+  }
+  if(b.finished){
+    c.textAlign="center";
+    c.font="20px "+F_DISPLAY;
+    c.fillStyle="rgba(18,24,14,.55)"; c.fillRect(vx, vy+vh/2-20, vw, 40);
+    c.fillStyle="#FFE9A8";
+    c.fillText("Home — "+(ORD[b.place]||"")+" in "+fmt(b.time), vx+vw/2, vy+vh/2+6);
+    c.textAlign="left";
+  }
+  c.restore();
+}
+
+/* ---------------------------------------------------------------
+   13. Frame
+   --------------------------------------------------------------- */
+let last = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!last) last = now;
+  let dt = (now-last)/1000; last = now;
+  if(dt > 0.05) dt = 0.05;
+
+  if(G.mode==="menu"){ renderAttract(now/1000); return; }
+
+  step(dt);
+  const time = now/1000;
+
+  const humans = G.boats.filter(b=>b.human).slice(0, G.players);
+  if(G.players===1){
+    const b = humans[0];
+    renderGround(cam(b), 0, H, time);
+    ctx.putImageData(img,0,0);
+    renderSprites(cam(b), 0, H, time, b);
+    renderHUD(b, 0,0,W,H,false);
+  } else {
+    const h = Math.floor(H/2);
+    renderGround(cam(humans[0]), 0, h, time);
+    renderGround(cam(humans[1]), h, H-h, time);
+    ctx.putImageData(img,0,0);
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,h); ctx.clip();
+    renderSprites(cam(humans[0]), 0, h, time, humans[0]); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(0,h,W,H-h); ctx.clip();
+    renderSprites(cam(humans[1]), h, H-h, time, humans[1]); ctx.restore();
+    renderHUD(humans[0], 0,0,W,h,true);
+    renderHUD(humans[1], 0,h,W,H-h,true);
+    ctx.fillStyle="#C9A227"; ctx.fillRect(0,h-1,W,2);
+  }
+}
+// The camera rises with a jumping boat, so the lake drops away beneath you
+// while the boat itself stays put in frame.
+function cam(b){ return { x:b.camX, y:b.camY, a:b.camA,
+                          h: CAM_H + b.camZ + (b.camRise||0),
+                          dark: tunnelAtU(b.u) }; }
+
+/* A slow drift across the lake behind the playbill. */
+const attract = { t:0 };
+function renderAttract(time){
+  attract.t = time*0.06;
+  const p = spline((attract.t*NODES.length)%NODES.length);
+  const tg = splineTangent((attract.t*NODES.length)%NODES.length);
+  const a = Math.atan2(tg[0], tg[1]);
+  const c = { x:p[0]-Math.sin(a)*40, y:p[1]-Math.cos(a)*40, a, h:CAM_H, dark:0 };
+  renderGround(c, 0, H, time);
+  ctx.putImageData(img,0,0);
+  renderSprites(c, 0, H, time, null);
+}
+
+/* A head-and-shoulders portrait of one rower, drawn with the same models the
+   race uses, so the playbill and the lake agree with each other. The figure is
+   turned three-quarters on. */
+function renderPortrait(ch, pw, ph, fat){
+  const cv = document.createElement("canvas");
+  cv.width = pw; cv.height = ph;
+  const c = cv.getContext("2d");
+
+  const sky = c.createLinearGradient(0,0,0,ph);
+  sky.addColorStop(0,"#C6DCEF"); sky.addColorStop(0.62,"#9CC1DE"); sky.addColorStop(1,"#5E93B8");
+  c.fillStyle = sky; c.fillRect(0,0,pw,ph);
+
+  // Framed so the whole figure sits in the card: waterline near the bottom
+  // edge, crown of the head just inside the top.
+  const Z = 4.7, CH = 2.0, sc = FOCAL/Z;
+  const cam = { x:0, y:-Z, a:0, h:CH };
+  const vh = ph;
+  const vy = ph*0.95 - CH*sc - ph*0.40;
+
+  c.save();
+  c.translate(pw/2 - W/2, 0);
+  drawModel(c, boatModel(ch, fat||0, 1.15, 0, true), 0, 0, -0.42, cam, vy, vh, 0, 1.0);
+  c.restore();
+  return cv;
+}
+
+/* ---------------------------------------------------------------
+   14. Menus
+   --------------------------------------------------------------- */
+const menuEl = document.getElementById("menu");
+const resEl  = document.getElementById("results");
+const castEl = document.getElementById("cast");
+const keysEl = document.getElementById("keys");
+
+function bars(v){                       // 0.8–1.2 → a five-slot meter
+  const n = clamp(Math.round((v-0.78)/0.44*5),0,5);
+  return "█".repeat(n) + "·".repeat(5-n);
+}
+function renderCast(){
+  castEl.innerHTML = "";
+  CAST.forEach((ch,i)=>{
+    const b = document.createElement("button");
+    b.className="role"; b.type="button";
+    b.setAttribute("aria-pressed", String(i===G.pick || (G.players===2 && i===G.pick2)));
+    b.title = ch.note;
+    b.innerHTML =
+      '<span class="nm">'+ch.name+'</span>'+
+      '<span class="vo">'+ch.voice+(G.players===2 ? (i===G.pick?" · P1":(i===G.pick2?" · P2":"")) : "")+'</span>'+
+      '<span class="st">'+
+        '<span>SPD '+bars(ch.top)+'</span>'+
+        '<span>ACC '+bars(ch.accel)+'</span>'+
+        '<span>TRN '+bars(ch.turn)+'</span>'+
+        (ch.spud>1?'<span><i>KARTOFFELN ×2</i></span>':'')+
+      '</span>';
+    b.addEventListener("click", ()=>{
+      if(G.players===2 && (window.event && window.event.shiftKey)) G.pick2 = i;
+      else if(G.players===2 && i===G.pick) G.pick2 = i;
+      else G.pick = i;
+      if(G.players===2 && G.pick===G.pick2) G.pick2 = (i+1)%CAST.length;
+      renderCast();
+    });
+    b.addEventListener("contextmenu", e=>{ e.preventDefault(); if(G.players===2){ G.pick2=i; if(G.pick===G.pick2) G.pick=(i+1)%CAST.length; renderCast(); } });
+    const port = renderPortrait(ch, 150, 150, 0);
+    port.className = "portrait";
+    b.insertBefore(port, b.firstChild);
+    castEl.appendChild(b);
+  });
+  keysEl.innerHTML = IS_TOUCH
+    ? '<div><span>Left thumb on the stick to steer.</span></div>'+
+      '<div><span>Tap <b>Row</b> — the faster you tap, the faster you go. <b>Back</b> to stop.</span></div>'+
+      '<div><span>Row over a potato to eat it.</span></div>'
+    : G.players===1
+    ? '<div><kbd>↑</kbd><span>Tap to row — faster tapping, faster boat</span></div>'+
+      '<div><kbd>←</kbd><kbd>→</kbd><span>Steer</span></div>'+
+      '<div><kbd>↓</kbd><span>Back the oars</span></div>'+
+      '<div><kbd>Esc</kbd><span>Back to the playbill</span></div>'
+    : '<div><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><span>Player one</span></div>'+
+      '<div><kbd>W</kbd><kbd>A</kbd><kbd>D</kbd><span>Player two</span></div>'+
+      '<div><span>Click a name for P1, right-click for P2.</span></div>';
+}
+
+document.querySelectorAll(".opt[data-opt]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const o = btn.dataset.opt, v = btn.dataset.val;
+    if(o==="players"){ G.players = +v; if(G.pick2===G.pick) G.pick2=(G.pick+1)%CAST.length; }
+    if(o==="laps")    G.laps = +v;
+    if(o==="field")   G.field = +v;
+    if(o==="sound"){  G.sound = !G.sound; btn.textContent = G.sound ? "Sound on" : "Sound off"; btn.setAttribute("aria-pressed",String(G.sound)); renderCast(); return; }
+    document.querySelectorAll('.opt[data-opt="'+o+'"]').forEach(x=>x.setAttribute("aria-pressed", String(x.dataset.val===v)));
+    renderCast();
+  });
+});
+
+/* Fullscreen has to be asked for from inside a real tap, so it hangs off the
+   button that starts the race. Android grants it and will also take the
+   orientation lock; iPhone Safari has no fullscreen for pages at all, which is
+   what "Add to Home Screen" is for. All of it fails quietly. */
+function goFullscreen(){
+  const el = document.documentElement;
+  try {
+    if(!document.fullscreenElement && el.requestFullscreen){
+      el.requestFullscreen({ navigationUI: "hide" }).catch(()=>{});
+    } else if(!document.webkitFullscreenElement && el.webkitRequestFullscreen){
+      el.webkitRequestFullscreen();
+    }
+  } catch(e){}
+  try {
+    if(screen.orientation && screen.orientation.lock)
+      screen.orientation.lock("landscape").catch(()=>{});
+  } catch(e){}
+}
+
+function isStandalone(){
+  return (window.matchMedia && matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches)
+      || navigator.standalone === true;
+}
+function fullscreenAllowed(){
+  return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+}
+
+function startRace(){
+  audio();
+  if(IS_TOUCH) goFullscreen();
+  menuEl.classList.remove("on");
+  resEl.classList.remove("on");
+  G.touchUI = IS_TOUCH;
+  if(IS_TOUCH){
+    document.getElementById("touch").classList.add("on");
+    document.getElementById("rotate").classList.add("armed");
+  }
+  resetRace();
+}
+document.getElementById("go").addEventListener("click", startRace);
+document.getElementById("again").addEventListener("click", startRace);
+document.getElementById("backToCast").addEventListener("click", ()=>{
+  if(NET.ws) try{ NET.ws.close(); }catch(e){}
+  NET.on = false; G.net = false;
+  confettiStop();
+  document.getElementById("again").style.display = "";
+  document.getElementById("backToLobby").style.display = "none";
+  document.getElementById("backToCast").textContent = "Change rower";
+  resEl.classList.remove("on"); lobbyEl.classList.remove("on"); menuEl.classList.add("on");
+  hideTouch();
+  G.mode="menu";
+});
+addEventListener("keydown", e=>{
+  if(e.code==="Escape" && G.mode!=="menu"){
+    G.mode="menu"; resEl.classList.remove("on"); menuEl.classList.add("on");
+    hideTouch();
+  }
+  if(e.code==="ShiftLeft" && !keys.ShiftLeft) keys.ShiftLeft_edge = true;
+  if((e.code==="Enter"||e.code==="Space") && G.mode==="menu"){ e.preventDefault(); startRace(); }
+});
+
+/* ---- results ---- */
+function hideTouch(){
+  document.getElementById("touch").classList.remove("on");
+  document.getElementById("rotate").classList.remove("armed");
+}
+
+const BEST_KEY = "kartoffel-regatta-best-v1";
+function endRace(){
+  G.mode = "done";
+  hideTouch();
+
+  // finish anyone still out on the water, by position
+  const rest = G.boats.filter(b=>!b.finished).sort((a,b)=> b.prog-a.prog);
+  let n = G.boats.filter(b=>b.finished).length;
+  rest.forEach(b=>{ b.finished=true; b.place=++n; b.time = G.t + (10 + Math.random()*8); });
+
+  const rank = G.boats.slice().sort((a,b)=> a.place-b.place);
+  const you = G.boats.find(b=>b.human===1);
+
+  const t = document.getElementById("resTable");
+  t.innerHTML =
+    "<tr><th>Pl.</th><th>Rower</th><th>Time</th><th>Kartoffeln</th></tr>" +
+    rank.map(b=>{
+      return '<tr class="'+(b.human?"you":"")+'">'+
+        '<td class="n">'+b.place+'</td>'+
+        '<td>'+b.ch.name+(b.human?" — "+(b.human===1?"you":"player two"):"")+'</td>'+
+        '<td class="n">'+fmt(b.time)+'</td>'+
+        '<td class="n">'+b.fat+'</td></tr>';
+    }).join("");
+
+  document.getElementById("resTitle").textContent =
+    you.place===1 ? "Won on the Grienericksee" : "Placed "+(ORD[you.place]||"");
+
+  const quips = {
+    1:"Toi, toi, toi — and the Schloss saw it.",
+    2:"A length short. The potatoes were there for the taking.",
+    3:"On the podium, at least.",
+  };
+  document.getElementById("resQuip").textContent = quips[you.place] || "Barbe-bleue is waiting on the bank.";
+
+  // personal best, kept in this browser
+  let note = "";
+  try{
+    const store = JSON.parse(localStorage.getItem(BEST_KEY) || "{}");
+    const k = you.ch.id+"-"+G.laps;
+    if(you.place===1 || !store[k] || you.time < store[k]){
+      if(!store[k] || you.time < store[k]){
+        const old = store[k];
+        store[k] = you.time;
+        localStorage.setItem(BEST_KEY, JSON.stringify(store));
+        note = old ? "New best for "+you.ch.name+" over "+G.laps+" laps — "+fmt(you.time)+", beating "+fmt(old)+"."
+                   : "First time round for "+you.ch.name+": "+fmt(you.time)+" over "+G.laps+" laps.";
+      }
+    } else {
+      note = "Your best for "+you.ch.name+" over "+G.laps+" laps is still "+fmt(store[k])+".";
+    }
+  }catch(e){}
+  document.getElementById("resNote").textContent = note;
+
+  resEl.classList.add("on");
+}
+
+
+/* ---------------------------------------------------------------
+   16. Racing other people
+   Every player simulates their own boat and broadcasts it; the room
+   relays. Your own steering is therefore never waiting on the network.
+   Other boats are drawn from the last two snapshots, smoothed.
+   --------------------------------------------------------------- */
+const NET = {
+  ws: null, code: null, id: 0, host: false,
+  roster: [], remote: new Map(),      // id -> {a:snap, b:snap, char}
+  on: false, bots: true, sendAt: 0,
+};
+
+function roomURL(code){
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return proto + "//" + location.host + "/api/race/" + code;
+}
+// One code, easy to shout across a room.
+const HOUSE_CODE = "TOITOI";
+function newCode(){ return HOUSE_CODE; }
+
+function netConnect(code){
+  NET.code = code;
+  NET.remote.clear();
+  try { NET.ws = new WebSocket(roomURL(code)); }
+  catch(e){ lobbyNote("Could not reach the boat house."); return; }
+
+  NET.ws.onopen = ()=>{
+    NET.on = true;
+    lobbyNote("");
+    netSend({ t:"join", name: myName(), char: CAST[G.pick].id });
+  };
+  NET.ws.onclose = ()=>{
+    NET.on = false;
+    lobbyNote("Disconnected. The others carry on without you.");
+  };
+  NET.ws.onerror = ()=> lobbyNote("The connection failed.");
+  NET.ws.onmessage = (ev)=>{
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    netHandle(m);
+  };
+}
+function netSend(o){
+  if(NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o));
+}
+
+function netHandle(m){
+  switch(m.t){
+    case "welcome":
+      NET.id = m.id; NET.host = m.host;
+      break;
+    case "host":
+      NET.host = true;
+      break;
+    case "roster":
+      NET.roster = m.players;
+      drawLobby();
+      break;
+    case "start":
+      NET.bots = !!m.bots;
+      G.laps = m.laps;
+      startNetRace(m);
+      break;
+    case "snap":
+      for(const row of m.p){
+        const id = row[0];
+        if(id === NET.id) continue;
+        let r = NET.remote.get(id);
+        if(!r){ r = { a:null, b:null }; NET.remote.set(id, r); }
+        r.a = r.b;
+        r.b = { t: performance.now(), x:row[1], y:row[2], ang:row[3],
+                fat:row[4], u:row[5], lap:row[6], z:row[7] };
+      }
+      break;
+    case "fin": {
+      const p = NET.roster.find(o=>o.id===m.id);
+      if(p){ p.finished = true; p.time = m.time; }
+      break;
+    }
+    case "over":
+      netResults(m.results);
+      break;
+    case "lobby":
+      resEl.classList.remove("on");
+      lobbyEl.classList.add("on");
+      confettiStart();
+      G.mode = "menu";
+      break;
+  }
+}
+
+function myName(){
+  let n = "";
+  try { n = localStorage.getItem("kr-name") || ""; } catch(e){}
+  if(!n){
+    n = (CAST[G.pick] && CAST[G.pick].name.split(",")[0]) || "Rower";
+    try { localStorage.setItem("kr-name", n); } catch(e){}
+  }
+  return n;
+}
+
+/* ---- the lobby ---- */
+const lobbyEl = document.getElementById("lobby");
+function lobbyNote(t){ document.getElementById("lobNote").textContent = t; }
+
+function drawLobby(){
+  document.getElementById("lobCode").textContent = NET.code || "····";
+  const list = document.getElementById("lobList");
+  list.innerHTML = NET.roster.map(p=>{
+    const ch = CAST.find(c=>c.id===p.char);
+    return '<div class="lobRow'+(p.id===NET.id?" me":"")+(p.ready?" ready":"")+'">'+
+      '<span class="dot"></span>'+
+      '<span class="who">'+(ch ? ch.name : "choosing…")+'</span>'+
+      '<span class="tag">'+(p.host?"host":(p.ready?"ready":""))+'</span></div>';
+  }).join("") || '<div class="lobRow"><span class="who">Waiting for rowers…</span></div>';
+  document.getElementById("lobStart").style.display = NET.host ? "" : "none";
+  document.getElementById("lobHint").textContent = NET.host
+    ? "Give the others this code. They can be on any network — the venue wifi, 5G, anywhere."
+    : "Waiting for the host to start.";
+}
+
+/* ---- starting together ---- */
+function startNetRace(m){
+  // everyone claims the character they picked in the lobby
+  const taken = new Map();
+  for(const p of NET.roster) if(p.char) taken.set(p.id, p.char);
+
+  const order = [];
+  const mine = taken.get(NET.id) || CAST[G.pick].id;
+  order.push(CAST.findIndex(c=>c.id===mine));
+  for(const [id, ch] of taken){
+    if(id === NET.id) continue;
+    const k = CAST.findIndex(c=>c.id===ch);
+    if(k >= 0 && !order.includes(k)) order.push(k);
+  }
+  NET.slots = [...taken.keys()].filter(id=>id!==NET.id);
+
+  G.field = NET.bots ? Math.max(order.length, m.field) : order.length;
+  G.netOrder = order;
+  G.net = true;              // must be set before the field is built, not after
+  confettiStop();
+  lobbyEl.classList.remove("on");
+  startRace();
+}
+
+function netResults(results){
+  G.mode = "done";
+  hideTouch();
+  const t = document.getElementById("resTable");
+  t.innerHTML = "<tr><th>Pl.</th><th>Rower</th><th>Time</th><th>Kartoffeln</th></tr>" +
+    results.map((r,i)=>{
+      const ch = CAST.find(c=>c.id===r.char);
+      return '<tr class="'+(r.id===NET.id?"you":"")+'">'+
+        '<td class="n">'+(i+1)+'</td>'+
+        '<td>'+(ch?ch.name:"—")+(r.name?' <span style="opacity:.55">'+r.name+'</span>':'')+'</td>'+
+        '<td class="n">'+fmt(r.time)+'</td>'+
+        '<td class="n">'+(r.fat|0)+'</td></tr>';
+    }).join("");
+  document.getElementById("resTitle").textContent =
+    results[0] && results[0].id === NET.id ? "Won it" : "The Regatta";
+  document.getElementById("resQuip").textContent = "Toi, toi, toi!";
+  document.getElementById("resNote").textContent = NET.host
+    ? "" : "The host can start another race from the boat house.";
+  // In a room, "row it again" is the host's call — everyone else goes back and
+  // waits. Without this there was no way out of the results at all.
+  document.getElementById("again").style.display = "none";
+  document.getElementById("backToLobby").style.display = "";
+  document.getElementById("backToCast").textContent = "Leave the room";
+  resEl.classList.add("on");
+}
+
+/* ---- confetti over the waiting room --------------------------------
+   Its own little canvas and loop, running only while the lobby is up. */
+const CONF = { cv:null, ctx:null, bits:[], raf:0, last:0 };
+const CONF_COL = ["#F0A868","#D9B36A","#F6EBD6","#7E1E2B","#4E8FB8","#6E8C48","#C0342B"];
+
+function confettiStart(){
+  if(CONF.raf) return;
+  CONF.cv = document.getElementById("confetti");
+  CONF.ctx = CONF.cv.getContext("2d");
+  CONF.bits = [];
+  CONF.last = 0;
+  const step = (now)=>{
+    const cv = CONF.cv, c = CONF.ctx;
+    if(!lobbyEl.classList.contains("on")){ CONF.raf = 0; return; }
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if(cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+    const dt = CONF.last ? Math.min(0.05, (now - CONF.last)/1000) : 0.016;
+    CONF.last = now;
+
+    // keep it topped up
+    while(CONF.bits.length < 130){
+      CONF.bits.push({
+        x: Math.random()*w, y: -20 - Math.random()*h,
+        vy: 34 + Math.random()*70, vx: (Math.random()-0.5)*26,
+        r: Math.random()*Math.PI, vr: (Math.random()-0.5)*4,
+        w: 4 + Math.random()*6, h: 6 + Math.random()*9,
+        col: CONF_COL[(Math.random()*CONF_COL.length)|0],
+        sway: 0.6 + Math.random()*1.6, ph: Math.random()*TAU,
+      });
+    }
+
+    c.clearRect(0,0,w,h);
+    for(let i=CONF.bits.length-1; i>=0; i--){
+      const b = CONF.bits[i];
+      b.ph += dt*b.sway;
+      b.x += (b.vx + Math.sin(b.ph)*22) * dt;
+      b.y += b.vy * dt;
+      b.r += b.vr * dt;
+      if(b.y > h + 24){ CONF.bits.splice(i,1); continue; }
+      c.save();
+      c.translate(b.x, b.y);
+      c.rotate(b.r);
+      c.fillStyle = b.col;
+      c.globalAlpha = 0.9;
+      c.fillRect(-b.w/2, -b.h/2, b.w, b.h * (0.4 + 0.6*Math.abs(Math.cos(b.ph))));
+      c.restore();
+    }
+    c.globalAlpha = 1;
+    CONF.raf = requestAnimationFrame(step);
+  };
+  CONF.raf = requestAnimationFrame(step);
+}
+function confettiStop(){
+  if(CONF.raf) cancelAnimationFrame(CONF.raf);
+  CONF.raf = 0;
+  if(CONF.ctx && CONF.cv) CONF.ctx.clearRect(0,0,CONF.cv.width,CONF.cv.height);
+}
+
+/* ---- buttons ---- */
+document.getElementById("mpHost").addEventListener("click", ()=>{
+  menuEl.classList.remove("on");
+  lobbyEl.classList.add("on");
+  confettiStart();
+  drawLobby();
+  netConnect(newCode());
+});
+document.getElementById("mpJoin").addEventListener("click", ()=>{
+  const c = (prompt("Room code?", HOUSE_CODE) || "").toUpperCase().replace(/[^A-Z]/g,"").slice(0,8);
+  if(c.length < 3){ return; }
+  menuEl.classList.remove("on");
+  lobbyEl.classList.add("on");
+  confettiStart();
+  drawLobby();
+  netConnect(c);
+});
+document.getElementById("lobStart").addEventListener("click", ()=>{
+  netSend({ t:"start", laps: G.laps, bots: NET.bots, field: 8 });
+});
+document.getElementById("lobLeave").addEventListener("click", ()=>{
+  if(NET.ws) NET.ws.close();
+  NET.on = false; G.net = false;
+  lobbyEl.classList.remove("on");
+  confettiStop();
+  menuEl.classList.add("on");
+});
+document.getElementById("backToLobby").addEventListener("click", ()=>{
+  resEl.classList.remove("on");
+  lobbyEl.classList.add("on");
+  confettiStart();
+  drawLobby();
+  G.mode = "menu";
+  if(NET.host && NET.on) netSend({ t:"again" });   // clears the room for everyone
+});
+
+document.getElementById("lobBots").addEventListener("click", (e)=>{
+  NET.bots = !NET.bots;
+  e.currentTarget.setAttribute("aria-pressed", String(NET.bots));
+  e.currentTarget.textContent = NET.bots ? "Fill with bots" : "People only";
+});
+document.querySelectorAll('#lobOpts .opt[data-opt="laps"]').forEach(b=>{
+  b.addEventListener("click", ()=>{
+    G.laps = +b.dataset.val;
+    document.querySelectorAll('#lobOpts .opt[data-opt="laps"]')
+      .forEach(x=>x.setAttribute("aria-pressed", String(x===b)));
+  });
+});
+
+/* ---------------------------------------------------------------
+   15. Go
+   --------------------------------------------------------------- */
+if(IS_TOUCH) document.getElementById("twoUp").style.display="none";
+
+buildSpine();
+findCrossing();
+buildMap();
+buildAudience();
+buildDungeon();
+prepMapU32();
+renderCast();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

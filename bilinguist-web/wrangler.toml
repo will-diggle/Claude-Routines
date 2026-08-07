@@ -1,5 +1,22 @@
 name = "bilinguist-web"
+main = "src/worker.js"
 compatibility_date = "2024-09-23"
+
+# Serve the site on the real domain, not just the workers.dev address.
+routes = [
+  { pattern = "bilinguistbrief.com", custom_domain = true },
+  { pattern = "www.bilinguistbrief.com", custom_domain = true }
+]
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
+
+# One Durable Object per race room, addressed by its four-letter code.
+[[durable_objects.bindings]]
+name = "RACE"
+class_name = "RaceRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RaceRoom"]
