@@ -27,7 +27,12 @@ import requests
 
 BRIEF_DATE = os.environ.get("BRIEF_DATE") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 REQUEST_TIMEOUT = 15
-HEADLINES_PER_OUTLET = 3
+# 8, not 3: with only 3 headlines per outlet the 12 outlets rarely overlapped at
+# all, so the cross-reference score had almost nothing to work with — top stories
+# were scoring 7-8 out of a possible 36. Deeper sampling produces real clustering.
+# Feeds shorter than this are truncated safely (titles[:HEADLINES_PER_OUTLET]).
+# NOTE: the scoring ladder in gemini_prompt_brief.md is derived from this number.
+HEADLINES_PER_OUTLET = 8
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

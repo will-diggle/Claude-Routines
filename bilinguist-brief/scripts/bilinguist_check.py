@@ -40,6 +40,11 @@ LANG_NAMES = {
 
 MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 
+# Ceiling for the Global News cross-reference score: 12 outlets x 8 points for a
+# first-position story. Must track HEADLINES_PER_OUTLET in bilinguist_scrape.py
+# and the scoring ladder in gemini_prompt_brief.md.
+MAX_XREF_SCORE = 96
+
 # Minimum share of expected briefings that must be present for the run to publish.
 # Below this the brief is too broken to ship; at or above it we publish what we have
 # and report the gaps. Set to 1.0 to restore the old all-or-nothing behaviour.
@@ -441,14 +446,14 @@ def check(bundle_path: Path) -> int:
     # Global News cross-reference scores
     global_news = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
     if global_news:
-        score_lines = ["📡 Global News scores (out of 72):"]
+        score_lines = [f"📡 Global News scores (out of {MAX_XREF_SCORE}):"]
         for story in sorted(global_news, key=lambda s: s.get("cross_reference_score", {}).get("rank", 99)):
             crs = story.get("cross_reference_score", {})
             total_score = crs.get("total", "?")
             outlets = ", ".join(crs.get("outlets_covering", []))
             rank = crs.get("rank", "?")
             headline = story.get("what_happened", ["?"])[0]
-            score_lines.append(f"  #{rank} [{total_score}/72] {headline}")
+            score_lines.append(f"  #{rank} [{total_score}/{MAX_XREF_SCORE}] {headline}")
             if outlets:
                 score_lines.append(f"      {outlets}")
         body_parts += [""] + score_lines
