@@ -2,14 +2,28 @@
 # bilinguist_write.py imports from here unless --test is passed.
 
 # Per-level CEFR descriptions. build_writing_prompt injects ONLY the target level.
+# Deliberately bare: the model already knows what a CEFR level implies, and spelling
+# out grammatical rules was tested and produced WORSE output — it optimises for rule
+# compliance over natural writing. Do not "improve" these into rule lists.
 LEVEL_DESCRIPTIONS: dict[str, str] = {
     "A1": "A1", "A2": "A2", "B1": "B1", "B2": "B2", "C1": "C1", "C2": "C2",
 }
 
 # Per-length instruction. Only the relevant length is shown per call.
+# Both variants name concrete material to expand with — naming only a floor made the
+# model simplify a story to its core, run out of things it could say at the target
+# level, and stop short (A2 "longer" was landing 20–35 words under a 110–130 target).
 LENGTH_INSTRUCTIONS: dict[str, str] = {
-    "short":  "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. Do not go under {WORD_MIN} words. Do not exceed {WORD_MAX} words.",
-    "longer": "Write 2–3 paragraphs. Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. Do not go under {WORD_MIN} words. Do not exceed {WORD_MAX} words.",
+    "short":  "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. If you are under {WORD_MIN}, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not exceed {WORD_MAX} words.",
+    "longer": (
+        "Write 2–3 short paragraphs:\n"
+        "  - First paragraph: what happened — who, what, where, when.\n"
+        "  - Second paragraph: why it matters — background and consequences drawn from the fact-base.\n"
+        "  - Third paragraph (optional): what happens next, or the reaction of a named party.\n"
+        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. "
+        "If you are under {WORD_MIN}, add another fact from the fact-base — more background, another figure, a named reaction, or the likely consequence. "
+        "Do not exceed {WORD_MAX} words."
+    ),
 }
 
 # Per-language rules injected only when relevant. Fixes the "IF German is English" bug.
@@ -24,7 +38,9 @@ Write news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every
 
 WORD COUNT — STRICT REQUIREMENT:
 {LENGTH_INSTRUCTION}
-This is a hard rule. If an article body is shorter than {WORD_MIN} words, expand it with relevant context from the fact-base. If it exceeds {WORD_MAX} words, trim it. Every article must land between {WORD_MIN} and {WORD_MAX} words — no exceptions.
+This is a hard rule: every article must land between {WORD_MIN} and {WORD_MAX} words — no exceptions.
+Reach the count by adding real facts from the fact-base. Never pad with empty phrases, and never write above the target level to fill space — the reading level matters more than any single sentence.
+Simpler language needs more words to say the same thing, not fewer. A short article is not more suitable for a learner; it is just less complete.
 
 {VARIANT_RULE}
 OUTPUT FORMAT: {{"articles":[{{"genre":"...","slug":"...","headline":"...","body":"..."}}]}}
