@@ -24,6 +24,24 @@ on:
         type: boolean
         required: false
         default: true
+      pin_factbase:
+        description: 'A/B: reuse the published factbase for this date from bilinguist-data, so both arms see identical input.'
+        type: boolean
+        required: false
+        default: false
+      per_article:
+        description: 'A/B arm B: one API call per (language, level, length, story).'
+        type: boolean
+        required: false
+        default: false
+      workers:
+        description: 'Max concurrent API calls. Raise well above 4 for per_article and/or flex.'
+        required: false
+        default: '4'
+      tier:
+        description: 'Gemini service tier: standard or flex (50% cheaper, 1-15 min latency).'
+        required: false
+        default: 'standard'
 
 jobs:
   test:
@@ -62,8 +80,39 @@ jobs:
             -d "Test run started for ${{ env.BRIEF_DATE }}. skip_gather=${{ inputs.skip_gather }} skip_factcheck=${{ inputs.skip_factcheck }} skip_push=${{ inputs.skip_push }}" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
+      - name: Pin factbase from data repo (A/B control)
+        if: ${{ inputs.pin_factbase == true }}
+        env:
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          git clone --depth 1 https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
+          python3 - <<'PYEOF'
+          import json, os, sys
+          date = os.environ["BRIEF_DATE"]
+          src = f"/tmp/bilinguist-data/briefings/{date}.json"
+          if not os.path.exists(src):
+              sys.exit(f"No published bundle for {date} — cannot pin the factbase.")
+          with open(src, encoding="utf-8") as f:
+              bundle = json.load(f)
+          factbase = bundle.get("factbase") or []
+          if not factbase:
+              sys.exit(f"Bundle for {date} has no factbase.")
+          out = {
+              "factbase": factbase,
+              "daily_notification": bundle.get("daily_notification", ""),
+              "global_news_search_log": bundle.get("global_news_search_log", []),
+              "model": bundle.get("gatherSource", "gemini"),
+              "pipeline_started_at": bundle.get("generatedAt"),
+          }
+          dest = f"bilinguist-brief/scripts/factbase_{date}.json"
+          with open(dest, "w", encoding="utf-8") as f:
+              json.dump(out, f, ensure_ascii=False, indent=2)
+          print(f"Pinned {len(factbase)} stories from the published bundle -> {dest}")
+          PYEOF
+
       - name: Stage 1 - Gather news
-        if: ${{ inputs.skip_gather == false }}
+        if: ${{ inputs.skip_gather == false && inputs.pin_factbase == false }}
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -74,11 +123,11 @@ jobs:
           echo "GATHER_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
 
       - name: Stage 1 - Gather (skipped)
-        if: ${{ inputs.skip_gather == true }}
+        if: ${{ inputs.skip_gather == true || inputs.pin_factbase == true }}
         run: echo "Gather skipped — reusing existing factbase for ${{ env.BRIEF_DATE }}"
 
       - name: Stage 1B - Fact-check factbase
-        if: ${{ inputs.skip_factcheck == false }}
+        if: ${{ inputs.skip_factcheck == false && inputs.pin_factbase == false }}
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -89,7 +138,7 @@ jobs:
           echo "FACTCHECK_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
 
       - name: Stage 1B - Fact-check (skipped)
-        if: ${{ inputs.skip_factcheck == true }}
+        if: ${{ inputs.skip_factcheck == true || inputs.pin_factbase == true }}
         run: echo "Fact-check skipped"
 
       - name: Stages 2-4 - Write and grade
@@ -99,7 +148,10 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: |
           START=$(date +%s)
-          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --test
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
+            ${{ inputs.per_article == true && '--per-article' || '' }} \
+            --workers ${{ inputs.workers }} \
+            --tier ${{ inputs.tier }}
           echo "WRITE_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
 
       - name: Check completeness
