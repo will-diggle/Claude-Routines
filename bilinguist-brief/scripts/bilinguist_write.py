@@ -39,7 +39,7 @@ import sys
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -61,6 +61,23 @@ MODEL_4B = "gemini-2.5-flash"               # P4b: grade CEFR level articles (qu
 # cascade failures; 6 was OK with fewer levels but too aggressive now.
 _MAX_WORKERS   = 4
 _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
+
+# ── A/B experiment switches (set from CLI in main) ───────────────────────────
+# PER_ARTICLE: one API call per (language, level, length, story) instead of one
+# call writing every story at once. Set via --per-article.
+# SERVICE_TIER: "flex" requests the 50%-discount tier (1-15 min latency,
+# sheddable). None = standard. Set via --tier.
+PER_ARTICLE: bool = False
+SERVICE_TIER: Optional[str] = None
+
+
+def _set_workers(n: int) -> None:
+    """Resize the concurrency cap. Per-article mode fans out to hundreds of small
+    calls, and Flex adds minutes of latency each — at 4 workers that serialises
+    into hours, so the cap has to move with the mode."""
+    global _MAX_WORKERS, _API_SEMAPHORE
+    _MAX_WORKERS = n
+    _API_SEMAPHORE = threading.Semaphore(n)
 
 # Retry settings for transient API errors.
 # Delays are SHORT — jitter below breaks the thundering-herd where all 4 workers
@@ -434,6 +451,7 @@ def call_gemini(
                         response_schema=schema,
                         max_output_tokens=max_output_tokens,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        **({"service_tier": SERVICE_TIER} if SERVICE_TIER else {}),
                     ),
                 )
             # Accumulate token usage for cost tracking
@@ -486,6 +504,10 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
              if task.level else f"{task.stage}/{task.lang}")
 
     if task.n_splits == 1:
+        # Expected article count is bounded by how many stories this task carries.
+        # In per-article mode that is 1, so the thin-response retry must not demand
+        # _MIN_ARTICLES_EXPECTED or every single call would retry to its limit.
+        expected = min(_MIN_ARTICLES_EXPECTED, len(task.factbase or [])) or 1
         best_articles: list[dict] = []
         for attempt in range(_THIN_RETRY_LIMIT + 1):
             attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
@@ -512,14 +534,14 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
             articles = parsed.get("articles", [])
             if len(articles) > len(best_articles):
                 best_articles = articles
-            if len(best_articles) >= _MIN_ARTICLES_EXPECTED:
+            if len(best_articles) >= expected:
                 break
             if attempt < _THIN_RETRY_LIMIT:
-                print(f"[WARN] [{attempt_label}] thin response ({len(articles)} articles < {_MIN_ARTICLES_EXPECTED}) — retrying",
+                print(f"[WARN] [{attempt_label}] thin response ({len(articles)} articles < {expected}) — retrying",
                       file=sys.stderr)
         if not best_articles:
             print(f"[ERROR] [{label}]: empty articles list — output incomplete", file=sys.stderr)
-        elif len(best_articles) < _MIN_ARTICLES_EXPECTED:
+        elif len(best_articles) < expected:
             print(f"[WARN] [{label}] still thin after {_THIN_RETRY_LIMIT} retries: {len(best_articles)} articles",
                   file=sys.stderr)
         return best_articles
@@ -574,6 +596,63 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
     if not all_articles:
         print(f"[ERROR] [{label}] no articles after {n}-way proactive split", file=sys.stderr)
     return all_articles
+
+
+def _group_key(task: "_WriteTask") -> tuple:
+    return (task.stage, task.lang, task.level, task.length)
+
+
+def _run_task_group(client: genai.Client, tasks: list) -> dict:
+    """
+    Execute tasks and return {(stage, lang, level, length): [articles]}.
+
+    Batched mode: one call per task, each writing every story at once.
+
+    Per-article mode: every task is expanded into one call per story and ALL of
+    them are submitted to the pool together. Expanding inside _execute_task
+    instead would run each task's stories sequentially, which at Flex latency
+    would serialise into hours.
+    """
+    results: dict = {}
+
+    if not PER_ARTICLE:
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+            futures = {executor.submit(_execute_task, client, t): t for t in tasks}
+            for future in as_completed(futures):
+                task = futures[future]
+                results[_group_key(task)] = future.result() or []
+        return results
+
+    subtasks: list[tuple[tuple, _WriteTask]] = []
+    for task in tasks:
+        stories = task.factbase or []
+        for story in stories:
+            if task.stage == "3":
+                prompt = build_native_prompt(task.lang, [story], task.length)
+            else:
+                prompt = build_writing_prompt(
+                    task.template, task.lang, task.level, task.length, [story]
+                )
+            subtasks.append((
+                _group_key(task),
+                replace(task, prompt=prompt, factbase=[story], n_splits=1),
+            ))
+        results.setdefault(_group_key(task), [])
+
+    print(f"[write] per-article: {len(tasks)} combos → {len(subtasks)} calls "
+          f"(max {_MAX_WORKERS} at a time)")
+
+    lock = threading.Lock()
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+        futures = {executor.submit(_execute_task, client, st): key
+                   for key, st in subtasks}
+        for future in as_completed(futures):
+            key = futures[future]
+            articles = future.result() or []
+            with lock:
+                results[key].extend(articles)
+
+    return results
 
 
 # ── Cost report ───────────────────────────────────────────────────────────────
@@ -702,16 +781,13 @@ def run_native_journalism(
     print(f"[3] Generating native journalism: {len(native_langs)} languages × 2 lengths ({total} tasks)...")
     native_journalism: dict = {lang: {} for lang in native_langs}
 
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_task = {executor.submit(_execute_task, client, t): t for t in tasks}
-        for future in as_completed(future_to_task):
-            task = future_to_task[future]
-            articles = future.result()
-            if articles:
-                native_journalism[task.lang][task.length] = articles
-                print(f"[3] {task.lang}/{task.length}: {len(articles)} articles ✓")
-            else:
-                print(f"[3] {task.lang}/{task.length}: ❌ no articles", file=sys.stderr)
+    grouped = _run_task_group(client, tasks)
+    for (_stage, lang, _level, length), articles in grouped.items():
+        if articles:
+            native_journalism[lang][length] = articles
+            print(f"[3] {lang}/{length}: {len(articles)} articles ✓")
+        else:
+            print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
 
     # Only include languages that produced at least one length variant
     return {lang: lengths for lang, lengths in native_journalism.items() if lengths}
@@ -837,14 +913,9 @@ def run_writing_concurrent(
 
     briefings: dict = {}
 
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_task = {executor.submit(_execute_task, client, t): t for t in tasks}
-
-        for future in as_completed(future_to_task):
-            task = future_to_task[future]
-            stage, lang, level, length = task.stage, task.lang, task.level, task.length
-            articles = future.result()
-
+    grouped = _run_task_group(client, tasks)
+    if True:
+        for (stage, lang, level, length), articles in grouped.items():
             if not articles:
                 continue
 
@@ -924,10 +995,28 @@ def main():
     parser = argparse.ArgumentParser(description="Bilinguist Brief — writing/grading pipeline")
     parser.add_argument("--date", help="Override date (YYYY-MM-DD). Defaults to today UTC.")
     parser.add_argument("--test", action="store_true", help="Use test prompts from bilinguist_prompts_test.py.")
+    parser.add_argument("--per-article", action="store_true",
+                        help="A/B: one API call per (language, level, length, story) "
+                             "instead of one call writing every story at once.")
+    parser.add_argument("--workers", type=int, default=_MAX_WORKERS,
+                        help=f"Max concurrent API calls (default {_MAX_WORKERS}). "
+                             "Raise for --per-article and/or --tier flex.")
+    parser.add_argument("--tier", choices=["standard", "flex"], default="standard",
+                        help="Gemini service tier. 'flex' is ~50%% cheaper but adds "
+                             "1-15 min latency per call and is sheddable.")
     args = parser.parse_args()
+
+    global PER_ARTICLE, SERVICE_TIER
+    PER_ARTICLE = args.per_article
+    SERVICE_TIER = "flex" if args.tier == "flex" else None
+    _set_workers(args.workers)
 
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     print(f"[write] Starting writing/grading pipeline — {date}")
+    print(f"[write] Mode: {'PER-ARTICLE' if PER_ARTICLE else 'batched'} | "
+          f"tier: {args.tier} | workers: {_MAX_WORKERS}")
+    _t_pipeline = time.time()
+    _stage_secs: dict[str, float] = {}
 
     # Locate the factbase produced by Stage 1
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -957,16 +1046,22 @@ def main():
     print("[write] Gemini client initialised")
 
     # ── Stage 3 — native journalism (runs before CEFR writing) ───────────────
+    _t = time.time()
     native_journalism = run_native_journalism(client, factbase)
+    _stage_secs["3_native"] = time.time() - _t
 
     # ── Stage P4a — grade native journalism → CEFR level per language ─────────
     # This gates P2S/2M: levels at or above the native grade are skipped.
+    _t = time.time()
     native_grades = run_grade_native(client, native_journalism)
+    _stage_secs["4a_grade_native"] = time.time() - _t
     if native_grades:
         print(f"[write] Native grades: {native_grades}")
 
     # ── Stages 2S + 2B + 2M — write CEFR levels below native grade ───────────
+    _t = time.time()
     briefings = run_writing_concurrent(client, factbase, 0, date, native_grades)
+    _stage_secs["2_cefr_write"] = time.time() - _t
     # Stamp generatedAt AFTER writing completes so "Published at" reflects when
     # articles finished, not when the pipeline launched.
     generated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -985,9 +1080,17 @@ def main():
     print(f"[write] Writing done: {total_briefings} / {len(combos_2s) + len(combos_2m)} briefings assembled")
 
     # ── Stage P4b — grade the CEFR level articles that were written ───────────
+    _t = time.time()
     grading = run_grade_cefr(client, briefings)
+    _stage_secs["4b_grade_cefr"] = time.time() - _t
 
     # ── Cost report (P1–P4b) ──────────────────────────────────────────────────
+    print(f"[timing] mode={'per-article' if PER_ARTICLE else 'batched'} "
+          f"tier={args.tier} workers={_MAX_WORKERS}")
+    for _name, _secs in _stage_secs.items():
+        print(f"[timing]   {_name}: {_secs:.1f}s")
+    print(f"[timing]   TOTAL write pipeline: {time.time() - _t_pipeline:.1f}s")
+
     write_costs_report(date, script_dir)
 
     # ── Assemble DailyBundle ──────────────────────────────────────────────────
