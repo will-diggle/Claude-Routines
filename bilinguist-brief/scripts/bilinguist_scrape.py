@@ -27,12 +27,16 @@ import requests
 
 BRIEF_DATE = os.environ.get("BRIEF_DATE") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 REQUEST_TIMEOUT = 15
-# 8, not 3: with only 3 headlines per outlet the 12 outlets rarely overlapped at
-# all, so the cross-reference score had almost nothing to work with — top stories
-# were scoring 7-8 out of a possible 36. Deeper sampling produces real clustering.
-# Feeds shorter than this are truncated safely (titles[:HEADLINES_PER_OUTLET]).
+# REVERTED TO 3. Raising this to 8 did improve the cross-reference score a lot
+# (top story 22/96 vs 7/36 — real clustering, defensible top 3), but it nearly
+# tripled the scoring work inside gather's single call. The model spent its budget
+# there and stubbed out the other genres, emitting placeholder slugs
+# ("uk-politics-story-1") with no content. Downstream then wrote 3 articles per
+# combo instead of 7, and it shipped.
+# Do not raise this again without either splitting gather into two calls or adding
+# Python validation that rejects placeholder slugs.
 # NOTE: the scoring ladder in gemini_prompt_brief.md is derived from this number.
-HEADLINES_PER_OUTLET = 8
+HEADLINES_PER_OUTLET = 3
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
