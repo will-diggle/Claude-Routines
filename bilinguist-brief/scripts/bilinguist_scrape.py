@@ -67,21 +67,29 @@ OUTLETS = [
     },
     {
         "name": "Der Spiegel",
-        # International English feed rather than German domestic schlagzeilen
-        "rss": "https://www.spiegel.de/international/index.rss",
+        # /international is a long-read feature feed spanning ~29 days, not daily
+        # news. German-language is fine: headlines are only used for scoring and
+        # the prompt states the outlet's language is irrelevant.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:spiegel.de&hl=de&gl=DE&ceid=DE:de",
     },
     {
         "name": "NHK World",
-        # RSSHub bridge unreliable — Google News search is the stable workaround
-        "rss": "https://news.google.com/rss/search?q=site:www3.nhk.or.jp/nhkworld/",
+        # Was missing the when:24h filter every other Google News query has, so
+        # year-old items were appearing in the top 8.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:www3.nhk.or.jp/nhkworld&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "Al Jazeera",
-        "rss": "https://www.aljazeera.com/xml/rss/all.xml",
+        # all.xml is a chronological firehose — Messi, cricket and NBA outranked
+        # the day's news. Google News 24h gives editorial news ordering.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:aljazeera.com&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "CNN",
-        "rss": "http://rss.cnn.com/rss/edition_world.rss",
+        # Official world feed is ABANDONED — it still serves April 2023 items
+        # ("Retail spending fell in March", 2022 climate pieces) and had been
+        # feeding three-year-old headlines into every brief.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:cnn.com&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "New York Times",
@@ -89,8 +97,9 @@ OUTLETS = [
     },
     {
         "name": "Washington Post",
-        # No public RSS — Google News search is the workaround
-        "rss": "https://news.google.com/rss/search?q=site:washingtonpost.com",
+        # No public RSS — Google News search is the workaround.
+        # when:24h added: without it the top 8 spanned ~48h.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:washingtonpost.com&hl=en-US&gl=US&ceid=US:en",
     },
 ]
 
