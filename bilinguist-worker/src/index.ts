@@ -8,6 +8,9 @@
  *   GET  /word?w={word}&lang={lang}     → word lookup (D1 cache → Claude + translate)
  *   POST /word                          → admin: bulk-insert a word (requires X-Admin-Key)
  *   GET  /word/stats                    → per-language word counts
+ *   GET  /report                        → latest pipeline run report (for Piggy Figs)
+ *   GET  /report/YYYY-MM-DD             → a specific run's report
+ *   GET  /report/index                  → { dates: string[] } of available reports, newest first
  */
 
 // ── Language data ─────────────────────────────────────────────────────────────
@@ -804,6 +807,38 @@ async function handleBriefing(filePath: string, env: Env): Promise<Response> {
   });
 }
 
+// ── Pipeline report routes (for Piggy Figs) ───────────────────────────────────
+// Mirrors handleBriefing's proxy pattern exactly, pointed at reports/ instead
+// of the briefing bundle. Same reasoning: bilinguist-data is a private repo,
+// so a public app can only reach it through this Worker holding the token.
+
+async function handleReportIndex(env: Env): Promise<Response> {
+  const upstream = `https://api.github.com/repos/${REPO}/contents/reports`;
+  const githubRes = await fetch(upstream, {
+    headers: {
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'Bilinguist-Brief-Worker/1.0',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    cf: { cacheEverything: false },
+  } as RequestInit & { cf: { cacheEverything: boolean } });
+
+  if (!githubRes.ok) {
+    const status = githubRes.status === 404 ? 404 : 502;
+    return json({ error: status === 404 ? 'not_found' : 'upstream_error' }, status);
+  }
+
+  const entries = await githubRes.json() as { name: string }[];
+  const dates = entries
+    .map((e) => e.name.match(/^report_(\d{4}-\d{2}-\d{2})\.json$/)?.[1])
+    .filter((d): d is string => !!d)
+    .sort()
+    .reverse();
+
+  return json({ dates });
+}
+
 // ── Route: GET /latest?lang=&level= (filtered slice for the website) ─────────
 // Avoids shipping the full multi-language bundle (all languages × all levels ×
 // all lengths + factbase + tokenMaps) to every site visitor — returns just the
@@ -1015,6 +1050,11 @@ export default {
 
     const archive = pathname.match(/^\/briefings\/(\d{4}-\d{2}-\d{2})$/);
     if (archive) return handleBriefing(`briefings/${archive[1]}.json`, env);
+
+    if (pathname === '/report/index') return handleReportIndex(env);
+    if (pathname === '/report') return handleBriefing('reports/report_latest.json', env);
+    const report = pathname.match(/^\/report\/(\d{4}-\d{2}-\d{2})$/);
+    if (report) return handleBriefing(`reports/report_${report[1]}.json`, env);
 
     return new Response('Not found', { status: 404 });
   },
