@@ -95,11 +95,20 @@ export function DashboardScreen({ route, navigation }: Props) {
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.ink }]}>{connection.name}</Text>
-        <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={() => load()} disabled={refreshing}>
-          <View style={styles.refreshBtnInner}>
-            {refreshing ? <ActivityIndicator size="small" color={colors.ink} /> : <Ionicons name="refresh" size={20} color={colors.ink} />}
-          </View>
-        </GlassButton>
+        <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+          {isBilinguist && (
+            <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={() => navigation.navigate('Reports')}>
+              <View style={styles.refreshBtnInner}>
+                <Ionicons name="document-text-outline" size={19} color={colors.ink} />
+              </View>
+            </GlassButton>
+          )}
+          <GlassButton tintColor={colors.chrome} style={styles.refreshBtn} onPress={() => load()} disabled={refreshing}>
+            <View style={styles.refreshBtnInner}>
+              {refreshing ? <ActivityIndicator size="small" color={colors.ink} /> : <Ionicons name="refresh" size={20} color={colors.ink} />}
+            </View>
+          </GlassButton>
+        </View>
       </View>
 
       {error && (

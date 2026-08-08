@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { AddAppScreen } from './src/screens/AddAppScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { ReportsScreen } from './src/screens/ReportsScreen';
 import type { Connection } from './src/lib/connections';
 import { useTheme, FONT_SERIF } from './src/theme/tokens';
 
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   Home: undefined;
   AddApp: { editing?: Connection } | undefined;
   Dashboard: { connection: Connection };
+  Reports: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -46,6 +48,7 @@ function Navigation() {
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="AddApp" component={AddAppScreen} options={{ title: 'Add app', presentation: 'modal' }} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Reports" component={ReportsScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </NavigationContainer>
