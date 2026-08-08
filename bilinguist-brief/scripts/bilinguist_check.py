@@ -40,6 +40,11 @@ LANG_NAMES = {
 
 MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 
+# Minimum share of expected briefings that must be present for the run to publish.
+# Below this the brief is too broken to ship; at or above it we publish what we have
+# and report the gaps. Set to 1.0 to restore the old all-or-nothing behaviour.
+PUBLISH_THRESHOLD = 0.5
+
 # Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
 # Stored as (min, max) tuples parsed from the "X–Y" strings.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
@@ -354,7 +359,14 @@ def check(bundle_path: Path) -> int:
 
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
     warnings  = wrong_length + thin + grading_warnings + factcheck_warnings
-    critical  = len(missing) > 0
+
+    # Exiting non-zero fails the workflow, which stops the bundle ever reaching the
+    # data repo — so this decides whether the brief publishes at all. A single failed
+    # API call should not withhold an otherwise complete brief from every reader:
+    # publish what generated, and let `missing` be a loud warning instead.
+    # Only a substantially broken run blocks publication.
+    coverage = (present / total) if total else 0.0
+    critical = (present == 0) or (coverage < PUBLISH_THRESHOLD)
 
     # ── Build title and body ───────────────────────────────────────────────────
     ntfy_title = "Morning Bilingual Briefing ☀️"
@@ -367,8 +379,11 @@ def check(bundle_path: Path) -> int:
             body_parts += [daily_notification, ""]
         body_parts += [header_line, "", table]
     elif missing:
-        title = f"{ntfy_title} — {present}/{total} ❌"
-        emoji = "rotating_light"
+        # Distinguish "published with gaps" from "too broken to publish" — previously
+        # both looked identical, and warnings were hidden behind the missing list.
+        status = "❌ NOT PUBLISHED" if critical else "⚠️ published with gaps"
+        title = f"{ntfy_title} — {present}/{total} {status}"
+        emoji = "rotating_light" if critical else "warning"
         body_parts = []
         if daily_notification:
             body_parts += [daily_notification, ""]
@@ -379,6 +394,16 @@ def check(bundle_path: Path) -> int:
             "",
             f"Missing ({len(missing)}):",
         ] + [f"  ✗ {m}" for m in missing]
+        if warnings:
+            body_parts += ["", f"Warnings ({len(warnings)}):"]
+            for w in wrong_length:
+                body_parts.append(f"  ⚠️ {w} — word count outside target range")
+            for t in thin:
+                body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
+            for g in grading_warnings:
+                body_parts.append(f"  {g}")
+            for fw in factcheck_warnings:
+                body_parts.append(f"  {fw}")
     else:
         title = f"{ntfy_title} — {present}/{total} ⚠️"
         emoji = "warning"

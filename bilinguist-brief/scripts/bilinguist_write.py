@@ -195,10 +195,15 @@ FLASH2_OUTPUT_USD_PER_M = 0.40
 FLASH_LITE_INPUT_USD_PER_M  = 0.075
 FLASH_LITE_OUTPUT_USD_PER_M = 0.30
 
+# Gemini 2.5 Pro standard pricing
+PRO_INPUT_USD_PER_M  = 1.25
+PRO_OUTPUT_USD_PER_M = 10.00
+PRO_THINK_USD_PER_M  = 3.50
+
 # Gemini 2.5 Pro Flex pricing (50 % discount over standard Pro rates)
-PRO_FLEX_INPUT_USD_PER_M  = 0.625   # standard $1.25 × 0.5
-PRO_FLEX_OUTPUT_USD_PER_M = 5.00    # standard $10.00 × 0.5
-PRO_FLEX_THINK_USD_PER_M  = 1.75    # standard $3.50 × 0.5
+PRO_FLEX_INPUT_USD_PER_M  = PRO_INPUT_USD_PER_M  * 0.5
+PRO_FLEX_OUTPUT_USD_PER_M = PRO_OUTPUT_USD_PER_M * 0.5
+PRO_FLEX_THINK_USD_PER_M  = PRO_THINK_USD_PER_M  * 0.5
 
 USD_TO_GBP = 0.79  # approximate — update as needed
 
@@ -492,12 +497,18 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
                 print(f"[ERROR] [{attempt_label}]: no response — output incomplete", file=sys.stderr)
                 break
             if finish_reason == "MAX_TOKENS":
-                print(f"[ERROR] [{attempt_label}] MAX_TOKENS on single call — output incomplete", file=sys.stderr)
-                break
+                # Truncation is usually transient — a repetition loop or an unlucky
+                # verbose generation, not a deterministic overflow. Typical output for
+                # these tasks is ~1k tokens against an 8k+ budget, so retrying almost
+                # always succeeds. Previously this broke immediately, and one truncated
+                # response took the whole day's brief down with it.
+                print(f"[WARN] [{attempt_label}] MAX_TOKENS — response truncated, retrying",
+                      file=sys.stderr)
+                continue
             parsed = parse_llm_json(raw)
             if not parsed:
-                print(f"[ERROR] [{attempt_label}]: JSON parse failed — output incomplete", file=sys.stderr)
-                break
+                print(f"[WARN] [{attempt_label}]: JSON parse failed — retrying", file=sys.stderr)
+                continue
             articles = parsed.get("articles", [])
             if len(articles) > len(best_articles):
                 best_articles = articles
@@ -530,18 +541,35 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
         else:  # stage "3"
             sub_prompt = build_native_prompt(task.lang, fb_slice, task.length)
         sub_label = f"{label}-p{i + 1}"
-        text, reason = call_gemini(
-            client, task.model, sub_prompt, sub_label,
-            task.stage, task.schema, task.max_output_tokens,
-        )
-        if reason == "MAX_TOKENS":
-            print(f"[ERROR] [{sub_label}] MAX_TOKENS on proactive split part — skipping",
-                  file=sys.stderr)
-            continue
-        if text:
+        # Retry truncated/unparseable split parts rather than silently dropping them.
+        # A skipped part loses every story in its slice, which is how combos were
+        # shipping 4 of 7 articles with nothing flagged as critical.
+        part_articles: list[dict] = []
+        for attempt in range(_THIN_RETRY_LIMIT + 1):
+            attempt_label = f"{sub_label}-r{attempt + 1}" if attempt > 0 else sub_label
+            text, reason = call_gemini(
+                client, task.model, sub_prompt, attempt_label,
+                task.stage, task.schema, task.max_output_tokens,
+            )
+            if reason == "MAX_TOKENS":
+                print(f"[WARN] [{attempt_label}] MAX_TOKENS on split part — retrying",
+                      file=sys.stderr)
+                continue
+            if not text:
+                print(f"[WARN] [{attempt_label}] no response on split part — retrying",
+                      file=sys.stderr)
+                continue
             parsed = parse_llm_json(text)
-            if parsed:
-                all_articles.extend(parsed.get("articles", []))
+            if not parsed:
+                print(f"[WARN] [{attempt_label}] JSON parse failed on split part — retrying",
+                      file=sys.stderr)
+                continue
+            part_articles = parsed.get("articles", [])
+            break
+        if not part_articles:
+            print(f"[ERROR] [{sub_label}] split part failed after retries — "
+                  f"{len(fb_slice)} stories lost", file=sys.stderr)
+        all_articles.extend(part_articles)
 
     if not all_articles:
         print(f"[ERROR] [{label}] no articles after {n}-way proactive split", file=sys.stderr)
@@ -557,6 +585,7 @@ def write_costs_report(date: str, script_dir: str) -> dict:
     """
     gather_usage: dict = {}
     gather_model = "gemini-2.5-pro"
+    gather_tier = "standard"
     factbase_path = os.path.join(script_dir, f"factbase_{date}.json")
     if os.path.exists(factbase_path):
         try:
@@ -564,20 +593,33 @@ def write_costs_report(date: str, script_dir: str) -> dict:
                 fb = json.load(f)
             gather_usage = fb.get("usage_metadata", {}) or {}
             gather_model = fb.get("model", "gemini-2.5-pro")
+            gather_tier = fb.get("service_tier") or "standard"
         except Exception:
             pass
 
     costs: dict = {"date": date, "stages": {}, "total_usd": 0.0, "total_gbp": 0.0}
 
-    # Gather stage (Pro Flex pricing)
+    # Gather stage — price by the model that actually served the request. The attempt
+    # plan can fall back between Flash and Pro, and it no longer requests the Flex
+    # tier at all, so hardcoding Pro Flex rates misreported this line every run.
     if gather_usage:
         g_in  = gather_usage.get("prompt_token_count",          0) or 0
         g_out = gather_usage.get("candidates_token_count",      0) or 0
         g_thi = gather_usage.get("thoughts_token_count",        0) or 0
+        if "flash" in gather_model:
+            rate_in, rate_out, rate_thi = (
+                FLASH_INPUT_USD_PER_M, FLASH_OUTPUT_USD_PER_M, FLASH_THINK_USD_PER_M
+            )
+        else:
+            rate_in, rate_out, rate_thi = (
+                PRO_INPUT_USD_PER_M, PRO_OUTPUT_USD_PER_M, PRO_THINK_USD_PER_M
+            )
+        if gather_tier == "flex":
+            rate_in, rate_out, rate_thi = rate_in * 0.5, rate_out * 0.5, rate_thi * 0.5
         g_usd = (
-            (g_in  / 1_000_000) * PRO_FLEX_INPUT_USD_PER_M
-            + (g_out / 1_000_000) * PRO_FLEX_OUTPUT_USD_PER_M
-            + (g_thi / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
+            (g_in  / 1_000_000) * rate_in
+            + (g_out / 1_000_000) * rate_out
+            + (g_thi / 1_000_000) * rate_thi
         )
         costs["stages"]["1_gather"] = {
             "model":           gather_model,
@@ -751,10 +793,12 @@ def run_writing_concurrent(
         stage = "2B" if is_beginner else "2S"
         model = MODEL_BEGINNER if is_beginner else MODEL_2S
         prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
+        # 16384: short tasks typically emit ~1k tokens, but an occasional runaway
+        # generation was hitting the old 8192 ceiling and losing the whole combo.
         tasks.append(_WriteTask(
             stage=stage, lang=lang, level=level, length=length,
             model=model, prompt=prompt, schema=_SCHEMA_WRITING,
-            max_output_tokens=8192, template=PROMPT_2S_HEADER, factbase=factbase,
+            max_output_tokens=16384, template=PROMPT_2S_HEADER, factbase=factbase,
             n_splits=1,
         ))
 
