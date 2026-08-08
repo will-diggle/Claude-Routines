@@ -62,6 +62,59 @@ def rows(bundle):
     return out
 
 
+
+def _openings(articles, n=4):
+    """First n words of each body, lowercased — for spotting formulaic openings."""
+    out = []
+    for a in articles:
+        w = a.get("body", "").split()[:n]
+        if w:
+            out.append(" ".join(x.lower().strip('.,;:"«»„“”') for x in w))
+    return out
+
+
+def _mean_pairwise_overlap(articles):
+    """Mean Jaccard overlap of word sets across articles in a combo.
+
+    These articles cover DIFFERENT stories, so shared topic vocabulary is limited.
+    A high figure means the prose is formulaic — the same constructions reused —
+    which is the risk of writing each article blind to the others.
+    """
+    sets = [set(w.lower().strip('.,;:"«»„“”') for w in a.get("body", "").split())
+            for a in articles]
+    sets = [x for x in sets if x]
+    if len(sets) < 2:
+        return 0.0
+    tot = cnt = 0
+    for i in range(len(sets)):
+        for j in range(i + 1, len(sets)):
+            u = sets[i] | sets[j]
+            if u:
+                tot += len(sets[i] & sets[j]) / len(u)
+                cnt += 1
+    return tot / cnt if cnt else 0.0
+
+
+def variety(bundle):
+    """{(lang, level, length): (distinct_opening_ratio, mean_overlap)}"""
+    out = {}
+    def add(key, arts):
+        if len(arts) < 2:
+            return
+        ops = _openings(arts)
+        ratio = len(set(ops)) / len(ops) if ops else 0.0
+        out[key] = (ratio, _mean_pairwise_overlap(arts))
+    for lang, levels in (bundle.get("briefings") or {}).items():
+        for level, lengths in levels.items():
+            for length, payload in lengths.items():
+                add((lang, level, length), payload.get("articles", []))
+    for lang, lengths in (bundle.get("nativeJournalism") or {}).items():
+        if isinstance(lengths, dict):
+            for length, arts in lengths.items():
+                add((lang, "Native", length), arts)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("arm_a")
@@ -139,6 +192,27 @@ def main():
     print()
     print(f"Closer to target in arm B: {improved} | further: {regressed} | unchanged: {same}")
     print("OK = within band, -- = under, ++ = over")
+
+    # ---- variety: does writing each article blind to the others make them samey? ----
+    va, vb = variety(a), variety(b)
+    print()
+    hdr2 = f"{'combo':22} | {'distinct openings':>24} | {'word overlap':>20}"
+    print(hdr2)
+    print("-" * len(hdr2))
+    dull_a = dull_b = 0
+    for key in sorted(set(va) | set(vb)):
+        oa, la_ = va.get(key, (0.0, 0.0))
+        ob, lb_ = vb.get(key, (0.0, 0.0))
+        if oa and oa < 1.0:
+            dull_a += 1
+        if ob and ob < 1.0:
+            dull_b += 1
+        combo = "/".join(x for x in key if x)
+        print(f"{combo:22} | {oa:9.0%} -> {ob:9.0%}      | {la_:8.1%} -> {lb_:6.1%}")
+    print()
+    print(f"Combos with a repeated opening — A: {dull_a} | B: {dull_b}")
+    print("distinct openings: 100% = every article starts differently (higher is better)")
+    print("word overlap: mean pairwise, across DIFFERENT stories (lower is better)")
 
     missing_a = [k for k, (n, _) in ra.items() if n == 0]
     missing_b = [k for k, (n, _) in rb.items() if n == 0]
