@@ -1,0 +1,138 @@
+name: A/B — batched vs per-article writing
+
+# Answers one question and nothing else: does one API call per
+# (language, level, length, story) produce better word counts than one call
+# writing every story at once?
+#
+# Both arms run in a SINGLE job from ONE gather, so the factbase is byte-identical.
+# Comparing across separate runs does not work — story choice alone moves word
+# counts more than the effect being measured.
+#
+# Never pushes to the data repo. This cannot affect the live brief.
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers_a:
+        description: 'Concurrent calls for arm A (batched). Production uses 4.'
+        required: false
+        default: '4'
+      workers_b:
+        description: 'Concurrent calls for arm B (per-article). Needs to be high — B makes ~7x more calls.'
+        required: false
+        default: '16'
+      tier:
+        description: 'Service tier for BOTH arms: standard or flex.'
+        required: false
+        default: 'standard'
+
+jobs:
+  ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set date
+        run: echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Stage 0 — scrape
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_scrape.py
+
+      - name: Stage 1 — gather (ONCE — both arms share this factbase)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_gather.py
+
+      - name: Guard — reject a stubbed factbase
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, re
+          date = os.environ["BRIEF_DATE"]
+          fb = json.load(open(f"factbase_{date}.json", encoding="utf-8")).get("factbase", [])
+          bad = [s.get("slug","") for s in fb
+                 if re.match(r'^(uk-politics|business-economy|global-news)-story-\d+$', s.get("slug",""))
+                 or not s.get("what_happened")]
+          print(f"{len(fb)} stories: {[s.get('slug') for s in fb]}")
+          if bad:
+              sys.exit(f"Factbase contains placeholder/empty stories {bad} — "
+                       "the A/B would measure nothing. Aborting.")
+          PYEOF
+
+      - name: ARM A — batched (current production behaviour)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          START=$(date +%s)
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
+            --workers ${{ inputs.workers_a }} --tier ${{ inputs.tier }}
+          echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
+          cp output/${{ env.BRIEF_DATE }}.json output/armA.json
+          cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armA.json
+
+      - name: ARM B — one call per language/level/length/story
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          START=$(date +%s)
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article \
+            --workers ${{ inputs.workers_b }} --tier ${{ inputs.tier }}
+          echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
+          cp output/${{ env.BRIEF_DATE }}.json output/armB.json
+          cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armB.json
+
+      - name: RESULTS
+        working-directory: bilinguist-brief/scripts
+        run: |
+          echo "=================== WORD COUNTS ==================="
+          python ab_compare.py output/armA.json output/armB.json
+          echo
+          echo "=================== TIME & COST ==================="
+          python3 - <<'PYEOF'
+          import json, os
+          for arm, secs in (("A batched", os.environ.get("ARM_A_SECS")),
+                            ("B per-article", os.environ.get("ARM_B_SECS"))):
+              tag = "armA" if arm.startswith("A") else "armB"
+              c = json.load(open(f"output/costs_{tag}.json", encoding="utf-8"))
+              calls = sum(s.get("calls", 0) for s in c["stages"].values())
+              print(f"{arm:16} {secs:>5}s  {calls:4} calls  "
+                    f"GBP {c['total_gbp']:.4f}  (USD {c['total_usd']:.4f})")
+          PYEOF
+        env:
+          ARM_A_SECS: ${{ env.ARM_A_SECS }}
+          ARM_B_SECS: ${{ env.ARM_B_SECS }}
+
+      - name: Upload both bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ab-bundles-${{ env.BRIEF_DATE }}
+          path: |
+            bilinguist-brief/scripts/output/armA.json
+            bilinguist-brief/scripts/output/armB.json
+            bilinguist-brief/scripts/output/costs_armA.json
+            bilinguist-brief/scripts/output/costs_armB.json
+            bilinguist-brief/scripts/factbase_${{ env.BRIEF_DATE }}.json
