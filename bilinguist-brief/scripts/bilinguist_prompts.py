@@ -15,14 +15,16 @@ LEVEL_DESCRIPTIONS: dict[str, str] = {
 # level, and stop short (A2 "longer" was landing 20–35 words under a 110–130 target).
 LENGTH_INSTRUCTIONS: dict[str, str] = {
     "short":  "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. If you are under {WORD_MIN}, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not exceed {WORD_MAX} words.",
+    # Word count leads, paragraph structure follows: leading with "write 2-3
+    # paragraphs" anchored the model on shape and let length come second.
     "longer": (
-        "Write 2–3 short paragraphs:\n"
-        "  - First paragraph: what happened — who, what, where, when.\n"
-        "  - Second paragraph: why it matters — background and consequences drawn from the fact-base.\n"
-        "  - Third paragraph (optional): what happens next, or the reaction of a named party.\n"
         "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. "
         "If you are under {WORD_MIN}, add another fact from the fact-base — more background, another figure, a named reaction, or the likely consequence. "
-        "Do not exceed {WORD_MAX} words."
+        "Do not exceed {WORD_MAX} words.\n"
+        "Structure those {WORD_MIN}–{WORD_MAX} words across 2–3 short paragraphs:\n"
+        "  - First paragraph: what happened — who, what, where, when.\n"
+        "  - Second paragraph: why it matters — background and consequences drawn from the fact-base.\n"
+        "  - Third paragraph (optional): what happens next, or the reaction of a named party."
     ),
 }
 
