@@ -82,6 +82,32 @@ def main():
     fb = b.get("factbase") or []
     print(f"Factbase: arm A {len(fa)} stories | arm B {len(fb)} stories", end="")
     print("  ** DIFFERENT — not a controlled comparison **" if len(fa) != len(fb) else "  (identical)")
+
+    # How much source material does each story actually carry? The native prompt asks
+    # for 250-270 words while forbidding invented facts, so if a story holds far fewer
+    # words of source than that, the target is unreachable without padding.
+    FIELDS = ("what_happened", "attribution", "verified", "contested", "numbers",
+              "proper_nouns", "key_terms")
+    if fa:
+        print()
+        print(f"{'story':46} {'source words':>12}")
+        print("-" * 60)
+        counts = []
+        for story in fa:
+            n = 0
+            for f in FIELDS:
+                v = story.get(f) or []
+                if isinstance(v, list):
+                    n += sum(len(str(x).split()) for x in v)
+                else:
+                    n += len(str(v).split())
+            counts.append(n)
+            print(f"{str(story.get('slug'))[:46]:46} {n:>12}")
+        avg = sum(counts) / len(counts)
+        print(f"{'AVERAGE':46} {avg:>12.0f}")
+        print(f"\nNative/longer asks for 250-270 words from ~{avg:.0f} words of source.")
+        if avg < 250:
+            print(f"  -> target exceeds available material by ~{250 - avg:.0f} words per story.")
     print()
 
     hdr = f"{'combo':22} {'target':>11} | {la:>18} | {lb:>18} | delta"
