@@ -47,13 +47,16 @@ BREADTH is the main signal — how many independent newsrooms chose to run the s
 
 For each outlet that carries the story, add:
 - 1 point for carrying it at all, PLUS
-- a position bonus: position 1 = 1.0, position 2 = 0.8, position 3 = 0.6, position 4 = 0.4, position 5 = 0.2
+- a position bonus: position 1 = 2.5, position 2 = 2.0, position 3 = 1.5, position 4 = 1.0, position 5 = 0.5
 
 An outlet that does not carry the story adds 0.
 
-Worked example: a story carried by 5 outlets, each at position 3, scores 5 + (5 × 0.6) = 8.0. A story carried by 1 outlet at position 1 scores 1 + 1.0 = 2.0. Breadth beats prominence.
+Worked examples:
+- Carried by 4 outlets at positions 1, 2, 1, 1 → (1+2.5) + (1+2.0) + (1+2.5) + (1+2.5) = 13.5
+- Carried by 5 outlets, all at position 5 → 5 × (1 + 0.5) = 7.5
+- Carried by 1 outlet at position 1 → 1 + 2.5 = 3.5
 
-Maximum possible score = 24 (12 outlets × 2.0, if every outlet led with the same story).
+Maximum possible score = 42 (12 outlets × 3.5, if every outlet led with the same story).
 
 Total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
 

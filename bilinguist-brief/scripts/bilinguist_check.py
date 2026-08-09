@@ -40,11 +40,11 @@ LANG_NAMES = {
 
 MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 
-# Ceiling for the Global News cross-reference score: 12 outlets x 2.0 (1 for
-# carrying the story + 1.0 position bonus for leading with it). Must track
+# Ceiling for the Global News cross-reference score: 12 outlets x 3.5 (1 for
+# carrying the story + 2.5 position bonus for leading with it). Must track
 # HEADLINES_PER_OUTLET in bilinguist_scrape.py and the ladder in
 # gemini_prompt_brief.md.
-MAX_XREF_SCORE = 24
+MAX_XREF_SCORE = 42
 
 # Minimum share of expected briefings that must be present for the run to publish.
 # Below this the brief is too broken to ship; at or above it we publish what we have
