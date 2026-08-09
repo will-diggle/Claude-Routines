@@ -27,16 +27,12 @@ import requests
 
 BRIEF_DATE = os.environ.get("BRIEF_DATE") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 REQUEST_TIMEOUT = 15
-# REVERTED TO 3. Raising this to 8 did improve the cross-reference score a lot
-# (top story 22/96 vs 7/36 — real clustering, defensible top 3), but it nearly
-# tripled the scoring work inside gather's single call. The model spent its budget
-# there and stubbed out the other genres, emitting placeholder slugs
-# ("uk-politics-story-1") with no content. Downstream then wrote 3 articles per
-# combo instead of 7, and it shipped.
-# Do not raise this again without either splitting gather into two calls or adding
-# Python validation that rejects placeholder slugs.
+# 5 per outlet. 3 gave the 12 outlets almost no overlap to score against (top
+# story 7/36, ranks 2 and 3 routinely tied). 8 was tried and OVERLOADED gather,
+# which stubbed out whole genres — bilinguist_gather.py now rejects that outright,
+# so 5 is a deliberate middle step. Raise further only with that guard watched.
 # NOTE: the scoring ladder in gemini_prompt_brief.md is derived from this number.
-HEADLINES_PER_OUTLET = 3
+HEADLINES_PER_OUTLET = 5
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"

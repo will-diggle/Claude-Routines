@@ -31,7 +31,7 @@ Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal
 For each story, count how many of these 6 outlets are independently covering it and record as cross_reference_score.
 ─────────────────────────────────────────────
 
-GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (weighted top 3):
+GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (breadth-weighted across each outlet's top 5):
 
 STEP 1 — PRE-SCRAPED HEADLINES (use these directly — do not search for outlet headlines):
 The following headlines have been scraped from each outlet's RSS feed moments ago. They are today's actual top stories in the order each outlet published them. Use ONLY these for cross-reference scoring. Do not search for outlet homepages or top stories — that work is already done.
@@ -43,12 +43,17 @@ For any outlet marked "failed" or "empty" above, assign it 0 points.
 STEP 2 — SCORING (only after completing Step 1):
 Using only the headlines recorded in Step 1, group stories that describe the same underlying event. Score each candidate story:
 
-- A story that is an outlet's #1 story = 3 points
-- A story that is an outlet's #2 story = 2 points
-- A story that is an outlet's #3 story = 1 point
-- A story an outlet does not carry scores 0 from that outlet.
+BREADTH is the main signal — how many independent newsrooms chose to run the story. Position is a tiebreaker.
 
-Maximum possible score = 36 (12 outlets × 3 points, if every outlet led with the same story).
+For each outlet that carries the story, add:
+- 1 point for carrying it at all, PLUS
+- a position bonus: position 1 = 1.0, position 2 = 0.8, position 3 = 0.6, position 4 = 0.4, position 5 = 0.2
+
+An outlet that does not carry the story adds 0.
+
+Worked example: a story carried by 5 outlets, each at position 3, scores 5 + (5 × 0.6) = 8.0. A story carried by 1 outlet at position 1 scores 1 + 1.0 = 2.0. Breadth beats prominence.
+
+Maximum possible score = 24 (12 outlets × 2.0, if every outlet led with the same story).
 
 Total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
 
@@ -119,7 +124,7 @@ Schema:
 FIELD RULES:
 
 - "daily_notification" is a top-level string — not inside factbase. Three sentences, one per Global News story in rank order. Never omit it.
-- "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the 12 outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 3 headline strings exactly as found in search results, in published order). This is your Step 1 working — populate it before scoring. Never omit it.
+- "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the 12 outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 5 headline strings exactly as found in search results, in published order). This is your Step 1 working — populate it before scoring. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
 - "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, and Business & Economy. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
 - "what_happened" must be in deliberate narrative order.

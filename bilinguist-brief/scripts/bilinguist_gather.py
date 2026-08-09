@@ -20,6 +20,7 @@ Requirements:
 
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -252,6 +253,21 @@ def main():
         sys.exit(1)
 
     factbase = parsed["factbase"]
+
+    # Reject stubbed stories. When gather is overloaded it completes the genre it
+    # finds easiest and fills the rest with placeholders like "uk-politics-story-1"
+    # and no content. Nothing downstream can tell those from real stories, so a run
+    # once shipped 3 articles per language instead of 7 without any error.
+    _PLACEHOLDER = re.compile(r"^(uk-politics|business-economy|global-news)-story-\d+$")
+    stubs = [
+        s_.get("slug", "?") for s_ in factbase
+        if _PLACEHOLDER.match(s_.get("slug", "")) or not s_.get("what_happened")
+    ]
+    if stubs:
+        print(f"[gather] ERROR: {len(stubs)} placeholder/empty stories: {stubs}", file=sys.stderr)
+        print("[gather] The model did not complete every genre — refusing to continue.",
+              file=sys.stderr)
+        sys.exit(1)
     search_log = parsed.get("global_news_search_log", [])
     print(f"[gather] Parsed {len(factbase)} stories from factbase")
     if search_log:
