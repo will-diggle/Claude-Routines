@@ -191,6 +191,75 @@ def fetch_rss(url: str) -> list[str]:
     return titles[:HEADLINES_PER_OUTLET]
 
 
+
+# ── Genre feeds (UK Politics, Business & Economy) ────────────────────────────
+# These genres have no per-outlet scrape and so were free-searched by Gemini,
+# making their cross-reference scores unverifiable. Chasing individual outlet
+# feeds did not work: BBC politics is JS-rendered, Sky and iNews run 46-63h
+# behind, and Standard / Spectator / PoliticsHome / New Statesman all 404 or 403.
+#
+# One Google News topic search covers more ground than any of them. A single
+# request returned Guardian, Telegraph, Independent, FT, New Statesman and
+# HuffPost UK, all inside 19h — including outlets whose own feeds are broken.
+# Each title carries its source as a " - Source" suffix, so outlet and position
+# still come through for scoring.
+GENRE_FEEDS = {
+    "UK POLITICS": "https://news.google.com/rss/search?q=when:24h+UK+politics&hl=en-GB&gl=GB&ceid=GB:en",
+    # Business uses Google's curated GB business section, not a keyword search.
+    # "when:24h business economy" pulled global trade press (Aaj English TV, Bali
+    # Discovery, GMK Center) and scored 0 allowed sources; the section feed returns
+    # Telegraph, Guardian, BBC, FT and Times.
+    "BUSINESS & ECONOMY": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-GB&gl=GB&ceid=GB:en",
+}
+GENRE_HEADLINES = 8   # more than Global News: one feed carries every outlet
+
+# Google mixes non-news domains into topic searches (facebook.com appeared at #9
+# in testing). Only these may contribute to a score.
+ALLOWED_SOURCES = {
+    "The Guardian", "The Telegraph", "The Independent", "Financial Times",
+    "BBC", "BBC News", "Sky News", "The Times", "New Statesman", "The Spectator",
+    "Reuters", "Associated Press", "AP News", "Bloomberg", "CNBC",
+    "The Economist", "HuffPost UK", "Evening Standard", "iNews", "PoliticsHome",
+    "Daily Mail", "The Mirror", "Express", "Wall Street Journal", "CNN",
+    "The i Paper", "The Irish News", "The National Scot", "Belfast Telegraph",
+    # Google reports some outlets by domain rather than title — both forms count.
+    "telegraph.co.uk", "theguardian.com", "bbc.co.uk", "ft.com",
+    "independent.co.uk", "thetimes.co.uk", "Bloomberg.com", "standard.co.uk",
+}
+
+
+def split_source(title: str) -> tuple[str, str]:
+    """Google News titles end with ' - Source'. Returns (headline, source)."""
+    if " - " in title:
+        head, src = title.rsplit(" - ", 1)
+        return head.strip(), src.strip()
+    return title.strip(), ""
+
+
+def fetch_genre(url: str) -> list[dict]:
+    """Fetch a genre feed, returning [{headline, source}] from allowed sources."""
+    resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    root = ET.fromstring(resp.content)
+
+    out, dropped = [], []
+    for item in root.findall(".//item"):
+        el = item.find("title")
+        if el is None or not el.text:
+            continue
+        headline, source = split_source(el.text)
+        if source not in ALLOWED_SOURCES:
+            dropped.append(source or "(no source)")
+            continue
+        out.append({"headline": headline, "source": source})
+        if len(out) >= GENRE_HEADLINES:
+            break
+    if dropped:
+        print(f"[scrape]   dropped {len(dropped)} non-allowlisted: "
+              f"{sorted(set(dropped))[:6]}", file=sys.stderr)
+    return out
+
+
 def main() -> None:
     print(f"[scrape] Starting headline scrape — {datetime.now(timezone.utc).isoformat()}")
     print(f"[scrape] Date: {BRIEF_DATE} | Outlets: {len(OUTLETS)}")
@@ -222,6 +291,19 @@ def main() -> None:
             print(f"[scrape] ✗ {name}: {e}", file=sys.stderr)
             results.append({"name": name, "status": "failed", "headlines": []})
 
+    # ── Genre feeds ──────────────────────────────────────────────────────────
+    genres: dict = {}
+    for genre, url in GENRE_FEEDS.items():
+        try:
+            rows = fetch_genre(url)
+            genres[genre] = rows
+            print(f"[scrape] ✓ {genre} ({len(rows)} headlines)")
+            for i, r in enumerate(rows, 1):
+                print(f"    {i}. [{r['source']}] {r['headline'][:80]}")
+        except Exception as e:
+            print(f"[scrape] ✗ {genre}: {e}", file=sys.stderr)
+            genres[genre] = []
+
     print(f"[scrape] Done: {success_count}/{len(OUTLETS)} outlets scraped successfully")
 
     if success_count == 0:
@@ -238,6 +320,7 @@ def main() -> None:
         "outlets_succeeded": success_count,
         "note": "AFP excluded (no public RSS). FT excluded from Global News — business-led front page, kept for the Business & Economy genre.",
         "outlets": results,
+        "genres": genres,
     }
 
     with open(output_path, "w", encoding="utf-8") as f:
