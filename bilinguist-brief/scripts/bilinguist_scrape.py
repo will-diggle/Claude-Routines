@@ -3,11 +3,14 @@ bilinguist_scrape.py
 ====================
 Stage 0 of the Bilinguist Brief daily pipeline.
 
-Fetches top headlines from 12 major news outlets via their public RSS feeds.
+Fetches top headlines from 11 major news outlets via their public RSS feeds.
 Outputs scraped_headlines_{DATE}.json for use by bilinguist_gather.py.
 
 No AI involved — pure Python HTTP + RSS parsing.
 AFP excluded: no public RSS feed available.
+Financial Times excluded from Global News: its front page is business-led, so it
+skews the general-news scoring. It remains a named source for the BUSINESS &
+ECONOMY genre in gemini_prompt_brief.md, and blocks scrapers (403) in any case.
 
 Usage:
     python bilinguist_scrape.py
@@ -56,10 +59,6 @@ OUTLETS = [
     {
         "name": "The Guardian",
         "rss": "https://www.theguardian.com/world/rss",
-    },
-    {
-        "name": "Financial Times",
-        "rss": "https://www.ft.com/rss/home",
     },
     {
         "name": "Le Monde",
@@ -172,7 +171,7 @@ def main() -> None:
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "outlets_attempted": len(OUTLETS),
         "outlets_succeeded": success_count,
-        "note": "AFP excluded — no public RSS feed available",
+        "note": "AFP excluded (no public RSS). FT excluded from Global News — business-led front page, kept for the Business & Economy genre.",
         "outlets": results,
     }
 
