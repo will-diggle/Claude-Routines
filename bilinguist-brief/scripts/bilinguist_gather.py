@@ -275,6 +275,100 @@ def apply_scores(factbase: list, index: dict) -> None:
         story["cross_reference_score"]["rank"] = rank
 
 
+
+# ── Optional deepening pass (--deepen) ───────────────────────────────────────
+# Gather selects stories by scoring headlines, so a per-story search cannot
+# replace that pass — it follows it. Selection stays at one call per genre;
+# deepening adds one grounded call per selected story.
+#
+# The point is source material. Measured 2026-08-09: gather produces ~103 words
+# of facts per story (the day's lead had 50) while native articles were asking
+# for 250. That gap is what made the writer pad and then invent. More facts per
+# story means longer articles become reachable without inventing them.
+
+_DEEPEN_USAGE = {"calls": 0, "prompt_token_count": 0,
+                 "candidates_token_count": 0, "thoughts_token_count": 0}
+
+DEEPEN_PROMPT = """You are a news researcher. Below is a fact-base entry for one story, \
+gathered from headlines only. Search now and return the SAME JSON structure, substantially \
+richer.
+
+TODAY'S DATE: {DATE}
+
+Expand every field with additional VERIFIED detail — names, figures, dates, direct \
+consequences, recorded reactions, and the background a reader needs. Aim for at least three \
+times the current detail in "what_happened".
+
+RULES:
+- Add only facts you can verify by search. Never invent, never speculate.
+- Keep the existing points; add to them, do not replace them.
+- Keep "slug" and "genre" exactly as given.
+- Preserve the verified/contested separation. Anything disputed goes in "contested" with a \
+named source.
+- Keep the same field names and array-of-strings shape.
+
+Return ONLY the JSON object for this one story.
+
+STORY:
+{STORY}
+"""
+
+
+def deepen_story(client, story: dict, model: str) -> dict:
+    """One grounded call to enrich a single story. Returns the story unchanged on failure."""
+    slug = story.get("slug", "?")
+    prompt = (DEEPEN_PROMPT
+              .replace("{DATE}", BRIEF_DATE)
+              .replace("{STORY}", json.dumps(story, ensure_ascii=False, indent=2)))
+    try:
+        resp = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+            ),
+        )
+    except Exception as e:
+        print(f"[deepen] {slug}: call failed ({type(e).__name__}) — keeping original",
+              file=sys.stderr)
+        return story
+
+    um = resp.usage_metadata
+    if um:
+        _DEEPEN_USAGE["calls"] += 1
+        for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
+            _DEEPEN_USAGE[k] += getattr(um, k, 0) or 0
+
+    parsed = parse_llm_json(resp.text or "")
+    if not parsed or not parsed.get("what_happened"):
+        print(f"[deepen] {slug}: unusable response — keeping original", file=sys.stderr)
+        return story
+
+    # Never let deepening change identity or lose the score.
+    parsed["slug"] = story.get("slug")
+    parsed["genre"] = story.get("genre")
+    if "cross_reference_score" in story:
+        parsed["cross_reference_score"] = story["cross_reference_score"]
+
+    before, after = story_word_count(story), story_word_count(parsed)
+    print(f"[deepen] {slug}: {before} -> {after} words of source")
+    return (validate_story(parsed), resp.usage_metadata)[0] if False else validate_story(parsed)
+
+
+FACT_FIELDS = ("what_happened", "attribution", "verified", "contested",
+               "numbers", "proper_nouns", "key_terms")
+
+
+def story_word_count(story: dict) -> int:
+    """Words of source material in one story — the number that caps article length."""
+    n = 0
+    for f in FACT_FIELDS:
+        v = story.get(f) or []
+        n += sum(len(str(x).split()) for x in v) if isinstance(v, list) else len(str(v).split())
+    return n
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def gather_genre(genre: str, cfg: dict, prompt_file: str) -> dict:
@@ -419,6 +513,9 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", default=PROMPT_FILE, help="Path to the Gemini prompt file")
+    parser.add_argument("--deepen", action="store_true",
+                        help="After selection, make one extra grounded call per story to "
+                             "enrich its facts. Selection is unchanged.")
     args, _ = parser.parse_known_args()
 
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -444,6 +541,24 @@ def main():
             print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
 
+    if args.deepen:
+        client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
+        before = sum(story_word_count(s_) for s_ in factbase)
+        print(f"\n[deepen] ===== enriching {len(factbase)} stories =====")
+        factbase = [deepen_story(client, s_, ATTEMPT_PLAN[0][0]) for s_ in factbase]
+        after = sum(story_word_count(s_) for s_ in factbase)
+        print(f"[deepen] total source words: {before} -> {after} "
+              f"({after / max(before,1):.1f}x), avg/story {after // max(len(factbase),1)}")
+        u = _DEEPEN_USAGE
+        cost = (u["prompt_token_count"] / 1e6 * 0.30
+                + u["candidates_token_count"] / 1e6 * 2.50
+                + u["thoughts_token_count"] / 1e6 * 3.50)
+        print(f"[deepen] {u['calls']} calls | {u['prompt_token_count']:,} in "
+              f"{u['candidates_token_count']:,} out {u['thoughts_token_count']:,} think "
+              f"| ${cost:.4f}")
+        for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
+            usage_total[k] += u[k]
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_path = os.path.join(script_dir, f"factbase_{BRIEF_DATE}.json")
     output = {
@@ -456,6 +571,7 @@ def main():
         "usage_metadata": usage_total,
         "global_news_search_log": search_log,
         "daily_notification": notification,
+        "deepened": bool(args.deepen),
         "factbase": factbase,
     }
     with open(output_path, "w", encoding="utf-8") as f:
