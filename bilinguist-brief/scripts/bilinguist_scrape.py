@@ -75,9 +75,10 @@ OUTLETS = [
     },
     {
         "name": "NHK World",
-        # Was missing the when:24h filter every other Google News query has, so
-        # year-old items were appearing in the top 8.
-        "rss": "https://news.google.com/rss/search?q=when:24h+site:www3.nhk.or.jp/nhkworld&hl=en-US&gl=US&ceid=US:en",
+        # Path narrowed to /en/news. Without it Google indexed NHK TV programme
+        # pages as articles — "A Cat's-Eye View of Japan" and "BIZ STREAM" took
+        # positions 1 and 2, the highest-scoring slots, pushing real stories down.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:www3.nhk.or.jp/nhkworld/en/news&hl=en-US&gl=US&ceid=US:en",
     },
     {
         "name": "Al Jazeera",
