@@ -148,6 +148,63 @@ def validate_story(story: dict) -> dict:
 
 
 
+
+# ── Genres — one Gemini call each ────────────────────────────────────────────
+# Previously one call gathered all three genres. When the prompt grew it
+# completed Global News and stubbed the rest with placeholder slugs, and the
+# pipeline shipped 3 articles per language instead of 7. One call per genre
+# gives each its own attention and its own search budget.
+GENRE_CONFIG = {
+    "GLOBAL NEWS": {
+        "count": 3,
+        "description": "The day's most significant world/breaking stories. The headlines any informed person would have seen today.",
+    },
+    "UK POLITICS": {
+        "count": 2,
+        "description": "Significant UK political developments — government, parliament, parties, elections, policy.",
+    },
+    "BUSINESS & ECONOMY": {
+        "count": 2,
+        "description": "Significant market, economic, or corporate developments.",
+    },
+}
+
+
+def headlines_for_genre(genre: str) -> dict:
+    """{outlet: [headline, ...]} for one genre, from the Stage 0 scrape.
+
+    Global News uses the 11 per-outlet feeds. The other genres use a single
+    Google News genre feed whose titles carry their source, so headlines are
+    regrouped by source to give the same {outlet: [...]} shape.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(script_dir, f"scraped_headlines_{BRIEF_DATE}.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    if genre == "GLOBAL NEWS":
+        return {o["name"]: o.get("headlines", [])
+                for o in data.get("outlets", []) if o.get("status") == "ok"}
+
+    index: dict = {}
+    for row in (data.get("genres") or {}).get(genre, []):
+        index.setdefault(row["source"], []).append(row["headline"])
+    return index
+
+
+def render_headline_block(index: dict) -> str:
+    if not index:
+        return "(No pre-scraped headlines available for this genre.)"
+    lines = []
+    for outlet, heads in index.items():
+        lines.append(f"  {outlet}:")
+        for i, h in enumerate(heads, 1):
+            lines.append(f"    {i}. {h}")
+    return "\n".join(lines)
+
+
 # ── Cross-reference scoring (Python does the arithmetic) ─────────────────────
 # Gemini groups headlines across languages — that is a semantic judgement Python
 # cannot make ("Trump on Gaza" and "Trump strikes Iran" share vocabulary but are
@@ -196,13 +253,13 @@ def score_story(story: dict, index: dict) -> tuple[float, list, list]:
 
 
 def apply_scores(factbase: list, index: dict) -> None:
-    """Score GLOBAL NEWS stories in place and re-rank them by the computed total."""
+    """Score every story in this genre's factbase and re-rank on the computed total."""
     if not index:
         print("[gather] No scraped headlines — leaving cross-reference scores as given",
               file=sys.stderr)
         return
 
-    globals_ = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
+    globals_ = list(factbase)
     for story in globals_:
         total, verified, problems = score_story(story, index)
         xref = story.setdefault("cross_reference_score", {})
@@ -220,20 +277,18 @@ def apply_scores(factbase: list, index: dict) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--prompt", default=PROMPT_FILE, help="Path to the Gemini prompt file")
-    args, _ = parser.parse_known_args()
-    prompt_file = args.prompt
-
-    pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
-    print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
-
+def gather_genre(genre: str, cfg: dict, prompt_file: str) -> dict:
+    """Run one Gemini call for a single genre. Returns its parsed payload."""
+    index = headlines_for_genre(genre)
+    print(f"\n[gather] ===== {genre} ({cfg['count']} stories, "
+          f"{sum(len(v) for v in index.values())} headlines) =====")
     # 1. Load and prepare the prompt
     raw_prompt = load_prompt(prompt_file)
     prompt = inject_date(raw_prompt)
-    prompt = inject_scraped_headlines(prompt)
+    prompt = prompt.replace("{GENRE}", genre)
+    prompt = prompt.replace("{STORY_COUNT}", str(cfg["count"]))
+    prompt = prompt.replace("{GENRE_DESCRIPTION}", cfg["description"])
+    prompt = prompt.replace("{SCRAPED_HEADLINES}", render_headline_block(index))
     print(f"[gather] Prompt loaded from '{prompt_file}' ({len(prompt)} chars)")
 
     # 2. Initialise the Gemini client
@@ -352,48 +407,60 @@ def main():
     else:
         print("[gather] WARNING: global_news_search_log missing from response", file=sys.stderr)
 
-    # 7. Validate every story
-    factbase = [validate_story(story) for story in factbase]
+    factbase = [validate_story(st) for st in factbase]
+    for st in factbase:
+        st["genre"] = genre
+    apply_scores(factbase, index)
+    return {"factbase": factbase, "search_log": search_log, "parsed": parsed,
+            "usage": usage_metadata, "model": model, "index": index}
 
-    # 8. Log cross-reference scores for all genres (editorial audit)
-    apply_scores(factbase, _scraped_index)
 
-    scored_genres = ["GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY"]
-    for genre in scored_genres:
-        genre_stories = [s for s in factbase if s.get("genre") == genre]
-        if not genre_stories:
-            continue
-        print(f"[gather] {genre} cross-reference scores:")
-        for s in sorted(genre_stories, key=lambda x: x.get("cross_reference_score", {}).get("rank", 99)):
-            score = s.get("cross_reference_score", {})
-            print(
-                f"  Rank {score.get('rank', '?')}: {s.get('slug', '?')} "
-                f"— {score.get('total', '?')} outlets: {score.get('outlets_covering', [])}"
-            )
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--prompt", default=PROMPT_FILE, help="Path to the Gemini prompt file")
+    args, _ = parser.parse_known_args()
 
-    # 9. Write output to file — filename uses BRIEF_DATE so write.py can find it
+    pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
+    print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
+    print(f"[gather] {len(GENRE_CONFIG)} genres, one Gemini call each")
+
+    factbase, search_log, notification = [], [], ""
+    usage_total = {"prompt_token_count": 0, "candidates_token_count": 0,
+                   "thoughts_token_count": 0, "total_token_count": 0}
+    model_used = ""
+
+    for genre, cfg in GENRE_CONFIG.items():
+        res = gather_genre(genre, cfg, args.prompt)
+        factbase.extend(res["factbase"])
+        model_used = res["model"]
+        for k in usage_total:
+            usage_total[k] += (res["usage"] or {}).get(k, 0)
+        if genre == "GLOBAL NEWS":
+            search_log = res["parsed"].get("global_news_search_log", []) or []
+            notification = res["parsed"].get("daily_notification", "") or ""
+        for st in res["factbase"]:
+            x = st.get("cross_reference_score", {})
+            print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
+                  f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_path = os.path.join(script_dir, f"factbase_{BRIEF_DATE}.json")
-    # Capture the tier from the winning attempt entry
-    winning_tier = next(
-        (t for m, t, *_ in ATTEMPT_PLAN if m == model), None
-    )
     output = {
         "date": BRIEF_DATE,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "pipeline_started_at": pipeline_started_at,
-        "model": model,
-        "service_tier": winning_tier or "standard",
+        "model": model_used,
+        "service_tier": "standard",
         "story_count": len(factbase),
-        "usage_metadata": usage_metadata,
+        "usage_metadata": usage_total,
         "global_news_search_log": search_log,
+        "daily_notification": notification,
         "factbase": factbase,
     }
-
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
-
-    print(f"[gather] Factbase written to '{output_path}'")
+    print(f"\n[gather] Factbase written to '{output_path}'")
     print(f"[gather] Done. {len(factbase)} stories across "
           f"{len(set(s.get('genre') for s in factbase))} genres.")
 

@@ -9,29 +9,16 @@ RECENCY — this is critical:
 - If a story is still developing, report the latest verified state and note it is ongoing.
 - Search actively across multiple sources. Never invent stories, quotes, figures, or events. If you cannot verify something, mark it as unverified rather than stating it.
 
-GATHER stories across these genres. For each genre, search the recommended outlets listed — these are the most authoritative sources for that topic area:
+GATHER the day's most significant stories for ONE genre, named below.
 
 ─────────────────────────────────────────────
-GLOBAL NEWS — 3 stories
-The day's most significant world/breaking stories. The headlines any informed person would have seen today.
-Use the CROSS-REFERENCE SCORING METHOD below to identify them.
+{GENRE} — {STORY_COUNT} stories
+{GENRE_DESCRIPTION}
 ─────────────────────────────────────────────
 
-─────────────────────────────────────────────
-UK POLITICS — 2 stories
-Significant UK and international political developments, with particular attention to UK politics.
-Search primarily: Reuters, AP, BBC News, Financial Times, The Times, Politico, The Guardian, Le Monde, Der Spiegel (9 outlets)
-For each story, count how many of these 9 outlets are independently covering it and record as cross_reference_score.
-─────────────────────────────────────────────
+This call covers {GENRE} ONLY. Do not gather stories for any other genre.
 
-─────────────────────────────────────────────
-BUSINESS & ECONOMY — 2 stories
-Significant market, economic, or corporate developments.
-Search primarily: Financial Times, Bloomberg, The Economist, Wall Street Journal, Reuters, AP (6 outlets)
-For each story, count how many of these 6 outlets are independently covering it and record as cross_reference_score.
-─────────────────────────────────────────────
-
-GLOBAL NEWS — CROSS-REFERENCE SCORING METHOD (breadth-weighted across each outlet's top 5):
+CROSS-REFERENCE SCORING METHOD (breadth-weighted):
 
 STEP 1 — PRE-SCRAPED HEADLINES (use these directly — do not search for outlet headlines):
 The following headlines have been scraped from each outlet's RSS feed moments ago. They are today's actual top stories in the order each outlet published them. Use ONLY these for cross-reference scoring. Do not search for outlet homepages or top stories — that work is already done.
@@ -60,7 +47,7 @@ Maximum possible score = 38.5 (11 outlets × 3.5, if every outlet led with the s
 
 DO NOT CALCULATE THE TOTAL YOURSELF. Report which headlines you grouped and the scoring is done afterwards.
 
-For each candidate story, record every headline you grouped into it as an entry in "sources": the outlet name exactly as written above, and its position number in that outlet's list (1 = first). Use only outlets and positions that appear in Step 1. Rank the top 3 by how you expect them to score.
+For each candidate story, record every headline you grouped into it as an entry in "sources": the outlet name exactly as written above, and its position number in that outlet's list (1 = first). Use only outlets and positions that appear in Step 1. Rank the top {STORY_COUNT} by how you expect them to score.
 
 NOTE: You are working from pre-scraped headlines only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant. Do not add any outlet that does not appear in the Step 1 headlines above.
 
@@ -99,7 +86,7 @@ GLOSSARY — pin the shared facts:
 - This prevents facts drifting between separately generated editions.
 
 DAILY NOTIFICATION:
-Once you have selected and scored all stories, write a single push notification body combining the three Global News stories. Style: three short factual sentences, one per story, in rank order. No opinion, no filler, no call to action. Write it as a string in the "daily_notification" field at the top level of the JSON output.
+GLOBAL NEWS ONLY. For other genres set daily_notification to an empty string. Write a single push notification body combining the three Global News stories. Style: three short factual sentences, one per story, in rank order. No opinion, no filler, no call to action. Write it as a string in the "daily_notification" field at the top level of the JSON output.
 
 Example format: "60,000 migrants reach Ceuta as Spain deploys military. Russia and Ukraine exchange strikes overnight. Britain announces its budget date for October."
 
@@ -109,7 +96,7 @@ Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble.
 Multi-point fields are ARRAYS OF SHORT STRINGS — one clean point per string. One short clause per string. No paragraphs inside strings. No unescaped quotation marks or newlines inside strings.
 
 Schema:
-{"daily_notification":"One sentence per Global News story, three sentences total.","global_news_search_log":[{"outlet":"Reuters","stories":["headline 1 as found","headline 2 as found","headline 3 as found"]},{"outlet":"Associated Press (AP)","stories":["headline 1","headline 2","headline 3"]}],"factbase":[{
+{"daily_notification":"GLOBAL NEWS ONLY — one sentence per story. Empty string for other genres.","global_news_search_log":[{"outlet":"Reuters","stories":["headline 1 as found","headline 2 as found","headline 3 as found"]},{"outlet":"Associated Press (AP)","stories":["headline 1","headline 2","headline 3"]}],"factbase":[{
 "genre":"GLOBAL NEWS",
 "slug":"short-kebab-id",
 "cross_reference_score":{
@@ -131,7 +118,7 @@ FIELD RULES:
 - "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 5 headline strings exactly as found in search results, in published order). This is your Step 1 working — populate it before scoring. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
 - "cross_reference_score" is REQUIRED for every story. For GLOBAL NEWS it must contain "sources" — one entry per grouped headline, each with the outlet name exactly as listed in Step 1 and its position number — plus "rank" within the genre. Do not include a "total"; it is calculated from your sources afterwards. An outlet name or position that does not appear in Step 1 will cause the story to be rejected.
-- For UK POLITICS and BUSINESS & ECONOMY there are no pre-scraped headlines, so record "outlets_covering" (names) and "rank" instead.
+- This applies to every genre. All three now have pre-scraped headlines.
 - "what_happened" must be in deliberate narrative order.
 - Keep each story tight — enough to write a 300-word article from, no more.
 - CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty. Never omit a key. A missing key will crash the downstream parser.
