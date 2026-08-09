@@ -58,6 +58,8 @@ OUTLETS = [
     },
     {
         "name": "The Guardian",
+        # Front-page scrape gives true editorial order; RSS is the fallback.
+        "scraper": "guardian",
         "rss": "https://www.theguardian.com/world/rss",
     },
     {
@@ -103,6 +105,63 @@ OUTLETS = [
 ]
 
 
+# ── Front-page HTML scraping ─────────────────────────────────────────────────
+# No RSS feed reproduces an editorial front page. The Guardian's /world/rss is a
+# section feed running 34-64h behind, /rss and /uk/rss are chronological firehoses
+# of features, and Google News matched only 2 of the front page's top 4. Scraping
+# the front page matched 4 of 4, in order.
+
+# Guardian marks each card link with aria-label. The first entries are the
+# personalisation carousel (opinion, lifestyle, a "Move highlight stories
+# forwards" UI control); the news block follows that marker.
+_GUARDIAN_CAROUSEL_END = "Move highlight stories forwards"
+
+# Text that is UI furniture rather than a headline. If a scrape returns these the
+# page structure has changed and the result must not be trusted.
+_UI_NOISE = (
+    "log in", "sign in", "menu", "navigation", "skip to", "search",
+    "homepage", "link to", "move highlight", "subscribe", "newsletter",
+)
+
+
+def scrape_guardian() -> list[str]:
+    """Scrape theguardian.com front page in editorial order.
+
+    Returns [] on any doubt so the caller can fall back to RSS — a silent bad
+    scrape would feed UI strings into the cross-reference scoring.
+    """
+    import re as _re
+    from html import unescape
+
+    resp = requests.get("https://www.theguardian.com/", headers=HEADERS,
+                        timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    page = resp.text
+
+    labels, seen = [], set()
+    for raw in _re.findall(r'aria-label="([^"]{20,180})"', page):
+        t = unescape(raw).strip()
+        if t not in seen:
+            seen.add(t)
+            labels.append(t)
+
+    # Start after the personalisation carousel when the marker is present.
+    if _GUARDIAN_CAROUSEL_END in labels:
+        labels = labels[labels.index(_GUARDIAN_CAROUSEL_END) + 1:]
+
+    headlines = [
+        t for t in labels
+        if not any(n in t.lower() for n in _UI_NOISE) and len(t.split()) >= 4
+    ]
+
+    # Plausibility guard — a redesign should fail loudly, not quietly.
+    if len(headlines) < HEADLINES_PER_OUTLET:
+        print(f"[scrape] Guardian scrape returned only {len(headlines)} plausible "
+              f"headlines — falling back to RSS", file=sys.stderr)
+        return []
+    return headlines[:HEADLINES_PER_OUTLET]
+
+
 def fetch_rss(url: str) -> list[str]:
     """Fetch an RSS feed and return the top N headline strings."""
     resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -143,7 +202,13 @@ def main() -> None:
         name = outlet["name"]
         rss_url = outlet["rss"]
         try:
-            headlines = fetch_rss(rss_url)
+            headlines = []
+            if outlet.get("scraper") == "guardian":
+                headlines = scrape_guardian()
+                if headlines:
+                    print(f"[scrape] {name}: front-page HTML (editorial order)")
+            if not headlines:
+                headlines = fetch_rss(rss_url)
             if headlines:
                 print(f"[scrape] ✓ {name} ({len(headlines)} headlines)")
                 for i, h in enumerate(headlines, 1):
