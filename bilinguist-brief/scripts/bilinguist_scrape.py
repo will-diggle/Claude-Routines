@@ -3,7 +3,7 @@ bilinguist_scrape.py
 ====================
 Stage 0 of the Bilinguist Brief daily pipeline.
 
-Fetches top headlines from 11 major news outlets via their public RSS feeds.
+Fetches top headlines from 12 major news outlets via their public RSS feeds.
 Outputs scraped_headlines_{DATE}.json for use by bilinguist_gather.py.
 
 No AI involved — pure Python HTTP + RSS parsing.
@@ -97,6 +97,17 @@ OUTLETS = [
         # ("Retail spending fell in March", 2022 climate pieces) and had been
         # feeding three-year-old headlines into every brief.
         "rss": "https://news.google.com/rss/search?q=when:24h+site:cnn.com&hl=en-US&gl=US&ceid=US:en",
+    },
+    {
+        "name": "El País",
+        # Added to balance an Anglo-American-heavy pool — Le Monde and Der Spiegel
+        # were the only EU papers. /internacional returns five genuinely
+        # international stories that cross-reference against the others; the
+        # whole-domain query would surface Spanish domestic news that nothing
+        # else covers and so can never score.
+        # Corriere /esteri and El Mundo were tested and were softer; Politico
+        # Europe had the best signal but returns only 3 items.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:elpais.com/internacional&hl=es&gl=ES&ceid=ES:es",
     },
     {
         "name": "New York Times",

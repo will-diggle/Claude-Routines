@@ -43,7 +43,7 @@ Worked examples:
 - Carried by 5 outlets, all at position 5 → 5 × (1 + 0.5) = 7.5
 - Carried by 1 outlet at position 1 → 1 + 2.5 = 3.5
 
-Maximum possible score = 38.5 (11 outlets × 3.5, if every outlet led with the same story).
+Maximum possible score = 42 (12 outlets × 3.5, if every outlet led with the same story).
 
 DO NOT CALCULATE THE TOTAL YOURSELF. Report which headlines you grouped and the scoring is done afterwards.
 

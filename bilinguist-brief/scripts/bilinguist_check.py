@@ -40,12 +40,11 @@ LANG_NAMES = {
 
 MIN_ARTICLES = 5  # fewer than this is suspiciously thin
 
-# Ceiling for the Global News cross-reference score: 11 outlets x 3.5 (1 for
-# carrying the story + 2.5 position bonus for leading with it). FT is excluded
-# from Global News — business-led front page — but remains a Business & Economy
-# source. Must track HEADLINES_PER_OUTLET in bilinguist_scrape.py and the ladder
-# in gemini_prompt_brief.md.
-MAX_XREF_SCORE = 38.5
+# Ceiling for the Global News cross-reference score: 12 outlets x 3.5 (1 for
+# carrying the story + 2.5 position bonus for leading with it). Must track
+# HEADLINES_PER_OUTLET in bilinguist_scrape.py and the ladder in
+# gemini_prompt_brief.md.
+MAX_XREF_SCORE = 42
 
 # Minimum share of expected briefings that must be present for the run to publish.
 # Below this the brief is too broken to ship; at or above it we publish what we have
