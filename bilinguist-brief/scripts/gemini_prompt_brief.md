@@ -58,7 +58,9 @@ Worked examples:
 
 Maximum possible score = 38.5 (11 outlets × 3.5, if every outlet led with the same story).
 
-Total the weighted points for each candidate story across all outlets. Rank the top 3 by total score. Record in outlets_covering the outlets that contributed points, and record the total weighted score in the "total" field.
+DO NOT CALCULATE THE TOTAL YOURSELF. Report which headlines you grouped and the scoring is done afterwards.
+
+For each candidate story, record every headline you grouped into it as an entry in "sources": the outlet name exactly as written above, and its position number in that outlet's list (1 = first). Use only outlets and positions that appear in Step 1. Rank the top 3 by how you expect them to score.
 
 NOTE: You are working from pre-scraped headlines only — not reading or reproducing any outlet's writing. The language of the outlet is irrelevant. Do not add any outlet that does not appear in the Step 1 headlines above.
 
@@ -111,8 +113,7 @@ Schema:
 "genre":"GLOBAL NEWS",
 "slug":"short-kebab-id",
 "cross_reference_score":{
-"total":7,
-"outlets_covering":["Reuters","AP","BBC News","The Guardian","Financial Times","Le Monde","Al Jazeera"],
+"sources":[{"outlet":"Reuters","position":1},{"outlet":"BBC News","position":2},{"outlet":"New York Times","position":1}],
 "rank":1
 },
 "what_happened":["first point in narrative order","second point","consequence"],
@@ -129,7 +130,8 @@ FIELD RULES:
 - "daily_notification" is a top-level string — not inside factbase. Three sentences, one per Global News story in rank order. Never omit it.
 - "global_news_search_log" is a top-level array — one entry per outlet, in the same order as the outlets listed above. Each entry has "outlet" (outlet name) and "stories" (array of up to 5 headline strings exactly as found in search results, in published order). This is your Step 1 working — populate it before scoring. Never omit it.
 - Every field except "genre", "slug", and "cross_reference_score" is an array of strings.
-- "cross_reference_score" is REQUIRED for every story — Global News, UK Politics, and Business & Economy. Record total outlets covering the story, the list of outlet names, and the rank within that genre (1 = most covered). Never omit it, never use null, never use {}.
+- "cross_reference_score" is REQUIRED for every story. For GLOBAL NEWS it must contain "sources" — one entry per grouped headline, each with the outlet name exactly as listed in Step 1 and its position number — plus "rank" within the genre. Do not include a "total"; it is calculated from your sources afterwards. An outlet name or position that does not appear in Step 1 will cause the story to be rejected.
+- For UK POLITICS and BUSINESS & ECONOMY there are no pre-scraped headlines, so record "outlets_covering" (names) and "rank" instead.
 - "what_happened" must be in deliberate narrative order.
 - Keep each story tight — enough to write a 300-word article from, no more.
 - CRITICAL: Every field listed in the schema must be present in every story object. Array fields use [] when empty. Never omit a key. A missing key will crash the downstream parser.

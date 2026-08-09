@@ -147,6 +147,77 @@ def validate_story(story: dict) -> dict:
     return story
 
 
+
+# ── Cross-reference scoring (Python does the arithmetic) ─────────────────────
+# Gemini groups headlines across languages — that is a semantic judgement Python
+# cannot make ("Trump on Gaza" and "Trump strikes Iran" share vocabulary but are
+# different events). Gemini therefore reports WHICH headlines it grouped, by
+# outlet name and position, and the scoring is done here.
+#
+# This makes the score exact, and it kills the phantom-outlet bug: outlets that
+# were never scraped (Xinhua, Politico Europe both appeared in earlier runs) have
+# no entry to look up and are rejected.
+
+CARRYING_POINTS = 1.0                                    # per outlet carrying it
+POSITION_BONUS  = {1: 2.5, 2: 2.0, 3: 1.5, 4: 1.0, 5: 0.5}
+
+
+def load_scraped_index() -> dict:
+    """{outlet: [headline, ...]} from the Stage 0 scrape. Empty if unavailable."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(script_dir, f"scraped_headlines_{BRIEF_DATE}.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        o["name"]: o.get("headlines", [])
+        for o in data.get("outlets", [])
+        if o.get("status") == "ok"
+    }
+
+
+def score_story(story: dict, index: dict) -> tuple[float, list, list]:
+    """Return (total, verified_sources, problems) for one Global News story."""
+    xref = story.get("cross_reference_score") or {}
+    total, verified, problems = 0.0, [], []
+    for src in xref.get("sources") or []:
+        outlet, pos = src.get("outlet"), src.get("position")
+        if outlet not in index:
+            problems.append(f"outlet not scraped: {outlet!r}")
+            continue
+        if not isinstance(pos, int) or not 1 <= pos <= len(index[outlet]):
+            problems.append(f"{outlet} position {pos} out of range")
+            continue
+        total += CARRYING_POINTS + POSITION_BONUS.get(pos, 0.0)
+        verified.append({"outlet": outlet, "position": pos,
+                         "headline": index[outlet][pos - 1]})
+    return round(total, 1), verified, problems
+
+
+def apply_scores(factbase: list, index: dict) -> None:
+    """Score GLOBAL NEWS stories in place and re-rank them by the computed total."""
+    if not index:
+        print("[gather] No scraped headlines — leaving cross-reference scores as given",
+              file=sys.stderr)
+        return
+
+    globals_ = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
+    for story in globals_:
+        total, verified, problems = score_story(story, index)
+        xref = story.setdefault("cross_reference_score", {})
+        xref["total"] = total
+        xref["sources"] = verified
+        xref["outlets_covering"] = sorted({v["outlet"] for v in verified})
+        for p in problems:
+            print(f"[gather] WARNING [{story.get('slug','?')}]: {p}", file=sys.stderr)
+
+    for rank, story in enumerate(
+        sorted(globals_, key=lambda s: s["cross_reference_score"]["total"], reverse=True), 1
+    ):
+        story["cross_reference_score"]["rank"] = rank
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -253,6 +324,7 @@ def main():
         sys.exit(1)
 
     factbase = parsed["factbase"]
+    _scraped_index = load_scraped_index()
 
     # Reject stubbed stories. When gather is overloaded it completes the genre it
     # finds easiest and fills the rest with placeholders like "uk-politics-story-1"
@@ -284,6 +356,8 @@ def main():
     factbase = [validate_story(story) for story in factbase]
 
     # 8. Log cross-reference scores for all genres (editorial audit)
+    apply_scores(factbase, _scraped_index)
+
     scored_genres = ["GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY"]
     for genre in scored_genres:
         genre_stories = [s for s in factbase if s.get("genre") == genre]
