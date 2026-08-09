@@ -67,7 +67,13 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }}
+        # --per-article: one call per (language, level, length, story). The A/B on
+        # 2026-08-08 ran both arms from an identical factbase: per-article was
+        # closer to target on 15 combos vs 1, landed 8 in band vs 3, and ran 2.5x
+        # faster (20s vs 49s) for +14% cost. Variety was unaffected — openings
+        # stayed 100% distinct in 15 of 18 combos.
+        # --workers 16: per-article makes ~3.5x more calls; 4 would serialise it.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16
 
       - name: Check completeness
         working-directory: bilinguist-brief/scripts
