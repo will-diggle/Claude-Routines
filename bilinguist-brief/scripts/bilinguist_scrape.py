@@ -71,7 +71,12 @@ OUTLETS = [
         # /international is a long-read feature feed spanning ~29 days, not daily
         # news. German-language is fine: headlines are only used for scoring and
         # the prompt states the outlet's language is irrelevant.
-        "rss": "https://news.google.com/rss/search?q=when:24h+site:spiegel.de&hl=de&gl=DE&ceid=DE:de",
+        # Path narrowed to /ausland. The whole-domain query returned Elbe water
+        # levels, Schalke, pensions and a paywalled Bahn quiz — German domestic
+        # stories no other outlet carries, so they can never earn breadth points
+        # and simply waste slots. /ausland fills all five with stories that can
+        # actually cross-reference.
+        "rss": "https://news.google.com/rss/search?q=when:24h+site:spiegel.de/ausland&hl=de&gl=DE&ceid=DE:de",
     },
     {
         "name": "NHK World",
