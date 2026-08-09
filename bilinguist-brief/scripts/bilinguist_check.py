@@ -60,7 +60,10 @@ WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     "B2":     {"short": (75, 90),    "longer": (150, 170)},
     "C1":     {"short": (85, 100),   "longer": (250, 270)},
     "C2":     {"short": (85, 100),   "longer": (250, 270)},
-    "Native": {"short": (85, 100),   "longer": (250, 270)},
+    # Native's real source of truth is the range written into PROMPT_3_HEADER.
+    # Lowered from 250–270 on 2026-08-09: ~103 words of source facts per story could
+    # not fill 250 words, so the writer padded and then invented to reach the target.
+    "Native": {"short": (85, 100),   "longer": (180, 200)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached
@@ -110,6 +113,19 @@ def _fmt_duration(ms: int) -> str:
         return f"{m}m {s:02d}s"
     h, m = divmod(m, 60)
     return f"{h}h {m:02d}m"
+
+
+def _native_by_length(lang_native) -> dict[str, list]:
+    """Normalise nativeJournalism[lang] to {length: [articles]}.
+
+    Current bundles store it keyed by length; older ones stored a flat list, which is
+    treated as 'longer' so it still reports rather than vanishing.
+    """
+    if isinstance(lang_native, dict):
+        return {k: v for k, v in lang_native.items() if isinstance(v, list) and v}
+    if isinstance(lang_native, list) and lang_native:
+        return {"longer": lang_native}
+    return {}
 
 
 def _avg_body_words(articles: list) -> float:
@@ -249,14 +265,21 @@ def _language_table(
             cells.append("—")
         else:
             lang_native = native_journalism.get(lang, {})
-            flat_arts = (
-                [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
-                if isinstance(lang_native, dict) else lang_native
-            )
-            if flat_arts:
-                avg_w = int(_avg_body_words(flat_arts))
+            if _native_by_length(lang_native):
+                # Per length, not one flat average: short targets 85–100 and longer
+                # targets 180–200, so their mean was a number with no target to sit in.
+                parts = []
+                for length in LENGTHS:
+                    arts = _native_by_length(lang_native).get(length, [])
+                    if not arts:
+                        parts.append("❌")
+                        continue
+                    avg = _avg_body_words(arts)
+                    target = WORD_TARGETS["Native"].get(length)
+                    color = _word_color(avg, *target) if target else "🟢"
+                    parts.append(f"{color} {int(avg)}")
                 grade_label = f" [{native_grade}]" if native_grade else ""
-                cells.append(f"🟢 {avg_w}w{grade_label}")
+                cells.append(" / ".join(parts) + grade_label)
             else:
                 cells.append("❌")
 
@@ -304,13 +327,23 @@ def check(bundle_path: Path) -> int:
         for level in levels:
             if level == "Native":
                 total += 1
-                lang_native = native_journalism.get(lang, {})
-                flat_arts = (
-                    [a for batch in lang_native.values() for a in (batch if isinstance(batch, list) else [])]
-                    if isinstance(lang_native, dict) else lang_native
-                )
-                if flat_arts:
+                by_length = _native_by_length(native_journalism.get(lang, {}))
+                if by_length:
                     present += 1
+                    # Native word counts were displayed but never checked, so the
+                    # 250-word target it could not reach never showed up as a warning.
+                    for length, arts in by_length.items():
+                        target = WORD_TARGETS["Native"].get(length)
+                        if not target:
+                            continue
+                        avg = _avg_body_words(arts)
+                        if _word_color(avg, *target) in ("🟠", "🔴"):
+                            wrong_length.append(
+                                f"{lang_name} Native/{length} (avg {int(avg)}w, "
+                                f"target {target[0]}–{target[1]}w)"
+                            )
+                        if len(arts) < MIN_ARTICLES:
+                            thin.append(f"{lang_name} Native/{length}")
                 else:
                     missing.append(f"{lang_name} Native")
             else:
