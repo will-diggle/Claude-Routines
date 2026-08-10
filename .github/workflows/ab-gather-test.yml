@@ -1,19 +1,22 @@
 name: "A/B — fact gathering: all 60 headlines vs winners only"
 
-# ARM A: production today. One call per genre does everything at once — reads all 60
-#        scraped headlines, selects the stories, reports the groupings, and writes the
-#        facts, in a single response.
-# ARM B: the same batching — one call per genre, 3 stories for Global and 2 for the
-#        others — but the fact-finding call receives ONLY the winning stories and their
-#        own grouped headlines. Selection happens first in its own small call, Python
-#        scores it as it already does, and nothing else shares the fact call.
+# ONE variable: what the fact-finding call is given.
 #
-# Answers: is the thin fact material caused by what we send the call, rather than by how
-# many stories it has to cover?
+# STAGE 0  scrape                                    — run once, shared
+# STAGE 1  Gemini groups headlines, Python ranks them — run once, shared
+# STAGE 2  fact-finding                              — THE TEST
+#            ARM A: all 60 scraped headlines are sent, facts for 3 (Global) / 2 (others)
+#            ARM B: only the ranked winners are sent
 #
-# Batch size is held CONSTANT between arms, so it cannot explain a difference. Global News
-# spent roughly 80% of its answer retyping the 60 headlines and produced 87 narrative words
-# per story, while Business produced 514 from the same instruction.
+# Everything before stage 2 is identical and runs a single time, so both arms find facts
+# for the same stories, same slugs, same ranks. Batch size is identical too: one call per
+# genre in both arms. The only difference is the input.
+#
+# Why: Global News produced 87 narrative words per story while Business produced 514 from
+# the same instruction, and Global spent roughly 80% of its answer retyping the 60
+# headlines.
+#
+# Measured: narrative words, glossary words, and cost — per story and per genre.
 #
 # NARRATIVE vs GLOSSARY is reported separately. The old ~103 figure counted both
 # together, but glossary words (figures, names) cannot be spun into prose — only
@@ -51,40 +54,45 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_scrape.py
 
-      - name: ARM A — gather as it runs today
+      - name: STAGE 1 (shared) — Gemini groups headlines, Python ranks them
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # Run ONCE. Both arms then work from this identical ranked selection, so the same
+        # stories, the same slugs and the same ranks go into both fact-finding calls.
+        # Stage 1 is NOT under test and must not vary between arms.
+        run: |
+          python bilinguist_gather.py --select-only
+          cp factbase_${{ env.BRIEF_DATE }}.json selection.json
+          python - <<'PY'
+          import json
+          d = json.load(open("selection.json"))
+          print(f"shared selection — {len(d['factbase'])} stories, both arms use these:")
+          for s in d["factbase"]:
+              x = s.get("cross_reference_score", {})
+              print(f"  rank {x.get('rank')} [{x.get('total')}] {s['genre']} / {s['slug']}")
+          PY
+
+      - name: ARM A — facts with all 60 headlines sent, as production does
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: |
           START=$(date +%s)
-          python bilinguist_gather.py
+          python bilinguist_gather.py --from selection.json --facts-input all
           echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_A.json
 
-      # Quoted: an unquoted YAML scalar cannot contain ": " — it parses as a nested
-      # mapping and invalidates the whole file.
-      - name: "ARM B — same per-genre batching, but only the winning stories go in"
+      - name: ARM B — facts with only the ranked winners sent
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        # Batching is IDENTICAL to arm A: one fact-finding call per genre, 3 stories for
-        # Global News and 2 for the others. The single change is what goes into that call.
-        #
-        #   A: all 60 scraped headlines + select the stories + score them + write the
-        #      facts, in one response. Global spent ~80% of its answer retyping the 60
-        #      headlines and came out at 87 narrative words per story, against Business's
-        #      514 from the same instruction.
-        #   B: stage 1 groups and Python scores (as now); stage 2 receives ONLY the
-        #      winning stories and their own grouped headlines, and does nothing but find
-        #      facts.
-        #
-        # Because batch size is held constant, a difference here is caused by the input
-        # and the competing task, not by calls-per-story.
         run: |
           START=$(date +%s)
-          python bilinguist_gather.py --split --facts-per genre
+          python bilinguist_gather.py --from selection.json --facts-input winners
           echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_B.json
 

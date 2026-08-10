@@ -553,7 +553,8 @@ def _story_brief(story: dict) -> str:
     return "\n".join(lines)
 
 
-def gather_facts_for_genre(client, genre: str, stories: list, model: str) -> list:
+def gather_facts_for_genre(client, genre: str, stories: list, model: str,
+                           send_all_headlines: bool = False) -> list:
     """One grounded call finding the facts for a genre's already-selected stories.
 
     Same per-genre batching as production, but the call receives ONLY the winning
@@ -561,10 +562,17 @@ def gather_facts_for_genre(client, genre: str, stories: list, model: str) -> lis
     selection or scoring work. That isolates the input from the batching: if depth
     improves here, the cause was the noise and the competing task, not batch size.
     """
+    # send_all_headlines reproduces what production's combined call sees: every scraped
+    # headline for the genre, on top of the selected stories. It is the A arm of the test.
+    extra = ""
+    if send_all_headlines:
+        extra = ("\nFOR REFERENCE — every headline scraped for this genre today:\n"
+                 + render_headline_block(headlines_for_genre(genre)) + "\n")
     prompt = (load_prompt(FACTS_PROMPT_FILE)
               .replace("{DATE}", BRIEF_DATE)
               .replace("{GENRE}", genre)
               .replace("{STORY_COUNT}", str(len(stories)))
+              .replace("{ALL_HEADLINES}", extra)
               .replace("{STORIES}", "\n\n".join(_story_brief(s) for s in stories)))
     try:
         resp = client.models.generate_content(
@@ -821,8 +829,18 @@ def main():
     # comparison is then meaningless. --from reuses the other arm's selection verbatim,
     # which makes the two factbases differ ONLY by the deepening pass.
     parser.add_argument("--split", action="store_true",
-                        help="The two-stage pipeline: stage 1 selects stories only (no "
-                             "facts), stage 2 finds their facts. Self-contained.")
+                        help="The two-stage pipeline in one run: stage 1 selects stories "
+                             "only (no facts), stage 2 finds their facts.")
+    parser.add_argument("--select-only", action="store_true", dest="select_only",
+                        help="Stage 1 ONLY: group headlines, score in Python, write the "
+                             "ranked selection with no facts. For A/B runs, so both arms "
+                             "start from one identical selection.")
+    parser.add_argument("--facts-input", choices=["winners", "all"], default="winners",
+                        dest="facts_input",
+                        help="What the fact-finding call receives. 'winners' sends only "
+                             "the selected stories and their own grouped headlines. 'all' "
+                             "also sends every scraped headline, reproducing what "
+                             "production's combined call sees.")
     parser.add_argument("--facts-per", choices=["genre", "story"], default="genre",
                         dest="facts_per",
                         help="With --split: 'genre' keeps production's batching (one call "
@@ -838,15 +856,17 @@ def main():
                              "selection.")
     args, _ = parser.parse_known_args()
 
-    if args.from_factbase and not (args.deepen or args.per_story):
-        sys.exit("--from alone would just copy the factbase. Add --deepen or --per-story.")
-    if args.per_story and not (args.from_factbase or args.split):
-        sys.exit("--per-story needs --from: it collects facts for an already-selected "
-                 "story list and does not select.")
+    # --from now means "stage 2 only, on this selection", which is how the A/B holds
+    # stage 1 constant: one shared selection run, then each arm does only fact-finding.
+    find_facts = bool(args.split or args.per_story or args.from_factbase)
+    if args.select_only and find_facts:
+        sys.exit("--select-only is stage 1 alone. Do not combine it with a facts flag.")
     if args.deepen and (args.per_story or args.split):
         sys.exit("--deepen is an alternative to --per-story/--split, not a stack.")
     if args.split and args.from_factbase:
         sys.exit("--split does its own selection; --from would override it.")
+    if args.select_only:
+        args.split = True   # stage 1 uses the selection-only prompt and validator
 
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
@@ -897,20 +917,24 @@ def main():
             print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
 
-    if args.per_story or args.split:
-        if args.split:
-            print(f"\n[gather] SPLIT MODE — stage 2: facts for {len(factbase)} "
-                  f"selected stories")
+    if args.select_only:
+        print(f"[gather] SELECT ONLY — {len(factbase)} stories ranked, no facts. "
+              f"Stage 2 runs separately so every arm shares this selection.")
+        search_log = build_search_log()
+
+    if find_facts:
+        print(f"\n[gather] STAGE 2 — facts for {len(factbase)} selected stories "
+              f"(input: {args.facts_input})")
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
         bn = sum(story_word_split(s_)[0] for s_ in factbase)
         bg = sum(story_word_split(s_)[1] for s_ in factbase)
-        mode = "per genre (winners only)" if (args.split and args.facts_per == "genre") \
-            else "per story"
+        mode = (f"per genre, input={args.facts_input}" if args.facts_per == "genre"
+                else "per story")
         print(f"\n[facts] ===== collecting facts for {len(factbase)} stories — "
               f"{mode} =====")
         _t = time.time()
         model = ATTEMPT_PLAN[0][0]
-        if args.split and args.facts_per == "genre":
+        if args.facts_per == "genre":
             # Production's batching, kept deliberately: one call per genre, but given
             # ONLY that genre's winning stories and their own grouped headlines. The
             # single change from arm A is what goes in.
@@ -922,7 +946,8 @@ def main():
                   + ", ".join(f"{g}={len(v)}" for g, v in by_genre.items()))
             with ThreadPoolExecutor(max_workers=len(by_genre)) as ex:
                 results = list(ex.map(
-                    lambda kv: gather_facts_for_genre(client, kv[0], kv[1], model),
+                    lambda kv: gather_facts_for_genre(client, kv[0], kv[1], model,
+                                                      send_all_headlines=(args.facts_input == "all")),
                     by_genre.items()))
             # Rebuild in the original order so genre grouping and ranking survive.
             # Keyed by (genre, slug): slug alone would let two genres that picked the
@@ -952,7 +977,7 @@ def main():
         for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
             usage_total[k] += u[k]
 
-        if args.split:
+        if args.split or args.from_factbase:
             # Both were previously side-effects of the genre call. Neither needs a model.
             search_log = build_search_log()
             notification = assemble_notification(factbase)
