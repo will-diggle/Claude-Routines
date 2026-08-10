@@ -61,9 +61,11 @@ WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     "C1":     {"short": (85, 100),   "longer": (250, 270)},
     "C2":     {"short": (85, 100),   "longer": (250, 270)},
     # Native's real source of truth is the range written into PROMPT_3_HEADER.
-    # Lowered from 250–270 on 2026-08-09: ~103 words of source facts per story could
-    # not fill 250 words, so the writer padded and then invented to reach the target.
-    "Native": {"short": (85, 100),   "longer": (180, 200)},
+    # Lowered to 180–200 on 2026-08-09 because ~103 words of source per story could not
+    # fill 250. Restored to 250–270 on 2026-08-10: that premise is gone — splitting
+    # selection from fact-finding lifted Global News to ~290 narrative words per story,
+    # so 250 should now be reachable from the facts alone. This run tests exactly that.
+    "Native": {"short": (85, 100),   "longer": (250, 270)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached
@@ -270,7 +272,7 @@ def _language_table(
             lang_native = native_journalism.get(lang, {})
             if _native_by_length(lang_native):
                 # Per length, not one flat average: short targets 85–100 and longer
-                # targets 180–200, so their mean was a number with no target to sit in.
+                # targets 250–270, so their mean was a number with no target to sit in.
                 parts = []
                 for length in LENGTHS:
                     arts = _native_by_length(lang_native).get(length, [])

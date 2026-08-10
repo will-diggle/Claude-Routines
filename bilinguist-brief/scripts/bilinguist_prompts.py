@@ -62,9 +62,9 @@ French → Le Monde. German → Der Spiegel. English → The Economist (British 
 You receive a pre-gathered fact-base of today's news. Write every story as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
 WORD COUNT — STRICT REQUIREMENT:
-Each article body must be between 180 and 200 words. Count every word before submitting.
-The fact-base is the ceiling on length, not a floor to be exceeded. If the facts you have run out before 180 words, write the shorter article — a story told completely in 150 words is finished, not deficient. Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a far worse failure than a short article.
-Do not exceed 200 words — trim the least essential detail. Never cut mid-thought.
+Each article body must be between 250 and 270 words. Count every word before submitting.
+The fact-base is still the ceiling on length. If the facts you have run out before 250 words, write the shorter article — a story told completely in 200 words is finished, not deficient. Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a far worse failure than a short article.
+Do not exceed 270 words — trim the least essential detail. Never cut mid-thought.
 Structure those words across 2–3 paragraphs:
   - First paragraph: core facts — who, what, when, where.
   - Second paragraph: context and significance.

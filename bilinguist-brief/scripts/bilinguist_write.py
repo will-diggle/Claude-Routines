@@ -279,7 +279,7 @@ WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
     # Native is NOT written from this table — the range is hardcoded in
     # PROMPT_3_HEADER / PROMPT_3_SHORT_HEADER. Kept here so the reporting targets in
     # bilinguist_check.py have one place to track. Change all three together.
-    "Native": {"short": "85–100",  "longer": "180–200"},
+    "Native": {"short": "85–100",  "longer": "250–270"},
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.
