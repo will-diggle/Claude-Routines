@@ -577,36 +577,60 @@ def gather_facts_for_genre(client, genre: str, stories: list, model: str,
               .replace("{STORY_COUNT}", str(len(stories)))
               .replace("{ALL_HEADLINES}", extra)
               .replace("{STORIES}", "\n\n".join(_story_brief(s) for s in stories)))
-    try:
-        resp = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.1,
-                thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
-                # Scales with the batch so a 3-story genre is not squeezed into the same
-                # ceiling as a 2-story one.
-                max_output_tokens=PER_STORY_MAX_TOKENS * len(stories),
-            ),
-        )
-    except Exception as e:
-        print(f"[facts] {genre}: call failed ({type(e).__name__}) — keeping selection only",
-              file=sys.stderr)
-        return stories
+    config = types.GenerateContentConfig(
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+        temperature=0.1,
+        thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
+        # Scales with the batch so a 3-story genre is not squeezed into the same
+        # ceiling as a 2-story one.
+        max_output_tokens=PER_STORY_MAX_TOKENS * len(stories),
+    )
 
-    um = resp.usage_metadata
-    if um:
-        with _USAGE_LOCK:
-            _PER_STORY_USAGE["calls"] += 1
-            for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
-                _PER_STORY_USAGE[k] += getattr(um, k, 0) or 0
+    # Walk the same attempt plan the selection call uses. This function originally had a
+    # bare try/except that gave up on the first error, so one transient 503 silently lost
+    # a whole genre's facts and the run still exited 0 — which is exactly what happened on
+    # 2026-08-10: 5 of 7 stories reached the writing stage with nothing to write from.
+    # An unusable or truncated response is retried too, not just a raised exception.
+    found: dict = {}
+    resp = None
+    for attempt_model, tier, label, max_retries, delays in ATTEMPT_PLAN:
+        for attempt in range(1, max_retries + 2):
+            reason = None
+            try:
+                resp = client.models.generate_content(
+                    model=attempt_model, contents=prompt, config=config)
+            except Exception as e:
+                resp, reason = None, f"{type(e).__name__}: {e}"
+            if resp is not None:
+                um = resp.usage_metadata
+                if um:
+                    with _USAGE_LOCK:
+                        _PER_STORY_USAGE["calls"] += 1
+                        for k in ("prompt_token_count", "candidates_token_count",
+                                  "thoughts_token_count"):
+                            _PER_STORY_USAGE[k] += getattr(um, k, 0) or 0
+                parsed = parse_llm_json(resp.text or "")
+                found = {s.get("slug"): s for s in (parsed or {}).get("factbase", [])
+                         if isinstance(s, dict) and s.get("what_happened")}
+                if found:
+                    break
+                reason = "no usable stories in response"
+            if attempt <= max_retries:
+                delay = delays[attempt - 1]
+                print(f"[facts] {genre}: attempt {attempt} failed ({reason}) — "
+                      f"retrying in {delay}s", file=sys.stderr)
+                time.sleep(delay)
+            else:
+                print(f"[facts] {genre}: {attempt_model} exhausted ({reason})",
+                      file=sys.stderr)
+        if found:
+            if attempt_model != ATTEMPT_PLAN[0][0]:
+                print(f"[facts] {genre}: recovered via {attempt_model}")
+            break
 
-    parsed = parse_llm_json(resp.text or "")
-    found = {s.get("slug"): s for s in (parsed or {}).get("factbase", [])
-             if isinstance(s, dict)}
     if not found:
-        print(f"[facts] {genre}: unusable response — keeping selection only", file=sys.stderr)
+        print(f"[facts] {genre}: ALL attempts failed — {len(stories)} stories have no facts",
+              file=sys.stderr)
         return stories
 
     out = []
@@ -979,6 +1003,17 @@ def main():
               f"{u['thoughts_token_count']:,} think | ${cost:.4f}")
         for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
             usage_total[k] += u[k]
+
+        # Fail here rather than exiting 0 with a factbase nothing can be written from.
+        # gather_facts_for_genre returns the selection unchanged when a genre's call
+        # cannot be recovered, so success has to be asserted, not assumed.
+        no_facts = [s_.get("slug") for s_ in factbase if not s_.get("what_happened")]
+        if no_facts:
+            print(f"[gather] ERROR: {len(no_facts)}/{len(factbase)} stories have no facts "
+                  f"after all retries: {no_facts}", file=sys.stderr)
+            print("[gather] Refusing to write a factbase the writing stages cannot use.",
+                  file=sys.stderr)
+            sys.exit(1)
 
         if args.split or args.from_factbase:
             # Both were previously side-effects of the genre call. Neither needs a model.
