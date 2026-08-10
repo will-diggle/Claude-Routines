@@ -128,6 +128,15 @@ def parse_llm_json(raw: str) -> dict | None:
 
 
 
+def _ensure_fields(story: dict) -> dict:
+    """Add the array fields silently. For selection-only output, empty is expected."""
+    for field in ("what_happened", "attribution", "verified", "contested",
+                  "numbers", "proper_nouns", "key_terms"):
+        if not isinstance(story.get(field), list):
+            story[field] = []
+    return story
+
+
 def validate_story(story: dict) -> dict:
     """
     Ensure all required array fields are present.
@@ -653,8 +662,13 @@ def assemble_notification(factbase: list) -> str:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def gather_genre(genre: str, cfg: dict, prompt_file: str) -> dict:
-    """Run one Gemini call for a single genre. Returns its parsed payload."""
+def gather_genre(genre: str, cfg: dict, prompt_file: str,
+                 expect_facts: bool = True) -> dict:
+    """Run one Gemini call for a single genre. Returns its parsed payload.
+
+    expect_facts=False for selection-only calls: the story records legitimately arrive
+    with no facts, so neither the stub check nor the field validator should complain.
+    """
     index = headlines_for_genre(genre)
     print(f"\n[gather] ===== {genre} ({cfg['count']} stories, "
           f"{sum(len(v) for v in index.values())} headlines) =====")
@@ -761,10 +775,13 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str) -> dict:
     # finds easiest and fills the rest with placeholders like "uk-politics-story-1"
     # and no content. Nothing downstream can tell those from real stories, so a run
     # once shipped 3 articles per language instead of 7 without any error.
+    # In selection-only mode an empty "what_happened" is CORRECT — facts arrive in the
+    # next stage — so only the placeholder-slug half of the check applies.
     _PLACEHOLDER = re.compile(r"^(uk-politics|business-economy|global-news)-story-\d+$")
     stubs = [
         s_.get("slug", "?") for s_ in factbase
-        if _PLACEHOLDER.match(s_.get("slug", "")) or not s_.get("what_happened")
+        if _PLACEHOLDER.match(s_.get("slug", ""))
+        or (expect_facts and not s_.get("what_happened"))
     ]
     if stubs:
         print(f"[gather] ERROR: {len(stubs)} placeholder/empty stories: {stubs}", file=sys.stderr)
@@ -780,10 +797,11 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str) -> dict:
             stories = entry.get("stories", [])
             for i, headline in enumerate(stories, 1):
                 print(f"  {outlet} #{i}: {headline}")
-    else:
+    elif expect_facts:
         print("[gather] WARNING: global_news_search_log missing from response", file=sys.stderr)
 
-    factbase = [validate_story(st) for st in factbase]
+    factbase = ([validate_story(st) for st in factbase] if expect_facts
+                else [_ensure_fields(st) for st in factbase])
     for st in factbase:
         st["genre"] = genre
     apply_scores(factbase, index)
@@ -866,7 +884,7 @@ def main():
         print("[gather] SPLIT MODE — stage 1: selection only (no facts)")
 
     for genre, cfg in (() if args.from_factbase else GENRE_CONFIG.items()):
-        res = gather_genre(genre, cfg, prompt_file)
+        res = gather_genre(genre, cfg, prompt_file, expect_facts=not args.split)
         factbase.extend(res["factbase"])
         model_used = res["model"]
         for k in usage_total:
@@ -907,8 +925,12 @@ def main():
                     lambda kv: gather_facts_for_genre(client, kv[0], kv[1], model),
                     by_genre.items()))
             # Rebuild in the original order so genre grouping and ranking survive.
-            merged = {s_.get("slug"): s_ for group in results for s_ in group}
-            factbase = [merged.get(s_.get("slug"), s_) for s_ in factbase]
+            # Keyed by (genre, slug): slug alone would let two genres that picked the
+            # same slug silently swap facts.
+            merged = {(s_.get("genre"), s_.get("slug")): s_
+                      for group in results for s_ in group}
+            factbase = [merged.get((s_.get("genre"), s_.get("slug")), s_)
+                        for s_ in factbase]
         else:
             with ThreadPoolExecutor(max_workers=_PER_STORY_WORKERS) as ex:
                 # map() preserves input order, so grouping and ranking survive.
