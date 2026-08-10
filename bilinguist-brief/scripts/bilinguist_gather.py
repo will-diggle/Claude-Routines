@@ -414,8 +414,9 @@ DEPTH — the target, not a ceiling:
 - Under 150 words the story is under-reported: search again for the detail you are missing —
   a figure, a named reaction, a consequence, the background a reader needs.
 - Over 250 words you are padding. Cut the least essential point. Volume is not accuracy.
-- At most 8 entries each in "numbers", "proper_nouns" and "key_terms". These are lookup
-  data, not prose — a long list is not a better list.
+- At most 25 entries each in "numbers", "proper_nouns" and "key_terms". These are lookup
+  data, not prose — a long list is not a better list. Uncapped, one story returned 719
+  words of glossary.
 
 FIELDS — all arrays of short strings, one clean point per string, no paragraphs:
 - "what_happened": the events in deliberate narrative order — what happened first, then
