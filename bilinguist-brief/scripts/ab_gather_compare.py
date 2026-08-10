@@ -58,6 +58,20 @@ def main():
 
     by_slug_b = {s.get("slug"): s for s in fb}
 
+    # Selection must be shared, or a per-story comparison means nothing. An unmatched
+    # slug used to score silently as 0 words for B and read as "deepening lost facts".
+    # Arm B should run with --deepen --from <arm A's factbase>.
+    if b.get("selection_from"):
+        print(f"B reused A's selection ({b['selection_from']}) — selection is identical "
+              f"by construction ✓")
+    missing = [s.get("slug") for s in fa if s.get("slug") not in by_slug_b]
+    if missing:
+        print()
+        print("** SELECTION DIVERGED — comparison is NOT valid **")
+        print(f"   {len(missing)} of {len(fa)} A stories absent from B: {missing[:5]}")
+        print("   Arm B must run: bilinguist_gather.py --deepen --from factbase_A.json")
+        print()
+
     print()
     hdr = f"{'story':44} {'A words':>8} {'B words':>8} {'change':>9}"
     print(hdr)
@@ -90,9 +104,17 @@ def main():
         print(f"{label:10} {u.get('prompt_token_count',0):>9,} "
               f"{u.get('candidates_token_count',0):>9,} "
               f"{u.get('thoughts_token_count',0):>10,} {c:>9.4f} {c*USD_TO_GBP:>9.4f}")
-    print(f"\nExtra cost of deepening: GBP {(cb - ca) * USD_TO_GBP:+.4f}/day")
+    # Prefer the deepening calls' own metered usage. When B reuses A's selection its
+    # usage_metadata is "A's gather + deepening", so cb - ca is the same number — but
+    # only if that carry-forward happened, so measure it directly when we can.
+    du = b.get("deepen_usage")
+    extra_usd = cost(du) if du else (cb - ca)
+    source = "metered deepening calls" if du else "B total minus A total"
+    print(f"\nExtra cost of deepening: GBP {extra_usd * USD_TO_GBP:+.4f}/day ({source})")
+    if du:
+        print(f"  {du.get('calls', 0)} deepening calls")
     if tb > ta:
-        per = (cb - ca) * USD_TO_GBP / max(tb - ta, 1) * 1000
+        per = extra_usd * USD_TO_GBP / max(tb - ta, 1) * 1000
         print(f"  ~GBP {per:.3f} per 1,000 extra words of source")
 
 

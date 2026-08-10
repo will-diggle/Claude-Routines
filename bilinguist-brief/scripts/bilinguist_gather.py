@@ -353,7 +353,7 @@ def deepen_story(client, story: dict, model: str) -> dict:
 
     before, after = story_word_count(story), story_word_count(parsed)
     print(f"[deepen] {slug}: {before} -> {after} words of source")
-    return (validate_story(parsed), resp.usage_metadata)[0] if False else validate_story(parsed)
+    return validate_story(parsed)
 
 
 FACT_FIELDS = ("what_happened", "attribution", "verified", "contested",
@@ -516,7 +516,17 @@ def main():
     parser.add_argument("--deepen", action="store_true",
                         help="After selection, make one extra grounded call per story to "
                              "enrich its facts. Selection is unchanged.")
+    # A/B correctness: selection is a non-deterministic LLM judgement, so an arm that
+    # re-gathers picks different stories and different slugs, and a per-story
+    # comparison is then meaningless. --from reuses the other arm's selection verbatim,
+    # which makes the two factbases differ ONLY by the deepening pass.
+    parser.add_argument("--from", dest="from_factbase", metavar="PATH",
+                        help="Skip selection entirely and load this factbase instead. "
+                             "Use with --deepen so both A/B arms share one selection.")
     args, _ = parser.parse_known_args()
+
+    if args.from_factbase and not args.deepen:
+        sys.exit("--from without --deepen would just copy the factbase. Add --deepen.")
 
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
@@ -527,7 +537,24 @@ def main():
                    "thoughts_token_count": 0, "total_token_count": 0}
     model_used = ""
 
-    for genre, cfg in GENRE_CONFIG.items():
+    if args.from_factbase:
+        with open(args.from_factbase, encoding="utf-8") as f:
+            src = json.load(f)
+        factbase = src.get("factbase", []) or []
+        if not factbase:
+            sys.exit(f"[gather] ERROR: no stories in {args.from_factbase}")
+        search_log   = src.get("global_news_search_log", []) or []
+        notification = src.get("daily_notification", "") or ""
+        model_used   = src.get("model", "") or ""
+        # Carry the source arm's gather usage forward, so this run's usage_metadata is
+        # "their selection + our deepening". A cost diff between the two factbases is
+        # then exactly the price of deepening.
+        for k in usage_total:
+            usage_total[k] += (src.get("usage_metadata") or {}).get(k, 0)
+        print(f"[gather] Selection reused from {args.from_factbase} — "
+              f"{len(factbase)} stories, no selection calls made")
+
+    for genre, cfg in (() if args.from_factbase else GENRE_CONFIG.items()):
         res = gather_genre(genre, cfg, args.prompt)
         factbase.extend(res["factbase"])
         model_used = res["model"]
@@ -572,6 +599,10 @@ def main():
         "global_news_search_log": search_log,
         "daily_notification": notification,
         "deepened": bool(args.deepen),
+        # Set when selection came from another run, so a comparison can prove both arms
+        # scored the same stories rather than assuming it.
+        "selection_from": args.from_factbase or None,
+        "deepen_usage": dict(_DEEPEN_USAGE) if args.deepen else None,
         "factbase": factbase,
     }
     with open(output_path, "w", encoding="utf-8") as f:

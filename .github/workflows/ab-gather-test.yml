@@ -53,14 +53,19 @@ jobs:
           echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_A.json
 
-      - name: ARM B — same, plus one grounded call per story
+      - name: ARM B — arm A's selection, plus one grounded call per story
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # --from reuses arm A's factbase verbatim instead of re-gathering. Selection is
+        # a non-deterministic LLM judgement: the previous version re-ran it, so B chose
+        # partly different stories, slugs stopped matching, and the comparison scored
+        # every unmatched story as 0 words for B. The two arms now differ ONLY by the
+        # deepening pass, which is the one variable under test.
         run: |
           START=$(date +%s)
-          python bilinguist_gather.py --deepen
+          python bilinguist_gather.py --deepen --from factbase_A.json
           echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_B.json
 
