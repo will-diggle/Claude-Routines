@@ -222,16 +222,25 @@ def fetch_rss(url: str) -> list[str]:
 # still come through for scoring.
 GENRE_FEEDS = {
     "UK POLITICS": "https://news.google.com/rss/search?q=when:24h+UK+politics&hl=en-GB&gl=GB&ceid=GB:en",
-    # Business uses Google's curated GB business section, not a keyword search.
+    # Business uses Google's curated business section, not a keyword search.
     # "when:24h business economy" pulled global trade press (Aaj English TV, Bali
-    # Discovery, GMK Center) and scored 0 allowed sources; the section feed returns
-    # Telegraph, Guardian, BBC, FT and Times.
-    "BUSINESS & ECONOMY": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-GB&gl=GB&ceid=GB:en",
+    # Discovery, GMK Center) and scored 0 allowed sources.
+    #
+    # gl=US, not gl=GB. The GB edition is the UK business page: it was returning Octopus
+    # Energy, Thames Water, Harvey Nichols and a Travelodge story — domestic business, not
+    # world business. The US edition returns Intel's $15bn share sale, Boeing selling its
+    # eVTOL arm, Berkshire earnings and yen intervention.
+    "BUSINESS & ECONOMY": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en",
 }
 GENRE_HEADLINES = 8   # more than Global News: one feed carries every outlet
 
 # Google mixes non-news domains into topic searches (facebook.com appeared at #9
 # in testing). Only these may contribute to a score.
+#
+# The list was built for UK outlets, so when Business moved to the US edition it was
+# discarding the world business press it had just gained — 2 of the first 5 headlines were
+# dropped, including Barron's. The international business desks below were added for that.
+# Its job is to block non-news domains, not to block real newsrooms.
 ALLOWED_SOURCES = {
     "The Guardian", "The Telegraph", "The Independent", "Financial Times",
     "BBC", "BBC News", "Sky News", "The Times", "New Statesman", "The Spectator",
@@ -239,10 +248,20 @@ ALLOWED_SOURCES = {
     "The Economist", "HuffPost UK", "Evening Standard", "iNews", "PoliticsHome",
     "Daily Mail", "The Mirror", "Express", "Wall Street Journal", "CNN",
     "The i Paper", "The Irish News", "The National Scot", "Belfast Telegraph",
+    # International business press. Added when Business moved to the US edition — without
+    # these the feed loses most of what makes it world rather than UK news.
+    "Barron's", "MarketWatch", "Fortune", "Nikkei Asia", "Nikkei",
+    "WSJ",   # Google labels the Journal "WSJ" in this feed, not "Wall Street Journal"
+    "South China Morning Post", "Investor's Business Daily", "Business Insider",
+    "Yahoo Finance", "Axios", "Quartz", "Financial Post",
     # Google reports some outlets by domain rather than title — both forms count.
     "telegraph.co.uk", "theguardian.com", "bbc.co.uk", "ft.com",
     "independent.co.uk", "thetimes.co.uk", "Bloomberg.com", "standard.co.uk",
+    "barrons.com", "marketwatch.com", "cnbc.com", "reuters.com", "wsj.com",
 }
+# Deliberately NOT allowlisted: Fox Business appears in the US business feed and is a real
+# business desk, but the brief's whole neutrality framing argues against a politically
+# slanted source feeding story selection. Add it if you disagree — one line.
 
 
 def split_source(title: str) -> tuple[str, str]:
