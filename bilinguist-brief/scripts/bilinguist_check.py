@@ -314,10 +314,12 @@ def check(bundle_path: Path) -> int:
         duration_str = f"  ⏱ {_fmt_duration(finished_at - started_at)}"
 
     CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
+    story_count = len(factbase)
 
     missing:      list[str] = []
     wrong_length: list[str] = []
     thin:         list[str] = []
+    bloated:      list[str] = []
     present = 0
     total   = 0
 
@@ -375,14 +377,19 @@ def check(bundle_path: Path) -> int:
                         wrong_length.append(f"{key} (avg {avg}w, target {target[0]}–{target[1]}w)")
                     if len(articles) < MIN_ARTICLES:
                         thin.append(key)
+                    # More articles than stories means a writing call returned extra
+                    # ones. On 2026-08-10 fr/es-A2-longer shipped 9 articles from 7
+                    # stories and the write log still printed a tick.
+                    if story_count and len(articles) > story_count:
+                        bloated.append(
+                            f"{key} ({len(articles)} articles from {story_count} stories)")
 
-    all_issues = set(wrong_length + thin)
+    all_issues = set(wrong_length + thin + bloated)
     table = _language_table(briefings, native_journalism, native_grades, all_issues)
 
     script_dir   = bundle_path.parent.parent
     cost_str     = _cost_summary(bundle_path.parent, date)
 
-    story_count  = len(factbase)
     total_native = sum(
         sum(len(b) for b in v.values()) if isinstance(v, dict) else len(v)
         for v in native_journalism.values()
@@ -402,7 +409,7 @@ def check(bundle_path: Path) -> int:
         grading_warnings.append("⚠️ Stage 6 (Grade Native) defaulted all languages to B2 — grading model may have failed")
 
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
-    warnings  = wrong_length + thin + grading_warnings + factcheck_warnings
+    warnings  = wrong_length + thin + bloated + grading_warnings + factcheck_warnings
 
     # Exiting non-zero fails the workflow, which stops the bundle ever reaching the
     # data repo — so this decides whether the brief publishes at all. A single failed
@@ -444,6 +451,8 @@ def check(bundle_path: Path) -> int:
                 body_parts.append(f"  ⚠️ {w} — word count outside target range")
             for t in thin:
                 body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
+            for b in bloated:
+                body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
             for g in grading_warnings:
                 body_parts.append(f"  {g}")
             for fw in factcheck_warnings:
@@ -465,6 +474,8 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  ⚠️ {w} — word count outside target range")
         for t in thin:
             body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
+        for b in bloated:
+            body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
         for g in grading_warnings:
             body_parts.append(f"  {g}")
         for fw in factcheck_warnings:

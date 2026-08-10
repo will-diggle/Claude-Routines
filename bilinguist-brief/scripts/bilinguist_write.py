@@ -544,6 +544,22 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
             if attempt < _THIN_RETRY_LIMIT:
                 print(f"[WARN] [{attempt_label}] thin response ({len(articles)} articles < {expected}) — retrying",
                       file=sys.stderr)
+        # A task carrying ONE story can only have one correct answer, but the output
+        # format is a plural "articles" array, so Gemini sometimes returns two. Nothing
+        # capped it, and "keep the longest response" above actively preferred the wrong
+        # one — which is how 7 stories became 9 articles in fr/es-A2-longer on
+        # 2026-08-10. Trust the slug, fall back to the first article.
+        stories = task.factbase or []
+        if len(stories) == 1 and len(best_articles) > 1:
+            want = (stories[0].get("slug") or "").strip()
+            matched = [a for a in best_articles
+                       if (a.get("slug") or "").strip() == want]
+            print(f"[WARN] [{label}] {len(best_articles)} articles returned for 1 story "
+                  f"('{want}') — keeping "
+                  f"{'the slug match' if matched else 'the first'}, dropping "
+                  f"{len(best_articles) - 1}", file=sys.stderr)
+            best_articles = (matched or best_articles)[:1]
+
         if not best_articles:
             print(f"[ERROR] [{label}]: empty articles list — output incomplete", file=sys.stderr)
         elif len(best_articles) < expected:
