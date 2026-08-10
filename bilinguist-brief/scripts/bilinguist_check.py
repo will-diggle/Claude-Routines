@@ -372,6 +372,7 @@ def check(bundle_path: Path) -> int:
     # language is a rewrite of one — so a bad intermediate silently degrades the whole
     # language and would otherwise be reported nowhere.
     native_intermediate   = bundle.get("nativeIntermediate", {})
+    native_factcheck      = bundle.get("nativeFactCheck", {}) or {}
     native_grades         = bundle.get("nativeGrades", {})
     grading               = bundle.get("grading", {})
     date                  = bundle.get("date", "unknown")
@@ -482,8 +483,11 @@ def check(bundle_path: Path) -> int:
         grading_warnings.append("⚠️ Stage 6 (Grade Native) defaulted all languages to B2 — grading model may have failed")
 
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
+    # Stage 5b findings are warnings in their own right: an unsourced figure in a native
+    # article is now inherited by every level article rewritten from it.
+    native_check_warnings = (native_factcheck.get("warnings") or [])[:5]
     warnings  = (wrong_length + thin + bloated + grading_warnings
-                 + level_grade_warnings + factcheck_warnings)
+                 + level_grade_warnings + native_check_warnings + factcheck_warnings)
 
     # Exiting non-zero fails the workflow, which stops the bundle ever reaching the
     # data repo — so this decides whether the brief publishes at all. A single failed
@@ -554,6 +558,12 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  {g}")
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
+
+    if native_factcheck.get("summary"):
+        body_parts += ["", native_factcheck["summary"]]
+        for f in (native_factcheck.get("findings") or [])[:8]:
+            body_parts.append(f"  ⚠️ {f['kind']} \"{f['value']}\" in {f['lang']}/"
+                              f"{f['length']} {f['slug']} — not in the fact-base")
 
     if native_intermediate:
         lines = ["🔧 Native intermediates (not shipped — every level is a rewrite of these):"]

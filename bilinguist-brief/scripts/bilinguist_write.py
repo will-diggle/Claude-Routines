@@ -48,6 +48,8 @@ from typing import Optional
 from google import genai
 from google.genai import types
 
+import bilinguist_glossary as glossary
+
 
 # ── Models ───────────────────────────────────────────────────────────────────
 
@@ -1307,6 +1309,26 @@ def main():
     if native_grades:
         print(f"[write] Native grades: {native_grades}")
 
+    # ── Stage 5b (Verify Native) — does native match the fact-base it was given? ──
+    # Pure Python, no API call. Stage 4 verifies the fact-base BEFORE writing, so it
+    # cannot see what the writer invents; this compares the finished native articles back
+    # against their source. It matters more under pipeline B, because every level article
+    # is a rewrite of a native one, so an invention here propagates to every level.
+    #
+    # Advisory only — it never blocks the brief. Measured against the 2026-08-10 bundle it
+    # flags 0 of 70 real articles while catching an injected death toll, an invented
+    # company and "the Biden administration" in a story about a Trump appointee.
+    _t = time.time()
+    native_report = glossary.check_bundle({"factbase": factbase,
+                                           "nativeJournalism": native_journalism})
+    native_check_line, native_check_warnings = glossary.summarise(native_report)
+    _stage_secs["5b_verify_native"] = time.time() - _t
+    print(f"[5b] {native_check_line or 'no native articles to check'}")
+    for w in native_check_warnings:
+        print(f"[5b] {w}", file=sys.stderr)
+    for f in (native_report.figures + native_report.names)[:20]:
+        print(f"[5b]   {f.kind:6} {f.lang}/{f.length}/{f.slug}: {f.value}", file=sys.stderr)
+
     if LEVELS_FROM == "native":
         _NATIVE_INDEX = _index_native(native_journalism)
         print(f"[write] LEVELS FROM NATIVE — {len(_NATIVE_INDEX)} native articles indexed "
@@ -1399,6 +1421,15 @@ def main():
         "nativeIntermediate": {k: v for k, v in native_journalism.items()
                                if k in NATIVE_INTERMEDIATE},
         "nativeGrades": native_grades,
+        # Stage 5b's verdict, so check.py can report it without recomputing.
+        "nativeFactCheck": {
+            "summary": native_check_line,
+            "warnings": native_check_warnings,
+            "articles_checked": native_report.articles_checked,
+            "findings": [{"lang": f.lang, "length": f.length, "slug": f.slug,
+                          "kind": f.kind, "value": f.value}
+                         for f in (native_report.figures + native_report.names)],
+        },
         "grading": grading,
     }
 
