@@ -23,20 +23,29 @@ import re
 import sys
 from pathlib import Path
 
+# Same source as the prompt builder and check.py, so the comparison cannot be measuring
+# against a band the writer was never asked for.
+from bilinguist_prompts import word_band  # noqa: F401
+
 RATE_IN, RATE_OUT, RATE_THINK = 0.30, 2.50, 3.50
 USD_TO_GBP = 0.79
 
-# Must track WORDS_PER_ARTICLE in bilinguist_write.py.
+# CANONICAL bands, before the per-language factor. Read via band_for().
 TARGETS = {
-    "A1": {"short": (75, 90),  "longer": (180, 200)},
-    "A2": {"short": (85, 100), "longer": (210, 230)},
-    "B1": {"short": (85, 100), "longer": (210, 230)},
-    "B2": {"short": (85, 100), "longer": (210, 230)},
-    "C1": {"short": (85, 100), "longer": (210, 230)},
-    "C2": {"short": (85, 100), "longer": (210, 230)},
+    "A1": {"short": (85, 105), "longer": (180, 200)},
+    "A2": {"short": (95, 115), "longer": (210, 230)},
+    "B1": {"short": (95, 115), "longer": (210, 230)},
+    "B2": {"short": (95, 115), "longer": (210, 230)},
+    "C1": {"short": (95, 115), "longer": (210, 230)},
+    "C2": {"short": (95, 115), "longer": (210, 230)},
 }
 
 _NUM = re.compile(r"\d[\d.,]*")
+
+
+def band_for(level: str, length: str, lang: str) -> tuple:
+    canon = TARGETS.get(level, {}).get(length, (0, 9999))
+    return word_band(f"{canon[0]}-{canon[1]}", lang)
 
 
 def figures(text: str) -> list:
@@ -107,7 +116,7 @@ def main():
     tot = {"a_band": 0, "b_band": 0, "n": 0, "a_ord": 0, "b_ord": 0, "ord_n": 0}
     for key in keys:
         lang, level, length = key
-        lo, hi = TARGETS.get(level, {}).get(length, (0, 9999))
+        lo, hi = band_for(level, length, lang)
         row = {}
         for tag, src in (("a", ca.get(key) or []), ("b", cb.get(key) or [])):
             words = [len((x.get("body") or "").split()) for x in src]

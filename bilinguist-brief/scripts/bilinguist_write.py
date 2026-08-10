@@ -313,16 +313,19 @@ WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
     # Same LENGTH at every level — only the reading level changes. A learner comparing A2
     # with Native then reads the same story at the same size in simpler language, which is
     # what makes the levels comparable. A1 alone is a little shorter.
-    "A1":     {"short": "75–90",   "longer": "180–200"},
-    "A2":     {"short": "85–100",  "longer": "210–230"},
-    "B1":     {"short": "85–100",  "longer": "210–230"},
-    "B2":     {"short": "85–100",  "longer": "210–230"},
-    "C1":     {"short": "85–100",  "longer": "210–230"},
-    "C2":     {"short": "85–100",  "longer": "210–230"},
+    # CANONICAL bands, before the per-language factor in LANGUAGE_WORD_FACTOR. Short was
+    # recalibrated on 2026-08-10: native short wrote 104 on average against an inherited
+    # 85-100, a band that had never been measured the way longer was.
+    "A1":     {"short": "85–105",  "longer": "180–200"},
+    "A2":     {"short": "95–115",  "longer": "210–230"},
+    "B1":     {"short": "95–115",  "longer": "210–230"},
+    "B2":     {"short": "95–115",  "longer": "210–230"},
+    "C1":     {"short": "95–115",  "longer": "210–230"},
+    "C2":     {"short": "95–115",  "longer": "210–230"},
     # Native is NOT written from this table — the range is hardcoded in
     # PROMPT_3_HEADER / PROMPT_3_SHORT_HEADER. Kept here so the reporting targets in
     # bilinguist_check.py have one place to track. Change all three together.
-    "Native": {"short": "85–100",  "longer": "210–230"},
+    "Native": {"short": "95–115",  "longer": "210–230"},
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.
@@ -424,6 +427,7 @@ if '--test' in _sys.argv:
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK,
+        LANGUAGE_WORD_FACTOR, word_band,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -438,6 +442,7 @@ else:
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK,
+        LANGUAGE_WORD_FACTOR, word_band,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -449,10 +454,9 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     word_count = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
     lang_name = LANGUAGE_NAMES.get(lang, lang)
 
-    # Split "60–75" into word_min and word_max
-    parts = str(word_count).replace("–", "-").split("-")
-    word_min = parts[0].strip()
-    word_max = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+    # Canonical band adjusted for this language's word density.
+    _lo, _hi = word_band(word_count, lang)
+    word_min, word_max = str(_lo), str(_hi)
 
     length_labels = {"short": "Concise", "medium": "Balanced", "longer": "Long-form"}
     length_label = length_labels.get(length, length)
@@ -485,9 +489,7 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     if not source or not source.get("body"):
         return ""
     def _band(lvl):
-        parts = str(WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length]
-                    ).replace("\u2013", "-").split("-")
-        return int(parts[0].strip()), int(parts[-1].strip())
+        return word_band(WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length], lang)
 
     word_min_i, word_max_i = _band(level)
     src_min, src_max = _band("Native")
@@ -528,9 +530,8 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
 
     # Word counts come from WORDS_PER_ARTICLE, not hardcoded in the prompt. They used to
     # live in three places (prompt, table, check.py) and had to be changed together.
-    band = WORDS_PER_ARTICLE["Native"][length]
-    parts = str(band).replace("\u2013", "-").split("-")
-    word_min, word_max = parts[0].strip(), (parts[-1].strip())
+    lo, hi = word_band(WORDS_PER_ARTICLE["Native"][length], lang)
+    word_min, word_max = str(lo), str(hi)
 
     # Per-article mode carries exactly one story, so its genre selects the block. Batched
     # mode mixes genres in one call and gets none rather than the wrong one.

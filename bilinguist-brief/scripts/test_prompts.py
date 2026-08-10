@@ -94,10 +94,19 @@ import bilinguist_check as C  # noqa: E402
 for level, bands in W.WORDS_PER_ARTICLE.items():
     for length, band in bands.items():
         parts = str(band).replace("–", "-").split("-")
-        want = (int(parts[0]), int(parts[-1]))
-        got = C.WORD_TARGETS.get(level, {}).get(length)
-        check(got == want,
-              f"ladder mismatch {level}/{length}: write.py {want} vs check.py {got}")
+        want_canon = (int(parts[0]), int(parts[-1]))
+        got_canon = C.WORD_TARGETS.get(level, {}).get(length)
+        check(got_canon == want_canon,
+              f"canonical ladder mismatch {level}/{length}: "
+              f"write.py {want_canon} vs check.py {got_canon}")
+        # And the language-adjusted band the prompt asks for must equal the band the
+        # report measures against, or the notification contradicts the instruction.
+        for lang in ("en", "fr", "de", "sv", "it", "es"):
+            asked = P.word_band(band, lang)
+            measured = C._target(level, length, lang)
+            check(asked == measured,
+                  f"band mismatch {lang} {level}/{length}: prompt asks {asked}, "
+                  f"check.py measures {measured}")
 
 if FAILURES:
     print(f"{len(FAILURES)} prompt check(s) FAILED:")

@@ -14,6 +14,11 @@ import os
 import sys
 from pathlib import Path
 
+# Word bands and the per-language factor live in bilinguist_prompts.py so the prompt, the
+# reporting target and the A/B comparison cannot disagree. That module is pure data — no
+# API client, nothing to initialise.
+from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band  # noqa: F401
+
 LANGUAGE_LEVELS: dict[str, list[str]] = {
     "fr": ["A2", "Native"],
     "de": ["A2", "Native"],
@@ -53,21 +58,23 @@ PUBLISH_THRESHOLD = 0.5
 
 # Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
 # Stored as (min, max) tuples parsed from the "X–Y" strings.
+# CANONICAL bands, before LANGUAGE_WORD_FACTOR. Read them through _target(), never
+# directly, or the report will contradict what the prompt actually asked for.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     # Same LENGTH at every level — only the reading level changes. A1 alone is shorter.
-    "A1":     {"short": (75, 90),    "longer": (180, 200)},
-    "A2":     {"short": (85, 100),   "longer": (210, 230)},
-    "B1":     {"short": (85, 100),   "longer": (210, 230)},
-    "B2":     {"short": (85, 100),   "longer": (210, 230)},
-    "C1":     {"short": (85, 100),   "longer": (210, 230)},
-    "C2":     {"short": (85, 100),   "longer": (210, 230)},
+    "A1":     {"short": (85, 105),   "longer": (180, 200)},
+    "A2":     {"short": (95, 115),   "longer": (210, 230)},
+    "B1":     {"short": (95, 115),   "longer": (210, 230)},
+    "B2":     {"short": (95, 115),   "longer": (210, 230)},
+    "C1":     {"short": (95, 115),   "longer": (210, 230)},
+    "C2":     {"short": (95, 115),   "longer": (210, 230)},
     # Native now reads its band from WORDS_PER_ARTICLE in bilinguist_write.py — the prompt
     # no longer hardcodes it — so these two must agree.
     # Set to 210–230 on 2026-08-10 from measurement rather than argument: across two runs
     # native/longer produced 194–247 (avg ~220) whether or not the prompt authorised a
     # short article, so 250–270 was above what it reliably writes and 210–230 is centred
     # on what it does.
-    "Native": {"short": (85, 100),   "longer": (210, 230)},
+    "Native": {"short": (95, 115),   "longer": (210, 230)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached
@@ -129,6 +136,22 @@ def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
     return "\n".join(lines), warnings
 
 
+def _target(level: str, length: str, lang: str = "") -> tuple[int, int] | None:
+    """The band this language was actually asked for.
+
+    WORD_TARGETS_LANG wins where set (Turkish and Arabic deviate far more than a factor);
+    otherwise the canonical band is scaled by LANGUAGE_WORD_FACTOR, exactly as the prompt
+    builder does.
+    """
+    override = WORD_TARGETS_LANG.get(lang, {}).get(level, {}).get(length)
+    if override:
+        return override
+    canon = WORD_TARGETS.get(level, {}).get(length)
+    if not canon:
+        return None
+    return word_band(f"{canon[0]}-{canon[1]}", lang)
+
+
 def _word_color(avg: float, lo: int, hi: int) -> str:
     """🟢 within range · 🟠 up to 15% outside · 🔴 more than 15% outside."""
     if avg <= 0:
@@ -143,8 +166,7 @@ def _word_color(avg: float, lo: int, hi: int) -> str:
 def _length_status(articles: list, level: str, length: str, lang: str = "") -> tuple[str, bool]:
     """Return (display_str, is_bad). is_bad = outside target range."""
     avg = _avg_body_words(articles)
-    lang_override = WORD_TARGETS_LANG.get(lang, {}).get(level, {})
-    target = lang_override.get(length) or WORD_TARGETS.get(level, {}).get(length)
+    target = _target(level, length, lang)
     avg_str = f"{int(avg)}w"
     if not target:
         return avg_str, False
@@ -308,8 +330,7 @@ def _language_table(
                     cells.append("❌")
                     continue
                 avg = _avg_body_words(articles)
-                lang_override = WORD_TARGETS_LANG.get(lang, {}).get(lvl, {})
-                target = lang_override.get(length) or WORD_TARGETS.get(lvl, {}).get(length)
+                target = _target(lvl, length, lang)
                 color = _word_color(avg, *target) if target else "🟢"
                 cells.append(f"{color} {int(avg)}")
 
@@ -328,7 +349,7 @@ def _language_table(
                         parts.append("❌")
                         continue
                     avg = _avg_body_words(arts)
-                    target = WORD_TARGETS["Native"].get(length)
+                    target = _target("Native", length, lang)
                     color = _word_color(avg, *target) if target else "🟢"
                     parts.append(f"{color} {int(avg)}")
                 grade_label = f" [{native_grade}]" if native_grade else ""
@@ -388,7 +409,7 @@ def check(bundle_path: Path) -> int:
                     # Native word counts were displayed but never checked, so the
                     # 250-word target it could not reach never showed up as a warning.
                     for length, arts in by_length.items():
-                        target = WORD_TARGETS["Native"].get(length)
+                        target = _target("Native", length, lang)
                         if not target:
                             continue
                         avg = _avg_body_words(arts)
@@ -420,8 +441,7 @@ def check(bundle_path: Path) -> int:
                     _, is_bad = _length_status(articles, level, length, lang)
                     if is_bad:
                         avg = int(_avg_body_words(articles))
-                        lang_override = WORD_TARGETS_LANG.get(lang, {}).get(level, {})
-                        target = lang_override.get(length) or WORD_TARGETS.get(level, {}).get(length, (0, 999))
+                        target = _target(level, length, lang) or (0, 999)
                         wrong_length.append(f"{key} (avg {avg}w, target {target[0]}–{target[1]}w)")
                     if len(articles) < MIN_ARTICLES:
                         thin.append(key)

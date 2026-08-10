@@ -27,6 +27,39 @@ LENGTH_INSTRUCTIONS: dict[str, str] = {
     ),
 }
 
+# ── Per-language word-density factors ────────────────────────────────────────
+# One word count cannot fit five languages. Measured across two runs and both lengths on
+# 2026-08-10, each language's output sits at a stable ratio to the group mean:
+#
+#            short  longer
+#     fr      1.08    1.11     French and Italian need ~9% more words for the same content
+#     it      1.09    1.08     (de, des, à la, qui est …)
+#     en      0.98    0.98     English sits on the mean
+#     de      0.93    0.93     German and Swedish compound, so ~8% fewer
+#     sv      0.92    0.89     (Rüstungsindustrie is one word)
+#
+# The canonical band in WORDS_PER_ARTICLE is multiplied by these, so French is asked for
+# 229-251 where German is asked for 195-214 — instead of both being asked for 210-230 and
+# one of them always being wrong. WORD_TARGETS_LANG still takes precedence where set:
+# Turkish and Arabic deviate far more than a factor (agglutination), so they stay explicit.
+LANGUAGE_WORD_FACTOR: dict[str, float] = {
+    "fr": 1.09,
+    "it": 1.08,
+    "es": 1.08,   # no native data yet — assumed to behave like Italian. Revisit once measured.
+    "en": 0.98,
+    "de": 0.93,
+    "sv": 0.90,
+}
+
+
+def word_band(band: str, lang: str = "") -> tuple[int, int]:
+    """Canonical "210-230" plus a language, to that language's actual target."""
+    parts = str(band).replace("\u2013", "-").split("-")
+    lo, hi = int(parts[0].strip()), int(parts[-1].strip())
+    f = LANGUAGE_WORD_FACTOR.get(lang, 1.0)
+    return round(lo * f), round(hi * f)
+
+
 # One outlet per language, injected as {OUTLET}. The native prompt used to list all eight
 # and let the model pick its own line — the same shape as the "IF German is English" bug
 # that VARIANT_RULES below was created to fix. Only the relevant one is now shown.
