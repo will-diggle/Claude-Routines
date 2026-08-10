@@ -22,7 +22,9 @@ import json
 import os
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from google import genai
@@ -356,17 +358,136 @@ def deepen_story(client, story: dict, model: str) -> dict:
     return validate_story(parsed)
 
 
-FACT_FIELDS = ("what_happened", "attribution", "verified", "contested",
-               "numbers", "proper_nouns", "key_terms")
+# Narrative is prose the writer can build sentences from. Glossary is lookup data —
+# figures and names that appear verbatim in every language. Counting them together
+# overstates how much an article has to work with: the "~103 words per story" figure
+# that drove the native target down was an unsplit total, so the real narrative was
+# smaller than it looked. Always report the two separately.
+NARRATIVE_FIELDS = ("what_happened", "attribution", "verified", "contested")
+GLOSSARY_FIELDS  = ("numbers", "proper_nouns", "key_terms")
+FACT_FIELDS = NARRATIVE_FIELDS + GLOSSARY_FIELDS
 
 
-def story_word_count(story: dict) -> int:
-    """Words of source material in one story — the number that caps article length."""
+# ── Per-story fact collection (--per-story) ──────────────────────────────────
+# The A/B arm. A genre call must select 2-3 stories AND report their facts in one
+# response, so each story gets a fraction of the attention and the output budget.
+# This gives each story its own call and its own search.
+#
+# Distinct from --deepen: deepening ADDS to the genre call's facts, so it inherits
+# whatever that call produced. This collects each story's facts from scratch, given
+# only the story's identity and the real scraped headlines that were grouped into it.
+# That is the design that would actually ship if it wins.
+
+_PER_STORY_USAGE = {"calls": 0, "prompt_token_count": 0,
+                    "candidates_token_count": 0, "thoughts_token_count": 0}
+_USAGE_LOCK = threading.Lock()
+
+# 7 grounded calls run concurrently rather than in sequence. Latency is the binding
+# constraint on this pipeline (07:30 delivery), so a serial measurement would make the
+# design look more expensive in wall-clock than it actually is.
+_PER_STORY_WORKERS = 7
+
+PER_STORY_PROMPT = """You are a news researcher building the fact-base entry for ONE story.
+
+TODAY'S DATE: {DATE}
+
+These are real headlines about this story, scraped today from major outlets:
+{HEADLINES}
+
+Search now and return a complete fact-base entry for this story as JSON.
+
+FIELDS — all arrays of strings:
+- "what_happened": the events in sequence. This is the writer's raw material — be
+  thorough and concrete. Names, places, times, what was said and done.
+- "attribution": who reported or stated what, by name.
+- "verified": facts confirmed by multiple independent outlets.
+- "contested": disputed claims, each attributed to a named source.
+- "numbers": every figure, as it should appear verbatim in any language.
+- "proper_nouns": people, organisations and places, spelled canonically.
+- "key_terms": terms a reader needs defined.
+
+RULES:
+- Add only facts you can verify by search. Never invent, never speculate.
+- Keep the verified/contested separation strictly.
+- Return "slug" and "genre" exactly as given below — do not alter them.
+- Depth in "what_happened" is the point: an article cannot be longer than its facts.
+
+Return ONLY the JSON object for this one story.
+
+STORY IDENTITY:
+{IDENTITY}
+"""
+
+
+def gather_story(client, story: dict, model: str) -> dict:
+    """One grounded call collecting a single story's facts. Returns original on failure."""
+    slug = story.get("slug", "?")
+    heads = [f"  - {s.get('outlet')}: {s.get('headline')}"
+             for s in (story.get("cross_reference_score", {}).get("sources") or [])
+             if s.get("headline")]
+    identity = {"slug": slug, "genre": story.get("genre"),
+                "headline": story.get("headline") or story.get("summary") or ""}
+    prompt = (PER_STORY_PROMPT
+              .replace("{DATE}", BRIEF_DATE)
+              .replace("{HEADLINES}", "\n".join(heads) or "  (none matched)")
+              .replace("{IDENTITY}", json.dumps(identity, ensure_ascii=False, indent=2)))
+    try:
+        resp = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+            ),
+        )
+    except Exception as e:
+        print(f"[per-story] {slug}: call failed ({type(e).__name__}) — keeping original",
+              file=sys.stderr)
+        return story
+
+    um = resp.usage_metadata
+    if um:
+        with _USAGE_LOCK:
+            _PER_STORY_USAGE["calls"] += 1
+            for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
+                _PER_STORY_USAGE[k] += getattr(um, k, 0) or 0
+
+    parsed = parse_llm_json(resp.text or "")
+    if not parsed or not parsed.get("what_happened"):
+        print(f"[per-story] {slug}: unusable response — keeping original", file=sys.stderr)
+        return story
+
+    # Identity and score are the genre call's, never the per-story call's.
+    parsed["slug"]  = story.get("slug")
+    parsed["genre"] = story.get("genre")
+    if "cross_reference_score" in story:
+        parsed["cross_reference_score"] = story["cross_reference_score"]
+    for carry in ("headline", "summary"):
+        if carry in story and carry not in parsed:
+            parsed[carry] = story[carry]
+
+    bn, bg = story_word_split(story)
+    an, ag = story_word_split(parsed)
+    print(f"[per-story] {slug}: narrative {bn} -> {an} | glossary {bg} -> {ag}")
+    return validate_story(parsed)
+
+
+def _count(story: dict, fields) -> int:
     n = 0
-    for f in FACT_FIELDS:
+    for f in fields:
         v = story.get(f) or []
         n += sum(len(str(x).split()) for x in v) if isinstance(v, list) else len(str(v).split())
     return n
+
+
+def story_word_count(story: dict) -> int:
+    """Total words of source material in one story."""
+    return _count(story, FACT_FIELDS)
+
+
+def story_word_split(story: dict) -> tuple[int, int]:
+    """(narrative words, glossary words) — narrative is what caps article length."""
+    return _count(story, NARRATIVE_FIELDS), _count(story, GLOSSARY_FIELDS)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -520,13 +641,22 @@ def main():
     # re-gathers picks different stories and different slugs, and a per-story
     # comparison is then meaningless. --from reuses the other arm's selection verbatim,
     # which makes the two factbases differ ONLY by the deepening pass.
+    parser.add_argument("--per-story", action="store_true", dest="per_story",
+                        help="Collect each story's facts in its own grounded call, "
+                             "replacing the genre call's fact work. Needs --from.")
     parser.add_argument("--from", dest="from_factbase", metavar="PATH",
                         help="Skip selection entirely and load this factbase instead. "
-                             "Use with --deepen so both A/B arms share one selection.")
+                             "Use with --deepen/--per-story so both A/B arms share one "
+                             "selection.")
     args, _ = parser.parse_known_args()
 
-    if args.from_factbase and not args.deepen:
-        sys.exit("--from without --deepen would just copy the factbase. Add --deepen.")
+    if args.from_factbase and not (args.deepen or args.per_story):
+        sys.exit("--from alone would just copy the factbase. Add --deepen or --per-story.")
+    if args.per_story and not args.from_factbase:
+        sys.exit("--per-story needs --from: it collects facts for an already-selected "
+                 "story list and does not select.")
+    if args.per_story and args.deepen:
+        sys.exit("--per-story and --deepen are alternatives, not a stack.")
 
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
@@ -568,6 +698,34 @@ def main():
             print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
 
+    if args.per_story:
+        client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
+        bn = sum(story_word_split(s_)[0] for s_ in factbase)
+        bg = sum(story_word_split(s_)[1] for s_ in factbase)
+        print(f"\n[per-story] ===== collecting facts for {len(factbase)} stories, "
+              f"{_PER_STORY_WORKERS} at a time =====")
+        _t = time.time()
+        model = ATTEMPT_PLAN[0][0]
+        with ThreadPoolExecutor(max_workers=_PER_STORY_WORKERS) as ex:
+            # map() preserves input order, so genre grouping and ranking survive.
+            factbase = list(ex.map(lambda s_: gather_story(client, s_, model), factbase))
+        an = sum(story_word_split(s_)[0] for s_ in factbase)
+        ag = sum(story_word_split(s_)[1] for s_ in factbase)
+        n = max(len(factbase), 1)
+        print(f"[per-story] narrative: {bn} -> {an} ({an / max(bn,1):.1f}x), "
+              f"avg/story {bn // n} -> {an // n}")
+        print(f"[per-story] glossary:  {bg} -> {ag} ({ag / max(bg,1):.1f}x), "
+              f"avg/story {bg // n} -> {ag // n}")
+        u = _PER_STORY_USAGE
+        cost = (u["prompt_token_count"] / 1e6 * 0.30
+                + u["candidates_token_count"] / 1e6 * 2.50
+                + u["thoughts_token_count"] / 1e6 * 3.50)
+        print(f"[per-story] {u['calls']} calls in {time.time() - _t:.0f}s | "
+              f"{u['prompt_token_count']:,} in {u['candidates_token_count']:,} out "
+              f"{u['thoughts_token_count']:,} think | ${cost:.4f}")
+        for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
+            usage_total[k] += u[k]
+
     if args.deepen:
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
         before = sum(story_word_count(s_) for s_ in factbase)
@@ -603,6 +761,8 @@ def main():
         # scored the same stories rather than assuming it.
         "selection_from": args.from_factbase or None,
         "deepen_usage": dict(_DEEPEN_USAGE) if args.deepen else None,
+        "per_story": bool(args.per_story),
+        "per_story_usage": dict(_PER_STORY_USAGE) if args.per_story else None,
         "factbase": factbase,
     }
     with open(output_path, "w", encoding="utf-8") as f:

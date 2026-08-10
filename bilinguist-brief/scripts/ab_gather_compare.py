@@ -18,20 +18,33 @@ import json
 import sys
 from pathlib import Path
 
-FACT_FIELDS = ("what_happened", "attribution", "verified", "contested",
-               "numbers", "proper_nouns", "key_terms")
+# Narrative is prose the writer builds sentences from. Glossary is lookup data —
+# figures and names reproduced verbatim in every language. Only narrative caps article
+# length, so a combined total flatters the factbase: the "~103 words per story" that
+# drove the native target down counted both.
+NARRATIVE_FIELDS = ("what_happened", "attribution", "verified", "contested")
+GLOSSARY_FIELDS  = ("numbers", "proper_nouns", "key_terms")
+FACT_FIELDS = NARRATIVE_FIELDS + GLOSSARY_FIELDS
 
 # Gemini 2.5 Flash, USD per 1M tokens.
 RATE_IN, RATE_OUT, RATE_THINK = 0.30, 2.50, 3.50
 USD_TO_GBP = 0.79
 
 
-def words(story):
+def words(story, fields=FACT_FIELDS):
     n = 0
-    for f in FACT_FIELDS:
+    for f in fields:
         v = story.get(f) or []
         n += sum(len(str(x).split()) for x in v) if isinstance(v, list) else len(str(v).split())
     return n
+
+
+def narrative(story):
+    return words(story, NARRATIVE_FIELDS)
+
+
+def glossary(story):
+    return words(story, GLOSSARY_FIELDS)
 
 
 def cost(usage):
@@ -73,28 +86,37 @@ def main():
         print()
 
     print()
-    hdr = f"{'story':44} {'A words':>8} {'B words':>8} {'change':>9}"
+    print("NARRATIVE is what caps article length. GLOSSARY is lookup data.")
+    hdr = (f"{'story':32} {'A narr':>7} {'B narr':>7} {'x':>5}   "
+           f"{'A gloss':>7} {'B gloss':>7} {'x':>5}")
     print(hdr)
     print("-" * len(hdr))
-    ta = tb = 0
+    tan = tbn = tag = tbg = 0
     for s in fa:
-        wa = words(s)
-        wb = words(by_slug_b.get(s.get("slug"), {}))
-        ta += wa
-        tb += wb
-        mult = f"{wb / wa:.1f}x" if wa else "-"
-        print(f"{str(s.get('slug'))[:44]:44} {wa:>8} {wb:>8} {mult:>9}")
+        sb = by_slug_b.get(s.get("slug"), {})
+        an_, bn_ = narrative(s), narrative(sb)
+        ag_, bg_ = glossary(s), glossary(sb)
+        tan += an_; tbn += bn_; tag += ag_; tbg += bg_
+        mn = f"{bn_ / an_:.1f}x" if an_ else "-"
+        mg = f"{bg_ / ag_:.1f}x" if ag_ else "-"
+        print(f"{str(s.get('slug'))[:32]:32} {an_:>7} {bn_:>7} {mn:>5}   "
+              f"{ag_:>7} {bg_:>7} {mg:>5}")
     n = max(len(fa), 1)
     print("-" * len(hdr))
-    print(f"{'TOTAL':44} {ta:>8} {tb:>8} {(tb / ta if ta else 0):>8.1f}x")
-    print(f"{'AVERAGE PER STORY':44} {ta // n:>8} {tb // n:>8}")
+    print(f"{'TOTAL':32} {tan:>7} {tbn:>7} {(tbn / tan if tan else 0):>4.1f}x   "
+          f"{tag:>7} {tbg:>7} {(tbg / tag if tag else 0):>4.1f}x")
+    print(f"{'AVERAGE PER STORY':32} {tan // n:>7} {tbn // n:>7} {'':>5}   "
+          f"{tag // n:>7} {tbg // n:>7}")
+    ta, tb = tan + tag, tbn + tbg
+    print(f"{'(combined, the old metric)':32} {ta // n:>7} {tb // n:>7}")
 
-    # What article length does that support?
+    # What article length does the NARRATIVE support? Glossary words cannot be
+    # spun into prose, so including them was the flattering part of the old number.
     print()
-    for label, avg in (("A", ta // n), ("B", tb // n)):
+    for label, avg in (("A", tan // n), ("B", tbn // n)):
         verdict = "supports 180-200 word articles" if avg >= 180 else \
                   f"caps articles near {avg} words without inventing"
-        print(f"  {label}: ~{avg} words of source per story — {verdict}")
+        print(f"  {label}: ~{avg} words of NARRATIVE per story — {verdict}")
 
     ua, ub = a.get("usage_metadata", {}), b.get("usage_metadata", {})
     ca, cb = cost(ua), cost(ub)
@@ -107,15 +129,20 @@ def main():
     # Prefer the deepening calls' own metered usage. When B reuses A's selection its
     # usage_metadata is "A's gather + deepening", so cb - ca is the same number — but
     # only if that carry-forward happened, so measure it directly when we can.
-    du = b.get("deepen_usage")
-    extra_usd = cost(du) if du else (cb - ca)
-    source = "metered deepening calls" if du else "B total minus A total"
-    print(f"\nExtra cost of deepening: GBP {extra_usd * USD_TO_GBP:+.4f}/day ({source})")
-    if du:
-        print(f"  {du.get('calls', 0)} deepening calls")
-    if tb > ta:
-        per = extra_usd * USD_TO_GBP / max(tb - ta, 1) * 1000
-        print(f"  ~GBP {per:.3f} per 1,000 extra words of source")
+    extra = b.get("per_story_usage") or b.get("deepen_usage")
+    label = "per-story collection" if b.get("per_story") else "deepening"
+    extra_usd = cost(extra) if extra else (cb - ca)
+    src = "metered extra calls" if extra else "B total minus A total"
+    print(f"\nExtra cost of {label}: GBP {extra_usd * USD_TO_GBP:+.4f}/day ({src})")
+    if extra:
+        calls = extra.get("calls", 0)
+        print(f"  {calls} calls, GBP {extra_usd * USD_TO_GBP / max(calls,1):.4f} each")
+    print(f"  A total GBP {ca * USD_TO_GBP:.4f}/day → B total GBP {cb * USD_TO_GBP:.4f}/day"
+          f"  ({(cb / ca if ca else 0):.1f}x)")
+    print(f"  Annualised: GBP {(cb - ca) * USD_TO_GBP * 365:+.2f}/year")
+    if tbn > tan:
+        per = extra_usd * USD_TO_GBP / max(tbn - tan, 1) * 1000
+        print(f"  ~GBP {per:.3f} per 1,000 extra words of NARRATIVE")
 
 
 if __name__ == "__main__":

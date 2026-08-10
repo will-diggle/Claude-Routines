@@ -1,16 +1,25 @@
-name: A/B — factbase depth (deepening pass)
+name: A/B — fact collection per topic vs per article
 
-# Answers one question: does an extra grounded call per story produce enough more
-# source material to justify its cost?
+# ARM A: fact collection by topic — 3 calls, one per genre, each selecting 2-3
+#        stories AND reporting their facts. This is production today.
+# ARM B: fact collection by article — arm A's selection, then 7 calls, one per
+#        story, each searching and building that story's facts alone.
 #
-# This matters because source material caps article length. Measured 2026-08-09,
-# gather produced ~103 words of facts per story while native articles asked for
-# 250 — and that gap is what made the writer pad, then invent. Native targets were
-# lowered to 180-200 as a result. If deepening lifts source to ~200+ words, longer
-# articles become reachable again without inventing them.
+# Answers: does giving each story its own call and its own search produce more
+# usable source material, and what does it cost?
 #
-# Both arms scrape ONCE, so selection sees identical headlines.
-# Never pushes to the data repo — cannot affect the live brief.
+# This matters because source material caps article length. A genre call has to
+# split one response across 2-3 stories, so each gets a fraction of the attention
+# and the output budget. Native articles were asking for 250 words against roughly
+# 103 words of facts per story, and that gap is what made the writer pad, then
+# invent. Native targets were lowered to 180-200 as a result.
+#
+# NARRATIVE vs GLOSSARY is reported separately. The old ~103 figure counted both
+# together, but glossary words (figures, names) cannot be spun into prose — only
+# narrative caps article length, so the combined number flattered the factbase.
+#
+# Both arms scrape ONCE and share one selection, so the single variable is where
+# fact collection happens. Never pushes to the data repo — cannot affect the brief.
 
 on:
   workflow_dispatch:
@@ -53,19 +62,22 @@ jobs:
           echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_A.json
 
-      - name: ARM B — arm A's selection, plus one grounded call per story
+      - name: ARM B — one fact-collection call per story (7), not per topic (3)
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        # --from reuses arm A's factbase verbatim instead of re-gathering. Selection is
+        # --from reuses arm A's selection verbatim instead of re-gathering. Selection is
         # a non-deterministic LLM judgement: the previous version re-ran it, so B chose
         # partly different stories, slugs stopped matching, and the comparison scored
-        # every unmatched story as 0 words for B. The two arms now differ ONLY by the
-        # deepening pass, which is the one variable under test.
+        # every unmatched story as 0 words for B.
+        #
+        # --per-story replaces the genre call's fact work rather than adding to it, so
+        # the single variable under test is per-topic vs per-article fact collection.
+        # 7 calls run concurrently: latency is the binding constraint here, not cost.
         run: |
           START=$(date +%s)
-          python bilinguist_gather.py --deepen --from factbase_A.json
+          python bilinguist_gather.py --per-story --from factbase_A.json
           echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_B.json
 
