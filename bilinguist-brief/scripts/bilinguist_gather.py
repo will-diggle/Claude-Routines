@@ -529,6 +529,88 @@ def story_word_split(story: dict) -> tuple[int, int]:
     return _count(story, NARRATIVE_FIELDS), _count(story, GLOSSARY_FIELDS)
 
 
+FACTS_PROMPT_FILE = "gemini_prompt_facts.md"
+
+
+def _story_brief(story: dict) -> str:
+    """Render one selected story as input to the fact-finding call."""
+    heads = [f"    - {s.get('outlet')}: {s.get('headline')}"
+             for s in (story.get("cross_reference_score", {}).get("sources") or [])
+             if s.get("headline")]
+    lines = [f"  slug: {story.get('slug')}",
+             f"  what it is: {story.get('headline') or story.get('summary') or ''}",
+             "  headlines outlets published about it:"]
+    lines += heads or ["    (none matched)"]
+    return "\n".join(lines)
+
+
+def gather_facts_for_genre(client, genre: str, stories: list, model: str) -> list:
+    """One grounded call finding the facts for a genre's already-selected stories.
+
+    Same per-genre batching as production, but the call receives ONLY the winning
+    stories and their own grouped headlines — not all 60 scraped headlines, and no
+    selection or scoring work. That isolates the input from the batching: if depth
+    improves here, the cause was the noise and the competing task, not batch size.
+    """
+    prompt = (load_prompt(FACTS_PROMPT_FILE)
+              .replace("{DATE}", BRIEF_DATE)
+              .replace("{GENRE}", genre)
+              .replace("{STORY_COUNT}", str(len(stories)))
+              .replace("{STORIES}", "\n\n".join(_story_brief(s) for s in stories)))
+    try:
+        resp = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1,
+                thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
+                # Scales with the batch so a 3-story genre is not squeezed into the same
+                # ceiling as a 2-story one.
+                max_output_tokens=PER_STORY_MAX_TOKENS * len(stories),
+            ),
+        )
+    except Exception as e:
+        print(f"[facts] {genre}: call failed ({type(e).__name__}) — keeping selection only",
+              file=sys.stderr)
+        return stories
+
+    um = resp.usage_metadata
+    if um:
+        with _USAGE_LOCK:
+            _PER_STORY_USAGE["calls"] += 1
+            for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
+                _PER_STORY_USAGE[k] += getattr(um, k, 0) or 0
+
+    parsed = parse_llm_json(resp.text or "")
+    found = {s.get("slug"): s for s in (parsed or {}).get("factbase", [])
+             if isinstance(s, dict)}
+    if not found:
+        print(f"[facts] {genre}: unusable response — keeping selection only", file=sys.stderr)
+        return stories
+
+    out = []
+    for story in stories:
+        slug = story.get("slug")
+        facts = found.get(slug)
+        if not facts or not facts.get("what_happened"):
+            print(f"[facts] {genre}: no facts returned for '{slug}' — keeping selection only",
+                  file=sys.stderr)
+            out.append(story)
+            continue
+        # Identity and score belong to the selection stage, never to this call.
+        facts["slug"], facts["genre"] = slug, story.get("genre")
+        if "cross_reference_score" in story:
+            facts["cross_reference_score"] = story["cross_reference_score"]
+        for carry in ("headline", "summary"):
+            if carry in story and carry not in facts:
+                facts[carry] = story[carry]
+        n, g = story_word_split(facts)
+        print(f"[facts] {genre}/{slug}: narrative {n} | glossary {g}")
+        out.append(validate_story(facts))
+    return out
+
+
 def build_search_log() -> list:
     """Rebuild the per-outlet headline log in Python, from the Stage 0 scrape.
 
@@ -722,8 +804,13 @@ def main():
     # which makes the two factbases differ ONLY by the deepening pass.
     parser.add_argument("--split", action="store_true",
                         help="The two-stage pipeline: stage 1 selects stories only (no "
-                             "facts), stage 2 finds facts for the selected stories, one "
-                             "grounded call each. Self-contained — no --from needed.")
+                             "facts), stage 2 finds their facts. Self-contained.")
+    parser.add_argument("--facts-per", choices=["genre", "story"], default="genre",
+                        dest="facts_per",
+                        help="With --split: 'genre' keeps production's batching (one call "
+                             "per genre, given only that genre's winners) — the default, "
+                             "and the tighter comparison against A. 'story' gives every "
+                             "story its own call.")
     parser.add_argument("--per-story", action="store_true", dest="per_story",
                         help="Collect each story's facts in its own grounded call, "
                              "replacing the genre call's fact work. Needs --from.")
@@ -799,25 +886,45 @@ def main():
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
         bn = sum(story_word_split(s_)[0] for s_ in factbase)
         bg = sum(story_word_split(s_)[1] for s_ in factbase)
-        print(f"\n[per-story] ===== collecting facts for {len(factbase)} stories, "
-              f"{_PER_STORY_WORKERS} at a time =====")
+        mode = "per genre (winners only)" if (args.split and args.facts_per == "genre") \
+            else "per story"
+        print(f"\n[facts] ===== collecting facts for {len(factbase)} stories — "
+              f"{mode} =====")
         _t = time.time()
         model = ATTEMPT_PLAN[0][0]
-        with ThreadPoolExecutor(max_workers=_PER_STORY_WORKERS) as ex:
-            # map() preserves input order, so genre grouping and ranking survive.
-            factbase = list(ex.map(lambda s_: gather_story(client, s_, model), factbase))
+        if args.split and args.facts_per == "genre":
+            # Production's batching, kept deliberately: one call per genre, but given
+            # ONLY that genre's winning stories and their own grouped headlines. The
+            # single change from arm A is what goes in.
+            by_genre: dict = {}
+            for s_ in factbase:
+                by_genre.setdefault(s_.get("genre") or "?", []).append(s_)
+            print(f"[facts] one call per genre, {len(by_genre)} genres, "
+                  f"winners only: "
+                  + ", ".join(f"{g}={len(v)}" for g, v in by_genre.items()))
+            with ThreadPoolExecutor(max_workers=len(by_genre)) as ex:
+                results = list(ex.map(
+                    lambda kv: gather_facts_for_genre(client, kv[0], kv[1], model),
+                    by_genre.items()))
+            # Rebuild in the original order so genre grouping and ranking survive.
+            merged = {s_.get("slug"): s_ for group in results for s_ in group}
+            factbase = [merged.get(s_.get("slug"), s_) for s_ in factbase]
+        else:
+            with ThreadPoolExecutor(max_workers=_PER_STORY_WORKERS) as ex:
+                # map() preserves input order, so grouping and ranking survive.
+                factbase = list(ex.map(lambda s_: gather_story(client, s_, model), factbase))
         an = sum(story_word_split(s_)[0] for s_ in factbase)
         ag = sum(story_word_split(s_)[1] for s_ in factbase)
         n = max(len(factbase), 1)
-        print(f"[per-story] narrative: {bn} -> {an} ({an / max(bn,1):.1f}x), "
+        print(f"[facts] narrative: {bn} -> {an} ({an / max(bn,1):.1f}x), "
               f"avg/story {bn // n} -> {an // n}")
-        print(f"[per-story] glossary:  {bg} -> {ag} ({ag / max(bg,1):.1f}x), "
+        print(f"[facts] glossary:  {bg} -> {ag} ({ag / max(bg,1):.1f}x), "
               f"avg/story {bg // n} -> {ag // n}")
         u = _PER_STORY_USAGE
         cost = (u["prompt_token_count"] / 1e6 * 0.30
                 + u["candidates_token_count"] / 1e6 * 2.50
                 + u["thoughts_token_count"] / 1e6 * 3.50)
-        print(f"[per-story] {u['calls']} calls in {time.time() - _t:.0f}s | "
+        print(f"[facts] {u['calls']} calls in {time.time() - _t:.0f}s | "
               f"{u['prompt_token_count']:,} in {u['candidates_token_count']:,} out "
               f"{u['thoughts_token_count']:,} think | ${cost:.4f}")
         for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
