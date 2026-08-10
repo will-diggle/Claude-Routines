@@ -387,30 +387,63 @@ _USAGE_LOCK = threading.Lock()
 # design look more expensive in wall-clock than it actually is.
 _PER_STORY_WORKERS = 7
 
-PER_STORY_PROMPT = """You are a news researcher building the fact-base entry for ONE story.
+# Enough for 150-250 narrative words plus the glossary, with headroom. A cap also stops a
+# single story running away — arm B produced 719 words of glossary for one story uncapped.
+PER_STORY_MAX_TOKENS = 3000
+
+# Some reasoning helps group facts into the verified/contested split; 74% of the bill does
+# not. Raise only if output quality visibly drops.
+THINKING_BUDGET = 1024
+
+SELECT_PROMPT_FILE = "gemini_prompt_select.md"
+
+PER_STORY_PROMPT = """You are a news researcher building the fact-base entry for ONE story. \
+This fact-base is an internal working document, never shown to readers. It is rewritten later \
+into several languages and reading levels, so write it in neutral British English.
 
 TODAY'S DATE: {DATE}
 
 These are real headlines about this story, scraped today from major outlets:
 {HEADLINES}
 
-Search now and return a complete fact-base entry for this story as JSON.
+Search now and return the fact-base entry for this one story as JSON.
 
-FIELDS — all arrays of strings:
-- "what_happened": the events in sequence. This is the writer's raw material — be
-  thorough and concrete. Names, places, times, what was said and done.
+DEPTH — the target, not a ceiling:
+- 8-14 points in "what_happened", each a single clause.
+- Across all narrative fields, aim for 150-250 words in total.
+- Under 150 words the story is under-reported: search again for the detail you are missing —
+  a figure, a named reaction, a consequence, the background a reader needs.
+- Over 250 words you are padding. Cut the least essential point. Volume is not accuracy.
+- At most 8 entries each in "numbers", "proper_nouns" and "key_terms". These are lookup
+  data, not prose — a long list is not a better list.
+
+FIELDS — all arrays of short strings, one clean point per string, no paragraphs:
+- "what_happened": the events in deliberate narrative order — what happened first, then
+  next, then the consequences. Every writing call downstream follows this exact order.
 - "attribution": who reported or stated what, by name.
-- "verified": facts confirmed by multiple independent outlets.
-- "contested": disputed claims, each attributed to a named source.
-- "numbers": every figure, as it should appear verbatim in any language.
-- "proper_nouns": people, organisations and places, spelled canonically.
-- "key_terms": terms a reader needs defined.
+- "verified": facts independently confirmed by more than one outlet.
+- "contested": disputed, single-source or unconfirmed claims, each attributed to a named
+  source. Where outlets disagree on a figure, record the disagreement here with both
+  sources rather than picking one.
+- "numbers": exact figures as they must appear in every language (e.g. "12,000", "3.5%").
+- "proper_nouns": people, organisations, places, spelled canonically.
+- "key_terms": the core descriptive terms for the event (e.g. "ceasefire", "evacuation").
+- "notification_line": ONE short factual sentence summarising this story for a push
+  notification. No opinion, no filler, no call to action.
 
 RULES:
-- Add only facts you can verify by search. Never invent, never speculate.
-- Keep the verified/contested separation strictly.
-- Return "slug" and "genre" exactly as given below — do not alter them.
-- Depth in "what_happened" is the point: an article cannot be longer than its facts.
+- Add only facts you can verify by search. Never invent, never speculate. If you cannot
+  verify something, put it in "contested" with its source, or leave it out.
+- Never record verbatim sentences or distinctive phrasing from a source. Convert every
+  point into plain factual wording of your own. Only numbers, proper nouns and official
+  titles may be verbatim. Quotations appear as reported speech, never as quoted text.
+- Use neutral descriptors: "killed", "fighters", "the military", "officials". Avoid loaded
+  terms unless quoting a named party, and then attribute explicitly.
+- Give parallel treatment to opposing parties where the facts allow.
+- POLITICAL TITLES: use the title the person holds on {DATE}, verified by today's search
+  results — never a remembered one. Add "former" only if today's results confirm they have
+  left office.
+- Return "slug" and "genre" exactly as given below. Do not alter them.
 
 Return ONLY the JSON object for this one story.
 
@@ -438,6 +471,11 @@ def gather_story(client, story: dict, model: str) -> dict:
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
                 temperature=0.1,
+                # Thinking was ~74% of this stage's cost uncapped (52k thinking tokens
+                # against 25k of output, at $3.50/M vs $2.50/M). This is grounded
+                # extraction from search results, not a reasoning problem.
+                thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
+                max_output_tokens=PER_STORY_MAX_TOKENS,
             ),
         )
     except Exception as e:
@@ -488,6 +526,46 @@ def story_word_count(story: dict) -> int:
 def story_word_split(story: dict) -> tuple[int, int]:
     """(narrative words, glossary words) — narrative is what caps article length."""
     return _count(story, NARRATIVE_FIELDS), _count(story, GLOSSARY_FIELDS)
+
+
+def build_search_log() -> list:
+    """Rebuild the per-outlet headline log in Python, from the Stage 0 scrape.
+
+    This used to be a required field of the genre call's JSON — Gemini had to retype all
+    60 scraped headlines "as found" before scoring. For Global News that transcription was
+    roughly 6,000 characters of a 9,682-character response, so ~80% of the answer was
+    bookkeeping and only ~20% was facts, while the other genres (8 headlines) were ~88%
+    facts. It is used solely to print a diagnostic list in the morning notification, and
+    the headlines were already on disk. So build it here for free.
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(script_dir, f"scraped_headlines_{BRIEF_DATE}.json")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return [
+        {"outlet": o.get("name", "?"), "stories": o.get("headlines", [])}
+        for o in data.get("outlets", [])
+        if o.get("status") == "ok"
+    ]
+
+
+def assemble_notification(factbase: list) -> str:
+    """Build the push notification from each Global story's own notification_line.
+
+    The genre call used to write this, which needed the facts to be in the same response.
+    With fact-finding split out, each story writes its own sentence while holding its own
+    facts, and Python joins them in rank order — no extra call.
+    """
+    globals_ = [s for s in factbase if (s.get("genre") or "").upper() == "GLOBAL NEWS"]
+    globals_.sort(key=lambda s: (s.get("cross_reference_score") or {}).get("rank", 99))
+    lines = []
+    for s in globals_:
+        line = (s.get("notification_line") or "").strip()
+        if line:
+            lines.append(line if line.endswith((".", "!", "?")) else line + ".")
+    return " ".join(lines)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -641,6 +719,10 @@ def main():
     # re-gathers picks different stories and different slugs, and a per-story
     # comparison is then meaningless. --from reuses the other arm's selection verbatim,
     # which makes the two factbases differ ONLY by the deepening pass.
+    parser.add_argument("--split", action="store_true",
+                        help="The two-stage pipeline: stage 1 selects stories only (no "
+                             "facts), stage 2 finds facts for the selected stories, one "
+                             "grounded call each. Self-contained — no --from needed.")
     parser.add_argument("--per-story", action="store_true", dest="per_story",
                         help="Collect each story's facts in its own grounded call, "
                              "replacing the genre call's fact work. Needs --from.")
@@ -652,11 +734,13 @@ def main():
 
     if args.from_factbase and not (args.deepen or args.per_story):
         sys.exit("--from alone would just copy the factbase. Add --deepen or --per-story.")
-    if args.per_story and not args.from_factbase:
+    if args.per_story and not (args.from_factbase or args.split):
         sys.exit("--per-story needs --from: it collects facts for an already-selected "
                  "story list and does not select.")
-    if args.per_story and args.deepen:
-        sys.exit("--per-story and --deepen are alternatives, not a stack.")
+    if args.deepen and (args.per_story or args.split):
+        sys.exit("--deepen is an alternative to --per-story/--split, not a stack.")
+    if args.split and args.from_factbase:
+        sys.exit("--split does its own selection; --from would override it.")
 
     pipeline_started_at = int(datetime.now(timezone.utc).timestamp() * 1000)
     print(f"[gather] Starting Bilinguist Brief gathering run — {datetime.now(timezone.utc).isoformat()}")
@@ -684,13 +768,22 @@ def main():
         print(f"[gather] Selection reused from {args.from_factbase} — "
               f"{len(factbase)} stories, no selection calls made")
 
+    # --split runs selection against a prompt that asks for groupings ONLY: no facts, no
+    # glossary, no notification, and no 60-headline transcript. Stage 2 then finds the
+    # facts for the stories that survived. Selection and fact-finding stop competing for
+    # one response, which is what starved Global News (3 stories per call, ~80% of the
+    # answer spent retyping headlines).
+    prompt_file = SELECT_PROMPT_FILE if args.split else args.prompt
+    if args.split:
+        print("[gather] SPLIT MODE — stage 1: selection only (no facts)")
+
     for genre, cfg in (() if args.from_factbase else GENRE_CONFIG.items()):
-        res = gather_genre(genre, cfg, args.prompt)
+        res = gather_genre(genre, cfg, prompt_file)
         factbase.extend(res["factbase"])
         model_used = res["model"]
         for k in usage_total:
             usage_total[k] += (res["usage"] or {}).get(k, 0)
-        if genre == "GLOBAL NEWS":
+        if genre == "GLOBAL NEWS" and not args.split:
             search_log = res["parsed"].get("global_news_search_log", []) or []
             notification = res["parsed"].get("daily_notification", "") or ""
         for st in res["factbase"]:
@@ -698,7 +791,10 @@ def main():
             print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
 
-    if args.per_story:
+    if args.per_story or args.split:
+        if args.split:
+            print(f"\n[gather] SPLIT MODE — stage 2: facts for {len(factbase)} "
+                  f"selected stories")
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
         bn = sum(story_word_split(s_)[0] for s_ in factbase)
         bg = sum(story_word_split(s_)[1] for s_ in factbase)
@@ -725,6 +821,18 @@ def main():
               f"{u['thoughts_token_count']:,} think | ${cost:.4f}")
         for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
             usage_total[k] += u[k]
+
+        if args.split:
+            # Both were previously side-effects of the genre call. Neither needs a model.
+            search_log = build_search_log()
+            notification = assemble_notification(factbase)
+            print(f"[gather] search log rebuilt in Python: {len(search_log)} outlets "
+                  f"(0 tokens)")
+            print(f"[gather] notification assembled from per-story lines: "
+                  f"{notification[:120] or '(EMPTY)'}")
+            if not notification:
+                print("[gather] WARNING: empty notification — no story returned a "
+                      "notification_line", file=sys.stderr)
 
     if args.deepen:
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
@@ -761,8 +869,10 @@ def main():
         # scored the same stories rather than assuming it.
         "selection_from": args.from_factbase or None,
         "deepen_usage": dict(_DEEPEN_USAGE) if args.deepen else None,
-        "per_story": bool(args.per_story),
-        "per_story_usage": dict(_PER_STORY_USAGE) if args.per_story else None,
+        "split": bool(args.split),
+        "per_story": bool(args.per_story or args.split),
+        "per_story_usage": (dict(_PER_STORY_USAGE)
+                            if (args.per_story or args.split) else None),
         "factbase": factbase,
     }
     with open(output_path, "w", encoding="utf-8") as f:

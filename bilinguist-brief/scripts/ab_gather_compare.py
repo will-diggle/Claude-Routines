@@ -71,18 +71,32 @@ def main():
 
     by_slug_b = {s.get("slug"): s for s in fb}
 
-    # Selection must be shared, or a per-story comparison means nothing. An unmatched
-    # slug used to score silently as 0 words for B and read as "deepening lost facts".
-    # Arm B should run with --deepen --from <arm A's factbase>.
+    missing = [s.get("slug") for s in fa if s.get("slug") not in by_slug_b]
+
     if b.get("selection_from"):
         print(f"B reused A's selection ({b['selection_from']}) — selection is identical "
               f"by construction ✓")
-    missing = [s.get("slug") for s in fa if s.get("slug") not in by_slug_b]
-    if missing:
+    elif b.get("split"):
+        # B ran its own selection-only stage, so it may legitimately pick different
+        # stories: A's selection call also has to write facts, B's does not, and that is
+        # part of what is being tested. Divergence is information, not a bug — but a
+        # per-story pairing only means something for stories both arms chose, so lead
+        # with the per-genre averages instead.
+        shared = len(fa) - len(missing)
+        print(f"B ran its own selection (--split) — {shared}/{len(fa)} stories in common "
+              f"with A")
+        if missing:
+            print(f"  only in A: {missing}")
+        extra = [s.get("slug") for s in fb if s.get("slug") not in {x.get('slug') for x in fa}]
+        if extra:
+            print(f"  only in B: {extra}")
+        print("  Per-story rows below are comparable only where both arms picked the "
+              "story. Judge on the per-genre averages.")
+    elif missing:
         print()
         print("** SELECTION DIVERGED — comparison is NOT valid **")
         print(f"   {len(missing)} of {len(fa)} A stories absent from B: {missing[:5]}")
-        print("   Arm B must run: bilinguist_gather.py --deepen --from factbase_A.json")
+        print("   Arm B must run: bilinguist_gather.py --per-story --from factbase_A.json")
         print()
 
     print()
@@ -109,6 +123,19 @@ def main():
           f"{tag // n:>7} {tbg // n:>7}")
     ta, tb = tan + tag, tbn + tbg
     print(f"{'(combined, the old metric)':32} {ta // n:>7} {tb // n:>7}")
+
+    # The headline metric. Global News was the starved genre (87 narrative words per story
+    # against Business's 514), and it survives the arms picking different stories.
+    print()
+    print("PER GENRE — average narrative words per story")
+    print(f"{'genre':22} {'A':>8} {'B':>8} {'x':>6}")
+    for genre in sorted({(s.get("genre") or "?").upper() for s in fa + fb}):
+        sa = [s for s in fa if (s.get("genre") or "?").upper() == genre]
+        sb = [s for s in fb if (s.get("genre") or "?").upper() == genre]
+        avg_a = sum(narrative(s) for s in sa) // max(len(sa), 1)
+        avg_b = sum(narrative(s) for s in sb) // max(len(sb), 1)
+        mult = f"{avg_b / avg_a:.1f}x" if avg_a else "-"
+        print(f"{genre[:22]:22} {avg_a:>8} {avg_b:>8} {mult:>6}")
 
     # What article length does the NARRATIVE support? Glossary words cannot be
     # spun into prose, so including them was the flattering part of the old number.

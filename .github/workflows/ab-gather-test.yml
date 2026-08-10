@@ -62,24 +62,50 @@ jobs:
           echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_A.json
 
-      - name: ARM B — one fact-collection call per story (7), not per topic (3)
+      - name: ARM B — split pipeline: select, then find facts per story
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        # --from reuses arm A's selection verbatim instead of re-gathering. Selection is
-        # a non-deterministic LLM judgement: the previous version re-ran it, so B chose
-        # partly different stories, slugs stopped matching, and the comparison scored
-        # every unmatched story as 0 words for B.
+        # --split runs its own selection (gemini_prompt_select.md — groupings only, no
+        # facts, no glossary, no 60-headline transcript) and then one grounded
+        # fact-finding call per selected story, 7 concurrently.
         #
-        # --per-story replaces the genre call's fact work rather than adding to it, so
-        # the single variable under test is per-topic vs per-article fact collection.
-        # 7 calls run concurrently: latency is the binding constraint here, not cost.
+        # B selects independently rather than reusing A's factbase, because selection is
+        # the thing being changed: A's selection call also has to write facts, B's does
+        # not. Slugs may therefore differ between arms, and the comparison reports that
+        # rather than pretending otherwise — the per-story table is only meaningful for
+        # stories both arms picked. Read the totals and the averages.
         run: |
           START=$(date +%s)
-          python bilinguist_gather.py --per-story --from factbase_A.json
+          python bilinguist_gather.py --split
           echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp factbase_${{ env.BRIEF_DATE }}.json factbase_B.json
+
+      - name: Guard — B must still produce a notification and a search log
+        working-directory: bilinguist-brief/scripts
+        # Both used to be side-effects of the genre call. If the split drops them, the
+        # brief loses its push notification and the morning diagnostic, so fail loudly
+        # here rather than discovering it in production.
+        run: |
+          python - <<'PY'
+          import json, sys
+          b = json.load(open("factbase_B.json", encoding="utf-8"))
+          bad = []
+          if not (b.get("daily_notification") or "").strip():
+              bad.append("daily_notification is empty")
+          if not b.get("global_news_search_log"):
+              bad.append("global_news_search_log is empty")
+          missing = [s.get("slug") for s in b.get("factbase", [])
+                     if not (s.get("what_happened") or [])]
+          if missing:
+              bad.append(f"stories with no facts: {missing}")
+          print("notification:", (b.get("daily_notification") or "")[:200])
+          print("search log outlets:", len(b.get("global_news_search_log") or []))
+          if bad:
+              sys.exit("GUARD FAILED — " + "; ".join(bad))
+          print("guard passed")
+          PY
 
       - name: RESULTS
         working-directory: bilinguist-brief/scripts
