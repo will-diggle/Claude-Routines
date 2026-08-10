@@ -310,6 +310,41 @@ WRITING RULES:
 PROMPT_3_HEADER = PROMPT_NATIVE_TEMPLATE
 PROMPT_3_SHORT_HEADER = PROMPT_NATIVE_TEMPLATE
 
+# Stage 5b — verify one finished native article against the fact-base it was written from.
+# Stage 4 fact-checks the fact-base BEFORE writing, so it cannot see what the writer
+# invents. This reads the article and its source notes together and asks what does not
+# match. It also searches, so it can catch a fact that is in the notes but simply wrong.
+PROMPT_5B_VERIFY = """\
+You are a fact-checker. Below is a news article and the fact-base it was written from.
+
+Your job: find anything in the ARTICLE that is not supported by the FACT-BASE.
+
+Report these, and nothing else:
+- INVENTED: a fact, figure, name, quote or claim in the article that is not in the fact-base.
+- CHANGED: a figure, name, title or date in the article that differs from the fact-base.
+- CONTRADICTED: the article states something the fact-base contradicts, or states as fact something the fact-base records as unverified or disputed.
+- WRONG: a fact that IS in the fact-base but that your own search shows is false. Search to check the main figures, names and titles.
+
+Do NOT report:
+- Wording, style, tone or article length.
+- A fact-base fact the article left out. A shorter article is not an error.
+- Names or terms correctly translated into the article's language, or figures written in that language's format (1.000 for 1,000, 17h30 for 5:30pm). These are correct, not changes.
+- A paraphrase that keeps the meaning.
+
+For each finding give the exact phrase from the article, what the fact-base says instead, and one sentence of why. If the article is fully supported, return an empty list.
+
+OUTPUT FORMAT:
+{"verdict":"ok","findings":[]}
+or
+{"verdict":"issues","findings":[{"type":"INVENTED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence"}]}
+
+ARTICLE ({LANGUAGE}, {LENGTH}):
+{ARTICLE}
+
+FACT-BASE FOR THIS STORY:
+{FACTBASE}
+"""
+
 PROMPT_4_HEADER = """\
 You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE}. Assess each one and return a structured verdict.
 

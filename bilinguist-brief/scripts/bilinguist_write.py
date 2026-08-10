@@ -48,7 +48,6 @@ from typing import Optional
 from google import genai
 from google.genai import types
 
-import bilinguist_glossary as glossary
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -58,6 +57,7 @@ MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
 MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
 MODEL_4A = "gemini-2.5-flash"               # P4a: grade native journalism → overall CEFR level
+MODEL_5B = "gemini-2.5-flash"               # Stage 5b: verify native against the factbase
 MODEL_4B = "gemini-2.5-flash"               # P4b: grade CEFR level articles (quality gate)
 
 # Concurrency limit — 4 workers keeps Gemini 2.5 Flash 503 rate low now that the
@@ -177,6 +177,28 @@ _SCHEMA_NATIVE = {
     "required": ["articles"],
 }
 
+_SCHEMA_VERIFY = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["ok", "issues"]},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type":     {"type": "string",
+                                 "enum": ["INVENTED", "CHANGED", "CONTRADICTED", "WRONG"]},
+                    "quote":    {"type": "string"},
+                    "factbase": {"type": "string"},
+                    "why":      {"type": "string"},
+                },
+                "required": ["type", "quote", "factbase", "why"],
+            },
+        },
+    },
+    "required": ["verdict", "findings"],
+}
+
 _SCHEMA_GRADING = {
     "type": "object",
     "properties": {
@@ -225,6 +247,7 @@ _stage_usage: dict[str, _StageUsage] = {
     "2M": _StageUsage(),
     "3":  _StageUsage(),
     "4a": _StageUsage(),  # grade native journalism → overall CEFR level (Flash-Lite)
+    "5b": _StageUsage(),  # verify native against the factbase
     "4b": _StageUsage(),  # grade CEFR level articles (Flash-Lite)
 }
 
@@ -434,7 +457,7 @@ if '--test' in _sys.argv:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK,
@@ -449,7 +472,7 @@ else:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK,
@@ -1127,6 +1150,77 @@ def run_writing_concurrent(
     return briefings
 
 
+def run_verify_native(client: genai.Client, factbase: list, native_journalism: dict) -> dict:
+    """Stage 5b (Verify Native) — check each native article against its fact-base entry.
+
+    Stage 4 fact-checks the fact-base BEFORE writing, so it cannot see what the writer
+    invents. This reads the finished article and its source notes together. It matters more
+    under pipeline B, because every level article is a rewrite of a native one, so an
+    invention here reaches every level beneath it.
+
+    One call per article, search enabled so a fact that is in the notes but simply wrong
+    can also be caught. Advisory — it never blocks the brief.
+    """
+    by_slug = {s_.get("slug"): s_ for s_ in (factbase or []) if s_.get("slug")}
+    jobs = []
+    for lang, by_len in (native_journalism or {}).items():
+        if not isinstance(by_len, dict):
+            continue
+        for length, arts in by_len.items():
+            for a in arts or []:
+                story = by_slug.get(a.get("slug"))
+                if story and a.get("body"):
+                    jobs.append((lang, length, a, story))
+    if not jobs:
+        return {"summary": "", "findings": [], "articles_checked": 0}
+
+    print(f"[5b] Verifying {len(jobs)} native articles against the factbase...")
+
+    def verify(job):
+        lang, length, art, story = job
+        prompt = (PROMPT_5B_VERIFY
+                  .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
+                  .replace("{LENGTH}", length)
+                  .replace("{ARTICLE}", json.dumps(
+                      {"headline": art.get("headline"), "body": art.get("body")},
+                      ensure_ascii=False, indent=2))
+                  .replace("{FACTBASE}", json.dumps(story, ensure_ascii=False, indent=2)))
+        raw, finish = call_gemini(client, MODEL_5B, prompt,
+                                 f"5b/{lang}-{length}-{art.get('slug')}", "5b",
+                                 _SCHEMA_VERIFY, max_output_tokens=2048)
+        if not raw or finish == "MAX_TOKENS":
+            return []
+        parsed = parse_llm_json(raw) or {}
+        out = []
+        for f in parsed.get("findings") or []:
+            out.append({"lang": lang, "length": length, "slug": art.get("slug"),
+                        "type": f.get("type"), "quote": f.get("quote"),
+                        "factbase": f.get("factbase"), "why": f.get("why")})
+        return out
+
+    findings: list = []
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
+        for res in ex.map(verify, jobs):
+            findings.extend(res)
+
+    clean = len(jobs) - len({(f["lang"], f["length"], f["slug"]) for f in findings})
+    by_type: dict = {}
+    for f in findings:
+        by_type[f.get("type") or "?"] = by_type.get(f.get("type") or "?", 0) + 1
+    if findings:
+        summary = (f"🔎 Native fact-check: {clean}/{len(jobs)} articles clean, "
+                   f"{len(findings)} finding(s) — "
+                   + ", ".join(f"{k} {v}" for k, v in sorted(by_type.items())))
+    else:
+        summary = f"🔎 Native fact-check: all {len(jobs)} articles match the factbase ✓"
+    print(f"[5b] {summary}")
+    for f in findings:
+        print(f"[5b]   {f['type']} {f['lang']}/{f['length']}/{f['slug']}: "
+              f"\"{(f.get('quote') or '')[:90]}\" — {f.get('why')}", file=sys.stderr)
+
+    return {"summary": summary, "findings": findings, "articles_checked": len(jobs)}
+
+
 def run_grade_cefr(
     client: genai.Client,
     briefings: dict,
@@ -1309,25 +1403,10 @@ def main():
     if native_grades:
         print(f"[write] Native grades: {native_grades}")
 
-    # ── Stage 5b (Verify Native) — does native match the fact-base it was given? ──
-    # Pure Python, no API call. Stage 4 verifies the fact-base BEFORE writing, so it
-    # cannot see what the writer invents; this compares the finished native articles back
-    # against their source. It matters more under pipeline B, because every level article
-    # is a rewrite of a native one, so an invention here propagates to every level.
-    #
-    # Advisory only — it never blocks the brief. Measured against the 2026-08-10 bundle it
-    # flags 0 of 70 real articles while catching an injected death toll, an invented
-    # company and "the Biden administration" in a story about a Trump appointee.
+    # ── Stage 5b (Verify Native) — does native match its fact-base? ──────────
     _t = time.time()
-    native_report = glossary.check_bundle({"factbase": factbase,
-                                           "nativeJournalism": native_journalism})
-    native_check_line, native_check_warnings = glossary.summarise(native_report)
+    native_check = run_verify_native(client, factbase, native_journalism)
     _stage_secs["5b_verify_native"] = time.time() - _t
-    print(f"[5b] {native_check_line or 'no native articles to check'}")
-    for w in native_check_warnings:
-        print(f"[5b] {w}", file=sys.stderr)
-    for f in (native_report.figures + native_report.names)[:20]:
-        print(f"[5b]   {f.kind:6} {f.lang}/{f.length}/{f.slug}: {f.value}", file=sys.stderr)
 
     if LEVELS_FROM == "native":
         _NATIVE_INDEX = _index_native(native_journalism)
@@ -1422,14 +1501,7 @@ def main():
                                if k in NATIVE_INTERMEDIATE},
         "nativeGrades": native_grades,
         # Stage 5b's verdict, so check.py can report it without recomputing.
-        "nativeFactCheck": {
-            "summary": native_check_line,
-            "warnings": native_check_warnings,
-            "articles_checked": native_report.articles_checked,
-            "findings": [{"lang": f.lang, "length": f.length, "slug": f.slug,
-                          "kind": f.kind, "value": f.value}
-                         for f in (native_report.figures + native_report.names)],
-        },
+        "nativeFactCheck": native_check,
         "grading": grading,
     }
 

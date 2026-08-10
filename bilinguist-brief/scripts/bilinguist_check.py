@@ -485,7 +485,13 @@ def check(bundle_path: Path) -> int:
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
     # Stage 5b findings are warnings in their own right: an unsourced figure in a native
     # article is now inherited by every level article rewritten from it.
-    native_check_warnings = (native_factcheck.get("warnings") or [])[:5]
+    # Every Stage 5b finding is a warning in its own right: an unsourced fact in a native
+    # article is inherited by every level article rewritten from it.
+    native_check_warnings = [
+        f"⚠️ {f.get('type')} in {f.get('lang')} native ({f.get('slug')}): "
+        f"\"{(f.get('quote') or '')[:70]}\""
+        for f in (native_factcheck.get("findings") or [])[:5]
+    ]
     warnings  = (wrong_length + thin + bloated + grading_warnings
                  + level_grade_warnings + native_check_warnings + factcheck_warnings)
 
@@ -562,8 +568,11 @@ def check(bundle_path: Path) -> int:
     if native_factcheck.get("summary"):
         body_parts += ["", native_factcheck["summary"]]
         for f in (native_factcheck.get("findings") or [])[:8]:
-            body_parts.append(f"  ⚠️ {f['kind']} \"{f['value']}\" in {f['lang']}/"
-                              f"{f['length']} {f['slug']} — not in the fact-base")
+            body_parts.append(
+                f"  ⚠️ {f.get('type')} {f.get('lang')}/{f.get('length')} "
+                f"{f.get('slug')}: \"{(f.get('quote') or '')[:80]}\"")
+            if f.get("why"):
+                body_parts.append(f"      ↳ {f['why'][:150]}")
 
     if native_intermediate:
         lines = ["🔧 Native intermediates (not shipped — every level is a rewrite of these):"]
