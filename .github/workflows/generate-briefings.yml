@@ -48,12 +48,55 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_scrape.py
 
-      - name: Stages 2+3 - Select stories, then gather their facts
+      - name: Stage 2 - Select stories (group headlines, rank in Python)
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        run: python bilinguist_gather.py
+        # Selection only — no facts, no glossary, no 60-headline transcript.
+        run: |
+          python bilinguist_gather.py --select-only
+          cp factbase_${{ env.BRIEF_DATE }}.json selection.json
+
+      - name: Stage 3 - Gather facts for the ranked winners
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # Adopted from the A/B on 2026-08-10 (run 31378288971). Splitting selection from
+        # fact-finding took Global News from 87 narrative words per story to ~290 — a 3.3x
+        # gain — and cost LESS than the old combined call (£0.049 vs £0.0614), at the same
+        # wall clock. The combined call had to select, score and write facts in one
+        # response, and Global's three stories were starved by it.
+        #
+        # --facts-input winners sends only the ranked winners and their own grouped
+        # headlines. Note the A/B measured 'all' as equal on Global (1.0x) and slightly
+        # BETTER on UK Politics (1.2x) and Business (1.5x), for the same money — switching
+        # is one flag if those genres look thin.
+        run: python bilinguist_gather.py --from selection.json --facts-input winners
+
+      - name: Guard - the factbase must have facts, a notification and a search log
+        working-directory: bilinguist-brief/scripts
+        # Stage 2 legitimately produces no facts, so a selection file that never reached
+        # Stage 3 would otherwise flow on and publish a brief with nothing to write from.
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          d = json.load(open(f"factbase_{os.environ['BRIEF_DATE']}.json", encoding="utf-8"))
+          bad = []
+          empty = [s.get("slug") for s in d.get("factbase", []) if not (s.get("what_happened") or [])]
+          if empty:
+              bad.append(f"stories with no facts: {empty}")
+          if not (d.get("daily_notification") or "").strip():
+              bad.append("daily_notification is empty")
+          if not d.get("global_news_search_log"):
+              bad.append("global_news_search_log is empty")
+          print(f"{len(d.get('factbase', []))} stories | notification: "
+                f"{(d.get('daily_notification') or '')[:120]}")
+          if bad:
+              sys.exit("GUARD FAILED — " + "; ".join(bad))
+          print("guard passed")
+          PY
 
       - name: Stage 4 - Verify the factbase
         working-directory: bilinguist-brief/scripts
