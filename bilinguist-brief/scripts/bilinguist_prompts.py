@@ -117,6 +117,34 @@ WORD COUNT — STRICT REQUIREMENT:
 PROMPT_2S_HEADER = PROMPT_LEARNER_TEMPLATE
 PROMPT_2M_HEADER = PROMPT_LEARNER_TEMPLATE
 
+# How much has to go, by length. Measured 2026-08-10: native short is 85-100 and the
+# short levels want 65-80, a ~20% trim that needs no facts dropped — but the old single
+# instruction said "you must cut" regardless, and B's short order scores were its weakest
+# (fr 6/7, de 5/7) while every longer combo hit 7/7. Native longer is 250-270 against
+# 110-130, a ~55% cut where facts must go, and stopping earlier in the same sequence is
+# the original design ("Concise: facts 1-2. Balanced: 1-4. Long-form: 1-6").
+REWRITE_CUT_RULES: dict[str, str] = {
+    "short": (
+        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source is only slightly longer than "
+        "this.\n"
+        "- Keep EVERY fact. Reach the count by tightening the phrasing, not by dropping "
+        "anything.\n"
+        "- Never invent, never generalise to fill space, never merge two facts into a "
+        "vaguer one."
+    ),
+    "longer": (
+        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source is much longer than this, so "
+        "you must stop earlier in the story.\n"
+        "- Keep the opening facts in their order and end where the count runs out. Never "
+        "reorder.\n"
+        "- Within the facts you keep, cut adjectives, secondary detail and background "
+        "before cutting anything load-bearing.\n"
+        "- Never invent, never generalise to fill space, never merge two facts into a "
+        "vaguer one."
+    ),
+}
+
+
 # Stage 7, arm B: rewrite the graded native article down a level instead of writing from
 # the fact-base. The native article already selected, ordered and phrased the facts in the
 # target language, so this is a level change rather than a translate-and-write.
@@ -140,10 +168,7 @@ KEEP, EXACTLY:
 - Every attribution — who said or reported what.
 - The distinction between what is verified and what is unconfirmed.
 
-WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source article is longer than this, so you must cut.
-- Cut from the END. Keep the opening facts and stop earlier in the story.
-- Within the facts you keep, cut adjectives, secondary detail and background before cutting anything load-bearing.
-- Never invent, never generalise to fill space, never merge two facts into a vaguer one.
+{CUT_RULE}
 
 {STRUCTURE}
 {VARIANT_RULE}

@@ -11,6 +11,11 @@ name: "A/B — level articles: write from factbase vs rewrite the native"
 #                                               language, length and story, rewritten
 #                                               down to the target level
 #
+# --all-levels writes every CEFR level below each language's native grade, not just those
+# in LANGUAGE_LEVELS, so the rewrite is measured across compression ratios: A1/longer is
+# 250 to 110, B1/longer is 250 to 160. 36 combos, 252 calls per arm. Production config is
+# untouched — expanding LANGUAGE_LEVELS would change what the app ships.
+#
 # Both arms load the SAME native pass via --native-from, so they are rewriting or
 # competing against identical source articles. If each arm wrote its own native, the
 # comparison would be meaningless.
@@ -107,7 +112,7 @@ jobs:
           python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
             --per-article --workers 16 \
             --native-from output/native_${{ env.BRIEF_DATE }}.json \
-            --levels-from factbase
+            --all-levels --levels-from factbase
           echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp output/${{ env.BRIEF_DATE }}.json output/armA.json
           cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armA.json
@@ -122,7 +127,7 @@ jobs:
           python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
             --per-article --workers 16 \
             --native-from output/native_${{ env.BRIEF_DATE }}.json \
-            --levels-from native
+            --all-levels --levels-from native
           echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
           cp output/${{ env.BRIEF_DATE }}.json output/armB.json
           cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armB.json

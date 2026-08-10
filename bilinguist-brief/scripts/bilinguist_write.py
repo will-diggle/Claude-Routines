@@ -77,6 +77,11 @@ SERVICE_TIER: Optional[str] = None
 # length and story down to the target level (arm B). Set via --levels-from.
 LEVELS_FROM: str = "factbase"
 
+# ALL_LEVELS: A/B only — write every CEFR level below the native grade instead of just
+# the levels in LANGUAGE_LEVELS, so the rewrite is measured across compression ratios
+# (A1/longer is 250→110, B1/longer is 250→160). Set via --all-levels.
+ALL_LEVELS: bool = False
+
 # {(lang, length, slug): native article} — populated when LEVELS_FROM == "native" so a
 # level task can find the one article it is rewriting.
 _NATIVE_INDEX: dict = {}
@@ -325,6 +330,27 @@ ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 
 # ── Combination matrix ────────────────────────────────────────────────────────
 
+def _active_levels() -> dict:
+    """LANGUAGE_LEVELS, or every CEFR level when --all-levels is set.
+
+    A/B only. Production config is untouched: expanding the matrix inside
+    LANGUAGE_LEVELS would change what the app actually ships. Languages with no
+    Native level are left alone, since every extra level there would fall back to
+    the fact-base in both arms and carry no signal.
+    """
+    if not ALL_LEVELS:
+        return LANGUAGE_LEVELS
+    out = {}
+    for lang, levels in LANGUAGE_LEVELS.items():
+        if not levels:
+            out[lang] = levels                      # disabled language, stays disabled
+        elif "Native" in levels:
+            out[lang] = list(CEFR_ORDER) + ["Native"]
+        else:
+            out[lang] = levels                      # no native to rewrite from
+    return out
+
+
 def build_combinations(
     native_grades: Optional[dict] = None,
 ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
@@ -340,7 +366,7 @@ def build_combinations(
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
 
-    for lang, levels in LANGUAGE_LEVELS.items():
+    for lang, levels in _active_levels().items():
         # Determine the skip threshold from P4a output
         skip_from_idx = len(CEFR_ORDER)  # default: skip nothing
         if native_grades and lang in native_grades:
@@ -392,6 +418,7 @@ if '--test' in _sys.argv:
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
         PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
+        REWRITE_CUT_RULES,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -403,6 +430,7 @@ else:
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
         PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
+        REWRITE_CUT_RULES,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -452,7 +480,10 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     band = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
     parts = str(band).replace("\u2013", "-").split("-")
     word_min, word_max = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else parts[0].strip())
+    # CUT_RULE carries its own {WORD_MIN}/{WORD_MAX}, so it must be injected BEFORE they
+    # are substituted or its placeholders survive into the prompt.
     prompt = (PROMPT_LEVEL_REWRITE
+              .replace("{CUT_RULE}", REWRITE_CUT_RULES.get(length, REWRITE_CUT_RULES["longer"]))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
@@ -1124,6 +1155,10 @@ def main():
     parser.add_argument("--native-from", dest="native_from", metavar="PATH",
                         help="Skip stages 5-6 and load nativeJournalism/nativeGrades from "
                              "this bundle, so both arms share one native pass.")
+    parser.add_argument("--all-levels", action="store_true", dest="all_levels",
+                        help="A/B only: write every CEFR level below the native grade, not "
+                             "just those in LANGUAGE_LEVELS. Bigger sample across "
+                             "compression ratios.")
     parser.add_argument("--levels-from", choices=["factbase", "native"], default="factbase",
                         dest="levels_from",
                         help="How stage 7 writes: 'factbase' writes each level article from "
@@ -1132,10 +1167,11 @@ def main():
                              "the target level.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
+    ALL_LEVELS = args.all_levels
     _set_workers(args.workers)
 
     if args.levels_from == "native" and not args.native_from:
@@ -1171,8 +1207,11 @@ def main():
     print(f"[write] Loaded {len(factbase)} stories from factbase (source: {gather_source})")
 
     print(f"[write] Languages: {', '.join(ACTIVE_LANGUAGES)}")
+    _lv = _active_levels()
+    if ALL_LEVELS:
+        print("[write] ALL-LEVELS mode (A/B) — every CEFR level below the native grade")
     for lang in ACTIVE_LANGUAGES:
-        print(f"[write]   {lang}: {', '.join(LANGUAGE_LEVELS[lang])}")
+        print(f"[write]   {lang}: {', '.join(_lv[lang])}")
 
     # Initialise Gemini client
     client = genai.Client()
