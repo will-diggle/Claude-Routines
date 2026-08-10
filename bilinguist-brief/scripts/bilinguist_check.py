@@ -54,12 +54,13 @@ PUBLISH_THRESHOLD = 0.5
 # Per-level word count targets — must match WORDS_PER_ARTICLE in bilinguist_write.py.
 # Stored as (min, max) tuples parsed from the "X–Y" strings.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
-    "A1":     {"short": (60, 75),    "longer": (100, 120)},
-    "A2":     {"short": (65, 80),    "longer": (110, 130)},
-    "B1":     {"short": (75, 90),    "longer": (150, 170)},
-    "B2":     {"short": (75, 90),    "longer": (150, 170)},
-    "C1":     {"short": (85, 100),   "longer": (250, 270)},
-    "C2":     {"short": (85, 100),   "longer": (250, 270)},
+    # Same LENGTH at every level — only the reading level changes. A1 alone is shorter.
+    "A1":     {"short": (75, 90),    "longer": (180, 200)},
+    "A2":     {"short": (85, 100),   "longer": (210, 230)},
+    "B1":     {"short": (85, 100),   "longer": (210, 230)},
+    "B2":     {"short": (85, 100),   "longer": (210, 230)},
+    "C1":     {"short": (85, 100),   "longer": (210, 230)},
+    "C2":     {"short": (85, 100),   "longer": (210, 230)},
     # Native now reads its band from WORDS_PER_ARTICLE in bilinguist_write.py — the prompt
     # no longer hardcodes it — so these two must agree.
     # Set to 210–230 on 2026-08-10 from measurement rather than argument: across two runs

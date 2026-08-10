@@ -310,12 +310,15 @@ LEVEL_LABELS: dict[str, str] = {
 }
 
 WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
-    "A1":     {"short": "60–75",   "longer": "100–120"},
-    "A2":     {"short": "65–80",   "longer": "110–130"},
-    "B1":     {"short": "75–90",   "longer": "150–170"},
-    "B2":     {"short": "75–90",   "longer": "150–170"},
-    "C1":     {"short": "85–100",  "longer": "250–270"},
-    "C2":     {"short": "85–100",  "longer": "250–270"},
+    # Same LENGTH at every level — only the reading level changes. A learner comparing A2
+    # with Native then reads the same story at the same size in simpler language, which is
+    # what makes the levels comparable. A1 alone is a little shorter.
+    "A1":     {"short": "75–90",   "longer": "180–200"},
+    "A2":     {"short": "85–100",  "longer": "210–230"},
+    "B1":     {"short": "85–100",  "longer": "210–230"},
+    "B2":     {"short": "85–100",  "longer": "210–230"},
+    "C1":     {"short": "85–100",  "longer": "210–230"},
+    "C2":     {"short": "85–100",  "longer": "210–230"},
     # Native is NOT written from this table — the range is hardcoded in
     # PROMPT_3_HEADER / PROMPT_3_SHORT_HEADER. Kept here so the reporting targets in
     # bilinguist_check.py have one place to track. Change all three together.
@@ -477,13 +480,25 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     """Arm B: rewrite one native article down to `level`. Returns "" if no source."""
     if not source or not source.get("body"):
         return ""
-    band = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
-    parts = str(band).replace("\u2013", "-").split("-")
-    word_min, word_max = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else parts[0].strip())
+    def _band(lvl):
+        parts = str(WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length]
+                    ).replace("\u2013", "-").split("-")
+        return int(parts[0].strip()), int(parts[-1].strip())
+
+    word_min_i, word_max_i = _band(level)
+    src_min, src_max = _band("Native")
+    word_min, word_max = str(word_min_i), str(word_max_i)
+
+    # Which instruction the rewrite gets follows the real ratio, not the length. With every
+    # level now the same size as native except A1, "you must cut" would be wrong almost
+    # everywhere and would make it drop facts for no reason.
+    ratio = word_max_i / max(src_max, 1)
+    cut_key = "same" if ratio >= 0.95 else ("trim" if ratio >= 0.75 else "cut")
+
     # CUT_RULE carries its own {WORD_MIN}/{WORD_MAX}, so it must be injected BEFORE they
     # are substituted or its placeholders survive into the prompt.
     prompt = (PROMPT_LEVEL_REWRITE
-              .replace("{CUT_RULE}", REWRITE_CUT_RULES.get(length, REWRITE_CUT_RULES["longer"]))
+              .replace("{CUT_RULE}", REWRITE_CUT_RULES[cut_key])
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)

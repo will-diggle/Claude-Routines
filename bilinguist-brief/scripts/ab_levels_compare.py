@@ -28,12 +28,12 @@ USD_TO_GBP = 0.79
 
 # Must track WORDS_PER_ARTICLE in bilinguist_write.py.
 TARGETS = {
-    "A1": {"short": (60, 75),  "longer": (100, 120)},
-    "A2": {"short": (65, 80),  "longer": (110, 130)},
-    "B1": {"short": (75, 90),  "longer": (150, 170)},
-    "B2": {"short": (75, 90),  "longer": (150, 170)},
-    "C1": {"short": (85, 100), "longer": (250, 270)},
-    "C2": {"short": (85, 100), "longer": (250, 270)},
+    "A1": {"short": (75, 90),  "longer": (180, 200)},
+    "A2": {"short": (85, 100), "longer": (210, 230)},
+    "B1": {"short": (85, 100), "longer": (210, 230)},
+    "B2": {"short": (85, 100), "longer": (210, 230)},
+    "C1": {"short": (85, 100), "longer": (210, 230)},
+    "C2": {"short": (85, 100), "longer": (210, 230)},
 }
 
 _NUM = re.compile(r"\d[\d.,]*")
