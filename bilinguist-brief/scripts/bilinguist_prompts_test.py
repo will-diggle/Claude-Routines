@@ -199,3 +199,15 @@ OUTPUT FORMAT:
 
 # Re-export the new dicts from prod so --test mode doesn't crash on import.
 from bilinguist_prompts import LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES  # noqa: F401
+
+
+# Mirrors bilinguist_prompts.py so --test imports the same names.
+OUTPUT_FORMAT_SINGLE = (
+    'OUTPUT FORMAT: {"genre":"...","slug":"...","headline":"...","body":"..."}\n'
+    'Return ONE object, not a list. Copy "slug" and "genre" verbatim from the fact-base story.'
+)
+
+OUTPUT_FORMAT_ARRAY = (
+    'OUTPUT FORMAT: {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}\n'
+    'One entry per fact-base story. Copy "slug" and "genre" verbatim from each story.'
+)

@@ -10,21 +10,20 @@ LEVEL_DESCRIPTIONS: dict[str, str] = {
 }
 
 # Per-length instruction. Only the relevant length is shown per call.
-# Both variants name concrete material to expand with — naming only a floor made the
-# model simplify a story to its core, run out of things it could say at the target
-# level, and stop short (A2 "longer" was landing 20–35 words under a 110–130 target).
+#
+# These used to carry "if you are under {WORD_MIN}, add another fact…" plus a
+# paragraph-by-paragraph structure and three lines arguing for length. All of it was
+# there because the factbase was too thin to fill the target, so the model had to be
+# pushed. Splitting selection from fact-finding removed that: A2/longer came in at
+# 112–131 against a 110–130 target on 2026-08-10, the healthiest band in the run. So
+# the padding instructions no longer earn their place and are gone.
+#
+# Paragraph guidance applies to "longer" only — a short article is one paragraph.
 LENGTH_INSTRUCTIONS: dict[str, str] = {
-    "short":  "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. If you are under {WORD_MIN}, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not exceed {WORD_MAX} words.",
-    # Word count leads, paragraph structure follows: leading with "write 2-3
-    # paragraphs" anchored the model on shape and let length come second.
+    "short":  "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.",
     "longer": (
-        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting. "
-        "If you are under {WORD_MIN}, add another fact from the fact-base — more background, another figure, a named reaction, or the likely consequence. "
-        "Do not exceed {WORD_MAX} words.\n"
-        "Structure those {WORD_MIN}–{WORD_MAX} words across 2–3 short paragraphs:\n"
-        "  - First paragraph: what happened — who, what, where, when.\n"
-        "  - Second paragraph: why it matters — background and consequences drawn from the fact-base.\n"
-        "  - Third paragraph (optional): what happens next, or the reaction of a named party."
+        "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.\n"
+        "Use 2–3 paragraphs."
     ),
 }
 
@@ -34,19 +33,40 @@ VARIANT_RULES: dict[str, str] = {
     "en": "Write in British English throughout.",
 }
 
-# Simplified learner template. build_writing_prompt substitutes all {placeholders}.
+# One story per call — a bare object, no array to over-fill.
+OUTPUT_FORMAT_SINGLE = (
+    'OUTPUT FORMAT: {"genre":"...","slug":"...","headline":"...","body":"..."}\n'
+    'Return ONE object, not a list. Copy "slug" and "genre" verbatim from the fact-base story.'
+)
+
+# Legacy batched path only: several stories in one call, so an array is correct.
+OUTPUT_FORMAT_ARRAY = (
+    'OUTPUT FORMAT: {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}\n'
+    'One entry per fact-base story. Copy "slug" and "genre" verbatim from each story.'
+)
+
+
+# Learner template. build_writing_prompt substitutes all {placeholders}.
+#
+# Written in the SINGULAR throughout. Every call carries exactly one story, and the old
+# plural framing ("Write news articles… Cover every story from the fact-base") next to a
+# plural "articles" array was read as licence to write more than one: fr-A2-longer and
+# es-A2-longer shipped 9 articles from 7 stories on 2026-08-10.
+#
+# The output is a BARE OBJECT, not an {"articles":[…]} array. The array was the licence:
+# an array invites more than one entry, and the doubled braces it used to carry ({{…}},
+# left over from str.format() while the code uses .replace()) meant the model was also
+# being shown invalid JSON as its own output example. build_writing_prompt injects the
+# array form via {OUTPUT_FORMAT} only for the legacy batched path, which really does
+# write several stories in one call.
 PROMPT_LEARNER_TEMPLATE = """\
-Write news articles in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level. Cover every story from the fact-base. Translate organisation names into their established {LANGUAGE} equivalents.
+Write ONE news article in {LANGUAGE} at CEFR {LEVEL_DESCRIPTION} level, from the single story in the fact-base below. Translate organisation names into their established {LANGUAGE} equivalents.
 
 WORD COUNT — STRICT REQUIREMENT:
 {LENGTH_INSTRUCTION}
-This is a hard rule: every article must land between {WORD_MIN} and {WORD_MAX} words — no exceptions.
-Reach the count by adding real facts from the fact-base. Never pad with empty phrases, and never write above the target level to fill space — the reading level matters more than any single sentence.
-Simpler language needs more words to say the same thing, not fewer. A short article is not more suitable for a learner; it is just less complete.
 
 {VARIANT_RULE}
-OUTPUT FORMAT: {{"articles":[{{"genre":"...","slug":"...","headline":"...","body":"..."}}]}}
-Include the "slug" from the corresponding fact-base story in each article's slug field.
+{OUTPUT_FORMAT}
 [FACTBASE BELOW]
 """
 
@@ -59,7 +79,7 @@ PROMPT_3_HEADER = """\
 You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
 French → Le Monde. German → Der Spiegel. English → The Economist (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG. Arabic → Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration).
 
-You receive a pre-gathered fact-base of today's news. Write every story as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
+You receive one story from a pre-gathered fact-base of today's news. Write it as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
 WORD COUNT — STRICT REQUIREMENT:
 Each article body must be between 250 and 270 words. Count every word before submitting.
@@ -70,11 +90,10 @@ Structure those words across 2–3 paragraphs:
   - Second paragraph: context and significance.
   - Third paragraph (optional): reaction, wider implications, or outlook.
 
-OUTPUT FORMAT:
-{"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
+{OUTPUT_FORMAT}
 
 JSON SAFETY:
-- Each "body" MUST contain 2–3 paragraphs. Separate paragraphs with \\n\\n (two JSON newline escapes). Example: "body": "First paragraph prose.\\n\\nSecond paragraph prose." — exactly this format. No other line breaks within a paragraph.
+- The "body" MUST contain 2–3 paragraphs. Separate paragraphs with \\n\\n (two JSON newline escapes). Example: "body": "First paragraph prose.\\n\\nSecond paragraph prose." — exactly this format. No other line breaks within a paragraph.
 - Use the target language's typographic quotation marks — never straight ASCII quotes:
   French: « … » with non-breaking spaces
   German: „…" (low curly opening U+201E, high curly closing U+201C)
@@ -85,7 +104,6 @@ JSON SAFETY:
   Hungarian: „…" (same low-high curly style as German)
 
 WRITING RULES:
-- Write every story from the fact-base. Do not skip any.
 - Write in {LANGUAGE}. British English only if English.
 - Write original prose from the facts. Never copy source phrasing.
 - Use only facts from the fact-base. Preserve all attributions exactly.
@@ -94,7 +112,6 @@ WRITING RULES:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
   * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
 [FACTBASE BELOW]
@@ -104,7 +121,7 @@ PROMPT_3_SHORT_HEADER = """\
 You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
 French → Le Monde. German → Der Spiegel. English → The Economist (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG. Arabic → Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration).
 
-You receive a pre-gathered fact-base of today's news. Write every story as a tight, polished news brief — exactly as a senior staff journalist would write a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
+You receive one story from a pre-gathered fact-base of today's news. Write it as a tight, polished news brief — exactly as a senior staff journalist would write a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
 
 WORD COUNT — STRICT REQUIREMENT:
 Each article body must be between 85 and 100 words. Count every word before submitting.
@@ -112,11 +129,10 @@ If you are under 85, add the next most important fact from the fact-base — a f
 Do not exceed 100 words — cut the least essential detail. Never pad with empty phrases, never invent facts.
 Use 1–2 paragraphs. Lead sentence covers the core fact (who, what, when); the rest adds the most important context.
 
-OUTPUT FORMAT:
-{"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}
+{OUTPUT_FORMAT}
 
 JSON SAFETY:
-- Each "body" is a SINGLE continuous paragraph. No line breaks whatsoever.
+- The "body" is a SINGLE continuous paragraph. No line breaks whatsoever.
 - Use the target language's typographic quotation marks — never straight ASCII quotes:
   French: « … » with non-breaking spaces
   German: „…" (low curly opening U+201E, high curly closing U+201C)
@@ -132,7 +148,6 @@ POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Do not
 - A head of government who announced resignation is still the incumbent until a named successor has taken office.
 
 WRITING RULES:
-- Write every story from the fact-base. Do not skip any.
 - Write in {LANGUAGE}. British English only if English.
 - Write original prose from the facts. Never copy source phrasing.
 - Use only facts from the fact-base. Preserve all attributions exactly.
@@ -141,7 +156,6 @@ WRITING RULES:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
   * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
 - NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources.
-- Include the "slug" from the corresponding fact-base story in each article's slug field.
 - Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
 
 [FACTBASE BELOW]

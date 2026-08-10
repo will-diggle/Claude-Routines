@@ -115,6 +115,20 @@ _SCHEMA_WRITING = {
     "required": ["articles"],
 }
 
+# One story per call — the response is a bare object. The array schema below is kept for
+# the legacy batched path, which really does write several stories in one call. The
+# schema, not the prompt, is what actually constrains Gemini's shape.
+_SCHEMA_ARTICLE = {
+    "type": "object",
+    "properties": {
+        "genre":    {"type": "string"},
+        "slug":     {"type": "string"},
+        "headline": {"type": "string"},
+        "body":     {"type": "string"},
+    },
+    "required": ["genre", "slug", "headline", "body"],
+}
+
 _SCHEMA_NATIVE = {
     "type": "object",
     "properties": {
@@ -354,6 +368,7 @@ if '--test' in _sys.argv:
         PROMPT_3_HEADER, PROMPT_3_SHORT_HEADER,
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
+        OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -362,6 +377,7 @@ else:
         PROMPT_3_HEADER, PROMPT_3_SHORT_HEADER,
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
+        OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -395,6 +411,9 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     prompt = prompt.replace("{LEVEL_DESCRIPTION}", level_desc)
     prompt = prompt.replace("{LENGTH_INSTRUCTION}", length_instr)
     prompt = prompt.replace("{VARIANT_RULE}", variant_rule)
+    prompt = prompt.replace(
+        "{OUTPUT_FORMAT}",
+        OUTPUT_FORMAT_SINGLE if len(factbase) == 1 else OUTPUT_FORMAT_ARRAY)
 
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"
@@ -406,6 +425,9 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
     lang_name = LANGUAGE_NAMES.get(lang, lang)
     template = PROMPT_3_SHORT_HEADER if length == "short" else PROMPT_3_HEADER
     prompt = template.replace("{LANGUAGE}", lang_name)
+    prompt = prompt.replace(
+        "{OUTPUT_FORMAT}",
+        OUTPUT_FORMAT_SINGLE if len(factbase) == 1 else OUTPUT_FORMAT_ARRAY)
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
     prompt += f"\n{factbase_json}"
     return prompt
@@ -536,7 +558,10 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
             if not parsed:
                 print(f"[WARN] [{attempt_label}]: JSON parse failed — retrying", file=sys.stderr)
                 continue
-            articles = parsed.get("articles", [])
+            # Per-article calls return a bare object; the batched path returns an array.
+            articles = parsed.get("articles")
+            if not isinstance(articles, list):
+                articles = [parsed] if parsed.get("body") else []
             if len(articles) > len(best_articles):
                 best_articles = articles
             if len(best_articles) >= expected:
@@ -656,7 +681,8 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
                 )
             subtasks.append((
                 _group_key(task),
-                replace(task, prompt=prompt, factbase=[story], n_splits=1),
+                replace(task, prompt=prompt, factbase=[story], n_splits=1,
+                        schema=_SCHEMA_ARTICLE),
             ))
         results.setdefault(_group_key(task), [])
 
