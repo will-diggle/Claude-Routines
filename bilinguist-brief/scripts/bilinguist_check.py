@@ -60,12 +60,13 @@ WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     "B2":     {"short": (75, 90),    "longer": (150, 170)},
     "C1":     {"short": (85, 100),   "longer": (250, 270)},
     "C2":     {"short": (85, 100),   "longer": (250, 270)},
-    # Native's real source of truth is the range written into PROMPT_3_HEADER.
-    # Lowered to 180–200 on 2026-08-09 because ~103 words of source per story could not
-    # fill 250. Restored to 250–270 on 2026-08-10: that premise is gone — splitting
-    # selection from fact-finding lifted Global News to ~290 narrative words per story,
-    # so 250 should now be reachable from the facts alone. This run tests exactly that.
-    "Native": {"short": (85, 100),   "longer": (250, 270)},
+    # Native now reads its band from WORDS_PER_ARTICLE in bilinguist_write.py — the prompt
+    # no longer hardcodes it — so these two must agree.
+    # Set to 210–230 on 2026-08-10 from measurement rather than argument: across two runs
+    # native/longer produced 194–247 (avg ~220) whether or not the prompt authorised a
+    # short article, so 250–270 was above what it reliably writes and 210–230 is centred
+    # on what it does.
+    "Native": {"short": (85, 100),   "longer": (210, 230)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached
