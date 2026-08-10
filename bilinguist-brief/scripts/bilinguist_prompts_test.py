@@ -217,3 +217,4 @@ from bilinguist_prompts import REWRITE_CUT_RULES, PROMPT_LEVEL_REWRITE, QUOTE_RU
 from bilinguist_prompts import (PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING,  # noqa: F401,E402
     STRUCTURE_BY_LENGTH_NATIVE, GENRE_RULES, GENRE_RULE_FALLBACK)
 from bilinguist_prompts import PROMPT_5B_VERIFY  # noqa: F401,E402
+from bilinguist_prompts import NATIVE_WORD_RULE  # noqa: F401,E402

@@ -172,6 +172,21 @@ REWRITE_CUT_RULES: dict[str, str] = {
         "anything.\n"
         "- Never invent, never generalise, never merge two facts into a vaguer one."
     ),
+    # Two or more CEFR levels below native, at the same word count. Measured 2026-08-10:
+    # Stage 8 graded 0/7 articles at A2 in seven of eight combos — they came back B1. The
+    # "same" rule above was the cause: keeping every fact of a B2/C1 article inside the same
+    # word budget leaves no room to simplify, so the rewrite kept the content and kept the
+    # complexity. Simplifying costs words, so at a fixed length it has to carry fewer facts.
+    "reduce": (
+        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words — the same length as the source, but you "
+        "are writing {LEVELS_DOWN} CEFR levels below it.\n"
+        "- Simple language needs MORE words to say the same thing, so at this length you must "
+        "carry FEWER facts than the source. That is correct, not a loss.\n"
+        "- Keep the opening facts in their order and stop earlier in the story. Never reorder.\n"
+        "- Spend the words you free up on shorter sentences and commoner words — not on more "
+        "facts.\n"
+        "- Never invent, never generalise, never merge two facts into a vaguer one."
+    ),
     # Target is much smaller: facts have to go, so stop earlier in the same sequence.
     "cut": (
         "WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source is much longer than this, so "
@@ -273,16 +288,41 @@ GENRE_RULES: dict[str, str] = {
 }
 GENRE_RULE_FALLBACK = ""
 
+# The merge into one template kept only the LONGER prompt's word-count wording — "your
+# fact-base is several hundred words of notes, ample for N words of prose" — which reads as
+# encouragement to write long. Native/short went from 114 words to 167 in one run, and every
+# short level article inherited it. Short gets its own wording again.
+NATIVE_WORD_RULE: dict[str, str] = {
+    "short": (
+        "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before "
+        "submitting.\n"
+        "This is a brief, not an article. Lead with the core fact, add the most important "
+        "context, and stop. Most of the fact-base will not fit and should not be forced in.\n"
+        "Do not exceed {WORD_MAX} words — cut the least essential detail. Never cut "
+        "mid-thought."
+    ),
+    "longer": (
+        "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before "
+        "submitting.\n"
+        "You have the material. This story's fact-base is several hundred words of notes — "
+        "ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not "
+        "padding: attribute every claim to the person or institution that made it, follow the "
+        "sequence of events, and carry the context and consequences already in the notes.\n"
+        "Never reach the count by generalising (\"his tenure will be closely watched\"), by "
+        "restating a fact you have already given, or by supplying context you were not given. "
+        "An invented fact is a worse failure than a short article.\n"
+        "Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut "
+        "mid-thought."
+    ),
+}
+
 PROMPT_NATIVE_TEMPLATE = """\
 You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
 
 Write the story below as {FRAMING}, using only the fact-base. Write with authority, clarity and precision. This is real journalism.
 
 WORD COUNT — STRICT REQUIREMENT:
-The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.
-You have the material. This story's fact-base is several hundred words of notes — ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not padding: attribute every claim to the person or institution that made it, follow the sequence of events, and carry the context and consequences that are already in the notes.
-Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a worse failure than a short article — but with these notes, a short article should not be necessary.
-Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut mid-thought.
+{WORD_RULE}
 
 {STRUCTURE}
 
@@ -317,26 +357,29 @@ PROMPT_3_SHORT_HEADER = PROMPT_NATIVE_TEMPLATE
 PROMPT_5B_VERIFY = """\
 You are a fact-checker. Below is a news article and the fact-base it was written from.
 
-Your job: find anything in the ARTICLE that is not supported by the FACT-BASE.
+FIRST, what is NOT a finding. Read this before anything else. If a difference is on this list, say nothing about it — a false alarm here is worse than a missed one, because it buries the real findings.
 
-Report these, and nothing else:
-- INVENTED: a fact, figure, name, quote or claim in the article that is not in the fact-base.
-- CHANGED: a figure, name, title or date in the article that differs from the fact-base.
-- CONTRADICTED: the article states something the fact-base contradicts, or states as fact something the fact-base records as unverified or disputed.
-- WRONG: a fact that IS in the fact-base but that your own search shows is false. Search to check the main figures, names and titles.
+- LANGUAGE. The article is in {LANGUAGE}; the fact-base is in English. Every translated word is correct by definition. "Monday" as "lundi", "Shanghai" as "Shanghái", "kilometres" as "Kilometer", "structures" as "Gebäude" — say nothing.
+- NUMBER FORMAT. The same value written the way {LANGUAGE} writes it. 1,200 as "1 200" or "1.200"; 5.0 as "5,0"; 5:30am as "17h30"; 150 miles as "240 km". Same value, different notation — say nothing.
+- ANYTHING MISSING. A fact, figure, name or nuance the article leaves out is NEVER a finding. A shorter article is not an error. Never write "the article omits…".
+- WORDING. A paraphrase, a synonym, a different sentence order within a paragraph, a shorter or longer phrasing, tone, style, register — say nothing.
+- ADDED CLARITY that changes no fact: naming the day of a date the fact-base gives, saying "local time", giving someone's known title. Say nothing.
 
-Do NOT report:
-- Wording, style, tone or article length.
-- A fact-base fact the article left out. A shorter article is not an error.
-- Names or terms correctly translated into the article's language, or figures written in that language's format (1.000 for 1,000, 17h30 for 5:30pm). These are correct, not changes.
-- A paraphrase that keeps the meaning.
+If the article and the fact-base agree on every VALUE and every CLAIM, return an empty list. Most articles should.
 
-For each finding give the exact phrase from the article, what the fact-base says instead, and one sentence of why. If the article is fully supported, return an empty list.
+NOW, the only four things to report:
+
+- INVENTED: a claim, figure, name or quote in the article that has NO basis anywhere in the fact-base. Not "stated differently" — absent.
+- CHANGED: a number whose VALUE differs, or a name or title that refers to a DIFFERENT thing. 69th written as 70th. £3m written as £5m. A minister given the wrong office.
+- CONTRADICTED: the fact-base records something as unverified, disputed, or claimed by one party, and the article states it flatly as fact.
+- WRONG: a fact that IS in the fact-base, but your own search shows is false. Search the main figures, names and titles.
+
+For each finding, quote the exact phrase from the article, give what the fact-base says instead, and say in one sentence why the VALUE or CLAIM differs. If your explanation would contain the words "translate", "omits", "format", "wording" or "correctly", it is not a finding — drop it.
 
 OUTPUT FORMAT:
 {"verdict":"ok","findings":[]}
 or
-{"verdict":"issues","findings":[{"type":"INVENTED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence"}]}
+{"verdict":"issues","findings":[{"type":"CHANGED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence"}]}
 
 ARTICLE ({LANGUAGE}, {LENGTH}):
 {ARTICLE}

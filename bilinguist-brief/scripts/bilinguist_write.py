@@ -88,6 +88,10 @@ ALL_LEVELS: bool = False
 # level task can find the one article it is rewriting.
 _NATIVE_INDEX: dict = {}
 
+# Stage 6's grade per language. The rewrite needs it: how far a level sits BELOW native
+# decides whether it can keep every fact or has to carry fewer to have room to simplify.
+_NATIVE_GRADES: dict = {}
+
 
 def _index_native(native_journalism: dict) -> dict:
     idx = {}
@@ -460,7 +464,7 @@ if '--test' in _sys.argv:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
-        GENRE_RULES, GENRE_RULE_FALLBACK,
+        GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
         LANGUAGE_WORD_FACTOR, word_band,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
@@ -475,7 +479,7 @@ else:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
-        GENRE_RULES, GENRE_RULE_FALLBACK,
+        GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
         LANGUAGE_WORD_FACTOR, word_band,
     )
 
@@ -535,10 +539,22 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     ratio = word_max_i / max(src_max, 1)
     cut_key = "same" if ratio >= 0.95 else ("trim" if ratio >= 0.75 else "cut")
 
+    # A level two or more CEFR steps below native cannot keep every fact at the same word
+    # count — simplifying costs words. Stage 8 proved it: 0/7 graded A2 in seven of eight
+    # combos, all coming back B1, while the rule said "keep EVERY fact, only the level
+    # changes". The level gap overrides the word ratio.
+    levels_down = 0
+    native_grade = _NATIVE_GRADES.get(lang)
+    if native_grade in CEFR_ORDER and level in CEFR_ORDER:
+        levels_down = CEFR_ORDER.index(native_grade) - CEFR_ORDER.index(level)
+    if levels_down >= 2 and cut_key in ("same", "trim"):
+        cut_key = "reduce"
+
     # CUT_RULE carries its own {WORD_MIN}/{WORD_MAX}, so it must be injected BEFORE they
     # are substituted or its placeholders survive into the prompt.
     prompt = (PROMPT_LEVEL_REWRITE
               .replace("{CUT_RULE}", REWRITE_CUT_RULES[cut_key])
+              .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
@@ -580,6 +596,7 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
               .replace("{STRUCTURE}", STRUCTURE_BY_LENGTH_NATIVE.get(
                   length, STRUCTURE_BY_LENGTH_NATIVE["longer"]))
               .replace("{GENRE_RULE}", genre_rule)
+              .replace("{WORD_RULE}", NATIVE_WORD_RULE.get(length, NATIVE_WORD_RULE["longer"]))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
               .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
               .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
@@ -1193,6 +1210,15 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
         parsed = parse_llm_json(raw) or {}
         out = []
         for f in parsed.get("findings") or []:
+            why = (f.get("why") or "").lower()
+            # The prompt forbids reporting translations, formatting and omissions, but it
+            # does anyway — 4 of 5 findings on 2026-08-10 were exactly those, and each one
+            # said so in its own explanation ("correctly translates", "omits the word",
+            # "changes the comma to a space"). Drop anything that admits it.
+            if any(t in why for t in ("translat", "omits", "omit ", "format",
+                                      "decimal separator", "wording", "correctly",
+                                      "same value", "conversion of", "abbreviat")):
+                continue
             out.append({"lang": lang, "length": length, "slug": art.get("slug"),
                         "type": f.get("type"), "quote": f.get("quote"),
                         "factbase": f.get("factbase"), "why": f.get("why")})
@@ -1324,7 +1350,7 @@ def main():
                              "the target level.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
@@ -1410,6 +1436,7 @@ def main():
 
     if LEVELS_FROM == "native":
         _NATIVE_INDEX = _index_native(native_journalism)
+        _NATIVE_GRADES = dict(native_grades or {})
         print(f"[write] LEVELS FROM NATIVE — {len(_NATIVE_INDEX)} native articles indexed "
               f"by (language, length, slug)")
 
