@@ -278,7 +278,9 @@ WRITING RULES:
 """
 
 PROMPT_4_HEADER = """\
-You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE} by a native journalist. Assess each article and return a structured verdict.
+You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE}. Assess each one and return a structured verdict.
+
+You are NOT told what level these articles were written for. Judge only what is in front of you — the verdict is being used to check whether the writer hit its target, so agreeing with an assumed target would make it worthless.
 
 For each article assess:
 
@@ -310,7 +312,7 @@ OUTPUT FORMAT:
   "reasoning":"one sentence explaining the level assessment"
 }]}
 
-Be decisive. One level per article, one length band per article. The app uses these verdicts to dynamically reposition the native article in the level selector — consistency matters more than nuance.
+Be decisive. One level per article, one length band per article. Consistency matters more than nuance: near-identical prose should get the same grade every time.
 
 [NATIVE ARTICLES BELOW]
 """

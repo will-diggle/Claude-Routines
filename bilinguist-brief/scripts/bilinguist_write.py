@@ -1095,54 +1095,65 @@ def run_grade_cefr(
     briefings: dict,
 ) -> dict:
     """
-    Stage 8 (Grade Levels) — grade the CEFR level articles actually written.
-    Uses gemini-2.0-flash-lite. Returns grading dict (per-article assessments).
-    """
-    # Collect all written articles per language for grading
-    articles_by_lang: dict = {}
-    for lang, levels in briefings.items():
-        flat: list = []
-        for level_data in levels.values():
-            for length_data in level_data.values():
-                flat.extend(length_data.get("articles", []))
-        if flat:
-            articles_by_lang[lang] = flat
+    Stage 8 (Grade Levels) — grade every level article and record whether it hit the
+    level it was written for. This is the per-prompt quality check: did the A2 prompt
+    actually produce A2?
 
-    langs_to_grade = list(articles_by_lang.keys())
-    if not langs_to_grade:
+    Graded PER (language, level, length) so each verdict can be mapped back to what it
+    was supposed to be. It used to flatten every level of a language into one list, and
+    since articles share a slug across levels the verdicts were unattributable — the
+    stage cost money every morning and produced nothing usable.
+
+    The grader is NOT told the target level. It grades blind and Python compares, so the
+    verdict is not just a confirmation of the instruction.
+
+    Returns dict[lang -> [assessment]] where each assessment carries written_level and
+    written_length alongside the grader's own verdict.
+    """
+    combos: list = []
+    for lang, levels in briefings.items():
+        for level, lengths in (levels or {}).items():
+            for length, payload in (lengths or {}).items():
+                arts = (payload or {}).get("articles") or []
+                if arts:
+                    combos.append((lang, level, length, arts))
+
+    if not combos:
         print("[4b] No CEFR articles to grade — skipping", file=sys.stderr)
         return {}
 
-    print(f"[4b] Grading CEFR articles for {len(langs_to_grade)} languages...")
+    print(f"[4b] Grading {sum(len(c[3]) for c in combos)} articles across "
+          f"{len(combos)} level/length combos...")
     grading: dict = {}
+    lock = threading.Lock()
+
+    def grade(combo):
+        lang, level, length, arts = combo
+        label = f"4b/{lang}-{level}-{length}"
+        raw, finish = call_gemini(client, MODEL_4B, build_grading_prompt(lang, arts),
+                                 label, "4b", _SCHEMA_GRADING)
+        if not raw or finish == "MAX_TOKENS":
+            print(f"[ERROR] [{label}]: {'MAX_TOKENS' if finish else 'no response'} — "
+                  f"{len(arts)} articles ungraded", file=sys.stderr)
+            return lang, []
+        parsed = parse_llm_json(raw)
+        assessments = (parsed or {}).get("assessments") or []
+        if not assessments:
+            print(f"[ERROR] [{label}]: empty assessments", file=sys.stderr)
+            return lang, []
+        # Tag every verdict with what the article was SUPPOSED to be. Without this the
+        # verdict is unusable: slugs repeat across levels, so "b1" on slug X says nothing.
+        for a in assessments:
+            a["written_level"] = level
+            a["written_length"] = length
+        hit = sum(1 for a in assessments if a.get("level") == level)
+        print(f"[4b] {lang}-{level}-{length}: {hit}/{len(assessments)} graded as {level}")
+        return lang, assessments
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_lang = {
-            executor.submit(
-                call_gemini, client, MODEL_4B,
-                build_grading_prompt(lang, articles_by_lang[lang]),
-                f"4b/{lang}", "4b", _SCHEMA_GRADING,
-            ): lang
-            for lang in langs_to_grade
-        }
-
-        for future in as_completed(future_to_lang):
-            lang = future_to_lang[future]
-            raw, finish_reason = future.result()
-            if not raw:
-                print(f"[ERROR] [4b] {lang}: no response — grading incomplete", file=sys.stderr)
-                grading[lang] = []
-                continue
-            if finish_reason == "MAX_TOKENS":
-                print(f"[ERROR] [4b] {lang}: MAX_TOKENS — grading incomplete", file=sys.stderr)
-                grading[lang] = []
-                continue
-            parsed = parse_llm_json(raw)
-            assessments = parsed.get("assessments", []) if parsed else []
-            if not assessments:
-                print(f"[ERROR] [4b] {lang}: empty assessments", file=sys.stderr)
-            grading[lang] = assessments
-            print(f"[4b] {lang}: {len(assessments)} assessments ✓")
+        for lang, assessments in executor.map(grade, combos):
+            with lock:
+                grading.setdefault(lang, []).extend(assessments)
 
     return grading
 

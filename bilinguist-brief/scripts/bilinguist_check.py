@@ -83,6 +83,52 @@ WORD_TARGETS_LANG: dict[str, dict[str, dict[str, tuple[int, int]]]] = {
     },
 }
 
+
+CEFR_SCALE = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
+    """Stage 8's verdicts, per (language, level, length) — did each prompt hit its target?
+
+    Stage 8 grades blind and tags every verdict with written_level/written_length, so
+    "graded" vs "written" is a real comparison rather than a confirmation of the
+    instruction. Verdicts without written_level come from an older bundle and are skipped.
+    """
+    rows: dict = {}
+    for lang, assessments in (grading or {}).items():
+        for a in assessments or []:
+            want = a.get("written_level")
+            if not want:
+                continue
+            key = (lang, want, a.get("written_length") or "?")
+            r = rows.setdefault(key, {"n": 0, "hit": 0, "got": {}})
+            r["n"] += 1
+            got = a.get("level") or "?"
+            r["got"][got] = r["got"].get(got, 0) + 1
+            if got == want:
+                r["hit"] += 1
+    if not rows:
+        return "", []
+
+    lines = ["🎯 Level accuracy (Stage 8 graded blind, vs what was written):"]
+    warnings: list[str] = []
+    for (lang, want, length), r in sorted(rows.items()):
+        spread = " ".join(f"{k}×{v}" for k, v in
+                          sorted(r["got"].items(),
+                                 key=lambda kv: CEFR_SCALE.index(kv[0])
+                                 if kv[0] in CEFR_SCALE else 99))
+        mark = "🟢" if r["hit"] * 2 >= r["n"] else "🔴"
+        lines.append(f"  {mark} {LANG_NAMES.get(lang, lang)} {want}/{length}: "
+                     f"{r['hit']}/{r['n']} graded {want}  [{spread}]")
+        # Nothing graded at the target at all means the prompt is missing its level
+        # entirely, which is different from ordinary scatter around it.
+        if r["hit"] == 0 and r["n"]:
+            drift = max(r["got"], key=r["got"].get)
+            warnings.append(f"⚠️ {LANG_NAMES.get(lang, lang)} {want}/{length} — "
+                            f"0/{r['n']} graded {want}, mostly {drift}")
+    return "\n".join(lines), warnings
+
+
 def _word_color(avg: float, lo: int, hi: int) -> str:
     """🟢 within range · 🟠 up to 15% outside · 🔴 more than 15% outside."""
     if avg <= 0:
@@ -399,6 +445,7 @@ def check(bundle_path: Path) -> int:
     header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
 
     factcheck_str, factcheck_warning = _factcheck_summary(script_dir, date, story_count)
+    level_grade_str, level_grade_warnings = _level_grade_table(grading)
 
     # Detect grading failures: Stage 6 defaults every language to B2 on failure,
     # Stage 8 produces no assessments. Neither is visible in article counts alone.
@@ -411,7 +458,8 @@ def check(bundle_path: Path) -> int:
         grading_warnings.append("⚠️ Stage 6 (Grade Native) defaulted all languages to B2 — grading model may have failed")
 
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
-    warnings  = wrong_length + thin + bloated + grading_warnings + factcheck_warnings
+    warnings  = (wrong_length + thin + bloated + grading_warnings
+                 + level_grade_warnings + factcheck_warnings)
 
     # Exiting non-zero fails the workflow, which stops the bundle ever reaching the
     # data repo — so this decides whether the brief publishes at all. A single failed
@@ -455,7 +503,7 @@ def check(bundle_path: Path) -> int:
                 body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
             for b in bloated:
                 body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
-            for g in grading_warnings:
+            for g in grading_warnings + level_grade_warnings:
                 body_parts.append(f"  {g}")
             for fw in factcheck_warnings:
                 body_parts.append(f"  {fw}")
@@ -478,10 +526,13 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  ⚠️ {t} — fewer than {MIN_ARTICLES} articles")
         for b in bloated:
             body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
-        for g in grading_warnings:
+        for g in grading_warnings + level_grade_warnings:
             body_parts.append(f"  {g}")
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
+
+    if level_grade_str:
+        body_parts += ["", level_grade_str]
 
     # Global News search log (per-outlet Step 1 headlines)
     if search_log:
