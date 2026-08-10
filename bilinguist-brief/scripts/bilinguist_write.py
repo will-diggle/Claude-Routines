@@ -333,6 +333,15 @@ NATIVE_WRITING_LEVEL = "C1"
 
 ACTIVE_LANGUAGES = [lang for lang in LANGUAGE_LEVELS if LANGUAGE_LEVELS[lang]]
 
+# Every active language needs a native article, because Stage 7 rewrites it down to each
+# level. Spanish lists only A2, so it used to get no native at all and its levels fell
+# back to writing from the fact-base — the one language that could not use the pipeline.
+# It now gets a native article as an INTERMEDIATE: written, graded and rewritten from,
+# but kept out of nativeJournalism so the app does not offer a Spanish Native edition
+# (the app decides that tab exists purely by nativeJournalism[lang] being non-empty).
+NATIVE_PUBLISHED = [l for l in ACTIVE_LANGUAGES if "Native" in LANGUAGE_LEVELS[l]]
+NATIVE_INTERMEDIATE = [l for l in ACTIVE_LANGUAGES if "Native" not in LANGUAGE_LEVELS[l]]
+
 
 # ── Combination matrix ────────────────────────────────────────────────────────
 
@@ -942,7 +951,10 @@ def run_native_journalism(
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
     # so disabled languages (empty level lists) and levels-only languages still had
     # native articles generated, graded, and shipped in the bundle.
-    native_langs = [lang for lang in ACTIVE_LANGUAGES if "Native" in LANGUAGE_LEVELS[lang]]
+    native_langs = NATIVE_PUBLISHED + NATIVE_INTERMEDIATE
+    if NATIVE_INTERMEDIATE:
+        print(f"[3] Native for {NATIVE_PUBLISHED} (published) + "
+              f"{NATIVE_INTERMEDIATE} (intermediate, rewritten from but not shipped)")
     tasks: list[_WriteTask] = []
     for lang in native_langs:
         tasks.append(_WriteTask(
@@ -1270,7 +1282,10 @@ def main():
     if args.native_from:
         with open(args.native_from, encoding="utf-8") as f:
             _src = json.load(f)
-        native_journalism = _src.get("nativeJournalism") or {}
+        native_journalism = dict(_src.get("nativeJournalism") or {})
+        # A published bundle keeps intermediates under a separate key; merge them back so
+        # Stage 7 can rewrite from them.
+        native_journalism.update(_src.get("nativeIntermediate") or {})
         native_grades     = _src.get("nativeGrades") or {}
         if not native_journalism:
             sys.exit(f"[write] ERROR: no nativeJournalism in {args.native_from}")
@@ -1303,7 +1318,12 @@ def main():
         _p = os.path.join(_out, f"native_{date}.json")
         with open(_p, "w", encoding="utf-8") as f:
             json.dump({"date": date, "factbase": factbase,
-                       "nativeJournalism": native_journalism,
+                       # Intermediates are split out here, not earlier: Stage 6 grades them and Stage 7
+        # rewrites from them exactly like any other language.
+        "nativeJournalism": {k: v for k, v in native_journalism.items()
+                             if k not in NATIVE_INTERMEDIATE},
+        "nativeIntermediate": {k: v for k, v in native_journalism.items()
+                               if k in NATIVE_INTERMEDIATE},
                        "nativeGrades": native_grades}, f, ensure_ascii=False, indent=2)
         print(f"[write] --stop-after-native: wrote {_p}. Stages 7-8 skipped.")
         write_costs_report(date, script_dir)
@@ -1372,7 +1392,12 @@ def main():
         "factbase": factbase,
         "gatherSource": "gemini",
         "briefings": briefings,
-        "nativeJournalism": native_journalism,
+        # Intermediates are split out here, not earlier: Stage 6 grades them and Stage 7
+        # rewrites from them exactly like any other language.
+        "nativeJournalism": {k: v for k, v in native_journalism.items()
+                             if k not in NATIVE_INTERMEDIATE},
+        "nativeIntermediate": {k: v for k, v in native_journalism.items()
+                               if k in NATIVE_INTERMEDIATE},
         "nativeGrades": native_grades,
         "grading": grading,
     }

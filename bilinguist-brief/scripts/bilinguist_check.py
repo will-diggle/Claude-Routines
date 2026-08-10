@@ -368,6 +368,10 @@ def check(bundle_path: Path) -> int:
 
     briefings             = bundle.get("briefings", {})
     native_journalism     = bundle.get("nativeJournalism", {})
+    # Intermediates are not shipped as a Native edition, but every level article for that
+    # language is a rewrite of one — so a bad intermediate silently degrades the whole
+    # language and would otherwise be reported nowhere.
+    native_intermediate   = bundle.get("nativeIntermediate", {})
     native_grades         = bundle.get("nativeGrades", {})
     grading               = bundle.get("grading", {})
     date                  = bundle.get("date", "unknown")
@@ -550,6 +554,18 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  {g}")
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
+
+    if native_intermediate:
+        lines = ["🔧 Native intermediates (not shipped — every level is a rewrite of these):"]
+        for lang, by_len in sorted(native_intermediate.items()):
+            for length, arts in sorted(_native_by_length(by_len).items()):
+                avg = _avg_body_words(arts)
+                target = _target("Native", length, lang)
+                colour = _word_color(avg, *target) if target else "🟢"
+                lines.append(f"  {colour} {LANG_NAMES.get(lang, lang)} {length}: "
+                             f"{len(arts)} articles, avg {int(avg)}w"
+                             + (f", target {target[0]}–{target[1]}w" if target else ""))
+        body_parts += ["", "\n".join(lines)]
 
     if level_grade_str:
         body_parts += ["", level_grade_str]
