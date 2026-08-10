@@ -83,7 +83,8 @@ You receive one story from a pre-gathered fact-base of today's news. Write it as
 
 WORD COUNT — STRICT REQUIREMENT:
 Each article body must be between 250 and 270 words. Count every word before submitting.
-The fact-base is still the ceiling on length. If the facts you have run out before 250 words, write the shorter article — a story told completely in 200 words is finished, not deficient. Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a far worse failure than a short article.
+You have the material. This story's fact-base is several hundred words of notes — ample for 250 words of prose. Reaching the count is ordinary journalism, not padding: attribute every claim to the named source given, follow the sequence of events, and carry the context and consequences that are already in the notes.
+Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a worse failure than a short article — but with these notes, a short article should not be necessary.
 Do not exceed 270 words — trim the least essential detail. Never cut mid-thought.
 Structure those words across 2–3 paragraphs:
   - First paragraph: core facts — who, what, when, where.
