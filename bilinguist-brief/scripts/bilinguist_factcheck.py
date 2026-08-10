@@ -1,9 +1,9 @@
 """
 bilinguist_factcheck.py
 =======================
-Stage 1B of the Bilinguist Brief daily pipeline.
+Stage 4 (Verify) of the Bilinguist Brief daily pipeline.
 
-Reads the factbase produced by Stage 1 (bilinguist_gather.py) and runs a
+Reads the factbase produced by Stage 3 (bilinguist_gather.py) and runs a
 secondary verification pass using Gemini + Google Search to catch factual
 errors before articles are written.
 
@@ -186,7 +186,7 @@ def main():
         print("[factcheck] Factbase is empty — nothing to check.", file=sys.stderr)
         sys.exit(0)
 
-    print(f"[factcheck] Stage 1B — fact-checking {len(factbase)} stories from {factbase_path.name}")
+    print(f"[4-verify] Stage 4 — fact-checking {len(factbase)} stories from {factbase_path.name}")
 
     # Build the prompt
     factbase_json = json.dumps(factbase, ensure_ascii=False, indent=2)

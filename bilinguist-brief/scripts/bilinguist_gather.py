@@ -1,7 +1,10 @@
 """
 bilinguist_gather.py
 ====================
-Stage 1 of the Bilinguist Brief daily pipeline.
+Stages 2 (Select) and 3 (Gather) of the Bilinguist Brief daily pipeline.
+
+Stage 2 groups the scraped headlines and Python ranks them; Stage 3 finds the facts
+for the ranked winners. --select-only runs Stage 2 alone; --from runs Stage 3 alone.
 
 Calls Google Gemini 2.5 Pro via the Flex service tier to gather today's
 news and produce a structured, neutral JSON fact-base.
@@ -182,7 +185,7 @@ GENRE_CONFIG = {
 
 
 def headlines_for_genre(genre: str) -> dict:
-    """{outlet: [headline, ...]} for one genre, from the Stage 0 scrape.
+    """{outlet: [headline, ...]} for one genre, from the Stage 1 scrape.
 
     Global News uses the 11 per-outlet feeds. The other genres use a single
     Google News genre feed whose titles carry their source, so headlines are
@@ -231,7 +234,7 @@ POSITION_BONUS  = {1: 2.5, 2: 2.0, 3: 1.5, 4: 1.0, 5: 0.5}
 
 
 def load_scraped_index() -> dict:
-    """{outlet: [headline, ...]} from the Stage 0 scrape. Empty if unavailable."""
+    """{outlet: [headline, ...]} from the Stage 1 scrape. Empty if unavailable."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(script_dir, f"scraped_headlines_{BRIEF_DATE}.json")
     if not os.path.exists(path):
@@ -629,7 +632,7 @@ def gather_facts_for_genre(client, genre: str, stories: list, model: str,
 
 
 def build_search_log() -> list:
-    """Rebuild the per-outlet headline log in Python, from the Stage 0 scrape.
+    """Rebuild the per-outlet headline log in Python, from the Stage 1 scrape.
 
     This used to be a required field of the genre call's JSON — Gemini had to retype all
     60 scraped headlines "as found" before scoring. For Global News that transcription was
@@ -832,7 +835,7 @@ def main():
                         help="The two-stage pipeline in one run: stage 1 selects stories "
                              "only (no facts), stage 2 finds their facts.")
     parser.add_argument("--select-only", action="store_true", dest="select_only",
-                        help="Stage 1 ONLY: group headlines, score in Python, write the "
+                        help="Stage 2 (Select) ONLY: group headlines, score in Python, write the "
                              "ranked selection with no facts. For A/B runs, so both arms "
                              "start from one identical selection.")
     parser.add_argument("--facts-input", choices=["winners", "all"], default="winners",
@@ -895,13 +898,13 @@ def main():
               f"{len(factbase)} stories, no selection calls made")
 
     # --split runs selection against a prompt that asks for groupings ONLY: no facts, no
-    # glossary, no notification, and no 60-headline transcript. Stage 2 then finds the
+    # glossary, no notification, and no 60-headline transcript. Stage 3 then finds the
     # facts for the stories that survived. Selection and fact-finding stop competing for
     # one response, which is what starved Global News (3 stories per call, ~80% of the
     # answer spent retyping headlines).
     prompt_file = SELECT_PROMPT_FILE if args.split else args.prompt
     if args.split:
-        print("[gather] SPLIT MODE — stage 1: selection only (no facts)")
+        print("[gather] STAGE 2 (Select) — grouping and ranking only, no facts")
 
     for genre, cfg in (() if args.from_factbase else GENRE_CONFIG.items()):
         res = gather_genre(genre, cfg, prompt_file, expect_facts=not args.split)
@@ -918,12 +921,12 @@ def main():
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
 
     if args.select_only:
-        print(f"[gather] SELECT ONLY — {len(factbase)} stories ranked, no facts. "
-              f"Stage 2 runs separately so every arm shares this selection.")
+        print(f"[gather] STAGE 2 (Select) done — {len(factbase)} stories ranked, no facts. "
+              f"Stage 3 runs separately so every arm shares this selection.")
         search_log = build_search_log()
 
     if find_facts:
-        print(f"\n[gather] STAGE 2 — facts for {len(factbase)} selected stories "
+        print(f"\n[gather] STAGE 3 (Gather) — facts for {len(factbase)} selected stories "
               f"(input: {args.facts_input})")
         client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_MS))
         bn = sum(story_word_split(s_)[0] for s_ in factbase)

@@ -1,14 +1,16 @@
 """
 bilinguist_write.py
 ===================
-Stages 2S, 2B, 2M, 3, and 4 of the Bilinguist Brief daily pipeline.
+Stages 5-8 of the Bilinguist Brief daily pipeline:
+  5 Write Native  6 Grade Native  7 Write Levels  8 Grade Levels
+(Internal stage keys 3/4a/2S/2B/2M/4b are kept for the cost report.)
 
 Reads the factbase produced by bilinguist_gather.py and:
   2S — Short writing (B1+)  : gemini-2.5-flash  Concurrent  B1+/Native short
   2B — Beginner writing     : gemini-2.5-flash  Concurrent  A1/A2 all lengths
   2M — Medium/long (B1+)    : gemini-2.5-flash  Concurrent  B1+/Native medium (2 batches) + longer (3 batches)
   3  — Native journalism    : gemini-2.5-flash  Concurrent  one per language (2 proactive batches)
-  4  — Grading              : gemini-2.5-flash  Sequential  grades Stage 3 output
+  4  — Grading              : gemini-2.5-flash  Sequential  grades Stage 5 output
 
 Proactive splitting (2M and 3): medium→2 batches, longer→3 batches, native→2 batches.
 This eliminates MAX_TOKENS cascades by keeping each output stream well within 8192 tokens.
@@ -298,7 +300,7 @@ def build_combinations(
 
     native_grades: dict[lang, cefr_level] from P4a. For each language, levels at
     or above the native grade are skipped — P3 native journalism already covers them.
-    "Native" is always excluded from P2 (Stage 3 handles it).
+    "Native" is always excluded here (Stage 5 handles it).
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
@@ -313,7 +315,7 @@ def build_combinations(
 
         for level in levels:
             if level == "Native":
-                continue  # always handled by Stage 3
+                continue  # always handled by Stage 5
             if level not in CEFR_ORDER:
                 continue
             if CEFR_ORDER.index(level) >= skip_from_idx:
@@ -758,7 +760,7 @@ def run_native_journalism(
     client: genai.Client,
     factbase: list,
 ) -> dict:
-    """Stage 3 — generate native journalism for all languages × both lengths.
+    """Stage 5 (Write Native) — generate native journalism for all languages × both lengths.
     Returns {lang: {short: [articles], longer: [articles]}}."""
     # Honour the language matrix: only write native journalism for active languages
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
@@ -801,7 +803,7 @@ def run_grade_native(
     native_journalism: dict,
 ) -> dict:
     """
-    Stage P4a — grade native journalism to determine overall CEFR level per language.
+    Stage 6 (Grade Native) — grade native journalism to determine overall CEFR level per language.
     Returns dict[lang → cefr_level_str]. Uses gemini-2.0-flash-lite (classification only).
     """
     # Use the longer variant for grading (more words = more representative of level)
@@ -858,7 +860,7 @@ def run_writing_concurrent(
     native_grades: Optional[dict] = None,
 ) -> dict:
     """
-    Stages 2S, 2B, 2M — write CEFR level articles.
+    Stage 7 (Write Levels) — write CEFR level articles.
     Levels at or above native_grades[lang] are skipped (P3 already covers them).
     Returns briefings dict.
     """
@@ -940,7 +942,7 @@ def run_grade_cefr(
     briefings: dict,
 ) -> dict:
     """
-    Stage P4b — grade the CEFR level articles that were actually written.
+    Stage 8 (Grade Levels) — grade the CEFR level articles actually written.
     Uses gemini-2.0-flash-lite. Returns grading dict (per-article assessments).
     """
     # Collect all written articles per language for grading
@@ -1021,7 +1023,7 @@ def main():
     _t_pipeline = time.time()
     _stage_secs: dict[str, float] = {}
 
-    # Locate the factbase produced by Stage 1
+    # Locate the factbase produced by Stage 3 (Gather)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     factbase_path = os.path.join(script_dir, f"factbase_{date}.json")
     if not os.path.exists(factbase_path):
@@ -1048,12 +1050,12 @@ def main():
     client = genai.Client()
     print("[write] Gemini client initialised")
 
-    # ── Stage 3 — native journalism (runs before CEFR writing) ───────────────
+    # ── Stage 5 (Write Native) — runs before the CEFR levels ─────────────────
     _t = time.time()
     native_journalism = run_native_journalism(client, factbase)
     _stage_secs["3_native"] = time.time() - _t
 
-    # ── Stage P4a — grade native journalism → CEFR level per language ─────────
+    # ── Stage 6 (Grade Native) — gates which CEFR levels get written ──────────
     # This gates P2S/2M: levels at or above the native grade are skipped.
     _t = time.time()
     native_grades = run_grade_native(client, native_journalism)
@@ -1061,7 +1063,7 @@ def main():
     if native_grades:
         print(f"[write] Native grades: {native_grades}")
 
-    # ── Stages 2S + 2B + 2M — write CEFR levels below native grade ───────────
+    # ── Stage 7 (Write Levels) — CEFR levels below the native grade ──────────
     _t = time.time()
     briefings = run_writing_concurrent(client, factbase, 0, date, native_grades)
     _stage_secs["2_cefr_write"] = time.time() - _t
@@ -1082,7 +1084,7 @@ def main():
     )
     print(f"[write] Writing done: {total_briefings} / {len(combos_2s) + len(combos_2m)} briefings assembled")
 
-    # ── Stage P4b — grade the CEFR level articles that were written ───────────
+    # ── Stage 8 (Grade Levels) — grade the CEFR articles written ──────────────
     _t = time.time()
     grading = run_grade_cefr(client, briefings)
     _stage_secs["4b_grade_cefr"] = time.time() - _t

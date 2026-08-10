@@ -42,27 +42,27 @@ jobs:
         run: |
           echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
 
-      - name: Stage 0 - Scrape headlines
+      - name: Stage 1 - Scrape headlines
         working-directory: bilinguist-brief/scripts
         env:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_scrape.py
 
-      - name: Stage 1 - Gather news
+      - name: Stages 2+3 - Select stories, then gather their facts
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_gather.py
 
-      - name: Stage 1B - Fact-check factbase
+      - name: Stage 4 - Verify the factbase
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_factcheck.py
 
-      - name: Stages 2-4 - Write and grade
+      - name: Stages 5-8 - Write and grade
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -75,12 +75,12 @@ jobs:
         # --workers 16: per-article makes ~3.5x more calls; 4 would serialise it.
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16
 
-      - name: Check completeness
+      - name: Stage 9 - Check completeness
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 
-      # Stage 5 - dictionary enrichment disabled until new API source is wired up
-      # - name: Stage 5 - Enrich word dictionary
+      # Stage 10 (Enrich) - dictionary enrichment disabled until new API source is wired up
+      # - name: Stage 10 - Enrich word dictionary
 
       - name: Push bundle to data repo
         env:

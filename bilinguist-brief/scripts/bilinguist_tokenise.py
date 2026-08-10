@@ -1,9 +1,9 @@
 """
 bilinguist_tokenise.py
 ======================
-Stage P5 of the Bilinguist Brief daily pipeline.
+Stage 10 (Enrich) of the Bilinguist Brief daily pipeline.
 
-Runs after P4b (grading). For every article variant in today's bundle:
+Runs after Stage 8 (Grade Levels). For every article variant in today's bundle:
   1. Sends the full article text (headline + body) to Gemini 2.5 Flash-Lite
      for linguistic token analysis — lemmas, POS, linked positions (separable
      verbs, gendered articles, idioms).

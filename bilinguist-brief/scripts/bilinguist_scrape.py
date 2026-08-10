@@ -1,7 +1,7 @@
 """
 bilinguist_scrape.py
 ====================
-Stage 0 of the Bilinguist Brief daily pipeline.
+Stage 1 (Scrape) of the Bilinguist Brief daily pipeline.
 
 Fetches top headlines from 12 major news outlets via their public RSS feeds.
 Outputs scraped_headlines_{DATE}.json for use by bilinguist_gather.py.
@@ -173,7 +173,7 @@ def scrape_guardian() -> list[str]:
 
     # Plausibility guard — a redesign should fail loudly, not quietly.
     if len(headlines) < HEADLINES_PER_OUTLET:
-        print(f"[scrape] Guardian scrape returned only {len(headlines)} plausible "
+        print(f"[1-scrape] Guardian scrape returned only {len(headlines)} plausible "
               f"headlines — falling back to RSS", file=sys.stderr)
         return []
     return headlines[:HEADLINES_PER_OUTLET]
@@ -272,14 +272,14 @@ def fetch_genre(url: str) -> list[dict]:
         if len(out) >= GENRE_HEADLINES:
             break
     if dropped:
-        print(f"[scrape]   dropped {len(dropped)} non-allowlisted: "
+        print(f"[1-scrape]   dropped {len(dropped)} non-allowlisted: "
               f"{sorted(set(dropped))[:6]}", file=sys.stderr)
     return out
 
 
 def main() -> None:
-    print(f"[scrape] Starting headline scrape — {datetime.now(timezone.utc).isoformat()}")
-    print(f"[scrape] Date: {BRIEF_DATE} | Outlets: {len(OUTLETS)}")
+    print(f"[1-scrape] Starting headline scrape — {datetime.now(timezone.utc).isoformat()}")
+    print(f"[1-scrape] Date: {BRIEF_DATE} | Outlets: {len(OUTLETS)}")
 
     results: list[dict] = []
     success_count = 0
@@ -292,20 +292,20 @@ def main() -> None:
             if outlet.get("scraper") == "guardian":
                 headlines = scrape_guardian()
                 if headlines:
-                    print(f"[scrape] {name}: front-page HTML (editorial order)")
+                    print(f"[1-scrape] {name}: front-page HTML (editorial order)")
             if not headlines:
                 headlines = fetch_rss(rss_url)
             if headlines:
-                print(f"[scrape] ✓ {name} ({len(headlines)} headlines)")
+                print(f"[1-scrape] ✓ {name} ({len(headlines)} headlines)")
                 for i, h in enumerate(headlines, 1):
                     print(f"    {i}. {h[:100]}")
                 results.append({"name": name, "status": "ok", "headlines": headlines})
                 success_count += 1
             else:
-                print(f"[scrape] ✗ {name}: feed returned no items", file=sys.stderr)
+                print(f"[1-scrape] ✗ {name}: feed returned no items", file=sys.stderr)
                 results.append({"name": name, "status": "empty", "headlines": []})
         except Exception as e:
-            print(f"[scrape] ✗ {name}: {e}", file=sys.stderr)
+            print(f"[1-scrape] ✗ {name}: {e}", file=sys.stderr)
             results.append({"name": name, "status": "failed", "headlines": []})
 
     # ── Genre feeds ──────────────────────────────────────────────────────────
@@ -314,17 +314,17 @@ def main() -> None:
         try:
             rows = fetch_genre(url)
             genres[genre] = rows
-            print(f"[scrape] ✓ {genre} ({len(rows)} headlines)")
+            print(f"[1-scrape] ✓ {genre} ({len(rows)} headlines)")
             for i, r in enumerate(rows, 1):
                 print(f"    {i}. [{r['source']}] {r['headline'][:80]}")
         except Exception as e:
-            print(f"[scrape] ✗ {genre}: {e}", file=sys.stderr)
+            print(f"[1-scrape] ✗ {genre}: {e}", file=sys.stderr)
             genres[genre] = []
 
-    print(f"[scrape] Done: {success_count}/{len(OUTLETS)} outlets scraped successfully")
+    print(f"[1-scrape] Done: {success_count}/{len(OUTLETS)} outlets scraped successfully")
 
     if success_count == 0:
-        print("[scrape] ERROR: No outlets scraped — aborting", file=sys.stderr)
+        print("[1-scrape] ERROR: No outlets scraped — aborting", file=sys.stderr)
         sys.exit(1)
 
     script_dir = Path(__file__).parent
@@ -343,7 +343,7 @@ def main() -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    print(f"[scrape] Written to {output_path}")
+    print(f"[1-scrape] Written to {output_path}")
 
 
 if __name__ == "__main__":

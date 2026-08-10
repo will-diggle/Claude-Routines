@@ -144,14 +144,17 @@ def _cost_summary(output_dir: Path, date: str) -> str:
     except Exception:
         return ""
 
+    # Keys are the historical cost-report keys and MUST NOT be renamed — they are written
+    # into costs.csv in the data repo, so changing them breaks the cost history. Only the
+    # display labels carry the new stage numbering.
     stage_labels = {
-        "1_gather": "Gather",
-        "2S": "Write B1+/short",
-        "2B": "Write A1-A2",
-        "2M": "Write B1+/longer",
-        "3":  "Native journalism",
-        "4a": "Grade native",
-        "4b": "Grade CEFR",
+        "1_gather": "2+3 Select + Gather",
+        "3":  "5 Write Native",
+        "4a": "6 Grade Native",
+        "2S": "7 Write Levels (B1+/short)",
+        "2B": "7 Write Levels (A1-A2)",
+        "2M": "7 Write Levels (B1+/longer)",
+        "4b": "8 Grade Levels",
         "4":  "Grade (legacy)",
     }
 
@@ -386,15 +389,15 @@ def check(bundle_path: Path) -> int:
 
     factcheck_str, factcheck_warning = _factcheck_summary(script_dir, date, story_count)
 
-    # Detect grading stage failures: 4a defaults every language to B2 on failure,
-    # 4b produces no assessments. Neither is visible in article counts alone.
+    # Detect grading failures: Stage 6 defaults every language to B2 on failure,
+    # Stage 8 produces no assessments. Neither is visible in article counts alone.
     grading_warnings: list[str] = []
     total_gradings = sum(len(v) for v in grading.values())
     if total_gradings == 0 and briefings:
-        grading_warnings.append("⚠️ Stage 4b (CEFR grading) produced 0 assessments — grading model may have failed")
+        grading_warnings.append("⚠️ Stage 8 (Grade Levels) produced 0 assessments — grading model may have failed")
     all_native_grades = list(native_grades.values())
     if all_native_grades and len(set(all_native_grades)) == 1 and all_native_grades[0] == "B2":
-        grading_warnings.append("⚠️ Stage 4a (native grading) defaulted all languages to B2 — grading model may have failed")
+        grading_warnings.append("⚠️ Stage 6 (Grade Native) defaulted all languages to B2 — grading model may have failed")
 
     factcheck_warnings = [factcheck_warning] if factcheck_warning else []
     warnings  = wrong_length + thin + grading_warnings + factcheck_warnings
