@@ -42,6 +42,13 @@ jobs:
         run: |
           echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
 
+      - name: Prompt checks (no API calls)
+        working-directory: bilinguist-brief/scripts
+        # Fails the run before a single Gemini call if a prompt has an unsubstituted
+        # placeholder, has lost a required section, or the word-count ladder disagrees
+        # between write.py and check.py.
+        run: python test_prompts.py
+
       - name: Stage 1 - Scrape headlines
         working-directory: bilinguist-brief/scripts
         env:

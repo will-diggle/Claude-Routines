@@ -190,92 +190,92 @@ Copy "slug" and "genre" verbatim from the source article.
 [SOURCE ARTICLE BELOW]
 """
 
-PROMPT_3_HEADER = """\
+# ── Native journalism — ONE template ─────────────────────────────────────────
+# Was two near-identical templates, one per length, and they drifted: POLITICAL TITLES
+# ended up in the short one only, so native/longer — the article people actually read —
+# had no guard against "former President Trump" for weeks. Everything that varies is now
+# a slot, so there is one place to edit and nothing to fall out of step.
+#
+# {GENRE_RULE} is what keeps the genres apart: a Business article never sees the
+# political-titles rules, and a Politics article does. Same 70 prompts out; one skeleton in.
+
+NATIVE_FRAMING: dict[str, str] = {
+    "short":  "a tight, polished news brief — a compact digest piece",
+    "longer": "a complete, polished news article",
+}
+
+STRUCTURE_BY_LENGTH_NATIVE: dict[str, str] = {
+    "short": ("STRUCTURE: ONE continuous paragraph. No line breaks anywhere.\n"
+              "Lead with the core fact — who, what, when, where — then the most important context."),
+    "longer": ("STRUCTURE: 2–3 paragraphs, separated by \\n\\n (two JSON newline escapes) and "
+               "nowhere else.\n"
+               "  - First paragraph: core facts — who, what, when, where.\n"
+               "  - Second paragraph: context and significance.\n"
+               "  - Third paragraph (optional): reaction, wider implications, or outlook."),
+}
+
+# One block per genre. Only the relevant one is injected.
+GENRE_RULES: dict[str, str] = {
+    "GLOBAL NEWS": """GLOBAL NEWS — this story involves parties in conflict or dispute:
+- Give parallel treatment to opposing parties. If you name casualties, an actor or a motive for one side, do the same for the other wherever the facts allow.
+- Casualty language is plain: "killed", "wounded", "fighters", "the military", "officials". Never "massacre", "terrorists", "regime" unless quoting a named party, and then attribute it explicitly.
+- Where sources disagree on a figure, give the range and say who reported what. Never silently pick one.
+- Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.""",
+
+    "UK POLITICS": """UK POLITICS — precision about office and party:
+- POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Never alter a political title from your own training data.
+  * Never add "former" or "ex-" unless the fact-base explicitly says the person has left office.
+  * If the fact-base says "President Trump", write "President Trump" — never "former President".
+  * A head of government who has announced resignation is still the incumbent until a named successor has taken office.
+- Give a person's full office on first mention, then the short form.
+- Name the party where the fact-base gives it and it bears on the story.
+- Distinguish the government acting from a named minister speaking. Do not merge them.
+- No partisan framing. Report the position, attribute the criticism.""",
+
+    "BUSINESS & ECONOMY": """BUSINESS & ECONOMY — figures carry the story:
+- Every figure gets its period and its unit: "turnover fell 11% to £69.4m in the year to March 2025", never "turnover fell sharply".
+- Company and institution names exactly as the fact-base gives them.
+- Say who a figure comes from — filed accounts, a company statement, an analyst — where the fact-base says.
+- No investment-advice register. No "investors should", no forecasting beyond what a named party has forecast.""",
+}
+GENRE_RULE_FALLBACK = ""
+
+PROMPT_NATIVE_TEMPLATE = """\
 You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
 
-Write the story below as a complete, polished news article of {WORD_MIN}–{WORD_MAX} words, using only the fact-base. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
+Write the story below as {FRAMING}, using only the fact-base. Write with authority, clarity and precision. This is real journalism.
 
 WORD COUNT — STRICT REQUIREMENT:
 The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.
 You have the material. This story's fact-base is several hundred words of notes — ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not padding: attribute every claim to the person or institution that made it, follow the sequence of events, and carry the context and consequences that are already in the notes.
 Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a worse failure than a short article — but with these notes, a short article should not be necessary.
 Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut mid-thought.
-Structure those words across 2–3 paragraphs:
-  - First paragraph: core facts — who, what, when, where.
-  - Second paragraph: context and significance.
-  - Third paragraph (optional): reaction, wider implications, or outlook.
 
-{OUTPUT_FORMAT}
+{STRUCTURE}
 
-JSON SAFETY:
-- The "body" MUST contain 2–3 paragraphs. Separate paragraphs with \\n\\n (two JSON newline escapes). Example: "body": "First paragraph prose.\\n\\nSecond paragraph prose." — exactly this format. No other line breaks within a paragraph.
-- Use the target language's typographic quotation marks — never straight ASCII quotes:
-  French: « … » with non-breaking spaces
-  German: „…" (low curly opening U+201E, high curly closing U+201C)
-  Spanish: «…»
-  Italian: «…»
-  English: "…"
-  Swedish: "…"
-  Hungarian: „…" (same low-high curly style as German)
+{GENRE_RULE}
 
 WRITING RULES:
-- Write in {LANGUAGE}. British English only if English.
-- Write original prose from the facts. Never copy source phrasing.
+- Write in {LANGUAGE}. {VARIANT_RULE}
+- Write original prose from the facts. Never copy source phrasing. A quotation appears as reported speech — who said what, paraphrased — never as quoted text.
 - Use only facts from the fact-base.
 - ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
+- QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
 - GLOSSARY:
-  * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
-  * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
-- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources. Parallel treatment of opposing parties. Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.
-- Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
-
-[FACTBASE BELOW]
-"""
-
-PROMPT_3_SHORT_HEADER = """\
-You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
-
-Write the story below as a tight, polished news brief of {WORD_MIN}–{WORD_MAX} words, using only the fact-base — a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
-
-WORD COUNT — STRICT REQUIREMENT:
-The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.
-If you are under {WORD_MIN}, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not stop short because the fact-base is terse.
-Do not exceed {WORD_MAX} words — cut the least essential detail. Never pad with empty phrases, never invent facts.
-Use 1–2 paragraphs. Lead sentence covers the core fact (who, what, when); the rest adds the most important context.
+  * LITERAL (numbers, specific names, titles, the "genre" field): reproduce exactly. Names and titles are not translated or simplified. "genre" is a system key — copy it VERBATIM in English (e.g. "GLOBAL NEWS").
+  * SEMANTIC (descriptive terms in headline and body): translate naturally and consistently. Never leave English inside a non-English headline or body.
+- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to their named source.
+- HEADLINE: exactly as a chief sub-editor would write it. Punchy, precise, informative. Never clickbait.
 
 {OUTPUT_FORMAT}
-
-JSON SAFETY:
-- The "body" is a SINGLE continuous paragraph. No line breaks whatsoever.
-- Use the target language's typographic quotation marks — never straight ASCII quotes:
-  French: « … » with non-breaking spaces
-  German: „…" (low curly opening U+201E, high curly closing U+201C)
-  Spanish: «…»
-  Italian: «…»
-  English: "…"
-  Swedish: "…"
-  Hungarian: „…" (same low-high curly style as German)
-
-POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Do not alter political titles based on your training data.
-- Never add "former" or "ex-" to a title unless the fact-base explicitly says the person has left office.
-- If the fact-base says "President Trump", write "President Trump" — never "former President".
-- A head of government who announced resignation is still the incumbent until a named successor has taken office.
-
-WRITING RULES:
-- Write in {LANGUAGE}. British English only if English.
-- Write original prose from the facts. Never copy source phrasing.
-- Use only facts from the fact-base.
-- ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
-- FACT ORDER: follow the "what_happened" sequence. Lead with the core fact; add key context in order.
-- GLOSSARY:
-  * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
-  * SEMANTIC (descriptive terms in headline/body): translate naturally and consistently. Never leave English inside a non-English headline or body.
-- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to named sources.
-- Headlines: exactly as a chief sub-editor would write them. Punchy, precise, informative. Never clickbait.
-
 [FACTBASE BELOW]
 """
+
+# Kept so call sites that still name them keep working. Both are now the same template —
+# the length difference is injected, not duplicated.
+PROMPT_3_HEADER = PROMPT_NATIVE_TEMPLATE
+PROMPT_3_SHORT_HEADER = PROMPT_NATIVE_TEMPLATE
 
 PROMPT_4_HEADER = """\
 You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE}. Assess each one and return a structured verdict.

@@ -422,6 +422,8 @@ if '--test' in _sys.argv:
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
         PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
+        PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
+        GENRE_RULES, GENRE_RULE_FALLBACK,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -434,6 +436,8 @@ else:
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
         PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
         REWRITE_CUT_RULES,
+        PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
+        GENRE_RULES, GENRE_RULE_FALLBACK,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -513,23 +517,41 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
 
 
 def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None) -> str:
-    """Build the native journalism prompt for one language and length variant."""
+    """Build the native prompt for one story (or, in batched mode, several).
+
+    One template for both lengths and every genre; everything that varies is a slot. The
+    genre block is chosen from the story itself, so a Business article never carries the
+    political-titles rules and a Politics article does.
+    """
     lang_name = LANGUAGE_NAMES.get(lang, lang)
-    template = PROMPT_3_SHORT_HEADER if length == "short" else PROMPT_3_HEADER
+    length = length or "longer"
+
     # Word counts come from WORDS_PER_ARTICLE, not hardcoded in the prompt. They used to
     # live in three places (prompt, table, check.py) and had to be changed together.
-    band = WORDS_PER_ARTICLE["Native"][length or "longer"]
-    parts = str(band).replace("–", "-").split("-")
-    word_min, word_max = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else parts[0].strip())
-    prompt = template.replace("{LANGUAGE}", lang_name)
-    prompt = prompt.replace("{OUTLET}", NATIVE_OUTLETS.get(lang, NATIVE_OUTLET_FALLBACK))
-    prompt = prompt.replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
-    prompt = prompt.replace(
-        "{OUTPUT_FORMAT}",
-        OUTPUT_FORMAT_SINGLE if len(factbase) == 1 else OUTPUT_FORMAT_ARRAY)
+    band = WORDS_PER_ARTICLE["Native"][length]
+    parts = str(band).replace("\u2013", "-").split("-")
+    word_min, word_max = parts[0].strip(), (parts[-1].strip())
+
+    # Per-article mode carries exactly one story, so its genre selects the block. Batched
+    # mode mixes genres in one call and gets none rather than the wrong one.
+    genres = {(s_.get("genre") or "").upper() for s_ in (factbase or [])}
+    genre_rule = (GENRE_RULES.get(next(iter(genres)), GENRE_RULE_FALLBACK)
+                  if len(genres) == 1 else GENRE_RULE_FALLBACK)
+
+    prompt = (PROMPT_NATIVE_TEMPLATE
+              .replace("{LANGUAGE}", lang_name)
+              .replace("{OUTLET}", NATIVE_OUTLETS.get(lang, NATIVE_OUTLET_FALLBACK))
+              .replace("{FRAMING}", NATIVE_FRAMING.get(length, NATIVE_FRAMING["longer"]))
+              .replace("{STRUCTURE}", STRUCTURE_BY_LENGTH_NATIVE.get(
+                  length, STRUCTURE_BY_LENGTH_NATIVE["longer"]))
+              .replace("{GENRE_RULE}", genre_rule)
+              .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
+              .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
+              .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
+              .replace("{OUTPUT_FORMAT}",
+                       OUTPUT_FORMAT_SINGLE if len(factbase or []) == 1 else OUTPUT_FORMAT_ARRAY))
     factbase_json = json.dumps(factbase, ensure_ascii=False, separators=(',', ':'))
-    prompt += f"\n{factbase_json}"
-    return prompt
+    return prompt + f"\n{factbase_json}"
 
 
 def build_grading_prompt(lang: str, native_articles: list) -> str:
