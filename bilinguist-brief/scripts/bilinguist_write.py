@@ -72,6 +72,27 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 PER_ARTICLE: bool = False
 SERVICE_TIER: Optional[str] = None
 
+# LEVELS_FROM: "factbase" writes each level article from the fact-base (today's
+# behaviour, arm A). "native" rewrites the graded native article of the same language,
+# length and story down to the target level (arm B). Set via --levels-from.
+LEVELS_FROM: str = "factbase"
+
+# {(lang, length, slug): native article} — populated when LEVELS_FROM == "native" so a
+# level task can find the one article it is rewriting.
+_NATIVE_INDEX: dict = {}
+
+
+def _index_native(native_journalism: dict) -> dict:
+    idx = {}
+    for lang, by_length in (native_journalism or {}).items():
+        if not isinstance(by_length, dict):
+            continue
+        for length, arts in by_length.items():
+            for a in arts or []:
+                if a.get("slug"):
+                    idx[(lang, length, a["slug"])] = a
+    return idx
+
 
 def _set_workers(n: int) -> None:
     """Resize the concurrency cap. Per-article mode fans out to hundreds of small
@@ -369,6 +390,8 @@ if '--test' in _sys.argv:
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
+        NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
+        PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
     )
     print("[write] TEST MODE — using bilinguist_prompts_test.py")
 else:
@@ -378,6 +401,8 @@ else:
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
+        NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
+        PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -420,11 +445,39 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     return prompt
 
 
+def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> str:
+    """Arm B: rewrite one native article down to `level`. Returns "" if no source."""
+    if not source or not source.get("body"):
+        return ""
+    band = WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length]
+    parts = str(band).replace("\u2013", "-").split("-")
+    word_min, word_max = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else parts[0].strip())
+    prompt = (PROMPT_LEVEL_REWRITE
+              .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
+              .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
+              .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
+              .replace("{STRUCTURE}", STRUCTURE_BY_LENGTH.get(length, ""))
+              .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
+              .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
+              .replace("{OUTPUT_FORMAT}", OUTPUT_FORMAT_SINGLE))
+    # Only the fields the rewrite may touch or must copy. The fact-base is deliberately
+    # NOT included: arm B tests rewriting, so restoring dropped facts would blur the test.
+    payload = {k: source.get(k) for k in ("genre", "slug", "headline", "body")}
+    return prompt + "\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
 def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None) -> str:
     """Build the native journalism prompt for one language and length variant."""
     lang_name = LANGUAGE_NAMES.get(lang, lang)
     template = PROMPT_3_SHORT_HEADER if length == "short" else PROMPT_3_HEADER
+    # Word counts come from WORDS_PER_ARTICLE, not hardcoded in the prompt. They used to
+    # live in three places (prompt, table, check.py) and had to be changed together.
+    band = WORDS_PER_ARTICLE["Native"][length or "longer"]
+    parts = str(band).replace("–", "-").split("-")
+    word_min, word_max = parts[0].strip(), (parts[1].strip() if len(parts) > 1 else parts[0].strip())
     prompt = template.replace("{LANGUAGE}", lang_name)
+    prompt = prompt.replace("{OUTLET}", NATIVE_OUTLETS.get(lang, NATIVE_OUTLET_FALLBACK))
+    prompt = prompt.replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
     prompt = prompt.replace(
         "{OUTPUT_FORMAT}",
         OUTPUT_FORMAT_SINGLE if len(factbase) == 1 else OUTPUT_FORMAT_ARRAY)
@@ -675,6 +728,18 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
         for story in stories:
             if task.stage == "3":
                 prompt = build_native_prompt(task.lang, [story], task.length)
+            elif LEVELS_FROM == "native":
+                src = _NATIVE_INDEX.get((task.lang, task.length, story.get("slug")))
+                prompt = build_rewrite_prompt(task.lang, task.level, task.length, src)
+                if not prompt:
+                    # No native article for this language (Spanish has no Native level),
+                    # so fall back to writing from the fact-base rather than dropping the
+                    # story. Logged, and reported as excluded from the comparison.
+                    print(f"[write] {task.lang}-{task.level}-{task.length}/"
+                          f"{story.get('slug')}: no native source — writing from factbase",
+                          file=sys.stderr)
+                    prompt = build_writing_prompt(
+                        task.template, task.lang, task.level, task.length, [story])
             else:
                 prompt = build_writing_prompt(
                     task.template, task.lang, task.level, task.length, [story]
@@ -1051,12 +1116,33 @@ def main():
     parser.add_argument("--tier", choices=["standard", "flex"], default="standard",
                         help="Gemini service tier. 'flex' is ~50%% cheaper but adds "
                              "1-15 min latency per call and is sheddable.")
+    # A/B: stages 5-6 (native + its grade) must run ONCE and be shared, or the arms are
+    # writing levels from different native articles and the comparison means nothing.
+    parser.add_argument("--stop-after-native", action="store_true", dest="stop_after_native",
+                        help="Run stages 5-6 only, write the bundle with nativeJournalism "
+                             "and nativeGrades, and stop. For A/B runs.")
+    parser.add_argument("--native-from", dest="native_from", metavar="PATH",
+                        help="Skip stages 5-6 and load nativeJournalism/nativeGrades from "
+                             "this bundle, so both arms share one native pass.")
+    parser.add_argument("--levels-from", choices=["factbase", "native"], default="factbase",
+                        dest="levels_from",
+                        help="How stage 7 writes: 'factbase' writes each level article from "
+                             "the fact-base (today's behaviour). 'native' rewrites the graded "
+                             "native article of the same language, length and story down to "
+                             "the target level.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
+    LEVELS_FROM = args.levels_from
     _set_workers(args.workers)
+
+    if args.levels_from == "native" and not args.native_from:
+        sys.exit("--levels-from native needs --native-from: it rewrites native articles "
+                 "and does not write them.")
+    if args.stop_after_native and args.native_from:
+        sys.exit("--stop-after-native writes the native pass; --native-from loads one.")
 
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     print(f"[write] Starting writing/grading pipeline — {date}")
@@ -1093,17 +1179,47 @@ def main():
     print("[write] Gemini client initialised")
 
     # ── Stage 5 (Write Native) — runs before the CEFR levels ─────────────────
-    _t = time.time()
-    native_journalism = run_native_journalism(client, factbase)
-    _stage_secs["3_native"] = time.time() - _t
+    if args.native_from:
+        with open(args.native_from, encoding="utf-8") as f:
+            _src = json.load(f)
+        native_journalism = _src.get("nativeJournalism") or {}
+        native_grades     = _src.get("nativeGrades") or {}
+        if not native_journalism:
+            sys.exit(f"[write] ERROR: no nativeJournalism in {args.native_from}")
+        _n = sum(len(v) for by in native_journalism.values() for v in by.values())
+        print(f"[write] Native reused from {args.native_from} — {_n} articles, "
+              f"grades {native_grades}. Stages 5-6 skipped.")
+        _stage_secs["3_native"] = 0.0
+        _stage_secs["4a_grade_native"] = 0.0
+    else:
+        _t = time.time()
+        native_journalism = run_native_journalism(client, factbase)
+        _stage_secs["3_native"] = time.time() - _t
 
-    # ── Stage 6 (Grade Native) — gates which CEFR levels get written ──────────
-    # This gates P2S/2M: levels at or above the native grade are skipped.
-    _t = time.time()
-    native_grades = run_grade_native(client, native_journalism)
-    _stage_secs["4a_grade_native"] = time.time() - _t
+        # ── Stage 6 (Grade Native) — gates which CEFR levels get written ──────
+        # Grades all of a language's articles together: one overall level per language.
+        _t = time.time()
+        native_grades = run_grade_native(client, native_journalism)
+        _stage_secs["4a_grade_native"] = time.time() - _t
     if native_grades:
         print(f"[write] Native grades: {native_grades}")
+
+    if LEVELS_FROM == "native":
+        _NATIVE_INDEX = _index_native(native_journalism)
+        print(f"[write] LEVELS FROM NATIVE — {len(_NATIVE_INDEX)} native articles indexed "
+              f"by (language, length, slug)")
+
+    if args.stop_after_native:
+        _out = os.path.join(script_dir, "output")
+        os.makedirs(_out, exist_ok=True)
+        _p = os.path.join(_out, f"native_{date}.json")
+        with open(_p, "w", encoding="utf-8") as f:
+            json.dump({"date": date, "factbase": factbase,
+                       "nativeJournalism": native_journalism,
+                       "nativeGrades": native_grades}, f, ensure_ascii=False, indent=2)
+        print(f"[write] --stop-after-native: wrote {_p}. Stages 7-8 skipped.")
+        write_costs_report(date, script_dir)
+        return
 
     # ── Stage 7 (Write Levels) — CEFR levels below the native grade ──────────
     _t = time.time()

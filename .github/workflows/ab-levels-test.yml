@@ -1,0 +1,151 @@
+name: "A/B — level articles: write from factbase vs rewrite the native"
+
+# ONE variable: how Stage 7 writes the CEFR level articles.
+#
+# STAGES 1-4  scrape → select → gather → verify   run once, shared
+# STAGE 5     write native journalism             run once, shared
+# STAGE 6     grade native (all articles per language, together — unchanged)
+# STAGE 7     write the level articles            ← THE TEST
+#               ARM A  --levels-from factbase   each level written from the fact-base
+#               ARM B  --levels-from native     the graded native article for the same
+#                                               language, length and story, rewritten
+#                                               down to the target level
+#
+# Both arms load the SAME native pass via --native-from, so they are rewriting or
+# competing against identical source articles. If each arm wrote its own native, the
+# comparison would be meaningless.
+#
+# Why B might win: today every level writes from an ENGLISH fact-base, so each level
+# independently translates. In B the translation happened once, in native, and the levels
+# only change reading level. It is also compression rather than expansion, and fact order
+# is preserved by construction rather than requested.
+#
+# Why B might lose: levels stop being independent. A hallucination in the native article
+# propagates to every level beneath it, where today an error in French native cannot
+# touch French A2.
+#
+# Spanish has no Native level, so arm B has nothing to rewrite and falls back to writing
+# from the fact-base. Those combos are identical in both arms and carry no signal.
+#
+# Never pushes to the data repo — cannot affect the live brief.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set date
+        run: echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Stage 1 - scrape
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_scrape.py
+
+      - name: Stages 2+3 - select stories, then gather their facts
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          python bilinguist_gather.py --select-only
+          cp factbase_${{ env.BRIEF_DATE }}.json selection.json
+          python bilinguist_gather.py --from selection.json --facts-input winners
+
+      - name: Stage 4 - verify the factbase
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_factcheck.py
+
+      - name: Stages 5+6 (shared) - write native, grade it
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # Run ONCE. Both arms consume this exact native pass.
+        run: |
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
+            --per-article --workers 16 --stop-after-native
+          python - <<'PY'
+          import json, os
+          d = json.load(open(f"output/native_{os.environ['BRIEF_DATE']}.json", encoding="utf-8"))
+          nj = d["nativeJournalism"]
+          print("grades:", d["nativeGrades"])
+          for lang, by_len in nj.items():
+              for length, arts in by_len.items():
+                  w = [len(a["body"].split()) for a in arts]
+                  avg = sum(w) // max(len(w), 1)
+                  print(f"  {lang}/{length:6} {len(arts)} articles, avg {avg}w")
+          PY
+
+      - name: ARM A - levels written from the factbase
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          START=$(date +%s)
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
+            --per-article --workers 16 \
+            --native-from output/native_${{ env.BRIEF_DATE }}.json \
+            --levels-from factbase
+          echo "ARM_A_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
+          cp output/${{ env.BRIEF_DATE }}.json output/armA.json
+          cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armA.json
+
+      - name: ARM B - levels rewritten from the native article
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          START=$(date +%s)
+          python bilinguist_write.py --date ${{ env.BRIEF_DATE }} \
+            --per-article --workers 16 \
+            --native-from output/native_${{ env.BRIEF_DATE }}.json \
+            --levels-from native
+          echo "ARM_B_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
+          cp output/${{ env.BRIEF_DATE }}.json output/armB.json
+          cp output/costs_${{ env.BRIEF_DATE }}.json output/costs_armB.json
+
+      - name: RESULTS
+        working-directory: bilinguist-brief/scripts
+        env:
+          ARM_A_SECS: ${{ env.ARM_A_SECS }}
+          ARM_B_SECS: ${{ env.ARM_B_SECS }}
+        run: |
+          python ab_levels_compare.py output/armA.json output/armB.json \
+            output/costs_armA.json output/costs_armB.json
+          echo
+          echo "wall clock — A ${ARM_A_SECS}s | B ${ARM_B_SECS}s"
+
+      - name: Upload both bundles and the shared native pass
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ab-levels-${{ env.BRIEF_DATE }}
+          path: |
+            bilinguist-brief/scripts/output/armA.json
+            bilinguist-brief/scripts/output/armB.json
+            bilinguist-brief/scripts/output/native_${{ env.BRIEF_DATE }}.json
+            bilinguist-brief/scripts/output/costs_armA.json
+            bilinguist-brief/scripts/output/costs_armB.json

@@ -211,3 +211,5 @@ OUTPUT_FORMAT_ARRAY = (
     'OUTPUT FORMAT: {"articles":[{"genre":"...","slug":"...","headline":"...","body":"..."}]}\n'
     'One entry per fact-base story. Copy "slug" and "genre" verbatim from each story.'
 )
+
+from bilinguist_prompts import NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK  # noqa: F401,E402

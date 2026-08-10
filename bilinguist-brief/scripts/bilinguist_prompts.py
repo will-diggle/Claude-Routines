@@ -27,11 +27,53 @@ LENGTH_INSTRUCTIONS: dict[str, str] = {
     ),
 }
 
+# One outlet per language, injected as {OUTLET}. The native prompt used to list all eight
+# and let the model pick its own line — the same shape as the "IF German is English" bug
+# that VARIANT_RULES below was created to fix. Only the relevant one is now shown.
+NATIVE_OUTLETS: dict[str, str] = {
+    "fr": "Le Monde",
+    "de": "Der Spiegel",
+    "en": "The Economist (British English throughout — never American)",
+    "sv": "Dagens Nyheter",
+    "es": "El País",
+    "it": "Corriere della Sera",
+    "hu": "HVG",
+    "ar": "Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration)",
+    "tr": "Cumhuriyet",
+}
+# Any language without an entry falls back to this rather than naming a wrong outlet.
+NATIVE_OUTLET_FALLBACK = "the most respected national daily"
+
+
 # Per-language rules injected only when relevant. Fixes the "IF German is English" bug.
 VARIANT_RULES: dict[str, str] = {
     "ar": "Write exclusively in Modern Standard Arabic (الفصحى). No dialect. No transliteration. Western numerals (0–9).",
     "en": "Write in British English throughout.",
 }
+
+# One correct line per language. The native prompt used to show all seven to everyone, and
+# four of them (German, Hungarian, English, Swedish) demonstrated the straight ASCII quotes
+# the same rule forbids.
+QUOTE_RULES: dict[str, str] = {
+    "fr": "« … » (U+00AB … U+00BB) with non-breaking spaces",
+    "de": "„…“ (U+201E opening, U+201C closing)",
+    "es": "«…» (U+00AB … U+00BB)",
+    "it": "«…» (U+00AB … U+00BB)",
+    "en": "“…” (U+201C opening, U+201D closing)",
+    "sv": "”…” (U+201D for both)",
+    "hu": "„…” (U+201E opening, U+201D closing)",
+    "tr": "“…” (U+201C opening, U+201D closing)",
+    "ar": "«…» (U+00AB … U+00BB)",
+}
+QUOTE_RULE_FALLBACK = "the target language's own typographic quotation marks"
+
+# Paragraph shape by length. Shared by the native prompt and the level rewrite.
+STRUCTURE_BY_LENGTH: dict[str, str] = {
+    "short": ("STRUCTURE: ONE continuous paragraph. No line breaks anywhere."),
+    "longer": ("STRUCTURE: 2–3 paragraphs, separated by \\n\\n (two JSON newline escapes) "
+               "and nowhere else."),
+}
+
 
 # One story per call — a bare object, no array to over-fill.
 OUTPUT_FORMAT_SINGLE = (
@@ -75,17 +117,54 @@ WORD COUNT — STRICT REQUIREMENT:
 PROMPT_2S_HEADER = PROMPT_LEARNER_TEMPLATE
 PROMPT_2M_HEADER = PROMPT_LEARNER_TEMPLATE
 
-PROMPT_3_HEADER = """\
-You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
-French → Le Monde. German → Der Spiegel. English → The Economist (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG. Arabic → Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration).
+# Stage 7, arm B: rewrite the graded native article down a level instead of writing from
+# the fact-base. The native article already selected, ordered and phrased the facts in the
+# target language, so this is a level change rather than a translate-and-write.
+#
+# There is no CHANGE list telling it how to simplify. Spelling out level mechanics was
+# tested and made output worse — see the warning above LEVEL_DESCRIPTIONS. "Rewrite it at
+# {LEVEL}" is the instruction; KEEP is the whole constraint.
+#
+# Cutting is FROM THE END, keeping the opening facts. Compressing 250 words to 120 means
+# facts must go, so "keep every fact" would be an impossible instruction of exactly the
+# kind that produced invention before. Stopping earlier in the same sequence also keeps the
+# levels comparable, which was the original design.
+PROMPT_LEVEL_REWRITE = """\
+You are rewriting one published news article in {LANGUAGE} for a language learner reading at CEFR {LEVEL_DESCRIPTION}.
 
-You receive one story from a pre-gathered fact-base of today's news. Write it as a complete, polished news article — exactly as a senior staff journalist would publish it. No level constraints. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
+The article below was written by a native journalist in {LANGUAGE}. Rewrite it in {LANGUAGE} at {LEVEL_DESCRIPTION}. This is a change of reading level — not a translation, not a summary, not a new article.
+
+KEEP, EXACTLY:
+- The ORDER of the facts. The article opens on the same fact and proceeds in the same sequence. Never reorder.
+- Every number, name, place and organisation, verbatim.
+- Every attribution — who said or reported what.
+- The distinction between what is verified and what is unconfirmed.
+
+WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source article is longer than this, so you must cut.
+- Cut from the END. Keep the opening facts and stop earlier in the story.
+- Within the facts you keep, cut adjectives, secondary detail and background before cutting anything load-bearing.
+- Never invent, never generalise to fill space, never merge two facts into a vaguer one.
+
+{STRUCTURE}
+{VARIANT_RULE}
+QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
+Never name a news outlet, wire service or social-media channel.
+Copy "slug" and "genre" verbatim from the source article.
+
+{OUTPUT_FORMAT}
+[SOURCE ARTICLE BELOW]
+"""
+
+PROMPT_3_HEADER = """\
+You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
+
+Write the story below as a complete, polished news article of {WORD_MIN}–{WORD_MAX} words, using only the fact-base. No concessions to learners. Write with authority, clarity, and precision. This is real journalism.
 
 WORD COUNT — STRICT REQUIREMENT:
-Each article body must be between 250 and 270 words. Count every word before submitting.
-You have the material. This story's fact-base is several hundred words of notes — ample for 250 words of prose. Reaching the count is ordinary journalism, not padding: attribute every claim to the named source given, follow the sequence of events, and carry the context and consequences that are already in the notes.
+The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.
+You have the material. This story's fact-base is several hundred words of notes — ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not padding: attribute every claim to the person or institution that made it, follow the sequence of events, and carry the context and consequences that are already in the notes.
 Never reach the count by generalising ("his tenure will be closely watched"), by restating a fact you have already given, or by supplying context you were not given. An invented fact is a worse failure than a short article — but with these notes, a short article should not be necessary.
-Do not exceed 270 words — trim the least essential detail. Never cut mid-thought.
+Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut mid-thought.
 Structure those words across 2–3 paragraphs:
   - First paragraph: core facts — who, what, when, where.
   - Second paragraph: context and significance.
@@ -107,7 +186,8 @@ JSON SAFETY:
 WRITING RULES:
 - Write in {LANGUAGE}. British English only if English.
 - Write original prose from the facts. Never copy source phrasing.
-- Use only facts from the fact-base. Preserve all attributions exactly.
+- Use only facts from the fact-base.
+- ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
 - GLOSSARY:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
@@ -119,15 +199,14 @@ WRITING RULES:
 """
 
 PROMPT_3_SHORT_HEADER = """\
-You are a staff journalist writing for the most respected news outlet in {LANGUAGE}.
-French → Le Monde. German → Der Spiegel. English → The Economist (British English throughout — never American). Swedish → Dagens Nyheter. Spanish → El País. Italian → Corriere della Sera. Hungarian → HVG. Arabic → Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration).
+You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
 
-You receive one story from a pre-gathered fact-base of today's news. Write it as a tight, polished news brief — exactly as a senior staff journalist would write a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
+Write the story below as a tight, polished news brief of {WORD_MIN}–{WORD_MAX} words, using only the fact-base — a compact digest piece. No level constraints. No concessions to learners. Write with authority and precision.
 
 WORD COUNT — STRICT REQUIREMENT:
-Each article body must be between 85 and 100 words. Count every word before submitting.
-If you are under 85, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not stop short because the fact-base is terse.
-Do not exceed 100 words — cut the least essential detail. Never pad with empty phrases, never invent facts.
+The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before submitting.
+If you are under {WORD_MIN}, add the next most important fact from the fact-base — a figure, a named source, or a consequence. Do not stop short because the fact-base is terse.
+Do not exceed {WORD_MAX} words — cut the least essential detail. Never pad with empty phrases, never invent facts.
 Use 1–2 paragraphs. Lead sentence covers the core fact (who, what, when); the rest adds the most important context.
 
 {OUTPUT_FORMAT}
@@ -151,7 +230,8 @@ POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Do not
 WRITING RULES:
 - Write in {LANGUAGE}. British English only if English.
 - Write original prose from the facts. Never copy source phrasing.
-- Use only facts from the fact-base. Preserve all attributions exactly.
+- Use only facts from the fact-base.
+- ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence. Lead with the core fact; add key context in order.
 - GLOSSARY:
   * LITERAL (numbers, specific names, the "genre" field): reproduce exactly. Names not translated. The "genre" field is a system key — copy it VERBATIM from the fact-base in English (e.g. "GLOBAL NEWS", "POLITICS"). Never translate it.
