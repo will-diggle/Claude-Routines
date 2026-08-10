@@ -172,8 +172,11 @@ The article below was written by a native journalist in {LANGUAGE}. Rewrite it i
 KEEP, EXACTLY:
 - The ORDER of the facts. The article opens on the same fact and proceeds in the same sequence. Never reorder.
 - Every number, name, place and organisation, verbatim.
+- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "President Trump" stays "President Trump" — never "the leader of the United States", never "the man in charge of the country". This holds at EVERY level, including A1. If a title is above the reader's level, it stays anyway.
 - Every attribution — who said or reported what.
 - The distinction between what is verified and what is unconfirmed.
+
+SIMPLIFY freely: descriptive terms, not names. "ceasefire" may become the simplest phrase in {LANGUAGE} that means the same thing. Names, titles and figures may not.
 
 {CUT_RULE}
 
