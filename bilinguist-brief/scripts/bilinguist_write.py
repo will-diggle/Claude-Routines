@@ -1189,9 +1189,9 @@ def main():
     ALL_LEVELS = args.all_levels
     _set_workers(args.workers)
 
-    if args.levels_from == "native" and not args.native_from:
-        sys.exit("--levels-from native needs --native-from: it rewrites native articles "
-                 "and does not write them.")
+    # --levels-from native works either way: native comes from --native-from (A/B, where
+    # both arms must share one pass) or from this run's own Stage 5 (production, single
+    # process). _NATIVE_INDEX is built after native exists, whichever way it arrived.
     if args.stop_after_native and args.native_from:
         sys.exit("--stop-after-native writes the native pass; --native-from loads one.")
 

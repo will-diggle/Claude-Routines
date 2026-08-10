@@ -116,7 +116,15 @@ jobs:
         # faster (20s vs 49s) for +14% cost. Variety was unaffected — openings
         # stayed 100% distinct in 15 of 18 combos.
         # --workers 16: per-article makes ~3.5x more calls; 4 would serialise it.
-        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16
+        # --levels-from native: Stage 7 rewrites the graded native article of the same
+        # language, length and story down to each level, instead of writing every level
+        # from the fact-base. Adopted from the A/B on 2026-08-10 (run over 252 articles):
+        # fact order held in 91% of level articles against 60% for the fact-base arm, and
+        # it was closer on `longer` (7w off centre vs 18w), marginally cheaper and the
+        # same speed. It also removes a hidden translation step — every level used to
+        # translate the English fact-base independently, which is why terminology drifted
+        # between levels; now the translation happens once, in native.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native
 
       - name: Stage 9 - Check completeness
         working-directory: bilinguist-brief/scripts
