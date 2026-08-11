@@ -19,13 +19,22 @@ from pathlib import Path
 # API client, nothing to initialise.
 from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band  # noqa: F401
 
+# Every active language now writes every CEFR level below its own native grade
+# (bilinguist_write.py --all-levels, production default since 2026-08-11), not just a
+# fixed per-language subset. This module deliberately does NOT import bilinguist_write
+# (which pulls in google.genai — Stage 9 makes no API calls and should stay lightweight),
+# so this list is kept in sync by hand: every active language gets the full ladder: which
+# levels actually got written is still decided per-bundle by native_grades (skip_from_idx
+# below), same as the write side. Before this fix, fr/de/it only checked A2, sv/en checked
+# nothing beyond native, and es checked A2 only — every B1+ article Stage 7 now writes for
+# them was invisible here: not flagged, not word-counted, not counted toward coverage.
 LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A2", "Native"],
-    "de": ["A2", "Native"],
-    "sv": ["Native"],
-    "en": ["Native"],
-    "it": ["A2", "Native"],
-    "es": ["A2"],
+    "fr": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "de": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "sv": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "en": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "it": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "es": ["A1", "A2", "B1", "B2", "C1", "C2"],  # no shipped Native edition
     "tr": [],  # temporarily disabled
     "hu": [],  # temporarily disabled
     "ar": [],  # temporarily disabled
@@ -92,6 +101,20 @@ WORD_TARGETS_LANG: dict[str, dict[str, dict[str, tuple[int, int]]]] = {
 
 
 CEFR_SCALE = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def _overall_level_accuracy(grading: dict) -> tuple[int, int]:
+    """(hit, total) across every graded article with a written_level tag — one rolled-up
+    figure for the header, separate from _level_grade_table's per-combo breakdown."""
+    hit = total = 0
+    for assessments in (grading or {}).values():
+        for a in assessments or []:
+            if not a.get("written_level"):
+                continue
+            total += 1
+            if a.get("level") == a.get("written_level"):
+                hit += 1
+    return hit, total
 
 
 def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
@@ -200,6 +223,34 @@ def _native_by_length(lang_native) -> dict[str, list]:
     return {}
 
 
+def _collect_articles(node) -> list:
+    """Walk an arbitrarily-nested bundle structure (native/intermediate/level dicts all
+    nest differently — lang->length->[articles] vs lang->level->length->{"articles":[...]})
+    and return every article dict found, identified by having a "body" field."""
+    found: list = []
+    if isinstance(node, dict):
+        if isinstance(node.get("body"), str):
+            found.append(node)
+        else:
+            for v in node.values():
+                found.extend(_collect_articles(v))
+    elif isinstance(node, list):
+        for item in node:
+            found.extend(_collect_articles(item))
+    return found
+
+
+def _generation_totals(native_journalism: dict, native_intermediate: dict,
+                       briefings: dict) -> tuple[int, int]:
+    """(total articles, total words) across every article actually generated this run —
+    native + intermediate native + every CEFR level, every language, every length."""
+    articles = (_collect_articles(native_journalism)
+                + _collect_articles(native_intermediate)
+                + _collect_articles(briefings))
+    total_words = sum(len(a.get("body", "").split()) for a in articles)
+    return len(articles), total_words
+
+
 def _avg_body_words(articles: list) -> float:
     if not articles:
         return 0.0
@@ -288,7 +339,9 @@ def _language_table(
     issues: set[str],
 ) -> str:
     """Markdown table: languages × CEFR levels split into short/longer columns."""
-    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1"]
+    # Was missing C2 — the table had no column for it at all, independent of the
+    # LANGUAGE_LEVELS gap above. check()'s own CEFR_ORDER (below) always included it.
+    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
     # Two columns per CEFR level (S = short, L = longer), plus Native
     col_headers = []
@@ -467,7 +520,15 @@ def check(bundle_path: Path) -> int:
         sum(len(b) for b in v.values()) if isinstance(v, dict) else len(v)
         for v in native_journalism.values()
     )
-    header_line  = f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}"
+    total_articles, total_words = _generation_totals(
+        native_journalism, native_intermediate, briefings)
+    level_hit, level_total = _overall_level_accuracy(grading)
+    level_accuracy_str = (f"  |  🎯 {level_hit}/{level_total} at target level "
+                          f"({round(100 * level_hit / level_total)}%)"
+                          if level_total else "")
+    header_line  = (f"📅 {date}  |  Vol. {volume}  |  {story_count} stories{duration_str}\n"
+                    f"📊 {total_articles} articles generated  |  {total_words:,} words total"
+                    f"{level_accuracy_str}")
 
     factcheck_str, factcheck_warning = _factcheck_summary(script_dir, date, story_count)
     level_grade_str, level_grade_warnings = _level_grade_table(grading)

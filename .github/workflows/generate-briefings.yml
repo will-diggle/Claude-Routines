@@ -26,7 +26,7 @@ jobs:
           curl -s -X POST \
             -H "Title: Bilinguist Brief - Generating" \
             -H "Tags: newspaper" \
-            -d "Daily briefing generation started for $(date -u +%Y-%m-%d). Usually ready in 20-30 minutes." \
+            -d "Brief Generating." \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
 
       - name: Set up Python
