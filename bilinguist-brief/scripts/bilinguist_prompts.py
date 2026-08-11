@@ -218,6 +218,25 @@ GLOSS_RULE_BEGINNER = (
 )
 GLOSS_RULE_FALLBACK = ""
 
+# A1/A2 only. "Keep every attribution" collides with "write at A1" in every language that
+# marks reported speech with its own grammar — French/Italian "que/che" + a distinct verb
+# form, German Konjunktiv I ("sagte, X sei..."). The model satisfies the concrete rule
+# (keep the attribution) over the vague one (write A1, no grammar spec given) and reaches
+# for the correct, natural, but non-A1 construction — measured 2026-08-11: every language
+# with grammatical reported speech graded its A1 output as A2+, tight spread, while English
+# (no special mood for "said X was Y") did not show the pattern. Fix is not "keep attribution
+# less" — it's telling it HOW to keep attribution without the subordinate-clause grammar.
+ATTRIBUTION_RULE_BEGINNER = (
+    " At {LEVEL_DESCRIPTION}, write attribution as its own short, separate sentence — not a "
+    "subordinate clause introduced by \"that\" (or {LANGUAGE}'s equivalent — que/che/dass/"
+    "etc.). Instead of \"Officials said that the plane was smaller,\" write \"Officials said "
+    "this. The plane was smaller.\" The fact stays exactly the same; only the grammar "
+    "changes. This matters because reported-speech subordinate clauses use a verb form or "
+    "mood above {LEVEL_DESCRIPTION} in some languages, even when every word in them is "
+    "simple."
+)
+ATTRIBUTION_RULE_FALLBACK = ""
+
 # Stage 8 (grading, P4b) only. Only A1/A2 articles ever carry a bracketed gloss (GLOSS_RULE
 # above), so this rule is only injected when grading an A1/A2 combo — B1+ prompts stay as
 # they were. The grader still isn't told the level (build_grading_prompt decides whether to
@@ -253,7 +272,7 @@ KEEP, EXACTLY:
 - The ORDER of the facts. The article opens on the same fact and proceeds in the same sequence. Never reorder.
 - Every number, name, place and organisation, verbatim.
 - Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "President Trump" stays "President Trump" — never "the leader of the United States", never "the man in charge of the country". This holds at EVERY level, including A1. If a title is above the reader's level, it stays anyway.{GLOSS_RULE}
-- Every attribution — who said or reported what.
+- Every attribution — who said or reported what.{ATTRIBUTION_RULE}
 - The distinction between what is verified and what is unconfirmed.
 
 SIMPLIFY freely: descriptive terms, not names. "ceasefire" may become the simplest phrase in {LANGUAGE} that means the same thing. Names, titles and figures may not.
@@ -265,6 +284,17 @@ SIMPLIFY freely: descriptive terms, not names. "ceasefire" may become the simple
 QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
 Never name a news outlet, wire service or social-media channel.
 Copy "slug" and "genre" verbatim from the source article.
+
+{OUTPUT_FORMAT}
+[SOURCE ARTICLE BELOW]
+"""
+
+# Test-pipeline only (--simple-rewrite). Deliberately the opposite of everything above: no
+# KEEP list, no CUT_RULE, no GLOSS_RULE, no ATTRIBUTION_RULE — just the bare instruction, to
+# see how far a minimal prompt gets versus all of this session's tuning. Never used in
+# production; wired to a separate workflow that never pushes to the data repo.
+PROMPT_LEVEL_REWRITE_SIMPLE = """\
+Rewrite this article into {LEVEL_DESCRIPTION} {LANGUAGE}. Keep the order the same and make it between {WORD_MIN}-{WORD_MAX} words.
 
 {OUTPUT_FORMAT}
 [SOURCE ARTICLE BELOW]

@@ -99,6 +99,12 @@ LEVELS_FROM: str = "factbase"
 # (A1/longer is 250→110, B1/longer is 250→160). Set via --all-levels.
 ALL_LEVELS: bool = False
 
+# SIMPLE_REWRITE: test-pipeline only. When True and LEVELS_FROM == "native", Stage 7 uses
+# PROMPT_LEVEL_REWRITE_SIMPLE instead of the real rewrite prompt — no KEEP list, no
+# CUT_RULE/GLOSS_RULE/ATTRIBUTION_RULE, just level+word-count. Set via --simple-rewrite.
+# Never used in production; wired to a separate workflow that never pushes to the data repo.
+SIMPLE_REWRITE: bool = False
+
 # {(lang, length, slug): native article} — populated when LEVELS_FROM == "native" so a
 # level task can find the one article it is rewriting.
 _NATIVE_INDEX: dict = {}
@@ -485,8 +491,9 @@ if '--test' in _sys.argv:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
+        ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
@@ -501,8 +508,9 @@ else:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
+        ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
@@ -576,13 +584,16 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     if levels_down >= 2 and cut_key in ("same", "trim"):
         cut_key = "reduce"
 
-    # CUT_RULE and GLOSS_RULE both carry their own {LANGUAGE}/{LEVEL_DESCRIPTION}/
-    # {WORD_MIN}/{WORD_MAX}, so they must be injected BEFORE those are substituted or their
-    # placeholders survive into the prompt unfilled.
+    # CUT_RULE, GLOSS_RULE and ATTRIBUTION_RULE all carry their own {LANGUAGE}/
+    # {LEVEL_DESCRIPTION}/{WORD_MIN}/{WORD_MAX}, so they must be injected BEFORE those are
+    # substituted or their placeholders survive into the prompt unfilled.
     prompt = (PROMPT_LEVEL_REWRITE
               .replace("{CUT_RULE}", REWRITE_CUT_RULES[cut_key])
               .replace("{GLOSS_RULE}",
                        GLOSS_RULE_BEGINNER if level in ("A1", "A2") else GLOSS_RULE_FALLBACK)
+              .replace("{ATTRIBUTION_RULE}",
+                       ATTRIBUTION_RULE_BEGINNER if level in ("A1", "A2")
+                       else ATTRIBUTION_RULE_FALLBACK)
               .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
@@ -593,6 +604,22 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
               .replace("{OUTPUT_FORMAT}", OUTPUT_FORMAT_SINGLE))
     # Only the fields the rewrite may touch or must copy. The fact-base is deliberately
     # NOT included: arm B tests rewriting, so restoring dropped facts would blur the test.
+    payload = {k: source.get(k) for k in ("genre", "slug", "headline", "body")}
+    return prompt + "\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def build_rewrite_prompt_simple(lang: str, level: str, length: str, source: dict) -> str:
+    """Test-pipeline only (--simple-rewrite). No KEEP list, no CUT_RULE, no GLOSS_RULE, no
+    ATTRIBUTION_RULE -- just the bare instruction. Word band computed the same way as the
+    real rewrite so the two are comparable on the one thing both must hit."""
+    if not source or not source.get("body"):
+        return ""
+    word_min_i, word_max_i = word_band(WORDS_PER_ARTICLE.get(level, WORDS_PER_ARTICLE["C1"])[length], lang)
+    prompt = (PROMPT_LEVEL_REWRITE_SIMPLE
+              .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
+              .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
+              .replace("{WORD_MIN}", str(word_min_i)).replace("{WORD_MAX}", str(word_max_i))
+              .replace("{OUTPUT_FORMAT}", OUTPUT_FORMAT_SINGLE))
     payload = {k: source.get(k) for k in ("genre", "slug", "headline", "body")}
     return prompt + "\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -889,7 +916,8 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
                 prompt = build_native_prompt(task.lang, [story], task.length)
             elif LEVELS_FROM == "native":
                 src = _NATIVE_INDEX.get((task.lang, task.length, story.get("slug")))
-                prompt = build_rewrite_prompt(task.lang, task.level, task.length, src)
+                rewrite_fn = build_rewrite_prompt_simple if SIMPLE_REWRITE else build_rewrite_prompt
+                prompt = rewrite_fn(task.lang, task.level, task.length, src)
                 if not prompt:
                     # No native article for this language (Spanish has no Native level),
                     # so fall back to writing from the fact-base rather than dropping the
@@ -1400,13 +1428,19 @@ def main():
                              "the fact-base (today's behaviour). 'native' rewrites the graded "
                              "native article of the same language, length and story down to "
                              "the target level.")
+    parser.add_argument("--simple-rewrite", action="store_true", dest="simple_rewrite",
+                        help="Test pipeline only. With --levels-from native, use a bare "
+                             "level+word-count rewrite prompt instead of the real one -- no "
+                             "KEEP list, no CUT_RULE/GLOSS_RULE/ATTRIBUTION_RULE. Never use "
+                             "in production.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
     ALL_LEVELS = args.all_levels
+    SIMPLE_REWRITE = args.simple_rewrite
     _set_workers(args.workers)
 
     # --levels-from native works either way: native comes from --native-from (A/B, where
