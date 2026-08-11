@@ -75,10 +75,12 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 PER_ARTICLE: bool = False
 SERVICE_TIER: Optional[str] = None
 
-# Stage 5 (native, stage id "3") and Stage 7 (level rewrite, stage ids "2B"/"2S"/"2M") run
-# Flex regardless of --tier — Will accepted the 1-15 min/call latency for both. Every other
-# stage keeps following --tier/SERVICE_TIER untouched.
-SERVICE_TIER_BY_STAGE: dict[str, str] = {"3": "flex", "2B": "flex", "2S": "flex", "2M": "flex"}
+# Stage 5 (native, stage id "3"), Stage 7 (level rewrite, "2B"/"2S"/"2M") and Stage 8
+# (grading, "4b") run Flex regardless of --tier — Will accepted the 1-15 min/call latency
+# for all three. Every other stage keeps following --tier/SERVICE_TIER untouched.
+SERVICE_TIER_BY_STAGE: dict[str, str] = {
+    "3": "flex", "2B": "flex", "2S": "flex", "2M": "flex", "4b": "flex",
+}
 
 # LEVELS_FROM: "factbase" writes each level article from the fact-base (today's
 # behaviour, arm A). "native" rewrites the graded native article of the same language,
@@ -973,15 +975,15 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         costs["total_usd"] += g_usd
 
     # All write/grade stages use gemini-2.5-flash, except stage "3" (native, Stage 5) which
-    # runs gemini-2.5-pro on Flex, and "2B"/"2S"/"2M" (level rewrite, Stage 7) which run
-    # flash on Flex — each priced separately or this line under-reports their real cost.
+    # runs gemini-2.5-pro on Flex, and "2B"/"2S"/"2M"/"4b" (Stage 7 rewrite, Stage 8 grading)
+    # which run flash on Flex — each priced separately or this line under-reports their cost.
     for sname, usage in _stage_usage.items():
         if sname == "3":
             in_usd  = (usage.input_tokens    / 1_000_000) * PRO_FLEX_INPUT_USD_PER_M
             out_usd = (usage.output_tokens   / 1_000_000) * PRO_FLEX_OUTPUT_USD_PER_M
             thi_usd = (usage.thinking_tokens / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
             model_name = "gemini-2.5-pro (flex)"
-        elif sname in ("2B", "2S", "2M"):
+        elif sname in ("2B", "2S", "2M", "4b"):
             in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_FLEX_INPUT_USD_PER_M
             out_usd = (usage.output_tokens   / 1_000_000) * FLASH_FLEX_OUTPUT_USD_PER_M
             thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_FLEX_THINK_USD_PER_M
