@@ -66,7 +66,7 @@ def word_band(band: str, lang: str = "") -> tuple[int, int]:
 NATIVE_OUTLETS: dict[str, str] = {
     "fr": "Le Monde",
     "de": "Der Spiegel",
-    "en": "The Economist (British English throughout — never American)",
+    "en": "The Telegraph (British English throughout — never American)",
     "sv": "Dagens Nyheter",
     "es": "El País",
     "it": "Corriere della Sera",
@@ -100,12 +100,14 @@ QUOTE_RULES: dict[str, str] = {
 }
 QUOTE_RULE_FALLBACK = "the target language's own typographic quotation marks"
 
-# Paragraph shape by length. Shared by the native prompt and the level rewrite.
-STRUCTURE_BY_LENGTH: dict[str, str] = {
-    "short": ("STRUCTURE: ONE continuous paragraph. No line breaks anywhere."),
-    "longer": ("STRUCTURE: 2–3 paragraphs, separated by \\n\\n (two JSON newline escapes) "
-               "and nowhere else."),
-}
+# Level rewrite only. Was a fixed "2-3 paragraphs" by length, independent of the cut rule —
+# a heavily-cut A1 rewrite might not have enough material left to fill that, contradicting
+# the cut instruction to stop earlier. Since this is a rewrite of the native article, not a
+# from-scratch write, matching the source's own paragraph count avoids the contradiction.
+PROMPT_LEVEL_STRUCTURE = (
+    "STRUCTURE: Keep the same number of paragraphs as the source article, separated by "
+    "\\n\\n (two JSON newline escapes) and nowhere else."
+)
 
 
 # One story per call — a bare object, no array to over-fill.
@@ -200,6 +202,36 @@ REWRITE_CUT_RULES: dict[str, str] = {
 }
 
 
+# A1/A2 only. Names, titles and organisations stay verbatim at every level (KEEP, EXACTLY
+# above) even when they're above the reader's vocabulary — correct for accuracy, but it
+# means an A1 article can carry words no A1 reader knows. Other simplified-news outlets
+# (Nachrichtenleicht, VOA Learning English) solve this by glossing the hard term in brackets
+# on first mention, in the same simplified language — not by simplifying the term itself.
+# B1+ readers don't need this; GLOSS_RULE_FALLBACK is blank for every other level.
+GLOSS_RULE_BEGINNER = (
+    " As this is a language learner reading at CEFR {LEVEL_DESCRIPTION}, on the FIRST mention "
+    "only of a name, title or organisation likely above their level, add a short explanation "
+    "in brackets, in {LEVEL_DESCRIPTION} {LANGUAGE} — e.g. \"the Bundesbank (Germany's "
+    "central bank)\" written in simple {LANGUAGE}, not English. Do not repeat the explanation "
+    "on later mentions of the same term. Do not gloss anything the reader is already likely "
+    "to know (major countries, well-known world leaders)."
+)
+GLOSS_RULE_FALLBACK = ""
+
+# Stage 8 (grading, P4b) only. Only A1/A2 articles ever carry a bracketed gloss (GLOSS_RULE
+# above), so this rule is only injected when grading an A1/A2 combo — B1+ prompts stay as
+# they were. The grader still isn't told the level (build_grading_prompt decides whether to
+# include this on Python's side, from the combo it already knows it's grading, not from
+# telling the model anything) — this only stops a gloss aside from inflating the complexity
+# judgement, it doesn't confirm a target level to the model.
+GLOSS_JUDGE_RULE_BEGINNER = (
+    "\n   Some articles gloss a hard name or term in brackets on first mention, e.g. \"die "
+    "Bundesbank (Deutschlands Zentralbank)\" — this is a built-in definition for the "
+    "learner, not part of the article's own prose. Ignore bracketed glosses entirely when "
+    "judging complexity; grade only the surrounding sentence."
+)
+GLOSS_JUDGE_RULE_FALLBACK = ""
+
 # Stage 7, arm B: rewrite the graded native article down a level instead of writing from
 # the fact-base. The native article already selected, ordered and phrased the facts in the
 # target language, so this is a level change rather than a translate-and-write.
@@ -215,12 +247,12 @@ REWRITE_CUT_RULES: dict[str, str] = {
 PROMPT_LEVEL_REWRITE = """\
 You are rewriting one published news article in {LANGUAGE} for a language learner reading at CEFR {LEVEL_DESCRIPTION}.
 
-The article below was written by a native journalist in {LANGUAGE}. Rewrite it in {LANGUAGE} at {LEVEL_DESCRIPTION}. This is a change of reading level — not a translation, not a summary, not a new article.
+The article below was written by a native journalist in {LANGUAGE}. Rewrite it in the same language: {LANGUAGE}, but in {LEVEL_DESCRIPTION} {LANGUAGE}. This is a change of reading level — not a translation, not a summary, not a new article.
 
 KEEP, EXACTLY:
 - The ORDER of the facts. The article opens on the same fact and proceeds in the same sequence. Never reorder.
 - Every number, name, place and organisation, verbatim.
-- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "President Trump" stays "President Trump" — never "the leader of the United States", never "the man in charge of the country". This holds at EVERY level, including A1. If a title is above the reader's level, it stays anyway.
+- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "President Trump" stays "President Trump" — never "the leader of the United States", never "the man in charge of the country". This holds at EVERY level, including A1. If a title is above the reader's level, it stays anyway.{GLOSS_RULE}
 - Every attribution — who said or reported what.
 - The distinction between what is verified and what is unconfirmed.
 
@@ -253,8 +285,8 @@ NATIVE_FRAMING: dict[str, str] = {
 }
 
 STRUCTURE_BY_LENGTH_NATIVE: dict[str, str] = {
-    "short": ("STRUCTURE: ONE continuous paragraph. No line breaks anywhere.\n"
-              "Lead with the core fact — who, what, when, where — then the most important context."),
+    "short": ("STRUCTURE: Use 1–2 paragraphs. Lead sentence covers the core fact (who, what, "
+              "when); the rest adds the most important context."),
     "longer": ("STRUCTURE: 2–3 paragraphs, separated by \\n\\n (two JSON newline escapes) and "
                "nowhere else.\n"
                "  - First paragraph: core facts — who, what, when, where.\n"
@@ -293,31 +325,40 @@ GENRE_RULE_FALLBACK = ""
 # encouragement to write long. Native/short went from 114 words to 167 in one run, and every
 # short level article inherited it. Short gets its own wording again.
 NATIVE_WORD_RULE: dict[str, str] = {
+    # Base text VERBATIM from the pre-merge PROMPT_3_SHORT_HEADER (d42c4b1), which measured
+    # 91-114 words across five languages. The paragraph-count sentence that used to close this
+    # block now lives in STRUCTURE_BY_LENGTH_NATIVE["short"] instead, so paragraph shape has
+    # one home, not two.
     "short": (
-        "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before "
-        "submitting.\n"
-        "This is a brief, not an article. Lead with the core fact, add the most important "
-        "context, and stop. Most of the fact-base will not fit and should not be forced in.\n"
-        "Do not exceed {WORD_MAX} words — cut the least essential detail. Never cut "
-        "mid-thought."
+        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word "
+        "before submitting.\n"
+        "If you are under {WORD_MIN}, add the next most important fact from the fact-base — a "
+        "figure, a named source, or a consequence. Do not stop short because the fact-base is "
+        "terse.\n"
+        "Do not exceed {WORD_MAX} words — cut the least essential detail. Never pad with empty "
+        "phrases, never invent facts."
     ),
+    # VERBATIM from the pre-merge PROMPT_3_HEADER at ff3d19d, same treatment. Measured
+    # 183-235 words.
     "longer": (
-        "The body must be between {WORD_MIN} and {WORD_MAX} words. Count every word before "
-        "submitting.\n"
+        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word "
+        "before submitting.\n"
         "You have the material. This story's fact-base is several hundred words of notes — "
         "ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not "
         "padding: attribute every claim to the person or institution that made it, follow the "
-        "sequence of events, and carry the context and consequences already in the notes.\n"
+        "sequence of events, and carry the context and consequences that are already in the "
+        "notes.\n"
         "Never reach the count by generalising (\"his tenure will be closely watched\"), by "
         "restating a fact you have already given, or by supplying context you were not given. "
-        "An invented fact is a worse failure than a short article.\n"
+        "An invented fact is a worse failure than a short article — but with these notes, a "
+        "short article should not be necessary.\n"
         "Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut "
         "mid-thought."
     ),
 }
 
 PROMPT_NATIVE_TEMPLATE = """\
-You are a staff journalist writing for {OUTLET}, the most respected news outlet in {LANGUAGE}.
+You are a high-end journalist writing for {OUTLET}, the most respected news outlet writing in {LANGUAGE}.
 
 Write the story below as {FRAMING}, using only the fact-base. Write with authority, clarity and precision. This is real journalism.
 
@@ -397,7 +438,7 @@ For each article assess:
 
 1. CEFR LEVEL — which level best describes the reading difficulty for a language learner?
    A1 / A2 / B1 / B2 / C1 / C2
-   Base your assessment on: sentence length and complexity, vocabulary range, use of tenses, subordinate clauses, idiomatic language, nominalisations, overall register. Be consistent — near-identical prose should receive the same grade across sessions.
+   Base your assessment on: sentence length and complexity, vocabulary range, use of tenses, subordinate clauses, idiomatic language, nominalisations, overall register. Be consistent — near-identical prose should receive the same grade across sessions.{GLOSS_JUDGE_RULE}
 
 2. LENGTH BAND:
    short: under 100 words

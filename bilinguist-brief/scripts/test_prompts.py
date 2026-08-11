@@ -33,7 +33,7 @@ STORY = {
 PLACEHOLDERS = ("{LANGUAGE}", "{OUTLET}", "{FRAMING}", "{STRUCTURE}", "{GENRE_RULE}",
                 "{WORD_MIN}", "{WORD_MAX}", "{VARIANT_RULE}", "{QUOTE_RULE}",
                 "{OUTPUT_FORMAT}", "{LEVEL_DESCRIPTION}", "{LENGTH_INSTRUCTION}",
-                "{CUT_RULE}")
+                "{CUT_RULE}", "{GLOSS_RULE}")
 
 for lang in ("en", "fr", "de", "sv", "it", "es"):
     for length in ("short", "longer"):

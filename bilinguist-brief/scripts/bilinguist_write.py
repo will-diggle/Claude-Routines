@@ -55,7 +55,7 @@ from google.genai import types
 MODEL_BEGINNER = "gemini-2.5-flash"          # A1/A2: same model as B1+ for reliability
 MODEL_2S = "gemini-2.5-flash"               # B1+/Native short lengths
 MODEL_2M = "gemini-2.5-flash"               # B1+/Native medium and longer
-MODEL_3  = "gemini-2.5-flash"               # Native journalism, one per language
+MODEL_3  = "gemini-2.5-pro"                 # Native journalism, one per language
 MODEL_4A = "gemini-2.5-flash"               # P4a: grade native journalism → overall CEFR level
 MODEL_5B = "gemini-2.5-flash"               # Stage 5b: verify native against the factbase
 MODEL_4B = "gemini-2.5-flash"               # P4b: grade CEFR level articles (quality gate)
@@ -70,9 +70,15 @@ _API_SEMAPHORE = threading.Semaphore(_MAX_WORKERS)
 # PER_ARTICLE: one API call per (language, level, length, story) instead of one
 # call writing every story at once. Set via --per-article.
 # SERVICE_TIER: "flex" requests the 50%-discount tier (1-15 min latency,
-# sheddable). None = standard. Set via --tier.
+# sheddable). None = standard. Set via --tier. Applies to every stage unless a
+# stage has its own entry in SERVICE_TIER_BY_STAGE, which takes precedence.
 PER_ARTICLE: bool = False
 SERVICE_TIER: Optional[str] = None
+
+# Stage 5 (native, stage id "3") is on Pro now and runs Flex regardless of --tier —
+# Will accepted the 1-15 min/call latency for native specifically. Every other stage
+# keeps following --tier/SERVICE_TIER untouched.
+SERVICE_TIER_BY_STAGE: dict[str, str] = {"3": "flex"}
 
 # LEVELS_FROM: "factbase" writes each level article from the fact-base (today's
 # behaviour, arm A). "native" rewrites the graded native article of the same language,
@@ -461,8 +467,9 @@ if '--test' in _sys.argv:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
-        REWRITE_CUT_RULES,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
+        REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
+        GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
         LANGUAGE_WORD_FACTOR, word_band,
@@ -476,8 +483,9 @@ else:
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, STRUCTURE_BY_LENGTH,
-        REWRITE_CUT_RULES,
+        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
+        REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
+        GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
         LANGUAGE_WORD_FACTOR, word_band,
@@ -550,15 +558,18 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     if levels_down >= 2 and cut_key in ("same", "trim"):
         cut_key = "reduce"
 
-    # CUT_RULE carries its own {WORD_MIN}/{WORD_MAX}, so it must be injected BEFORE they
-    # are substituted or its placeholders survive into the prompt.
+    # CUT_RULE and GLOSS_RULE both carry their own {LANGUAGE}/{LEVEL_DESCRIPTION}/
+    # {WORD_MIN}/{WORD_MAX}, so they must be injected BEFORE those are substituted or their
+    # placeholders survive into the prompt unfilled.
     prompt = (PROMPT_LEVEL_REWRITE
               .replace("{CUT_RULE}", REWRITE_CUT_RULES[cut_key])
+              .replace("{GLOSS_RULE}",
+                       GLOSS_RULE_BEGINNER if level in ("A1", "A2") else GLOSS_RULE_FALLBACK)
               .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
-              .replace("{STRUCTURE}", STRUCTURE_BY_LENGTH.get(length, ""))
+              .replace("{STRUCTURE}", PROMPT_LEVEL_STRUCTURE)
               .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
               .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
               .replace("{OUTPUT_FORMAT}", OUTPUT_FORMAT_SINGLE))
@@ -606,10 +617,19 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
     return prompt + f"\n{factbase_json}"
 
 
-def build_grading_prompt(lang: str, native_articles: list) -> str:
-    """Build the P4b grading prompt for one language's CEFR-level articles."""
+def build_grading_prompt(lang: str, native_articles: list, level: Optional[str] = None) -> str:
+    """Build the P4b grading prompt for one language's CEFR-level articles.
+
+    level is used only to decide whether to include the gloss-ignore instruction (only
+    A1/A2 articles ever carry a bracketed gloss) — it is never told to the model, which
+    still grades blind.
+    """
     lang_name = LANGUAGE_NAMES.get(lang, lang)
-    prompt = PROMPT_4_HEADER.replace("{LANGUAGE}", lang_name)
+    prompt = (PROMPT_4_HEADER
+              .replace("{LANGUAGE}", lang_name)
+              .replace("{GLOSS_JUDGE_RULE}",
+                       GLOSS_JUDGE_RULE_BEGINNER if level in ("A1", "A2")
+                       else GLOSS_JUDGE_RULE_FALLBACK))
     articles_json = json.dumps({"articles": native_articles}, ensure_ascii=False, indent=2)
     prompt += f"\n{articles_json}"
     return prompt
@@ -651,7 +671,7 @@ def call_gemini(
                         response_schema=schema,
                         max_output_tokens=max_output_tokens,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
-                        **({"service_tier": SERVICE_TIER} if SERVICE_TIER else {}),
+                        **({"service_tier": tier} if (tier := SERVICE_TIER_BY_STAGE.get(stage, SERVICE_TIER)) else {}),
                     ),
                 )
             # Accumulate token usage for cost tracking
@@ -943,12 +963,20 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         }
         costs["total_usd"] += g_usd
 
-    # All write/grade stages use gemini-2.5-flash (gemini-2.0-flash-lite deprecated)
+    # All write/grade stages use gemini-2.5-flash, except stage "3" (native, Stage 5)
+    # which runs gemini-2.5-pro on Flex — priced separately or this line under-reports
+    # its real cost.
     for sname, usage in _stage_usage.items():
-        in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-        out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-        thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-        model_name = "gemini-2.5-flash"
+        if sname == "3":
+            in_usd  = (usage.input_tokens    / 1_000_000) * PRO_FLEX_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens   / 1_000_000) * PRO_FLEX_OUTPUT_USD_PER_M
+            thi_usd = (usage.thinking_tokens / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
+            model_name = "gemini-2.5-pro (flex)"
+        else:
+            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
+            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
+            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
+            model_name = "gemini-2.5-flash"
         s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
             "model":           model_name,
@@ -1287,7 +1315,7 @@ def run_grade_cefr(
     def grade(combo):
         lang, level, length, arts = combo
         label = f"4b/{lang}-{level}-{length}"
-        raw, finish = call_gemini(client, MODEL_4B, build_grading_prompt(lang, arts),
+        raw, finish = call_gemini(client, MODEL_4B, build_grading_prompt(lang, arts, level),
                                  label, "4b", _SCHEMA_GRADING)
         if not raw or finish == "MAX_TOKENS":
             print(f"[ERROR] [{label}]: {'MAX_TOKENS' if finish else 'no response'} — "
