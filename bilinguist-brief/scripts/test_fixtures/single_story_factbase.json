@@ -1,0 +1,233 @@
+{
+  "factbase": [
+    {
+      "slug": "trump-secret-flight-iran-threat",
+      "genre": "GLOBAL NEWS",
+      "what_happened": [
+        "Donald Trump reportedly used a catering truck to board a secret military flight from Turkey last month.",
+        "The operation was a ruse prompted by an Iranian assassination threat against President Trump.",
+        "Trump had initially boarded the older Air Force One jet in front of television cameras at Ankara International Airport.",
+        "Minutes later, he was secretly transferred to a smaller US Air Force C-32A aircraft using an airport catering truck.",
+        "The older Air Force One served as a decoy, with journalists and some White House staff believing Trump was on board.",
+        "The C-32A then flew Trump to Britain.",
+        "The arrangement concealed Trump's actual location for several hours, including from some senior administration officials.",
+        "The incident occurred after a NATO summit in Ankara, Turkey.",
+        "Hostilities between the US and Iran were escalating at the time of the flight."
+      ],
+      "attribution": [
+        "The Washington Post reported the operation, citing a US official and corroborating material.",
+        "The New York Times corroborated the report.",
+        "CBS News also reported on the secret plane switch.",
+        "Reuters reported on the incident, citing the Washington Post.",
+        "White House communications director Steven Cheung did not directly respond to questions about the decision to switch planes."
+      ],
+      "verified": [
+        "Donald Trump secretly switched planes in Turkey.",
+        "A catering truck was used to transfer Trump between aircraft.",
+        "The secret flight was prompted by an Iranian assassination threat.",
+        "The older Air Force One was used as a decoy.",
+        "Trump flew to Britain on a C-32A aircraft."
+      ],
+      "contested": [
+        "Some White House staff members and journalists on the decoy plane were reportedly unaware of the secret switch."
+      ],
+      "numbers": [],
+      "proper_nouns": [
+        "Donald Trump",
+        "Turkey",
+        "Iran",
+        "NATO",
+        "Ankara",
+        "Air Force One",
+        "C-32A",
+        "Britain",
+        "Royal Air Force Mildenhall",
+        "Washington Post",
+        "New York Times",
+        "CBS News",
+        "Reuters",
+        "Steven Cheung"
+      ],
+      "key_terms": [
+        "secret flight",
+        "catering truck",
+        "assassination threat",
+        "decoy",
+        "military aircraft",
+        "NATO summit",
+        "ruse",
+        "security operation"
+      ],
+      "notification_line": "Donald Trump reportedly used a catering truck to board a secret military flight from Turkey due to an Iranian assassination threat.",
+      "cross_reference_score": {
+        "sources": [
+          {
+            "outlet": "BBC News",
+            "position": 1,
+            "headline": "Trump hid in catering truck in secret plane swap over Iran threat, reports say"
+          },
+          {
+            "outlet": "The Guardian",
+            "position": 2,
+            "headline": "Trump reportedly hid in catering container to board secret flight in Turkey amid Iran threat"
+          },
+          {
+            "outlet": "Der Spiegel",
+            "position": 2,
+            "headline": "»Täuschungsaktion« mittels Catering-Lkw: Trump soll wegen Morddrohung aus Iran heimlich auf Militärflieger umgestiegen sein - Spiegel"
+          },
+          {
+            "outlet": "El País",
+            "position": 2,
+            "headline": "Trump cambió de avión en secreto tras la cumbre de la OTAN en Turquía oculto en un contenedor de ‘catering’ por una amenaza de Irán - EL PAÍS"
+          },
+          {
+            "outlet": "New York Times",
+            "position": 1,
+            "headline": "Trump Said to Have Secretly Used Military Jet to Leave Turkey Amid Threats"
+          },
+          {
+            "outlet": "Washington Post",
+            "position": 3,
+            "headline": "Contradicting public statements, Trump took secret flight from Turkey amid Iranian threat - The Washington Post"
+          }
+        ],
+        "rank": 1,
+        "total": 18.5,
+        "outlets_covering": [
+          "BBC News",
+          "Der Spiegel",
+          "El País",
+          "New York Times",
+          "The Guardian",
+          "Washington Post"
+        ]
+      },
+      "headline": "Donald Trump reportedly used a catering truck to board a secret military flight from Turkey due to an Iranian threat."
+    }
+  ],
+  "global_news_search_log": [
+    {
+      "outlet": "Reuters",
+      "stories": [
+        "Russia frees ailing ex-US Marine Robert Gilman from detention - Reuters",
+        "Hungary parliament elects former supreme court head Andras Baka as president - Reuters",
+        "Norway wealth fund CEO says fund's entire value could be lost in future - Reuters",
+        "Three killed in attacks on ships in Red Sea, Gulf, sources say - Reuters",
+        "US fired on Panama-flagged ship that tried to break blockade of Iranian ports, WSJ reports citing US official - Reuters"
+      ]
+    },
+    {
+      "outlet": "Associated Press (AP)",
+      "stories": [
+        "Trump signs order calling for spacing out childhood vaccines, against medical groups' guidance - AP News",
+        "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people - AP News",
+        "Ukrainian drone attack on an oil hub deep inside Russia kills 13, officials say - AP News",
+        "Hundreds more flights are canceled as Tropical Storm Dolphin causes flooding in eastern China - AP News",
+        "Trump scoffs at Iran’s demand for war reparations and other Mideast developments - AP News"
+      ]
+    },
+    {
+      "outlet": "BBC News",
+      "stories": [
+        "Trump hid in catering truck in secret plane swap over Iran threat, reports say",
+        "Russia using North Korean missiles to strike Ukraine, Zelensky says",
+        "Ousted Syrian dictator Bashar al-Assad sentenced to death in absentia",
+        "Russia releases former US Marine reported in poor health",
+        "Watch: Family escapes home during Colombia earthquake"
+      ]
+    },
+    {
+      "outlet": "The Guardian",
+      "stories": [
+        "Pete Hegseth’s Pentagon picks raise questions over Trump family business ties",
+        "Trump reportedly hid in catering container to board secret flight in Turkey amid Iran threat",
+        "Wisconsin considers democratic socialist for governor amid US wave of progressive wins",
+        "US state department has canceled over 175,000 visas since Trump’s return to office",
+        "‘Every minute counts’ as rescuers race to find survivors after deadly Colombia earthquake"
+      ]
+    },
+    {
+      "outlet": "Le Monde",
+      "stories": [
+        "Comment les éclipses solaires sont perçues par les religions, entre mauvais présages et signes annonciateurs de la fin du monde",
+        "Canicule : la vigilance orange s’étendra à 78 départements mercredi, des températures jusqu’à 40 °C attendues, annonce Météo-France",
+        "Avant les élections sénatoriales, la gauche tente de s’unir pour préserver son statut de deuxième groupe",
+        "La saga du scandale H2O, entre stars de la finance, jet privé et conflits d’intérêts",
+        "Séisme en Colombie : au moins 169 morts et plus de 600 blessés, selon un nouveau bilan"
+      ]
+    },
+    {
+      "outlet": "Der Spiegel",
+      "stories": [
+        "USA: Massachusetts hebt 24-Wochen-Grenze bei Schwangerschafts-Abbrüchen auf - Spiegel",
+        "»Täuschungsaktion« mittels Catering-Lkw: Trump soll wegen Morddrohung aus Iran heimlich auf Militärflieger umgestiegen sein - Spiegel",
+        "Russland: Antikriegspartei Jabloko wehrt sich gegen Wahlausschluss - Spiegel",
+        "Libanon schafft die Todesstrafe ab - Spiegel",
+        "Trump will weniger Kinderimpfungen empfehlen - Spiegel"
+      ]
+    },
+    {
+      "outlet": "NHK World",
+      "stories": [
+        "Japan's GPS satellite Michibiki put into orbit - nhk.or.jp",
+        "NHK poll: Takaichi Cabinet support rate at 53%, lowest since its start - nhk.or.jp",
+        "Kumamoto constructs temporary housing amid secondary evacuation hurdles - nhk.or.jp",
+        "Aeon: Evacuated workers allowed to reenter quake-hit Kumamoto mall - nhk.or.jp",
+        "Eight dead as flooding, mudslides hit Philippines - nhk.or.jp"
+      ]
+    },
+    {
+      "outlet": "Al Jazeera",
+      "stories": [
+        "Syrian court sentences Bashar al-Assad to death in absentia - Al Jazeera",
+        "East Libya military intelligence chief killed in car bomb blast - Al Jazeera",
+        "Colombia quake: Frantic search for survivors as over 2,700 reported missing - Al Jazeera",
+        "Bashar al-Assad, Atef Najib sentenced to death in landmark Syria trial - Al Jazeera",
+        "Trump demands compensation from Iran as talks on Strait of Hormuz continue - Al Jazeera"
+      ]
+    },
+    {
+      "outlet": "CNN",
+      "stories": [
+        "Hungary parliament elects former supreme court head Andras Baka as president - CNN",
+        "Trump loves data centers. Americans hate them - CNN",
+        "Donald Trump jumps in to support Gianni Infantino as FIFA president clings on to power - CNN",
+        "Turkey’s most famous Mediterranean resort city - CNN",
+        "Former Syrian President Assad sentenced to death in absentia - CNN"
+      ]
+    },
+    {
+      "outlet": "El País",
+      "stories": [
+        "Mapas y gráficos del devastador terremoto en Colombia - EL PAÍS",
+        "Trump cambió de avión en secreto tras la cumbre de la OTAN en Turquía oculto en un contenedor de ‘catering’ por una amenaza de Irán - EL PAÍS",
+        "Colombia rompe el consenso internacional al reconocer la soberanía de Israel sobre los Altos del Golán sirios - EL PAÍS",
+        "Un tribunal de Siria condena a pena de muerte al dictador Bachar el Asad, exiliado en Moscú - EL PAÍS",
+        "El Parlamento húngaro elige a András Baka como presidente para facilitar la transición política - EL PAÍS"
+      ]
+    },
+    {
+      "outlet": "New York Times",
+      "stories": [
+        "Trump Said to Have Secretly Used Military Jet to Leave Turkey Amid Threats",
+        "How a Counterintelligence Inquiry Into Trump’s Russia Ties Was Derailed",
+        "Trump Picks Project 2025 Co-Author for Role That Would Oversee Any Reflecting Pool Review",
+        "Officials Reveal a Secret Ruse to Evacuate Trump, and the F.D.A. Takes On a Food Safety Loophole",
+        "How Raúl Castro’s Grandson, Raúl G. Rodríguez Castro, Became a Power Broker"
+      ]
+    },
+    {
+      "outlet": "Washington Post",
+      "stories": [
+        "AI models are breaking out of their cages. Their creators are scrambling. - The Washington Post",
+        "Trump demands major changes to childhood vaccine recommendations - The Washington Post",
+        "Contradicting public statements, Trump took secret flight from Turkey amid Iranian threat - The Washington Post",
+        "A twist in the race for Lindsey Graham’s seat: No clear Trump-aligned candidate - The Washington Post",
+        "Trump nominates loyalist to office that would oversee Reflecting Pool review - The Washington Post"
+      ]
+    }
+  ],
+  "daily_notification": "Test fixture — single story.",
+  "model": "gemini-2.5-pro"
+}

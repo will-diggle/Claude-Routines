@@ -1,0 +1,128 @@
+name: "TEST: Fast (1 story) - Stage 7 variant"
+
+# Fastest, cheapest way to test a Stage 7 change. Skips Stages 1-4 entirely (no scrape,
+# select, gather, or fact-check) by reusing a fixture: one real story's factbase entry plus
+# its already-graded native article in all 6 languages, checked into
+# test_fixtures/single_story_{factbase,native}.json. Only Stage 7 (level rewrite) and
+# Stage 8 (grading) make Gemini calls -- roughly 1/7th the cost and calls of a full run,
+# since there's 1 story instead of 7.
+#
+# Pick which Stage 7 variant to test from the dropdown when running this workflow. Never
+# pushes to the data repo and never touches the live app -- output only reaches an artifact
+# and a clearly-marked TEST ntfy message. To refresh the fixture with a different/newer
+# story, regenerate test_fixtures/*.json from a real bundle (see the commit that added them
+# for the extraction script).
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage7_variant:
+        description: "Stage 7 rewrite variant to test"
+        required: true
+        default: "tuned"
+        type: choice
+        options:
+          - tuned
+          - relax-titles-a1
+          - simple-rewrite
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Notify started
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Fast 1-story (${{ github.event.inputs.stage7_variant }}) - Generating" \
+            -H "Tags: test_tube" \
+            -d "Fast single-story test generating (Stage 7 variant: ${{ github.event.inputs.stage7_variant }}). Not pushed to the app." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Prompt checks (no API calls)
+        working-directory: bilinguist-brief/scripts
+        run: python test_prompts.py
+
+      - name: Load fixture as this run's factbase (Stages 1-4 skipped)
+        working-directory: bilinguist-brief/scripts
+        run: cp test_fixtures/single_story_factbase.json factbase_${{ env.BRIEF_DATE }}.json
+
+      - name: Choose Stage 7 flag for the selected variant
+        run: |
+          case "${{ github.event.inputs.stage7_variant }}" in
+            tuned) FLAG="" ;;
+            relax-titles-a1) FLAG="--relax-titles-a1" ;;
+            simple-rewrite) FLAG="--simple-rewrite" ;;
+          esac
+          echo "STAGE7_FLAG=$FLAG" >> $GITHUB_ENV
+
+      - name: Stages 5-8 - Write and grade (native from fixture, 1 story only)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # --native-from skips Stages 5-6 entirely, reusing the fixture's already-graded
+        # native articles. Only Stage 7 (rewrite) and Stage 8 (grade) run against Gemini.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels --native-from test_fixtures/single_story_native.json ${{ env.STAGE7_FLAG }}
+
+      - name: Stage 9 - Check completeness
+        working-directory: bilinguist-brief/scripts
+        run: python bilinguist_check.py
+
+      - name: Upload bundle as artifact (test only — not pushed to data repo)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-fast-1story-${{ github.event.inputs.stage7_variant }}-${{ env.BRIEF_DATE }}
+          path: |
+            bilinguist-brief/scripts/output/latest.json
+            bilinguist-brief/scripts/output/${{ env.BRIEF_DATE }}.json
+            bilinguist-brief/scripts/output/costs_${{ env.BRIEF_DATE }}.json
+          retention-days: 14
+
+      - name: Notify success
+        if: success()
+        env:
+          NTFY_TITLE: ${{ env.BRIEF_TITLE }}
+          NTFY_BODY: ${{ env.BRIEF_BODY }}
+          NTFY_EMOJI: ${{ env.BRIEF_EMOJI }}
+          NTFY_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          TITLE="[TEST] Fast 1-story (${{ github.event.inputs.stage7_variant }}) — ${NTFY_TITLE:-done}"
+          NOTE="This is the fast 1-story TEST pipeline (variant: ${{ github.event.inputs.stage7_variant }}). Not pushed to the app — download the GitHub Actions artifact to inspect the bundle."
+          MAIN="${NTFY_BODY:-Test run for ${NTFY_DATE} finished.}"
+          BODY=$(printf '%s\n\n⚠️ %s' "$MAIN" "$NOTE")
+          curl -s -X POST \
+            -H "Title: ${TITLE}" \
+            -H "Tags: ${NTFY_EMOJI:-test_tube}" \
+            -H "Content-Type: text/markdown" \
+            --data-binary "${BODY}" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Fast 1-story (${{ github.event.inputs.stage7_variant }}) - Failed" \
+            -H "Priority: default" \
+            -H "Tags: test_tube" \
+            -d "Fast 1-story test pipeline failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
