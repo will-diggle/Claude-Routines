@@ -105,6 +105,13 @@ ALL_LEVELS: bool = False
 # Never used in production; wired to a separate workflow that never pushes to the data repo.
 SIMPLE_REWRITE: bool = False
 
+# RELAX_TITLES_A1: test-pipeline only. When True and LEVELS_FROM == "native", the real
+# rewrite prompt is used (CUT_RULE/GLOSS_RULE/ATTRIBUTION_RULE all still apply) but A1's
+# title/name rule is relaxed from strict-verbatim to may-simplify. Isolates whether verbatim
+# titles specifically are why A1 keeps grading as A2+, separate from the fully-stripped
+# --simple-rewrite test. Set via --relax-titles-a1. Never used in production.
+RELAX_TITLES_A1: bool = False
+
 # {(lang, length, slug): native article} — populated when LEVELS_FROM == "native" so a
 # level task can find the one article it is rewriting.
 _NATIVE_INDEX: dict = {}
@@ -494,6 +501,7 @@ if '--test' in _sys.argv:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
+        TITLE_RULE_STRICT, TITLE_RULE_RELAXED_A1,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
@@ -511,6 +519,7 @@ else:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
+        TITLE_RULE_STRICT, TITLE_RULE_RELAXED_A1,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
@@ -556,8 +565,14 @@ def build_writing_prompt(template: str, lang: str, level: str, length: str, fact
     return prompt
 
 
-def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> str:
-    """Arm B: rewrite one native article down to `level`. Returns "" if no source."""
+def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
+                          relax_titles_a1: bool = False) -> str:
+    """Arm B: rewrite one native article down to `level`. Returns "" if no source.
+
+    relax_titles_a1: test pipeline only (--relax-titles-a1). Default False keeps production
+    byte-identical -- TITLE_RULE_STRICT at every level. When True, A1 only gets
+    TITLE_RULE_RELAXED_A1 instead; every other level is unaffected.
+    """
     if not source or not source.get("body"):
         return ""
     def _band(lvl):
@@ -589,6 +604,9 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict) -> st
     # substituted or their placeholders survive into the prompt unfilled.
     prompt = (PROMPT_LEVEL_REWRITE
               .replace("{CUT_RULE}", REWRITE_CUT_RULES[cut_key])
+              .replace("{TITLE_RULE}",
+                       TITLE_RULE_RELAXED_A1 if (relax_titles_a1 and level == "A1")
+                       else TITLE_RULE_STRICT)
               .replace("{GLOSS_RULE}",
                        GLOSS_RULE_BEGINNER if level in ("A1", "A2") else GLOSS_RULE_FALLBACK)
               .replace("{ATTRIBUTION_RULE}",
@@ -916,8 +934,11 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
                 prompt = build_native_prompt(task.lang, [story], task.length)
             elif LEVELS_FROM == "native":
                 src = _NATIVE_INDEX.get((task.lang, task.length, story.get("slug")))
-                rewrite_fn = build_rewrite_prompt_simple if SIMPLE_REWRITE else build_rewrite_prompt
-                prompt = rewrite_fn(task.lang, task.level, task.length, src)
+                if SIMPLE_REWRITE:
+                    prompt = build_rewrite_prompt_simple(task.lang, task.level, task.length, src)
+                else:
+                    prompt = build_rewrite_prompt(task.lang, task.level, task.length, src,
+                                                   relax_titles_a1=RELAX_TITLES_A1)
                 if not prompt:
                     # No native article for this language (Spanish has no Native level),
                     # so fall back to writing from the fact-base rather than dropping the
@@ -1434,14 +1455,21 @@ def main():
                              "level+word-count rewrite prompt instead of the real one -- no "
                              "KEEP list, no CUT_RULE/GLOSS_RULE/ATTRIBUTION_RULE. Never use "
                              "in production.")
+    parser.add_argument("--relax-titles-a1", action="store_true", dest="relax_titles_a1",
+                        help="Test pipeline only. Real rewrite prompt (CUT_RULE/GLOSS_RULE/"
+                             "ATTRIBUTION_RULE all still apply), but A1's title/name rule "
+                             "relaxes from strict-verbatim to may-simplify. Isolates that "
+                             "one variable, separate from --simple-rewrite. Never use in "
+                             "production.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE, RELAX_TITLES_A1
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
     ALL_LEVELS = args.all_levels
     SIMPLE_REWRITE = args.simple_rewrite
+    RELAX_TITLES_A1 = args.relax_titles_a1
     _set_workers(args.workers)
 
     # --levels-from native works either way: native comes from --native-from (A/B, where

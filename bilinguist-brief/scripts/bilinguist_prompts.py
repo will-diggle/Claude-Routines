@@ -237,6 +237,29 @@ ATTRIBUTION_RULE_BEGINNER = (
 )
 ATTRIBUTION_RULE_FALLBACK = ""
 
+# Production line, unchanged from before the {TITLE_RULE} extraction — single source of
+# truth so the strict production prompt stays byte-identical.
+TITLE_RULE_STRICT = (
+    "- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "
+    "\"President Trump\" stays \"President Trump\" — never \"the leader of the United "
+    "States\", never \"the man in charge of the country\". This holds at EVERY level, "
+    "including A1. If a title is above the reader's level, it stays anyway."
+)
+
+# Test pipeline only (--relax-titles-a1), A1 ONLY — every other level still gets
+# TITLE_RULE_STRICT. Isolates one variable the simple-rewrite test couldn't: does A1 grade
+# closer to A1 if titles/names may simplify, with everything else (cut rule, structure,
+# glossing machinery) left exactly as tuned? Measured 2026-08-11: the fully-stripped simple
+# prompt made A1 WORSE (drifted to B1/B2, not closer to A1), which argues against "verbatim
+# titles" being the cause on its own — this test isolates that specific claim.
+TITLE_RULE_RELAXED_A1 = (
+    "- Titles and names MAY be simplified at this level if that makes the sentence "
+    "genuinely simpler to read — e.g. \"the US President\" instead of \"President Trump\", "
+    "or \"the company\" instead of a full corporate name on a later mention. The underlying "
+    "fact must still be correct and identifiable; do not invent a different title or name, "
+    "only simplify how it is expressed."
+)
+
 # Stage 8 (grading, P4b) only. Only A1/A2 articles ever carry a bracketed gloss (GLOSS_RULE
 # above), so this rule is only injected when grading an A1/A2 combo — B1+ prompts stay as
 # they were. The grader still isn't told the level (build_grading_prompt decides whether to
@@ -271,7 +294,7 @@ The article below was written by a native journalist in {LANGUAGE}. Rewrite it i
 KEEP, EXACTLY:
 - The ORDER of the facts. The article opens on the same fact and proceeds in the same sequence. Never reorder.
 - Every number, name, place and organisation, verbatim.
-- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "President Trump" stays "President Trump" — never "the leader of the United States", never "the man in charge of the country". This holds at EVERY level, including A1. If a title is above the reader's level, it stays anyway.{GLOSS_RULE}
+{TITLE_RULE}{GLOSS_RULE}
 - Every attribution — who said or reported what.{ATTRIBUTION_RULE}
 - The distinction between what is verified and what is unconfirmed.
 
