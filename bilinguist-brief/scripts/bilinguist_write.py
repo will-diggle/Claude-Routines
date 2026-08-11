@@ -1010,25 +1010,26 @@ def write_costs_report(date: str, script_dir: str) -> dict:
         }
         costs["total_usd"] += g_usd
 
-    # All write/grade stages use gemini-2.5-flash, except stage "3" (native, Stage 5) which
-    # runs gemini-2.5-pro on Flex, and "2B"/"2S"/"2M"/"4b" (Stage 7 rewrite, Stage 8 grading)
-    # which run flash on Flex — each priced separately or this line under-reports their cost.
+    # Stage "3" (native) runs gemini-2.5-pro; every other write/grade stage runs
+    # gemini-2.5-flash. Whether a stage is actually on Flex is resolved the same way
+    # call_gemini() resolves it — SERVICE_TIER_BY_STAGE.get(stage, SERVICE_TIER) — not
+    # hardcoded by stage name. A hardcoded list silently mispriced every run after Flex
+    # was turned off per-stage (2026-08-11): the report kept calling stages "(flex)" and
+    # billing them at Flex rates even when SERVICE_TIER_BY_STAGE was empty and they
+    # actually ran at full standard price.
     for sname, usage in _stage_usage.items():
+        is_flex = SERVICE_TIER_BY_STAGE.get(sname, SERVICE_TIER) == "flex"
         if sname == "3":
-            in_usd  = (usage.input_tokens    / 1_000_000) * PRO_FLEX_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens   / 1_000_000) * PRO_FLEX_OUTPUT_USD_PER_M
-            thi_usd = (usage.thinking_tokens / 1_000_000) * PRO_FLEX_THINK_USD_PER_M
-            model_name = "gemini-2.5-pro (flex)"
-        elif sname in ("2B", "2S", "2M", "4b"):
-            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_FLEX_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_FLEX_OUTPUT_USD_PER_M
-            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_FLEX_THINK_USD_PER_M
-            model_name = "gemini-2.5-flash (flex)"
+            rates = (PRO_FLEX_INPUT_USD_PER_M, PRO_FLEX_OUTPUT_USD_PER_M, PRO_FLEX_THINK_USD_PER_M) \
+                if is_flex else (PRO_INPUT_USD_PER_M, PRO_OUTPUT_USD_PER_M, PRO_THINK_USD_PER_M)
+            model_name = "gemini-2.5-pro" + (" (flex)" if is_flex else "")
         else:
-            in_usd  = (usage.input_tokens    / 1_000_000) * FLASH_INPUT_USD_PER_M
-            out_usd = (usage.output_tokens   / 1_000_000) * FLASH_OUTPUT_USD_PER_M
-            thi_usd = (usage.thinking_tokens / 1_000_000) * FLASH_THINK_USD_PER_M
-            model_name = "gemini-2.5-flash"
+            rates = (FLASH_FLEX_INPUT_USD_PER_M, FLASH_FLEX_OUTPUT_USD_PER_M, FLASH_FLEX_THINK_USD_PER_M) \
+                if is_flex else (FLASH_INPUT_USD_PER_M, FLASH_OUTPUT_USD_PER_M, FLASH_THINK_USD_PER_M)
+            model_name = "gemini-2.5-flash" + (" (flex)" if is_flex else "")
+        in_usd  = (usage.input_tokens    / 1_000_000) * rates[0]
+        out_usd = (usage.output_tokens   / 1_000_000) * rates[1]
+        thi_usd = (usage.thinking_tokens / 1_000_000) * rates[2]
         s_usd = in_usd + out_usd + thi_usd
         costs["stages"][sname] = {
             "model":           model_name,
