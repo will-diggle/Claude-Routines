@@ -131,7 +131,7 @@ jobs:
         # same speed. It also removes a hidden translation step — every level used to
         # translate the English fact-base independently, which is why terminology drifted
         # between levels; now the translation happens once, in native.
-        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels
 
       - name: Stage 9 - Check completeness
         working-directory: bilinguist-brief/scripts

@@ -381,12 +381,16 @@ NATIVE_INTERMEDIATE = [l for l in ACTIVE_LANGUAGES if "Native" not in LANGUAGE_L
 # ── Combination matrix ────────────────────────────────────────────────────────
 
 def _active_levels() -> dict:
-    """LANGUAGE_LEVELS, or every CEFR level when --all-levels is set.
+    """LANGUAGE_LEVELS, or every CEFR level below native when --all-levels is set.
 
-    A/B only. Production config is untouched: expanding the matrix inside
-    LANGUAGE_LEVELS would change what the app actually ships. Languages with no
-    Native level are left alone, since every extra level there would fall back to
-    the fact-base in both arms and carry no signal.
+    Now production behaviour (Will, 2026-08-11): every active language writes every
+    CEFR level below its native grade, not just the subset listed in LANGUAGE_LEVELS.
+    A language is eligible if it has ANY native article to rewrite from — published
+    (NATIVE_PUBLISHED) or intermediate (NATIVE_INTERMEDIATE, e.g. Spanish, which has
+    no shipped Native edition but still gets levels rewritten from an internal one).
+    Checking "Native" in LANGUAGE_LEVELS missed Spanish entirely, since its entry is
+    just ["A2"] — fixed to check actual native availability instead.
+    Languages with no native at all are left alone (nothing to rewrite from).
     """
     if not ALL_LEVELS:
         return LANGUAGE_LEVELS
@@ -394,8 +398,8 @@ def _active_levels() -> dict:
     for lang, levels in LANGUAGE_LEVELS.items():
         if not levels:
             out[lang] = levels                      # disabled language, stays disabled
-        elif "Native" in levels:
-            out[lang] = list(CEFR_ORDER) + ["Native"]
+        elif lang in NATIVE_PUBLISHED or lang in NATIVE_INTERMEDIATE:
+            out[lang] = list(CEFR_ORDER)            # CEFR_ORDER already ends with "Native"
         else:
             out[lang] = levels                      # no native to rewrite from
     return out
@@ -1367,9 +1371,9 @@ def main():
                         help="Skip stages 5-6 and load nativeJournalism/nativeGrades from "
                              "this bundle, so both arms share one native pass.")
     parser.add_argument("--all-levels", action="store_true", dest="all_levels",
-                        help="A/B only: write every CEFR level below the native grade, not "
-                             "just those in LANGUAGE_LEVELS. Bigger sample across "
-                             "compression ratios.")
+                        help="Write every CEFR level below the native grade for every "
+                             "active language, not just those listed in LANGUAGE_LEVELS. "
+                             "Production default since 2026-08-11.")
     parser.add_argument("--levels-from", choices=["factbase", "native"], default="factbase",
                         dest="levels_from",
                         help="How stage 7 writes: 'factbase' writes each level article from "
