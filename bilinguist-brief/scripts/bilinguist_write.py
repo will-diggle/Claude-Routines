@@ -82,6 +82,14 @@ SERVICE_TIER_BY_STAGE: dict[str, str] = {
     "3": "flex", "2B": "flex", "2S": "flex", "2M": "flex", "4b": "flex",
 }
 
+# gemini-2.5-pro rejects thinking_budget=0 outright ("Budget 0 is invalid. This model
+# only works in thinking mode.") — confirmed 2026-08-11: every Stage 5 (native) call
+# failed on every retry with this exact 400, for all 6 languages, burning ~11 minutes
+# before falling through to the factbase-write fallback for every article. Flash is fine
+# with budget=0 (default for every other stage); Pro (stage "3") needs a real budget.
+# 1024 matches the value gather.py already uses successfully for its own Pro fallback.
+THINKING_BUDGET_BY_STAGE: dict[str, int] = {"3": 1024}
+
 # LEVELS_FROM: "factbase" writes each level article from the fact-base (today's
 # behaviour, arm A). "native" rewrites the graded native article of the same language,
 # length and story down to the target level (arm B). Set via --levels-from.
@@ -681,7 +689,8 @@ def call_gemini(
                         response_mime_type="application/json",
                         response_schema=schema,
                         max_output_tokens=max_output_tokens,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=types.ThinkingConfig(
+                            thinking_budget=THINKING_BUDGET_BY_STAGE.get(stage, 0)),
                         **({"service_tier": tier} if (tier := SERVICE_TIER_BY_STAGE.get(stage, SERVICE_TIER)) else {}),
                     ),
                 )
