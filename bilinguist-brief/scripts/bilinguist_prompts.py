@@ -237,6 +237,25 @@ ATTRIBUTION_RULE_BEGINNER = (
 )
 ATTRIBUTION_RULE_FALLBACK = ""
 
+# A1 only, not A2 -- test pipeline (test-a1-grammar-rule), never production yet. Written
+# from three real side-by-side rewrites of the same French story on 2026-08-12: the
+# passing-as-A1 sample stayed present tense + direct quotes; the failing ones reached for
+# passive voice, "lequel"-style relatives, and "dit que X avait fait Y" -- a subordinate
+# clause with its own compound tense inside it. ATTRIBUTION_RULE_BEGINNER already handles
+# the "that"-clause case; this is broader -- it also blocks passive voice and relative
+# pronouns beyond simple qui/que, which ATTRIBUTION_RULE_BEGINNER never covered.
+GRAMMAR_RULE_A1 = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and simple passé composé "
+    "(or {LANGUAGE}'s equivalent simple past) — never the imperfect, the pluperfect, or any "
+    "passive construction; rewrite passives as active sentences. Never use a relative "
+    "pronoun other than a simple \"qui\"/\"que\" (or {LANGUAGE}'s equivalent) as the "
+    "subject/object of its own short clause — no \"dans lequel\", \"auquel\", \"dont\" or "
+    "equivalents. Never embed one subordinate clause inside another (e.g. \"said that X had "
+    "done Y\") — split into two short sentences or a direct quote instead. One idea, one "
+    "verb, per sentence."
+)
+GRAMMAR_RULE_FALLBACK = ""
+
 # Production line, unchanged from before the {TITLE_RULE} extraction — single source of
 # truth so the strict production prompt stays byte-identical.
 TITLE_RULE_STRICT = (
@@ -297,6 +316,7 @@ KEEP, EXACTLY:
 {TITLE_RULE}{GLOSS_RULE}
 - Every attribution — who said or reported what.{ATTRIBUTION_RULE}
 - The distinction between what is verified and what is unconfirmed.
+{GRAMMAR_RULE}
 
 SIMPLIFY freely: descriptive terms, not names. "ceasefire" may become the simplest phrase in {LANGUAGE} that means the same thing. Names, titles and figures may not.
 
