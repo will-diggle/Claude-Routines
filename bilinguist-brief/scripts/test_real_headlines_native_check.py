@@ -134,17 +134,35 @@ def stage5_native_json(client: "genai.Client", story: dict) -> dict:
 
 def stage5_native_plain(client: "genai.Client", story: dict) -> dict:
     """Arm B: plain-text output, same exact-210 rule as arm A."""
+    import time
     import bilinguist_write as w
     prompt = _build_prompt(w, story, PLAIN_OUTPUT_FORMAT)
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.1,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        ),
-    )
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            break
+        except Exception as e:
+            err = str(e)
+            if any(c in err for c in ["503", "429"]) and attempt < 3:
+                delay = [15, 30][attempt - 1]
+                print(f"[{story.get('slug')}] plain-arm attempt {attempt} failed ({e}) — "
+                      f"retrying in {delay}s…", file=sys.stderr)
+                time.sleep(delay)
+            else:
+                print(f"[{story.get('slug')}] plain-arm non-retryable error: {e}", file=sys.stderr)
+                return {"slug": story.get("slug"), "arm": "plain", "error": str(e)}
+
+    if not response:
+        return {"slug": story.get("slug"), "arm": "plain", "error": "all retries failed"}
     raw = response.text or ""
     if not raw:
         return {"slug": story.get("slug"), "arm": "plain", "error": "no response"}
