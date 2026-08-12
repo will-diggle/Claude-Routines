@@ -1,0 +1,44 @@
+name: "TEST: native EN, no forced JSON (plain text output)"
+
+# Same fact-bases and same instructions as test_native_exact_210.py (word count, political
+# titles, quote rules -- nothing in the rule text changes), only the output mechanism
+# changes: plain HEADLINE:/BODY: text instead of a JSON-schema-forced object. Tests whether
+# dropping the schema constraint improves compliance on the rules measured failing today
+# (word count, political titles, quote formatting). 2 Gemini calls (Flash). Never touches
+# the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the no-JSON native test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_native_no_json.py | tee native_no_json_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-native-no-json-result
+          path: bilinguist-brief/scripts/native_no_json_result.txt
+          retention-days: 14
