@@ -1,0 +1,44 @@
+name: "TEST: A1 from native's reported fact subset (DE + FR)"
+
+# Tests whether writing A1 directly from the specific facts native reported using (rather
+# than from native's prose, or independently from the raw fact-base) fixes fact-alignment
+# and carries the safety rules (political titles, gloss, attribution, A1 grammar) the
+# production factbase-direct path currently lacks. Uses the real Trump plane-swap fixture.
+# 4 Gemini calls total (2 native-with-facts-reporting + 2 A1-from-that-subset). Never
+# touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the A1 facts-used DE+FR test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_a1_facts_used_de_fr.py | tee a1_facts_used_de_fr_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-a1-facts-used-de-fr-result
+          path: bilinguist-brief/scripts/a1_facts_used_de_fr_result.txt
+          retention-days: 14
