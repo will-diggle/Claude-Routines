@@ -1,0 +1,44 @@
+name: "TEST: native EN, exact-210-words instruction vs range"
+
+# Isolates one variable: does "write exactly 210 words, revise until you match" beat the
+# current range instruction (206-225)? Reuses the exact same two fact-bases already
+# gathered in the previous test (hardcoded verbatim), so the only thing that differs is the
+# word-count phrasing -- not the input facts. Previous result on these same facts with the
+# range instruction: Trump 276 words, Jensen 269 words. 2 Gemini calls (Flash). Never
+# touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the exact-210 native test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_native_exact_210.py | tee native_exact_210_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-native-exact-210-result
+          path: bilinguist-brief/scripts/native_exact_210_result.txt
+          retention-days: 14
