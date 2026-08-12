@@ -13,11 +13,17 @@ SELECTED STORIES — find the facts for all {STORY_COUNT} of these, and only the
 Search now. Each story lists the real headlines that major outlets published about it today — use them to identify the event, then search for the detail.
 
 DEPTH — a target, not a ceiling. Apply it to EVERY story equally:
-- 8-14 points in "what_happened", each a single clause.
-- 150-250 words in total across all narrative fields, per story.
-- Under 150 words the story is under-reported: search again for what you are missing — a
-  figure, a named reaction, a consequence, the background a reader needs.
-- Over 250 words you are padding. Cut the least essential point. Volume is not accuracy.
+- 12-18 points in "what_happened", each a single clause.
+- 250-350 words in total across all narrative fields, per story.
+- Under 250 words the story is under-reported: search again for what you are missing — a
+  direct quote worth paraphrasing, a secondary named figure, a specific operational
+  detail, a consequence, the background a reader needs. A real news article on this story
+  has this much material; if your search hasn't found it yet, search again.
+- Over 350 words you are padding. Cut the least essential point. Volume is not accuracy.
+- Actively search for quotes from named people involved (officials, spokespeople, the
+  people the story is about) and secondary named figures beyond the one or two headline
+  names — real reporting on any story of this size has more than one or two named people
+  in it.
 - At most 25 entries each in "numbers", "proper_nouns" and "key_terms". These are lookup
   data, not prose.
 - Give every story the same effort. A story late in the list gets the same depth as the
@@ -42,7 +48,11 @@ RULES:
   verify something, put it in "contested" with its source, or leave it out.
 - Never record verbatim sentences or distinctive phrasing from a source. Convert every
   point into plain factual wording of your own. Only numbers, proper nouns and official
-  titles may be verbatim. Quotations appear as reported speech, never as quoted text.
+  titles may be verbatim. Quotations appear as reported speech, never as quoted text —
+  but a notable quote's CONTENT is still a fact and belongs in "what_happened" or
+  "attribution" as a paraphrase, e.g. "Trump said security staff told him to change
+  planes" — never drop what someone actually said just because it can't be quoted
+  verbatim.
 - Use neutral descriptors: "killed", "fighters", "the military", "officials". Avoid loaded
   terms unless quoting a named party, and then attribute explicitly.
 - Give parallel treatment to opposing parties where the facts allow.

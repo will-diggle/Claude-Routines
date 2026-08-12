@@ -1,0 +1,43 @@
+name: "TEST: deepened fact-base (1 story) + native EN on Flash"
+
+# Tests the deepened gemini_prompt_facts.md (12-18 points, 250-350 narrative words,
+# explicit quotes/secondary-figures instruction) on this one story via the real, unmodified
+# gather_facts_for_genre() -- then writes native English from the result on Gemini Flash
+# (real build_native_prompt(), unmodified). 2 Gemini calls total (1 live search-grounded
+# fact call + 1 native write). Never touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the deepened fact-base + native EN test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_deeper_facts_native_en.py | tee deeper_facts_native_en_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-deeper-facts-native-en-result
+          path: bilinguist-brief/scripts/deeper_facts_native_en_result.txt
+          retention-days: 14
