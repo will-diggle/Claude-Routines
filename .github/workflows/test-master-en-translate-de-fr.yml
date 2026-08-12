@@ -1,0 +1,44 @@
+name: "TEST: master EN native, translated to DE+FR, two A1 arms"
+
+# Single-source-of-truth architecture test: English native written once (facts_used
+# reported), German and French TRANSLATED from that master ("as Der Spiegel/Le Monde's own
+# journalist would write it," not literal) instead of composed independently. Then A1 tried
+# two ways per language: rewrite of the translated native, vs written directly from the
+# English master's fact list -- to compare which does better. 7 Gemini calls total. Never
+# touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the master-EN translate test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_master_en_translate_de_fr.py | tee master_en_translate_de_fr_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-master-en-translate-de-fr-result
+          path: bilinguist-brief/scripts/master_en_translate_de_fr_result.txt
+          retention-days: 14
