@@ -76,7 +76,7 @@ def run(lang: str, level: str, article: dict) -> None:
 
     raw, finish = W.call_claude(
         W.CLAUDE_MODEL_BEGINNER, prompt, f"test/{lang}-{level}-haiku",
-        schema=W._SCHEMA_ARTICLE, max_output_tokens=4096,
+        stage="2B", schema=W._SCHEMA_ARTICLE, max_output_tokens=4096,
     )
     if not raw:
         print(f"[{lang}/{level}] ERROR: no response (finish_reason={finish})", file=sys.stderr)
@@ -87,7 +87,22 @@ def run(lang: str, level: str, article: dict) -> None:
     print(body)
 
 
+def print_cost_report() -> None:
+    u = W._stage_usage["2B"]
+    in_usd = (u.input_tokens / 1_000_000) * W.CLAUDE_HAIKU_INPUT_USD_PER_M
+    out_usd = (u.output_tokens / 1_000_000) * W.CLAUDE_HAIKU_OUTPUT_USD_PER_M
+    total_usd = in_usd + out_usd
+    print(f"\n{'=' * 20} COST REPORT (Claude Haiku, {W.CLAUDE_MODEL_BEGINNER}) {'=' * 20}\n")
+    print(f"calls: {u.calls}")
+    print(f"input tokens:  {u.input_tokens:,}")
+    print(f"output tokens: {u.output_tokens:,}")
+    print(f"cost: ${total_usd:.5f} (${in_usd:.5f} in + ${out_usd:.5f} out)")
+    if u.calls:
+        print(f"avg per call: ${total_usd / u.calls:.5f}")
+
+
 if __name__ == "__main__":
     for level in ("A1", "A2"):
         run("de", level, DE_ARTICLE)
         run("fr", level, FR_ARTICLE)
+    print_cost_report()
