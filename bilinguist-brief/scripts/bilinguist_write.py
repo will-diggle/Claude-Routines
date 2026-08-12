@@ -76,6 +76,17 @@ def _resolve_model(gemini_model: str, is_beginner: bool) -> str:
         return CLAUDE_MODEL_BEGINNER if is_beginner else CLAUDE_MODEL_MAIN
     return gemini_model
 
+
+def _resolve_verify_grade_model(gemini_model: str) -> str:
+    """
+    Pick the model for stage 5b (verify native) and stage 8/4b (grade levels), honouring
+    WRITER_BACKEND. Unlike _resolve_model, these always use Haiku under Claude -- both are
+    checks against known text, not native/B1+ generation, so the cheaper model applies
+    regardless of the level being graded. Stage 6/4a (grade native) is NOT covered by this
+    -- it stays on Gemini even when WRITER_BACKEND is "claude".
+    """
+    return CLAUDE_MODEL_BEGINNER if WRITER_BACKEND == "claude" else gemini_model
+
 # Concurrency limit — 4 workers keeps Gemini 2.5 Flash 503 rate low now that the
 # level matrix has expanded (~88+ writing calls vs ~50 before). 10 workers caused
 # cascade failures; 6 was OK with fewer levels but too aggressive now.
@@ -1149,9 +1160,10 @@ def write_costs_report(date: str, script_dir: str) -> dict:
     # actually ran at full standard price.
     for sname, usage in _stage_usage.items():
         is_flex = SERVICE_TIER_BY_STAGE.get(sname, SERVICE_TIER) == "flex"
-        if WRITER_BACKEND == "claude" and sname in ("3", "2S", "2B", "2M"):
-            # Claude has no Flex tier and no thinking cost on these calls.
-            if sname == "2B":
+        if WRITER_BACKEND == "claude" and sname in ("3", "2S", "2B", "2M", "5b", "4b"):
+            # Claude has no Flex tier and no thinking cost on these calls. 5b/4b are
+            # forced to Haiku regardless of level (checks, not native/B1+ generation).
+            if sname in ("2B", "5b", "4b"):
                 rates = (CLAUDE_HAIKU_INPUT_USD_PER_M, CLAUDE_HAIKU_OUTPUT_USD_PER_M, 0.0)
                 model_name = CLAUDE_MODEL_BEGINNER
             else:
@@ -1421,7 +1433,7 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
                       {"headline": art.get("headline"), "body": art.get("body")},
                       ensure_ascii=False, indent=2))
                   .replace("{FACTBASE}", json.dumps(story, ensure_ascii=False, indent=2)))
-        raw, finish = call_gemini(client, MODEL_5B, prompt,
+        raw, finish = call_llm(client, _resolve_verify_grade_model(MODEL_5B), prompt,
                                  f"5b/{lang}-{length}-{art.get('slug')}", "5b",
                                  _SCHEMA_VERIFY, max_output_tokens=2048)
         if not raw or finish == "MAX_TOKENS":
@@ -1506,7 +1518,8 @@ def run_grade_cefr(
     def grade(combo):
         lang, level, length, arts = combo
         label = f"4b/{lang}-{level}-{length}"
-        raw, finish = call_gemini(client, MODEL_4B, build_grading_prompt(lang, arts, level),
+        raw, finish = call_llm(client, _resolve_verify_grade_model(MODEL_4B),
+                                 build_grading_prompt(lang, arts, level),
                                  label, "4b", _SCHEMA_GRADING)
         if not raw or finish == "MAX_TOKENS":
             print(f"[ERROR] [{label}]: {'MAX_TOKENS' if finish else 'no response'} — "
