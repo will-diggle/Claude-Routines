@@ -1,0 +1,43 @@
+name: "TEST: 2 stories, deepened facts (re-tuned), 2 native EN"
+
+# Re-tuned gemini_prompt_facts.md (10-16 points, 200-300 narrative words -- pulled back
+# from the 12-18/250-350 version that overshot) on TWO different real stories, each as its
+# own individual call, matching real per-article production architecture. 4 Gemini calls
+# total: 2 individual fact-gather calls + 2 individual native-write calls (Flash). Never
+# touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the 2-story deepened facts test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_two_stories_deeper_facts.py | tee two_stories_deeper_facts_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-two-stories-deeper-facts-result
+          path: bilinguist-brief/scripts/two_stories_deeper_facts_result.txt
+          retention-days: 14
