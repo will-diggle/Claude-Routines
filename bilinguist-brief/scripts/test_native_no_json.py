@@ -3,11 +3,12 @@ Test: does dropping forced JSON output (response_schema + response_mime_type) im
 compliance on the rules we've measured failing -- word count, political titles, quote
 formatting -- given there's only one task here (one article, not a list)?
 
-Same fact-bases as test_native_exact_210.py (hardcoded, identical facts held constant),
-SAME instructions (word count, political titles, quote rules, structure -- nothing in the
-rule text changes), only the output mechanism changes: plain HEADLINE:/BODY: text instead
-of a JSON-schema-forced object. Python parses the simple text format directly -- no JSON
-needed at all, matching "we can python around this issue."
+Same fact-bases as test_native_exact_210.py (hardcoded, identical facts held constant), and
+the same exact-210-words instruction (not the 206-225 range) -- isolates the output-format
+variable alone. Everything else (political titles, quote rules, structure) stays untouched.
+Output mechanism: plain HEADLINE:/BODY: text instead of a JSON-schema-forced object. Python
+parses the simple text format directly -- no JSON needed, matching "we can python around
+this issue."
 
 2 Gemini calls (Flash), fully unconstrained generation (no response_mime_type, no
 response_schema -- a plain generate_content call, bypassing call_gemini's hardcoded JSON
@@ -27,6 +28,13 @@ from test_native_exact_210 import TRUMP_STORY, JENSEN_STORY
 
 # Same rule text as production -- only the output-format instruction changes, from a JSON
 # schema description to plain text with simple markers.
+_ORIG_WORD_RULE = W.NATIVE_WORD_RULE["longer"]
+EXACT_210_RULE = (
+    "Write exactly 210 words. Count every word before submitting. If your count is not "
+    "210, revise the article and count again until it is. This is a precise target, not a "
+    "range -- 208 or 213 is a miss, not close enough."
+)
+
 _ORIG_OUTPUT_FORMAT = W.OUTPUT_FORMAT_SINGLE
 PLAIN_OUTPUT_FORMAT = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
@@ -46,8 +54,10 @@ PLAIN_OUTPUT_FORMAT = (
 def build_plain_prompt(story: dict) -> str:
     import bilinguist_write as _w
     _w.OUTPUT_FORMAT_SINGLE = PLAIN_OUTPUT_FORMAT
+    _w.NATIVE_WORD_RULE["longer"] = EXACT_210_RULE
     prompt = _w.build_native_prompt("en", [story], "longer")
     _w.OUTPUT_FORMAT_SINGLE = _ORIG_OUTPUT_FORMAT
+    _w.NATIVE_WORD_RULE["longer"] = _ORIG_WORD_RULE
     return prompt
 
 
