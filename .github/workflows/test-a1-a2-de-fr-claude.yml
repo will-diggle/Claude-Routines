@@ -1,0 +1,42 @@
+name: "TEST: A1+A2 rewrite on Claude Haiku (DE + FR only)"
+
+# Same two hardcoded native articles as the Gemini A1/A2 tests, same real rewrite prompt,
+# but routed to claude-haiku-4-5 directly instead of Gemini. 4 Claude calls total (A1+A2 x
+# DE+FR). No fixtures/factbase/pipeline stages. Output goes to the job log and an artifact.
+# Never touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the A1+A2 DE+FR Claude Haiku test
+        working-directory: bilinguist-brief/scripts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python test_a1_a2_de_fr_claude.py | tee a1_a2_de_fr_claude_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-a1-a2-de-fr-claude-result
+          path: bilinguist-brief/scripts/a1_a2_de_fr_claude_result.txt
+          retention-days: 14
