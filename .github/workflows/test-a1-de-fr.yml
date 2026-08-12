@@ -1,0 +1,42 @@
+name: "TEST: A1 rewrite (DE + FR only)"
+
+# The simplest possible A1 test. No fixtures, no factbase, no pipeline stages -- just two
+# hardcoded native articles (one German, one French) rewritten straight to A1 using the
+# real, tuned rewrite prompt. 2 Gemini calls total. Output goes to the job log and an
+# artifact. Never touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the A1 DE+FR test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_a1_de_fr.py | tee a1_de_fr_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-a1-de-fr-result
+          path: bilinguist-brief/scripts/a1_de_fr_result.txt
+          retention-days: 14
