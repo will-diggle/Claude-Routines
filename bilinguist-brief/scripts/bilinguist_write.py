@@ -60,6 +60,22 @@ MODEL_4A = "gemini-2.5-flash"               # P4a: grade native journalism → o
 MODEL_5B = "gemini-2.5-flash"               # Stage 5b: verify native against the factbase
 MODEL_4B = "gemini-2.5-flash"               # P4b: grade CEFR level articles (quality gate)
 
+# ── Writer backend (test only) ────────────────────────────────────────────────
+# Grading (4a/4b), fact-check (5b) and gather stay on Gemini always -- this only ever
+# swaps which model writes native (stage 3) and CEFR levels (2S/2B/2M). Default is
+# Gemini (production); --api claude switches those stages to the Claude API, isolated
+# to test workflows. Never used in generate-briefings.yml.
+WRITER_BACKEND: str = "gemini"
+CLAUDE_MODEL_MAIN     = "claude-sonnet-4-5-20250929"  # native + B1+ levels
+CLAUDE_MODEL_BEGINNER = "claude-haiku-4-5-20251001"   # A1/A2 levels
+
+
+def _resolve_model(gemini_model: str, is_beginner: bool) -> str:
+    """Pick the model for a write-stage (3/2S/2B/2M) task, honouring WRITER_BACKEND."""
+    if WRITER_BACKEND == "claude":
+        return CLAUDE_MODEL_BEGINNER if is_beginner else CLAUDE_MODEL_MAIN
+    return gemini_model
+
 # Concurrency limit — 4 workers keeps Gemini 2.5 Flash 503 rate low now that the
 # level matrix has expanded (~88+ writing calls vs ~50 before). 10 workers caused
 # cascade failures; 6 was OK with fewer levels but too aggressive now.
@@ -327,6 +343,12 @@ PRO_FLEX_OUTPUT_USD_PER_M = PRO_OUTPUT_USD_PER_M * 0.5
 PRO_FLEX_THINK_USD_PER_M  = PRO_THINK_USD_PER_M  * 0.5
 
 USD_TO_GBP = 0.79  # approximate — update as needed
+
+# Claude pricing (USD per 1M tokens) — verify at anthropic.com/pricing. Test backend only.
+CLAUDE_SONNET_INPUT_USD_PER_M  = 3.00
+CLAUDE_SONNET_OUTPUT_USD_PER_M = 15.00
+CLAUDE_HAIKU_INPUT_USD_PER_M   = 1.00
+CLAUDE_HAIKU_OUTPUT_USD_PER_M  = 5.00
 
 
 # ── CEFR ordering (used by skip logic in build_combinations) ─────────────────
@@ -776,6 +798,93 @@ def call_gemini(
     return None, None
 
 
+_anthropic_client = None
+
+
+def _get_anthropic_client():
+    global _anthropic_client
+    if _anthropic_client is None:
+        import anthropic
+        _anthropic_client = anthropic.Anthropic()
+    return _anthropic_client
+
+
+def call_claude(
+    model: str, prompt: str, label: str,
+    stage: Optional[str] = None,
+    schema: Optional[dict] = None,
+    max_output_tokens: Optional[int] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Claude-backend equivalent of call_gemini(), same (text, finish_reason) contract.
+    Claude has no response_schema — structure is forced via a single required tool
+    call instead, so parse_llm_json downstream sees the same shape either backend
+    produces.
+    """
+    client = _get_anthropic_client()
+    tool = {
+        "name": "emit_article",
+        "description": "Return the result as structured JSON matching this schema.",
+        "input_schema": schema,
+    } if schema else None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            with _API_SEMAPHORE:
+                kwargs = dict(
+                    model=model,
+                    max_tokens=max_output_tokens or 8192,
+                    temperature=0.1,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                if tool:
+                    kwargs["tools"] = [tool]
+                    kwargs["tool_choice"] = {"type": "tool", "name": "emit_article"}
+                response = client.messages.create(**kwargs)
+            if stage and stage in _stage_usage:
+                inp = getattr(response.usage, "input_tokens", 0) or 0
+                out = getattr(response.usage, "output_tokens", 0) or 0
+                with _usage_lock:
+                    u = _stage_usage[stage]
+                    u.calls         += 1
+                    u.input_tokens  += inp
+                    u.output_tokens += out
+            finish_reason = "MAX_TOKENS" if response.stop_reason == "max_tokens" else None
+            if tool:
+                block = next((b for b in response.content if b.type == "tool_use"), None)
+                text = json.dumps(block.input) if block else None
+            else:
+                text = "".join(b.text for b in response.content if b.type == "text")
+            if finish_reason == "MAX_TOKENS":
+                print(f"[ERROR] [{label}] MAX_TOKENS — response truncated", file=sys.stderr)
+                return text, "MAX_TOKENS"
+            return text, None
+        except Exception as e:
+            code = getattr(e, "status_code", None)
+            if attempt < MAX_RETRIES:
+                base = RETRY_DELAYS[attempt]
+                delay = base * (0.5 + random.random())
+                print(f"[{label}] Attempt {attempt + 1} failed (code={code}): {e} — retrying in {delay:.1f}s",
+                      file=sys.stderr)
+                time.sleep(delay)
+            else:
+                print(f"[ERROR] [{label}] All {MAX_RETRIES + 1} attempts failed: {e}", file=sys.stderr)
+                return None, None
+    return None, None
+
+
+def call_llm(
+    client: genai.Client, model: str, prompt: str, label: str,
+    stage: Optional[str] = None,
+    schema: Optional[dict] = None,
+    max_output_tokens: Optional[int] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Dispatch to the active writer backend (Gemini by default, Claude under --api claude)."""
+    if WRITER_BACKEND == "claude":
+        return call_claude(model, prompt, label, stage=stage, schema=schema,
+                            max_output_tokens=max_output_tokens)
+    return call_gemini(client, model, prompt, label, stage, schema, max_output_tokens)
+
+
 # ── Task executor (handles proactive splitting) ───────────────────────────────
 
 def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
@@ -795,7 +904,7 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
         best_articles: list[dict] = []
         for attempt in range(_THIN_RETRY_LIMIT + 1):
             attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
-            raw, finish_reason = call_gemini(
+            raw, finish_reason = call_llm(
                 client, task.model, task.prompt, attempt_label,
                 task.stage, task.schema, task.max_output_tokens,
             )
@@ -872,7 +981,7 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
         part_articles: list[dict] = []
         for attempt in range(_THIN_RETRY_LIMIT + 1):
             attempt_label = f"{sub_label}-r{attempt + 1}" if attempt > 0 else sub_label
-            text, reason = call_gemini(
+            text, reason = call_llm(
                 client, task.model, sub_prompt, attempt_label,
                 task.stage, task.schema, task.max_output_tokens,
             )
@@ -1040,7 +1149,15 @@ def write_costs_report(date: str, script_dir: str) -> dict:
     # actually ran at full standard price.
     for sname, usage in _stage_usage.items():
         is_flex = SERVICE_TIER_BY_STAGE.get(sname, SERVICE_TIER) == "flex"
-        if sname == "3":
+        if WRITER_BACKEND == "claude" and sname in ("3", "2S", "2B", "2M"):
+            # Claude has no Flex tier and no thinking cost on these calls.
+            if sname == "2B":
+                rates = (CLAUDE_HAIKU_INPUT_USD_PER_M, CLAUDE_HAIKU_OUTPUT_USD_PER_M, 0.0)
+                model_name = CLAUDE_MODEL_BEGINNER
+            else:
+                rates = (CLAUDE_SONNET_INPUT_USD_PER_M, CLAUDE_SONNET_OUTPUT_USD_PER_M, 0.0)
+                model_name = CLAUDE_MODEL_MAIN
+        elif sname == "3":
             rates = (PRO_FLEX_INPUT_USD_PER_M, PRO_FLEX_OUTPUT_USD_PER_M, PRO_FLEX_THINK_USD_PER_M) \
                 if is_flex else (PRO_INPUT_USD_PER_M, PRO_OUTPUT_USD_PER_M, PRO_THINK_USD_PER_M)
             model_name = "gemini-2.5-pro" + (" (flex)" if is_flex else "")
@@ -1103,13 +1220,13 @@ def run_native_journalism(
     for lang in native_langs:
         tasks.append(_WriteTask(
             stage="3", lang=lang, level=None, length="short",
-            model=MODEL_3, prompt=build_native_prompt(lang, factbase, "short"),
+            model=_resolve_model(MODEL_3, False), prompt=build_native_prompt(lang, factbase, "short"),
             schema=_SCHEMA_NATIVE, max_output_tokens=8192,
             template=PROMPT_3_SHORT_HEADER, factbase=factbase, n_splits=1,
         ))
         tasks.append(_WriteTask(
             stage="3", lang=lang, level=None, length="longer",
-            model=MODEL_3, prompt=build_native_prompt(lang, factbase, "longer"),
+            model=_resolve_model(MODEL_3, False), prompt=build_native_prompt(lang, factbase, "longer"),
             schema=_SCHEMA_NATIVE, max_output_tokens=16384,
             template=PROMPT_3_HEADER, factbase=factbase, n_splits=2,
         ))
@@ -1204,7 +1321,7 @@ def run_writing_concurrent(
     for lang, level, length in combos_2s:
         is_beginner = level in ("A1", "A2")
         stage = "2B" if is_beginner else "2S"
-        model = MODEL_BEGINNER if is_beginner else MODEL_2S
+        model = _resolve_model(MODEL_BEGINNER if is_beginner else MODEL_2S, is_beginner)
         prompt = build_writing_prompt(PROMPT_2S_HEADER, lang, level, length, factbase)
         # 16384: short tasks typically emit ~1k tokens, but an occasional runaway
         # generation was hitting the old 8192 ceiling and losing the whole combo.
@@ -1219,7 +1336,7 @@ def run_writing_concurrent(
     for lang, level, length in combos_2m:
         is_beginner = level in ("A1", "A2")
         stage = "2B" if is_beginner else "2M"
-        model = MODEL_BEGINNER if is_beginner else MODEL_2M
+        model = _resolve_model(MODEL_BEGINNER if is_beginner else MODEL_2M, is_beginner)
         template = PROMPT_2S_HEADER if is_beginner else PROMPT_2M_HEADER
         if is_beginner:
             # German and French produce verbose articles that exhaust the token budget
@@ -1461,15 +1578,22 @@ def main():
                              "relaxes from strict-verbatim to may-simplify. Isolates that "
                              "one variable, separate from --simple-rewrite. Never use in "
                              "production.")
+    parser.add_argument("--api", choices=["gemini", "claude"], default="gemini",
+                        help="Test pipeline only. Writer backend for stages 3/2S/2B/2M "
+                             "(native + CEFR levels). 'claude' uses Claude Sonnet for "
+                             "native/B1+ and Claude Haiku for A1/A2. Grading (4a/4b), "
+                             "fact-check (5b) and gather stay on Gemini regardless. "
+                             "Requires ANTHROPIC_API_KEY. Never use in production.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE, RELAX_TITLES_A1
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE, RELAX_TITLES_A1, WRITER_BACKEND
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
     ALL_LEVELS = args.all_levels
     SIMPLE_REWRITE = args.simple_rewrite
     RELAX_TITLES_A1 = args.relax_titles_a1
+    WRITER_BACKEND = args.api
     _set_workers(args.workers)
 
     # --levels-from native works either way: native comes from --native-from (A/B, where
@@ -1481,7 +1605,7 @@ def main():
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     print(f"[write] Starting writing/grading pipeline — {date}")
     print(f"[write] Mode: {'PER-ARTICLE' if PER_ARTICLE else 'batched'} | "
-          f"tier: {args.tier} | workers: {_MAX_WORKERS}")
+          f"tier: {args.tier} | workers: {_MAX_WORKERS} | writer backend: {WRITER_BACKEND}")
     _t_pipeline = time.time()
     _stage_secs: dict[str, float] = {}
 

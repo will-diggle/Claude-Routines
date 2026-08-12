@@ -1,0 +1,154 @@
+name: "TEST: Claude API writer (Sonnet + Haiku)"
+
+# Full production-shaped run (real scrape/select/gather/verify, all stories, all
+# languages/levels), but Stage 5 (native) and Stage 7 (CEFR levels) write via the
+# Claude API instead of Gemini: claude-sonnet-4-5 for native + B1+, claude-haiku-4-5
+# for A1/A2. Grading (Stage 6/8), fact-check (Stage 5b) and gather stay on Gemini —
+# only the writer backend for stages 3/2S/2B/2M changes (--api claude).
+#
+# Isolated: never pushes to the data repo, never touches the live app. Output only
+# reaches a GitHub Actions artifact and a clearly-marked TEST ntfy message.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Notify started
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Claude API writer - Generating" \
+            -H "Tags: test_tube" \
+            -d "Claude-backed test run generating (Sonnet native/B1+, Haiku A1/A2). Not pushed to the app." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Prompt checks (no API calls)
+        working-directory: bilinguist-brief/scripts
+        run: python test_prompts.py
+
+      - name: Stage 1 - Scrape headlines
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_scrape.py
+
+      - name: Stage 2 - Select stories (group headlines, rank in Python)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          python bilinguist_gather.py --select-only
+          cp factbase_${{ env.BRIEF_DATE }}.json selection.json
+
+      - name: Stage 3 - Gather facts for the ranked winners
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_gather.py --from selection.json --facts-input winners
+
+      - name: Guard - the factbase must have facts, a notification and a search log
+        working-directory: bilinguist-brief/scripts
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          d = json.load(open(f"factbase_{os.environ['BRIEF_DATE']}.json", encoding="utf-8"))
+          bad = []
+          empty = [s.get("slug") for s in d.get("factbase", []) if not (s.get("what_happened") or [])]
+          if empty:
+              bad.append(f"stories with no facts: {empty}")
+          if not (d.get("daily_notification") or "").strip():
+              bad.append("daily_notification is empty")
+          if not d.get("global_news_search_log"):
+              bad.append("global_news_search_log is empty")
+          print(f"{len(d.get('factbase', []))} stories | notification: "
+                f"{(d.get('daily_notification') or '')[:120]}")
+          if bad:
+              sys.exit("GUARD FAILED — " + "; ".join(bad))
+          print("guard passed")
+          PY
+
+      - name: Stage 4 - Verify the factbase
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_factcheck.py
+
+      - name: Stages 5-8 - Write (Claude) and grade (Gemini)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # --api claude: stages 3/2S/2B/2M (native + CEFR levels) write via Claude instead
+        # of Gemini, so --tier has no effect on them (Claude has no Flex tier). Grading
+        # (4a/4b) and fact-check (5b) stay on Gemini and go through call_gemini directly,
+        # so --tier flex applies to those and gets the real Flex discount on this run.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels --api claude --tier flex
+
+      - name: Stage 9 - Check completeness
+        working-directory: bilinguist-brief/scripts
+        run: python bilinguist_check.py
+
+      - name: Upload bundle as artifact (test only — not pushed to data repo)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-claude-api-${{ env.BRIEF_DATE }}
+          path: |
+            bilinguist-brief/scripts/output/latest.json
+            bilinguist-brief/scripts/output/${{ env.BRIEF_DATE }}.json
+            bilinguist-brief/scripts/output/costs_${{ env.BRIEF_DATE }}.json
+          retention-days: 14
+
+      - name: Notify success
+        if: success()
+        env:
+          NTFY_TITLE: ${{ env.BRIEF_TITLE }}
+          NTFY_BODY: ${{ env.BRIEF_BODY }}
+          NTFY_EMOJI: ${{ env.BRIEF_EMOJI }}
+          NTFY_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          TITLE="[TEST] Claude API writer — ${NTFY_TITLE:-done}"
+          NOTE="This is the Claude-backend TEST pipeline (Sonnet native/B1+, Haiku A1/A2). Not pushed to the app — download the GitHub Actions artifact to inspect the bundle."
+          MAIN="${NTFY_BODY:-Test run for ${NTFY_DATE} finished.}"
+          BODY=$(printf '%s\n\n⚠️ %s' "$MAIN" "$NOTE")
+          curl -s -X POST \
+            -H "Title: ${TITLE}" \
+            -H "Tags: ${NTFY_EMOJI:-test_tube}" \
+            -H "Content-Type: text/markdown" \
+            --data-binary "${BODY}" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Claude API writer - Failed" \
+            -H "Priority: default" \
+            -H "Tags: test_tube" \
+            -d "Claude API test pipeline failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
