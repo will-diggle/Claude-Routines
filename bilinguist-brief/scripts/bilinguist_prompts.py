@@ -503,7 +503,11 @@ For each article assess:
    medium: 100–180 words
    longer: over 180 words
 
-CALIBRATION EXAMPLES — anchor your grading against these two reference texts. Both are in French; the same complexity principles apply across all languages:
+CALIBRATION EXAMPLES — anchor your grading against these three reference texts. All are in French; the same complexity principles apply across all languages:
+
+A1 — Beginner:
+"Le G7 est un groupe de pays. Ces pays parlent de l'argent dans le monde. Ils veulent travailler ensemble. Une personne dit que la réunion est bonne."
+Why A1: Very short subject-verb-object sentences (4-8 words). Present tense only, no compound past forms. Only the most common, everyday vocabulary (groupe, argent, monde, personne, bonne). No subordinate clauses, no connectors beyond simple repetition of the subject.
 
 B1 — Intermediate:
 "Les dirigeants du G7 se sont réunis pour parler de l'économie mondiale. Ils ont discuté de l'inflation et du commerce international. Les pays membres ont décidé de travailler ensemble pour trouver des solutions. Un porte-parole a dit que les discussions ont été positives."
