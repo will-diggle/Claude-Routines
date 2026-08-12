@@ -1,0 +1,44 @@
+name: "TEST: EN native A/B/C — Gemini Flash vs Claude Sonnet vs Claude Haiku"
+
+# Same prompt (real production build_native_prompt, same 338-word fact-base fixture, word
+# band overridden to the literal 200-220 requested), sent to three backends for a direct
+# head-to-head: Gemini Flash, Claude Sonnet, Claude Haiku. No Gemini Pro here -- that's
+# what production and the other native tests already use. 3 calls total. Never touches the
+# data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the EN native 3-way test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python test_native_en_3way.py | tee native_en_3way_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-native-en-3way-result
+          path: bilinguist-brief/scripts/native_en_3way_result.txt
+          retention-days: 14
