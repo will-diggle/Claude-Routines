@@ -63,25 +63,28 @@ for length in ("short", "longer"):
 
 # ── genre blocks: each is injected, and ONLY for its own genre ───────────────
 for genre, marker in (("GLOBAL NEWS", "parallel treatment"),
-                      ("UK POLITICS", "POLITICAL TITLES"),
+                      ("UK POLITICS", "Distinguish the government"),
                       ("BUSINESS & ECONOMY", "investment-advice")):
     for length in ("short", "longer"):
         p = W.build_native_prompt("en", [dict(STORY, genre=genre)], length)
         check(marker in p, f"native/{length} {genre}: genre block missing ({marker!r})")
-        for other, other_marker in (("UK POLITICS", "POLITICAL TITLES"),
+        for other, other_marker in (("UK POLITICS", "Distinguish the government"),
                                     ("BUSINESS & ECONOMY", "investment-advice"),
                                     ("GLOBAL NEWS", "parallel treatment")):
             if other != genre:
                 check(other_marker not in p,
                       f"native/{length} {genre}: leaked {other} block ({other_marker!r})")
 
-# POLITICAL TITLES is the section that actually went missing before. Assert it reaches
-# politics articles at BOTH lengths — that is the regression this file exists for.
-for length in ("short", "longer"):
-    p = W.build_native_prompt("en", [dict(STORY, genre="UK POLITICS")], length)
-    check("POLITICAL TITLES" in p, f"native/{length}: UK POLITICS lost POLITICAL TITLES")
-    check("never \"former President\"" in p or "former President" in p,
-          f"native/{length}: POLITICAL TITLES present but missing the 'former' example")
+# POLITICAL TITLES is universal WRITING RULES now (was UK-POLITICS-only, which left every
+# other genre unprotected — confirmed in production, a GLOBAL NEWS story shipped "former
+# President"). Assert it reaches EVERY genre at BOTH lengths, not just politics.
+for genre in ("GLOBAL NEWS", "UK POLITICS", "BUSINESS & ECONOMY"):
+    for length in ("short", "longer"):
+        p = W.build_native_prompt("en", [dict(STORY, genre=genre)], length)
+        check("POLITICAL TITLES" in p,
+              f"native/{length} {genre}: lost POLITICAL TITLES (should be universal now)")
+        check("never \"former President\"" in p or "former President" in p,
+              f"native/{length} {genre}: POLITICAL TITLES present but missing the 'former' example")
 
 # ── the level rewrite must never authorise dropping a title ─────────────────
 rp = W.build_rewrite_prompt("fr", "A1", "longer",

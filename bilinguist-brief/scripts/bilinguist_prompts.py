@@ -355,11 +355,12 @@ GENRE_RULES: dict[str, str] = {
 - Where sources disagree on a figure, give the range and say who reported what. Never silently pick one.
 - Bias hides in grammar — agency, passive voice, loaded verbs. Keep it even.""",
 
+    # POLITICAL TITLES is now a universal WRITING RULES bullet (was UK-POLITICS-only, which
+    # left every other genre with zero protection — confirmed 2026-08-12 in production:
+    # a Trump story classified GLOBAL NEWS shipped "l'ancien président" in French, since
+    # Global News carried no title guard at all). This block keeps only what's genuinely
+    # UK-Politics-specific.
     "UK POLITICS": """UK POLITICS — precision about office and party:
-- POLITICAL TITLES — CRITICAL: use ONLY the title given in the fact-base. Never alter a political title from your own training data.
-  * Never add "former" or "ex-" unless the fact-base explicitly says the person has left office.
-  * If the fact-base says "President Trump", write "President Trump" — never "former President".
-  * A head of government who has announced resignation is still the incumbent until a named successor has taken office.
 - Give a person's full office on first mention, then the short form.
 - Name the party where the fact-base gives it and it bears on the story.
 - Distinguish the government acting from a named minister speaking. Do not merge them.
@@ -428,6 +429,10 @@ WRITING RULES:
 - Use only facts from the fact-base.
 - ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
+- POLITICAL TITLES — CRITICAL, every genre, not just politics stories: use ONLY the title given in the fact-base. Never alter a political title from your own training data.
+  * Never add "former" or "ex-" unless the fact-base explicitly says the person has left office.
+  * If the fact-base says "President Trump", write "President Trump" — never "former President". This applies wherever the person appears, including stories not primarily about politics.
+  * A head of government who has announced resignation is still the incumbent until a named successor has taken office.
 - QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
 - GLOSSARY:
   * LITERAL (numbers, specific names, titles, the "genre" field): reproduce exactly. Names and titles are not translated or simplified. "genre" is a system key — copy it VERBATIM in English (e.g. "GLOBAL NEWS").
