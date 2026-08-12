@@ -850,7 +850,12 @@ def call_claude(
                 if tool:
                     kwargs["tools"] = [tool]
                     kwargs["tool_choice"] = {"type": "tool", "name": "emit_article"}
-                response = client.messages.create(**kwargs)
+                # Streamed, not create(): the SDK refuses a plain create() outright when
+                # max_tokens is large enough that it estimates the request could run past
+                # 10 minutes, regardless of how long the response actually takes. This is
+                # the client's own recommended fix, not a retry-around workaround.
+                with client.messages.stream(**kwargs) as stream:
+                    response = stream.get_final_message()
             if stage and stage in _stage_usage:
                 inp = getattr(response.usage, "input_tokens", 0) or 0
                 out = getattr(response.usage, "output_tokens", 0) or 0
