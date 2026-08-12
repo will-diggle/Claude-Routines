@@ -71,7 +71,9 @@ PUBLISH_THRESHOLD = 0.5
 # directly, or the report will contradict what the prompt actually asked for.
 WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     # Same LENGTH at every level — only the reading level changes. A1 alone is shorter.
-    "A1":     {"short": (85, 105),   "longer": (180, 200)},
+    # Bumped from (85,105)/(180,200) on 2026-08-12 -- must agree with WORDS_PER_ARTICLE in
+    # bilinguist_write.py, see its comment for why.
+    "A1":     {"short": (100, 125), "longer": (210, 235)},
     "A2":     {"short": (95, 115),   "longer": (210, 230)},
     "B1":     {"short": (95, 115),   "longer": (210, 230)},
     "B2":     {"short": (95, 115),   "longer": (210, 230)},

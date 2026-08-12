@@ -411,7 +411,11 @@ WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
     # CANONICAL bands, before the per-language factor in LANGUAGE_WORD_FACTOR. Short was
     # recalibrated on 2026-08-10: native short wrote 104 on average against an inherited
     # 85-100, a band that had never been measured the way longer was.
-    "A1":     {"short": "85–105",  "longer": "180–200"},
+    # Bumped from 85-105/180-200 on 2026-08-12 -- test run measured the model consistently
+    # undershooting the old band (133w/167-186 target in German, 154w/196-218 in French)
+    # under the new GRAMMAR_RULE_A1 constraint. Testing whether a higher target moves real
+    # output up, or whether the model self-limits content regardless of the ceiling.
+    "A1":     {"short": "100–125", "longer": "210–235"},
     "A2":     {"short": "95–115",  "longer": "210–230"},
     "B1":     {"short": "95–115",  "longer": "210–230"},
     "B2":     {"short": "95–115",  "longer": "210–230"},
