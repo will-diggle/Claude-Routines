@@ -1,0 +1,48 @@
+name: "TEST: real headlines, native EN SHORT exact-105 + plain-text"
+
+# Same real Stage 1-4 pipeline as the longer-form check, but for Stage 5 "short": tests
+# whether an exact-word-count instruction (105, the midpoint of the current 95-115 target)
+# works the same way it did for longer (exact-210). Plain-text output only -- that's what the
+# longer A/B settled on. All local files -- never touches the data repo, the live app, or any
+# Supabase/D1 write.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Run the short-form native check
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python test_real_headlines_short_native_check.py | tee real_headlines_short_native_check_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-real-headlines-short-native-check-result
+          path: bilinguist-brief/scripts/real_headlines_short_native_check_result.txt
+          retention-days: 14
