@@ -13,13 +13,15 @@ SELECTED STORIES — find the facts for all {STORY_COUNT} of these, and only the
 Search now. Each story lists the real headlines that major outlets published about it today — use them to identify the event, then search for the detail.
 
 DEPTH — a target, not a ceiling. Apply it to EVERY story equally:
-- 10-16 points in "what_happened", each a single clause.
-- 200-300 words in total across all narrative fields, per story.
-- Under 200 words the story is under-reported: search again for what you are missing — a
+- 10-14 points in "what_happened", each a single clause.
+- 150-250 words in total across all narrative fields, per story.
+- Count your total narrative words before finalising your answer. This is a real check,
+  not a formality — if you have not counted, you do not know whether you are in range.
+- Under 150 words the story is under-reported: search again for what you are missing — a
   direct quote worth paraphrasing, a secondary named figure, a specific operational
   detail, a consequence, the background a reader needs. A real news article on this story
   has this much material; if your search hasn't found it yet, search again.
-- Over 300 words you are padding. Cut the least essential point. Volume is not accuracy.
+- Over 250 words you are padding. Cut the least essential point. Volume is not accuracy.
 - Actively search for quotes from named people involved (officials, spokespeople, the
   people the story is about) and secondary named figures beyond the one or two headline
   names — real reporting on any story of this size has more than one or two named people
