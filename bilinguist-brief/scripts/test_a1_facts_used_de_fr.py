@@ -106,7 +106,7 @@ def run_native(client: "genai.Client", lang: str) -> tuple[str, list]:
     print(prompt)
 
     raw, finish = W.call_gemini(
-        client, W.MODEL_3, prompt, f"test/{lang}-native-facts",
+        client, W.MODEL_3, prompt, f"test/{lang}-native-facts", stage="3",
         schema=_SCHEMA_NATIVE_WITH_FACTS, max_output_tokens=8192,
     )
     if not raw:
