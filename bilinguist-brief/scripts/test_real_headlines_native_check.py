@@ -73,31 +73,25 @@ EXACT_210_RULE = (
     "range -- 208 or 213 is a miss, not close enough."
 )
 
+# No self-check word count field: it always just echoed the target number back rather than
+# reflecting a genuine recount (confirmed across many test runs) -- pure token waste that
+# also distracts the model from the actual task.
 PLAIN_OUTPUT_FORMAT = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
-    "First, draft the article. Count its words by actually going through it and counting --"
-    " not estimating. If the count is outside the word count range given above, revise the "
-    "draft and count again. Repeat until the count is genuinely inside the range.\n\n"
-    "Once it is, output ONLY the following, in this exact format:\n"
+    "Output ONLY the following, in this exact format:\n"
     "HEADLINE: <the headline, one line>\n"
     "BODY:\n"
-    "<the final article body. Paragraphs separated by one blank line.>\n"
-    "SELF-CHECK WORD COUNT: <the exact number of words you counted in the body above>\n\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n\n"
     "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
-    "process, no notes. Just these three fields."
+    "process, no notes. Just these two fields."
 )
 
 
-def parse_plain(raw: str) -> tuple[str, str, str]:
-    m = re.search(
-        r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*?)\n*SELF-CHECK WORD COUNT:\s*(\d+)",
-        raw, re.DOTALL)
+def parse_plain(raw: str) -> tuple[str, str]:
+    m = re.search(r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*)", raw, re.DOTALL)
     if not m:
-        m2 = re.search(r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*)", raw, re.DOTALL)
-        if not m2:
-            return "", raw.strip(), ""
-        return m2.group(1).strip(), m2.group(2).strip(), ""
-    return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        return "", raw.strip()
+    return m.group(1).strip(), m.group(2).strip()
 
 
 def stage5_native(client: "genai.Client", story: dict) -> dict:
@@ -138,12 +132,12 @@ def stage5_native(client: "genai.Client", story: dict) -> dict:
     raw = response.text or ""
     if not raw:
         return {"slug": story.get("slug"), "error": "no response"}
-    headline, body, self_check = parse_plain(raw)
+    headline, body = parse_plain(raw)
     actual = len(body.split())
     return {
         "slug": story.get("slug"), "genre": story.get("genre"),
         "headline": headline, "body": body,
-        "actual_words": actual, "self_reported": self_check, "deviation": actual - 210,
+        "actual_words": actual, "deviation": actual - 210,
     }
 
 
@@ -169,7 +163,7 @@ def main() -> None:
             print(f"[{r['slug']}] ERROR: {r['error']}", file=sys.stderr)
             continue
         print(f"\n{'=' * 20} {r['slug']} — {r['actual_words']} words "
-              f"(target 210, deviation {r['deviation']:+d}, self-reported: {r['self_reported'] or 'none'}) {'=' * 20}\n")
+              f"(target 210, deviation {r['deviation']:+d}) {'=' * 20}\n")
         print(f"Headline: {r['headline']}\n")
         print(r["body"])
 
@@ -182,8 +176,7 @@ def main() -> None:
         print(f"Average word count: {avg_words:.1f} (target 210)")
         print(f"Average absolute deviation from 210: {avg_abs_dev:.1f} words")
         for r in ok:
-            print(f"  {r['slug']}: {r['actual_words']} words (dev {r['deviation']:+d}, "
-                  f"self-reported {r['self_reported'] or 'none'})")
+            print(f"  {r['slug']}: {r['actual_words']} words (dev {r['deviation']:+d})")
 
     print(f"\n[factcheck] stories_checked={factcheck.get('stories_checked', 'n/a')} "
           f"corrections={len(factcheck.get('corrections', []))}")

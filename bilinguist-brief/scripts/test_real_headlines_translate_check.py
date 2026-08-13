@@ -76,18 +76,17 @@ EXACT_210_RULE = (
     "range -- 208 or 213 is a miss, not close enough."
 )
 
+# No self-check fields (word count or fact count): both always just echoed back a number
+# close to the stated target rather than reflecting a genuine count (confirmed across many
+# test runs) -- pure token waste that also distracts the model from the actual task.
 PLAIN_OUTPUT_FORMAT = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
-    "First, draft the article. Count its words by actually going through it and counting --"
-    " not estimating. If the count is outside the word count range given above, revise the "
-    "draft and count again. Repeat until the count is genuinely inside the range.\n\n"
-    "Once it is, output ONLY the following, in this exact format:\n"
+    "Output ONLY the following, in this exact format:\n"
     "HEADLINE: <the headline, one line>\n"
     "BODY:\n"
-    "<the final article body. Paragraphs separated by one blank line.>\n"
-    "SELF-CHECK WORD COUNT: <the exact number of words you counted in the body above>\n\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n\n"
     "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
-    "process, no notes. Just these three fields."
+    "process, no notes. Just these two fields."
 )
 
 # Translation -- same plain-text mechanism. Target defaults to the EN source's own actual
@@ -95,17 +94,13 @@ PLAIN_OUTPUT_FORMAT = (
 # LANG_TARGET_OVERRIDE below gives a language its own fixed number instead.
 TRANSLATE_OUTPUT_FORMAT_TEMPLATE = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
-    "First, draft the article. Count its words by actually going through it and counting -- "
-    "not estimating. Your target is {TARGET} words -- if your count is more than 10 words "
-    "away from {TARGET}, revise and count again.\n\n"
-    "Once it is close, output ONLY the following, in this exact format:\n"
+    "Your target is {TARGET} words.\n\n"
+    "Output ONLY the following, in this exact format:\n"
     "HEADLINE: <the headline, one line>\n"
     "BODY:\n"
-    "<the final article body. Paragraphs separated by one blank line.>\n"
-    "SELF-CHECK WORD COUNT: <the exact number of words you counted in the body above>\n"
-    "FACT COUNT: <how many distinct facts from the English source you included>\n\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n\n"
     "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
-    "process, no notes. Just these four fields."
+    "process, no notes. Just these two fields."
 )
 
 TRANSLATE_PROMPT = """You are a high-end journalist writing for {OUTLET}, the most respected news outlet writing in {LANGUAGE}.
@@ -130,22 +125,13 @@ Body: {body}
 
 
 def parse_plain(raw: str) -> dict:
-    # Extract each field independently rather than one mega-regex -- more tolerant of
-    # field-order drift or a missing field than a single strict pattern would be.
-    result = {"headline": "", "body": "", "self_reported": "", "fact_count": ""}
+    result = {"headline": "", "body": ""}
     m_headline = re.search(r"HEADLINE:\s*(.+?)\n", raw)
     if m_headline:
         result["headline"] = m_headline.group(1).strip()
-    m_body = re.search(
-        r"BODY:\s*\n?(.*?)(?=\n*SELF-CHECK WORD COUNT:|\Z)", raw, re.DOTALL)
+    m_body = re.search(r"BODY:\s*\n?(.*)", raw, re.DOTALL)
     if m_body:
         result["body"] = m_body.group(1).strip()
-    m_self = re.search(r"SELF-CHECK WORD COUNT:\s*(\d+)", raw)
-    if m_self:
-        result["self_reported"] = m_self.group(1)
-    m_fact = re.search(r"FACT COUNT:\s*(\d+)", raw)
-    if m_fact:
-        result["fact_count"] = m_fact.group(1)
     if not result["body"]:
         result["body"] = raw.strip()
     return result
@@ -194,8 +180,7 @@ def write_native_en(client: "genai.Client", story: dict) -> dict:
     return {
         "slug": story.get("slug"), "genre": story.get("genre"),
         "headline": r["headline"], "body": r["body"],
-        "actual_words": actual, "self_reported": r["self_reported"],
-        "deviation": actual - 210,
+        "actual_words": actual, "deviation": actual - 210,
         "n_facts_available": len(story.get("what_happened") or []),
     }
 
@@ -226,8 +211,7 @@ def translate(client: "genai.Client", lang: str, en_article: dict) -> dict:
     actual = len(r["body"].split())
     return {
         "slug": en_article.get("slug"), "lang": lang, "headline": r["headline"], "body": r["body"],
-        "actual_words": actual, "self_reported": r["self_reported"],
-        "fact_count_reported": r["fact_count"],
+        "actual_words": actual,
         "target_words": target, "deviation_from_en": actual - target,
     }
 
@@ -275,9 +259,7 @@ def main() -> None:
                 print(f"\n[{story.get('slug')}/{lang}] ERROR: {tr['error']}", file=sys.stderr)
                 continue
             print(f"\n{'-' * 15} {lang.upper()} translation ({tr['actual_words']} words, "
-                  f"target {tr['target_words']}, dev {tr['deviation_from_en']:+d}, "
-                  f"self-reported {tr['self_reported'] or 'none'}, "
-                  f"fact-count reported {tr['fact_count_reported'] or 'none'}) {'-' * 15}\n")
+                  f"target {tr['target_words']}, dev {tr['deviation_from_en']:+d}) {'-' * 15}\n")
             print(f"Headline: {tr['headline']}\n")
             print(tr["body"])
 
@@ -302,10 +284,10 @@ def main() -> None:
         print(f"  - {c}")
 
     print(
-        "\nNOTE: 'fact-count reported' is the model's own self-report — treat it the same way "
-        "self-reported word counts have tested: as unverified until cross-checked by reading "
-        "the bodies. Read the printed DE/FR bodies above against the EN body to manually check "
-        "fact presence, order, and no invention/omission."
+        "\nNOTE: no self-reported counts (word or fact) -- they always echoed back a number "
+        "close to the target rather than a genuine count, so they're dropped. Read the "
+        "printed DE/FR bodies above against the EN body to manually check fact presence, "
+        "order, and no invention/omission."
     )
 
 

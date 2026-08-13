@@ -35,19 +35,18 @@ EXACT_210_RULE = (
     "range -- 208 or 213 is a miss, not close enough."
 )
 
+# No self-check word count field: it always just echoed the target number back rather than
+# reflecting a genuine recount (confirmed across many test runs) -- pure token waste that
+# also distracts the model from the actual task.
 _ORIG_OUTPUT_FORMAT = W.OUTPUT_FORMAT_SINGLE
 PLAIN_OUTPUT_FORMAT = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
-    "First, draft the article. Count its words by actually going through it and counting --"
-    " not estimating. If the count is outside the word count range given above, revise the "
-    "draft and count again. Repeat until the count is genuinely inside the range.\n\n"
-    "Once it is, output ONLY the following, in this exact format:\n"
+    "Output ONLY the following, in this exact format:\n"
     "HEADLINE: <the headline, one line>\n"
     "BODY:\n"
-    "<the final article body. Paragraphs separated by one blank line.>\n"
-    "SELF-CHECK WORD COUNT: <the exact number of words you counted in the body above>\n\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n\n"
     "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
-    "process, no notes. Just these three fields."
+    "process, no notes. Just these two fields."
 )
 
 
@@ -61,17 +60,11 @@ def build_plain_prompt(story: dict) -> str:
     return prompt
 
 
-def parse_plain(raw: str) -> tuple[str, str, str]:
-    m = re.search(
-        r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*?)\n*SELF-CHECK WORD COUNT:\s*(\d+)",
-        raw, re.DOTALL)
+def parse_plain(raw: str) -> tuple[str, str]:
+    m = re.search(r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*)", raw, re.DOTALL)
     if not m:
-        # Self-check line missing/malformed -- fall back to headline/body only.
-        m2 = re.search(r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*)", raw, re.DOTALL)
-        if not m2:
-            return "", raw.strip(), ""
-        return m2.group(1).strip(), m2.group(2).strip(), ""
-    return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+        return "", raw.strip()
+    return m.group(1).strip(), m.group(2).strip()
 
 
 def write_native_plain(client: "genai.Client", story: dict) -> None:
@@ -93,9 +86,9 @@ def write_native_plain(client: "genai.Client", story: dict) -> None:
     if not raw:
         print(f"[{story['slug']}] ERROR: no response", file=sys.stderr)
         return
-    headline, body, self_check = parse_plain(raw)
+    headline, body = parse_plain(raw)
     actual = len(body.split())
-    print(f"\n{'=' * 20} NATIVE EN (no JSON, plain text) — {story['slug']} — RESULT ({actual} words, self-reported: {self_check or 'none given'}) {'=' * 20}\n")
+    print(f"\n{'=' * 20} NATIVE EN (no JSON, plain text) — {story['slug']} — RESULT ({actual} words) {'=' * 20}\n")
     print(f"Headline: {headline}\n")
     print(body)
 

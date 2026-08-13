@@ -446,6 +446,7 @@ WORD COUNT — STRICT REQUIREMENT:
 WRITING RULES:
 - Write in {LANGUAGE}. {VARIANT_RULE}
 - Write original prose from the facts. Never copy source phrasing. A quotation appears as reported speech — who said what, paraphrased — never as quoted text.
+- The fact-base sometimes wraps a phrase in quotation marks with no named speaker attached (no "said"/"stated" nearby) — that marks an informal or colloquial expression, not a verbatim quotation. Paraphrase it in your own words; do not reproduce it in quotation marks.
 - Use only facts from the fact-base.
 - ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
