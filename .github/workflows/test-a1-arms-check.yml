@@ -1,0 +1,46 @@
+name: "TEST: A1 -- simplify native vs write from facts (DE/FR/IT)"
+
+# Which A1 approach is better: (a) rewrite the already-translated native article down to A1
+# (production's real path, carries GRAMMAR_RULE_A1), or (b) write A1 directly from the
+# English fact-base in the target language (production's real fallback path -- but its
+# template has no {GRAMMAR_RULE} placeholder in production, so this test injects the same
+# grammar rule into both arms to keep the comparison fair). Builds on the confirmed-good
+# pipeline: EN native (plain-text, exact-210) -> DE/FR/IT translation -> both A1 arms, on the
+# two known stories (Trump plane-swap, Jensen Huang/Nvidia). Standalone -- never touches the
+# data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the A1 arms check
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_a1_arms_check.py | tee a1_arms_check_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-a1-arms-check-result
+          path: bilinguist-brief/scripts/a1_arms_check_result.txt
+          retention-days: 14
