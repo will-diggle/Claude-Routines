@@ -1,0 +1,58 @@
+name: "TEST: real headlines, per-article gather+factcheck+write vs batched native"
+
+# Tests whether per-article calling (one Gemini prompt per story) beats batching at every
+# stage: Stage 3 gather (--per-story), Stage 4 fact-check (new per-story test version vs
+# production's one-call-for-all), and Stage 5 native EN write (batched-array call vs
+# per-article calls), all long-form, on today's real headlines. Motivated by a confirmed
+# finding: a batched Stage 3 call starved a later story (9 facts vs the 10-14 target) while
+# the lead story in the same call got 617 narrative words. This checks whether Stage 5
+# writing shows the same batching-dilutes-attention pattern once fact-depth is no longer a
+# confound (every story already has its own dedicated, equally-deep fact-base). All local
+# files -- never touches the data repo, the live app, or any Supabase/D1 write.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_stories:
+        description: 'Max number of stories for the Stage 5 batched-vs-per-article comparison (default 4)'
+        required: false
+        default: '4'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Run the per-article pipeline check
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+          MAX_STORIES: ${{ inputs.max_stories }}
+        run: python test_real_headlines_perarticle_pipeline.py | tee real_headlines_perarticle_pipeline_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-real-headlines-perarticle-pipeline-result
+          path: bilinguist-brief/scripts/real_headlines_perarticle_pipeline_result.txt
+          retention-days: 14
