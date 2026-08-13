@@ -1,0 +1,44 @@
+name: "TEST: short-form EN native -> DE/FR/IT translation fidelity"
+
+# Short-form (105 words) version of the translation fidelity test -- checks whether facts,
+# fact order, and word count survive translation into German, French, and Italian at the
+# tighter short-form target. Reuses the two hardcoded, already-vetted fact-bases (Trump
+# plane-swap, Jensen Huang/Nvidia) instead of scraping/gathering fresh -- no need to re-fetch
+# facts already collated for a mechanism test like this. Standalone -- never touches the data
+# repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the short-form translation check
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_short_translate_check.py | tee short_translate_check_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-short-translate-check-result
+          path: bilinguist-brief/scripts/short_translate_check_result.txt
+          retention-days: 14
