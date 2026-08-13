@@ -193,39 +193,12 @@ def stage4_factcheck_per_story() -> None:
           f"{len(factbase)} stories.")
 
 
-# ── Stage 5: batched vs per-article native EN, same exact-210 rule both arms ───────────────
+# ── Stage 5: native EN, per-article ─────────────────────────────────────────────────────
 EXACT_210_RULE = (
     "Write exactly 210 words. Count every word before submitting. If your count is not "
     "210, revise the article and count again until it is. This is a precise target, not a "
     "range -- 208 or 213 is a miss, not close enough."
 )
-
-
-def write_native_batched(client: "genai.Client", factbase: list) -> list:
-    import bilinguist_write as w
-    orig_rule = w.NATIVE_WORD_RULE["longer"]
-    w.NATIVE_WORD_RULE["longer"] = EXACT_210_RULE
-    prompt = w.build_native_prompt("en", factbase, "longer")
-    w.NATIVE_WORD_RULE["longer"] = orig_rule
-
-    raw, finish = w.call_gemini(
-        client, "gemini-2.5-flash", prompt, "batched/en-native", stage="3",
-        schema=w._SCHEMA_NATIVE, max_output_tokens=8192 * max(1, len(factbase) // 3),
-    )
-    if not raw:
-        print(f"[batched] ERROR: no response (finish={finish})", file=sys.stderr)
-        return []
-    parsed = w.parse_llm_json(raw) or {}
-    articles = parsed.get("articles") or []
-    results = []
-    for art in articles:
-        body = art.get("body", "")
-        actual = len(body.split())
-        results.append({
-            "slug": art.get("slug"), "headline": art.get("headline", ""), "body": body,
-            "actual_words": actual, "deviation": actual - TARGET_WORDS,
-        })
-    return results
 
 
 def write_native_one(client: "genai.Client", story: dict) -> dict:
@@ -276,57 +249,34 @@ def main() -> None:
 
     client = genai.Client()
 
-    print(f"\n{'#' * 10} STAGE 5a — Native EN, BATCHED (1 call, {len(factbase)} stories) {'#' * 10}\n")
-    batched_results = write_native_batched(client, factbase)
-    for r in batched_results:
-        print(f"  {r['slug']}: {r['actual_words']} words (dev {r['deviation']:+d})")
-
-    print(f"\n{'#' * 10} STAGE 5b — Native EN, PER-ARTICLE ({len(factbase)} calls) {'#' * 10}\n")
-    per_article_results = []
+    print(f"\n{'#' * 10} STAGE 5 — Native EN, PER-ARTICLE ({len(factbase)} calls) {'#' * 10}\n")
+    results = []
     for story in factbase:
         r = write_native_one(client, story)
-        per_article_results.append(r)
+        results.append(r)
         if "error" in r:
             print(f"  {r['slug']}: ERROR {r['error']}", file=sys.stderr)
-        else:
+            continue
+        print(f"\n{'=' * 20} {r['slug']} — {r['actual_words']} words "
+              f"(target 210, dev {r['deviation']:+d}) {'=' * 20}\n")
+        print(f"Headline: {r['headline']}\n")
+        print(r["body"])
+
+    ok = [r for r in results if "error" not in r]
+    print(f"\n{'#' * 10} SUMMARY — per-article pipeline, {len(factbase)} stories {'#' * 10}\n")
+    print(f"Succeeded: {len(ok)}/{len(results)}")
+    if ok:
+        avg_words = sum(r["actual_words"] for r in ok) / len(ok)
+        avg_dev = sum(abs(r["deviation"]) for r in ok) / len(ok)
+        print(f"Average words: {avg_words:.1f} (target 210)")
+        print(f"Average |deviation| from 210: {avg_dev:.1f}")
+        for r in ok:
             print(f"  {r['slug']}: {r['actual_words']} words (dev {r['deviation']:+d})")
-
-    print(f"\n{'#' * 10} SUMMARY — batched vs per-article, {len(factbase)} stories {'#' * 10}\n")
-    batched_by_slug = {r["slug"]: r for r in batched_results}
-    per_article_by_slug = {r["slug"]: r for r in per_article_results if "error" not in r}
-
-    print(f"{'slug':<40} {'batched words':>13} {'batched dev':>12} {'per-art words':>14} {'per-art dev':>12}")
-    for s in factbase:
-        slug = s.get("slug")
-        b = batched_by_slug.get(slug)
-        p = per_article_by_slug.get(slug)
-        bw = b["actual_words"] if b else "MISSING"
-        bd = f"{b['deviation']:+d}" if b else "—"
-        pw = p["actual_words"] if p else "MISSING"
-        pd = f"{p['deviation']:+d}" if p else "—"
-        print(f"{slug:<40} {bw!s:>13} {bd:>12} {pw!s:>14} {pd:>12}")
-
-    if batched_results:
-        avg_dev_b = sum(abs(r["deviation"]) for r in batched_results) / len(batched_results)
-        spread_b = max(r["actual_words"] for r in batched_results) - min(r["actual_words"] for r in batched_results)
-        print(f"\nBATCHED     — avg |dev|: {avg_dev_b:.1f} | spread (max-min words): {spread_b}")
-    ok_pa = [r for r in per_article_results if "error" not in r]
-    if ok_pa:
-        avg_dev_p = sum(abs(r["deviation"]) for r in ok_pa) / len(ok_pa)
-        spread_p = max(r["actual_words"] for r in ok_pa) - min(r["actual_words"] for r in ok_pa)
-        print(f"PER-ARTICLE — avg |dev|: {avg_dev_p:.1f} | spread (max-min words): {spread_p}")
 
     print(f"\n[factcheck] stories_checked={factcheck.get('stories_checked', 'n/a')} "
           f"corrections={len(factcheck.get('corrections', []))}")
     for c in factcheck.get("corrections", []):
         print(f"  - {c}")
-
-    print(
-        "\nNOTE: 'spread' (max-min words within one arm) is the key metric here -- if batched "
-        "shows a much bigger spread than per-article on the SAME per-story fact-bases, that's "
-        "evidence Stage 5 batching itself (not just Stage 3) dilutes attention across stories "
-        "in one call."
-    )
 
 
 if __name__ == "__main__":
