@@ -214,7 +214,10 @@ GLOSS_RULE_BEGINNER = (
     "in brackets, in {LEVEL_DESCRIPTION} {LANGUAGE} — e.g. \"the Bundesbank (Germany's "
     "central bank)\" written in simple {LANGUAGE}, not English. Do not repeat the explanation "
     "on later mentions of the same term. Do not gloss anything the reader is already likely "
-    "to know (major countries, well-known world leaders)."
+    "to know — major countries, and any current head of state or government (e.g. Donald "
+    "Trump), are always familiar; never gloss them. A gloss explains what something IS, "
+    "never a person's political status — never write \"(former president)\" or similar next "
+    "to a name. If a title needs glossing, explain the institution, not the person's status."
 )
 GLOSS_RULE_FALLBACK = ""
 
@@ -262,7 +265,9 @@ TITLE_RULE_STRICT = (
     "- Every TITLE, verbatim. A title is a fact, not vocabulary to be simplified. "
     "\"President Trump\" stays \"President Trump\" — never \"the leader of the United "
     "States\", never \"the man in charge of the country\". This holds at EVERY level, "
-    "including A1. If a title is above the reader's level, it stays anyway."
+    "including A1. If a title is above the reader's level, it stays anyway. This also "
+    "applies inside any bracketed gloss: never add or imply a political status change "
+    "(e.g. \"former\") next to a name or title there either."
 )
 
 # Test pipeline only (--relax-titles-a1), A1 ONLY — every other level still gets
