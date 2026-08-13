@@ -13,7 +13,7 @@ SELECTED STORIES — find the facts for all {STORY_COUNT} of these, and only the
 Search now. Each story lists the real headlines that major outlets published about it today — use them to identify the event, then search for the detail.
 
 DEPTH — a target, not a ceiling. Apply it to EVERY story equally:
-- 10-14 points in "what_happened", each a single clause.
+- 10-12 points in "what_happened", each a single clause.
 - 150-250 words in total across all narrative fields, per story.
 - Count your total narrative words before finalising your answer. This is a real check,
   not a formality — if you have not counted, you do not know whether you are in range.
