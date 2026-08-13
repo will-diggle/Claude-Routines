@@ -237,7 +237,17 @@ def main() -> None:
     factbase = doc.get("factbase", [])
     factcheck = doc.get("factcheck", {})
 
-    print(f"\n{'#' * 10} STAGE 5 — EN native + DE/FR translation, {len(factbase)} stories {'#' * 10}\n")
+    # Limited scope: only the top-ranked GLOBAL NEWS stories, to keep this test cheap and
+    # fast (translation isn't genre-specific, and today's Gemini API has been unstable --
+    # fewer calls means less exposure to transient 503s/disconnects).
+    max_stories = int(os.environ.get("MAX_STORIES", "2"))
+    only_genre = os.environ.get("ONLY_GENRE", "GLOBAL NEWS")
+    if only_genre:
+        factbase = [s for s in factbase if s.get("genre") == only_genre]
+    factbase = factbase[:max_stories]
+
+    print(f"\n{'#' * 10} STAGE 5 — EN native + DE/FR translation, {len(factbase)} stories "
+          f"(genre={only_genre or 'any'}, max={max_stories}) {'#' * 10}\n")
     client = genai.Client()
     all_results = []
     for story in factbase:

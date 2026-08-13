@@ -10,6 +10,15 @@ name: "TEST: real headlines, EN native -> DE/FR translation fidelity (long-form)
 
 on:
   workflow_dispatch:
+    inputs:
+      max_stories:
+        description: 'Max number of stories to translate (default 2, keeps this cheap/fast)'
+        required: false
+        default: '2'
+      only_genre:
+        description: 'Restrict to this genre (default GLOBAL NEWS; blank = any genre)'
+        required: false
+        default: 'GLOBAL NEWS'
 
 jobs:
   run:
@@ -40,6 +49,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
+          MAX_STORIES: ${{ inputs.max_stories }}
+          ONLY_GENRE: ${{ inputs.only_genre }}
         run: python test_real_headlines_translate_check.py | tee real_headlines_translate_check_result.txt
 
       - name: Upload result as artifact
