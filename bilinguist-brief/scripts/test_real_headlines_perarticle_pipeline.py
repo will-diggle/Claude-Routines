@@ -1,14 +1,11 @@
 """
-Test: does per-article calling (one Gemini prompt per story, at every stage) beat batching
-(one shared call across multiple stories) end to end -- gathering, fact-checking, AND native
-writing? Long-form, real headlines.
+Test: run every stage per-article (one Gemini prompt per story, never shared) -- gathering,
+fact-checking, AND native writing. Long-form, real headlines.
 
 Motivated by a real finding: Stage 3's batched GLOBAL NEWS call (3 stories, one response)
 gave the lead story 617 narrative words and starved a later story to 223 -- the model spends
-its effort on the first story in a shared context and gives less to the rest. This test
-checks whether the same pattern shows up in Stage 5 native writing too, when every story
-already has an equally-deep, per-story fact-base feeding it (Stage 3 per-story removes the
-upstream confound, so any story-to-story spread left in Stage 5 must come from Stage 5 itself).
+its effort on the first story in a shared context and gives less to the rest. Per-story
+calls remove that upstream confound so every story gets a fair, equally-deep fact-base.
 
 Pipeline under test:
   Stage 1 Scrape   -- real, unchanged
@@ -17,9 +14,8 @@ Pipeline under test:
   Stage 4 Verify   -- one Gemini+Search fact-check call PER STORY, not one call for all
                       (production currently does one shared call for the whole factbase --
                       this test builds a per-story version to compare against)
-  Stage 5 Write EN -- BOTH arms, same per-story factbase, same exact-210 instruction:
-                      (a) BATCHED: one call, all stories in one prompt+response (array schema)
-                      (b) PER-ARTICLE: one call per story (object schema)
+  Stage 5 Write EN -- one plain-text (no forced JSON) call per story, exact-210 instruction --
+                      the settled configuration from the JSON-vs-plain-text A/B
 
 Everything writes to local files in this directory -- never touches the data repo, the live
 app, or any Supabase/D1 write. Real Gemini API calls (paid), keep the story count small via
@@ -193,33 +189,85 @@ def stage4_factcheck_per_story() -> None:
           f"{len(factbase)} stories.")
 
 
-# ── Stage 5: native EN, per-article ─────────────────────────────────────────────────────
+# ── Stage 5: native EN, per-article, plain-text (settled config, no forced JSON) ───────────
 EXACT_210_RULE = (
     "Write exactly 210 words. Count every word before submitting. If your count is not "
     "210, revise the article and count again until it is. This is a precise target, not a "
     "range -- 208 or 213 is a miss, not close enough."
 )
 
+PLAIN_OUTPUT_FORMAT = (
+    "OUTPUT FORMAT — plain text, not JSON:\n"
+    "First, draft the article. Count its words by actually going through it and counting --"
+    " not estimating. If the count is outside the word count range given above, revise the "
+    "draft and count again. Repeat until the count is genuinely inside the range.\n\n"
+    "Once it is, output ONLY the following, in this exact format:\n"
+    "HEADLINE: <the headline, one line>\n"
+    "BODY:\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n"
+    "SELF-CHECK WORD COUNT: <the exact number of words you counted in the body above>\n\n"
+    "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
+    "process, no notes. Just these three fields."
+)
+
+
+def parse_plain(raw: str) -> tuple[str, str, str]:
+    import re
+    m = re.search(
+        r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*?)\n*SELF-CHECK WORD COUNT:\s*(\d+)",
+        raw, re.DOTALL)
+    if not m:
+        m2 = re.search(r"HEADLINE:\s*(.+?)\n+BODY:\s*\n?(.*)", raw, re.DOTALL)
+        if not m2:
+            return "", raw.strip(), ""
+        return m2.group(1).strip(), m2.group(2).strip(), ""
+    return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+
 
 def write_native_one(client: "genai.Client", story: dict) -> dict:
+    from google.genai import types
     import bilinguist_write as w
+    orig_format = w.OUTPUT_FORMAT_SINGLE
     orig_rule = w.NATIVE_WORD_RULE["longer"]
+    w.OUTPUT_FORMAT_SINGLE = PLAIN_OUTPUT_FORMAT
     w.NATIVE_WORD_RULE["longer"] = EXACT_210_RULE
     prompt = w.build_native_prompt("en", [story], "longer")
+    w.OUTPUT_FORMAT_SINGLE = orig_format
     w.NATIVE_WORD_RULE["longer"] = orig_rule
 
-    raw, finish = w.call_gemini(
-        client, "gemini-2.5-flash", prompt, f"perarticle/{story.get('slug')}", stage="3",
-        schema=w._SCHEMA_ARTICLE, max_output_tokens=8192,
-    )
+    response = None
+    for attempt in range(1, 4):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            break
+        except Exception as e:
+            err = str(e)
+            if any(c in err for c in ["503", "429"]) and attempt < 3:
+                delay = [15, 30][attempt - 1]
+                print(f"[{story.get('slug')}] attempt {attempt} failed ({e}) — "
+                      f"retrying in {delay}s…", file=sys.stderr)
+                time.sleep(delay)
+            else:
+                return {"slug": story.get("slug"), "error": str(e)}
+
+    if not response:
+        return {"slug": story.get("slug"), "error": "all retries failed"}
+    raw = response.text or ""
     if not raw:
-        return {"slug": story.get("slug"), "error": f"no response (finish={finish})"}
-    parsed = w.parse_llm_json(raw) or {}
-    body = parsed.get("body", "")
+        return {"slug": story.get("slug"), "error": "no response"}
+    headline, body, self_check = parse_plain(raw)
     actual = len(body.split())
     return {
-        "slug": story.get("slug"), "headline": parsed.get("headline", ""), "body": body,
-        "actual_words": actual, "deviation": actual - TARGET_WORDS,
+        "slug": story.get("slug"), "headline": headline, "body": body,
+        "actual_words": actual, "self_reported": self_check,
+        "deviation": actual - TARGET_WORDS,
     }
 
 

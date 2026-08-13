@@ -1,11 +1,9 @@
 """
-A/B test: run TODAY'S real Stage 1-4 (scrape, select, gather winners, fact-check) exactly as
-production does, then Stage 5 (native EN, "longer") TWICE per story -- once with forced JSON
-output, once with plain-text output -- with every other control held identical: same
-fact-base, same exact-210-words instruction, same political-titles/quote/attribution rules.
-The only variable that changes between arm A and arm B is the output mechanism. This isolates
-whether JSON-vs-plain-text is what's driving word-count compliance, not the word-count
-wording (which is held constant across both arms).
+Test: run TODAY'S real Stage 1-4 (scrape, select, gather winners, fact-check) exactly as
+production does, then Stage 5 (native EN, "longer") with the settled configuration --
+plain-text output (no forced JSON), exact-210-words instruction -- across every real winning
+story. JSON-vs-plain-text was already decided (plain-text won modestly, avg |dev| 24.3 vs
+28.0 on a 7-story A/B) -- this just confirms the settled approach on fresh headlines.
 
 Reuses bilinguist_scrape.main(), bilinguist_gather.main() (--select-only, then --from
 selection.json --facts-input winners, matching generate-briefings.yml exactly), and
@@ -20,6 +18,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 from google import genai
@@ -67,7 +66,7 @@ def stage4_factcheck() -> None:
     bilinguist_factcheck.main()
 
 
-# ── Stage 5 (test overrides): exact-210 + plain-text no-JSON output ────────────────────────
+# ── Stage 5 (settled config): exact-210 + plain-text no-JSON output ────────────────────────
 EXACT_210_RULE = (
     "Write exactly 210 words. Count every word before submitting. If your count is not "
     "210, revise the article and count again until it is. This is a precise target, not a "
@@ -101,42 +100,15 @@ def parse_plain(raw: str) -> tuple[str, str, str]:
     return m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
 
 
-def _build_prompt(w, story: dict, output_format: str) -> str:
+def stage5_native(client: "genai.Client", story: dict) -> dict:
+    import bilinguist_write as w
     orig_format = w.OUTPUT_FORMAT_SINGLE
     orig_rule = w.NATIVE_WORD_RULE["longer"]
-    w.OUTPUT_FORMAT_SINGLE = output_format
+    w.OUTPUT_FORMAT_SINGLE = PLAIN_OUTPUT_FORMAT
     w.NATIVE_WORD_RULE["longer"] = EXACT_210_RULE
     prompt = w.build_native_prompt("en", [story], "longer")
     w.OUTPUT_FORMAT_SINGLE = orig_format
     w.NATIVE_WORD_RULE["longer"] = orig_rule
-    return prompt
-
-
-def stage5_native_json(client: "genai.Client", story: dict) -> dict:
-    """Arm A: forced JSON output, same exact-210 rule as arm B."""
-    import bilinguist_write as w
-    prompt = _build_prompt(w, story, w.OUTPUT_FORMAT_SINGLE)  # keep production's real JSON format
-    raw, finish = w.call_gemini(
-        client, "gemini-2.5-flash", prompt, f"ab-json/{story.get('slug')}",
-        schema=w._SCHEMA_ARTICLE, max_output_tokens=8192,
-    )
-    if not raw:
-        return {"slug": story.get("slug"), "arm": "json", "error": f"no response (finish={finish})"}
-    parsed = w.parse_llm_json(raw) or {}
-    body = parsed.get("body", "")
-    actual = len(body.split())
-    return {
-        "slug": story.get("slug"), "arm": "json", "genre": story.get("genre"),
-        "headline": parsed.get("headline", ""), "body": body,
-        "actual_words": actual, "self_reported": "", "deviation": actual - 210,
-    }
-
-
-def stage5_native_plain(client: "genai.Client", story: dict) -> dict:
-    """Arm B: plain-text output, same exact-210 rule as arm A."""
-    import time
-    import bilinguist_write as w
-    prompt = _build_prompt(w, story, PLAIN_OUTPUT_FORMAT)
 
     response = None
     for attempt in range(1, 4):
@@ -154,22 +126,22 @@ def stage5_native_plain(client: "genai.Client", story: dict) -> dict:
             err = str(e)
             if any(c in err for c in ["503", "429"]) and attempt < 3:
                 delay = [15, 30][attempt - 1]
-                print(f"[{story.get('slug')}] plain-arm attempt {attempt} failed ({e}) — "
+                print(f"[{story.get('slug')}] attempt {attempt} failed ({e}) — "
                       f"retrying in {delay}s…", file=sys.stderr)
                 time.sleep(delay)
             else:
-                print(f"[{story.get('slug')}] plain-arm non-retryable error: {e}", file=sys.stderr)
-                return {"slug": story.get("slug"), "arm": "plain", "error": str(e)}
+                print(f"[{story.get('slug')}] non-retryable error: {e}", file=sys.stderr)
+                return {"slug": story.get("slug"), "error": str(e)}
 
     if not response:
-        return {"slug": story.get("slug"), "arm": "plain", "error": "all retries failed"}
+        return {"slug": story.get("slug"), "error": "all retries failed"}
     raw = response.text or ""
     if not raw:
-        return {"slug": story.get("slug"), "arm": "plain", "error": "no response"}
+        return {"slug": story.get("slug"), "error": "no response"}
     headline, body, self_check = parse_plain(raw)
     actual = len(body.split())
     return {
-        "slug": story.get("slug"), "arm": "plain", "genre": story.get("genre"),
+        "slug": story.get("slug"), "genre": story.get("genre"),
         "headline": headline, "body": body,
         "actual_words": actual, "self_reported": self_check, "deviation": actual - 210,
     }
@@ -187,54 +159,31 @@ def main() -> None:
     factbase = doc.get("factbase", [])
     factcheck = doc.get("factcheck", {})
 
-    print(f"\n{'#' * 10} STAGE 5 A/B — Native EN, exact-210 held constant, "
-          f"JSON vs plain-text, {len(factbase)} stories {'#' * 10}\n")
+    print(f"\n{'#' * 10} STAGE 5 — Native EN, exact-210 + plain-text, {len(factbase)} stories {'#' * 10}\n")
     client = genai.Client()
-    json_results, plain_results = [], []
+    results = []
     for story in factbase:
-        rj = stage5_native_json(client, story)
-        rp = stage5_native_plain(client, story)
-        json_results.append(rj)
-        plain_results.append(rp)
+        r = stage5_native(client, story)
+        results.append(r)
+        if "error" in r:
+            print(f"[{r['slug']}] ERROR: {r['error']}", file=sys.stderr)
+            continue
+        print(f"\n{'=' * 20} {r['slug']} — {r['actual_words']} words "
+              f"(target 210, deviation {r['deviation']:+d}, self-reported: {r['self_reported'] or 'none'}) {'=' * 20}\n")
+        print(f"Headline: {r['headline']}\n")
+        print(r["body"])
 
-        print(f"\n{'=' * 20} {story.get('slug')} {'=' * 20}")
-        if "error" in rj:
-            print(f"  [JSON ] ERROR: {rj['error']}", file=sys.stderr)
-        else:
-            print(f"  [JSON ] {rj['actual_words']} words (dev {rj['deviation']:+d}) — {rj['headline']}")
-        if "error" in rp:
-            print(f"  [PLAIN] ERROR: {rp['error']}", file=sys.stderr)
-        else:
-            print(f"  [PLAIN] {rp['actual_words']} words (dev {rp['deviation']:+d}, "
-                  f"self-reported {rp['self_reported'] or 'none'}) — {rp['headline']}")
-        if "error" not in rj:
-            print(f"\n  --- JSON body ---\n  {rj['body']}")
-        if "error" not in rp:
-            print(f"\n  --- PLAIN body ---\n  {rp['body']}")
-
-    ok_json = [r for r in json_results if "error" not in r]
-    ok_plain = [r for r in plain_results if "error" not in r]
-
-    print(f"\n{'#' * 10} SUMMARY — A/B, {len(factbase)} stories, exact-210 held constant {'#' * 10}\n")
-    print(f"JSON arm:  {len(ok_json)}/{len(json_results)} succeeded")
-    print(f"PLAIN arm: {len(ok_plain)}/{len(plain_results)} succeeded\n")
-
-    if ok_json:
-        avg_words_j = sum(r["actual_words"] for r in ok_json) / len(ok_json)
-        avg_dev_j = sum(abs(r["deviation"]) for r in ok_json) / len(ok_json)
-        print(f"JSON  — average words: {avg_words_j:.1f} | average |deviation| from 210: {avg_dev_j:.1f}")
-    if ok_plain:
-        avg_words_p = sum(r["actual_words"] for r in ok_plain) / len(ok_plain)
-        avg_dev_p = sum(abs(r["deviation"]) for r in ok_plain) / len(ok_plain)
-        print(f"PLAIN — average words: {avg_words_p:.1f} | average |deviation| from 210: {avg_dev_p:.1f}")
-
-    print(f"\n{'slug':<45} {'JSON words':>10} {'PLAIN words':>11} {'JSON dev':>9} {'PLAIN dev':>10}")
-    for rj, rp in zip(json_results, plain_results):
-        jw = rj.get("actual_words", "ERR")
-        pw = rp.get("actual_words", "ERR")
-        jd = f"{rj['deviation']:+d}" if "error" not in rj else "ERR"
-        pd = f"{rp['deviation']:+d}" if "error" not in rp else "ERR"
-        print(f"{rj.get('slug',''):<45} {jw!s:>10} {pw!s:>11} {jd:>9} {pd:>10}")
+    ok = [r for r in results if "error" not in r]
+    print(f"\n{'#' * 10} SUMMARY {'#' * 10}\n")
+    print(f"Stories: {len(results)} | succeeded: {len(ok)} | failed: {len(results) - len(ok)}")
+    if ok:
+        avg_abs_dev = sum(abs(r["deviation"]) for r in ok) / len(ok)
+        avg_words = sum(r["actual_words"] for r in ok) / len(ok)
+        print(f"Average word count: {avg_words:.1f} (target 210)")
+        print(f"Average absolute deviation from 210: {avg_abs_dev:.1f} words")
+        for r in ok:
+            print(f"  {r['slug']}: {r['actual_words']} words (dev {r['deviation']:+d}, "
+                  f"self-reported {r['self_reported'] or 'none'})")
 
     print(f"\n[factcheck] stories_checked={factcheck.get('stories_checked', 'n/a')} "
           f"corrections={len(factcheck.get('corrections', []))}")
