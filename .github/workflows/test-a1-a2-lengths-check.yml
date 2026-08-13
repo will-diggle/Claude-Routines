@@ -1,0 +1,44 @@
+name: "TEST: A1 + A2, short + long (DE/FR/IT, SIMPLIFY only)"
+
+# Extends the confirmed-good SIMPLIFY approach to A2 (first time) and short-form (first
+# time), across DE/FR/IT, on the two known stories. Standardises on SIMPLIFY only -- the
+# FROM-FACTS arm was tested and rejected (word count far under target, an unfixed
+# outlet-naming rule violation, no vocabulary-gloss support). Also exercises the newly-added
+# GRAMMAR_RULE_A2 for the first time -- A2 previously had no explicit grammar rule in
+# production at all. Standalone -- never touches the data repo or the live app.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Run the A1 + A2 lengths check
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_a1_a2_lengths_check.py | tee a1_a2_lengths_check_result.txt
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-a1-a2-lengths-check-result
+          path: bilinguist-brief/scripts/a1_a2_lengths_check_result.txt
+          retention-days: 14
