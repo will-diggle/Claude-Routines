@@ -257,6 +257,25 @@ GRAMMAR_RULE_A1 = (
     "done Y\") — split into two short sentences or a direct quote instead. One idea, one "
     "verb, per sentence."
 )
+
+# A2 gets no grammar guidance at all today (falls through to GRAMMAR_RULE_FALLBACK, which is
+# empty) -- unlike A1, which has the detailed rule above. A2 CAN handle more than A1 (the
+# imperfect for background/habitual actions, one level of subordinate clause, simple
+# relative pronouns) but still can't handle what A1 can't (subjunctive, conditional,
+# nested/complex clauses, complex relative pronouns). Written as positive permission plus
+# explicit limits, same structure as GRAMMAR_RULE_A1.
+GRAMMAR_RULE_A2 = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, simple passé composé (or "
+    "{LANGUAGE}'s equivalent simple past), AND the imperfect (or {LANGUAGE}'s equivalent) "
+    "for background description and habitual or ongoing past actions — never the "
+    "pluperfect, the conditional, the subjunctive, or any passive construction; rewrite "
+    "passives as active sentences. A simple relative pronoun (\"qui\"/\"que\" or {LANGUAGE}'s "
+    "equivalent) as the subject/object of its own short clause is fine — never a complex "
+    "one (\"dans lequel\", \"auquel\", \"dont\" or equivalents). ONE level of subordinate "
+    "clause is fine (e.g. reported speech: \"said that X happened\") — but never nest a "
+    "second subordinate clause inside it. Keep each sentence to one main idea with at most "
+    "one supporting clause."
+)
 GRAMMAR_RULE_FALLBACK = ""
 
 # Production line, unchanged from before the {TITLE_RULE} extraction — single source of

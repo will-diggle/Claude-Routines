@@ -556,7 +556,7 @@ else:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
-        GRAMMAR_RULE_A1, GRAMMAR_RULE_FALLBACK,
+        GRAMMAR_RULE_A1, GRAMMAR_RULE_A2, GRAMMAR_RULE_FALLBACK,
         TITLE_RULE_STRICT, TITLE_RULE_RELAXED_A1,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
@@ -651,7 +651,9 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
                        ATTRIBUTION_RULE_BEGINNER if level in ("A1", "A2")
                        else ATTRIBUTION_RULE_FALLBACK)
               .replace("{GRAMMAR_RULE}",
-                       GRAMMAR_RULE_A1 if level == "A1" else GRAMMAR_RULE_FALLBACK)
+                       GRAMMAR_RULE_A1 if level == "A1"
+                       else GRAMMAR_RULE_A2 if level == "A2"
+                       else GRAMMAR_RULE_FALLBACK)
               .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
