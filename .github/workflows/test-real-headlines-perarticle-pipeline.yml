@@ -1,20 +1,18 @@
-name: "TEST: real headlines, per-article gather+factcheck+write vs batched native"
+name: "TEST: real headlines, per-article gather+factcheck+write"
 
-# Tests whether per-article calling (one Gemini prompt per story) beats batching at every
-# stage: Stage 3 gather (--per-story), Stage 4 fact-check (new per-story test version vs
-# production's one-call-for-all), and Stage 5 native EN write (batched-array call vs
-# per-article calls), all long-form, on today's real headlines. Motivated by a confirmed
-# finding: a batched Stage 3 call starved a later story (9 facts vs the 10-14 target) while
-# the lead story in the same call got 617 narrative words. This checks whether Stage 5
-# writing shows the same batching-dilutes-attention pattern once fact-depth is no longer a
-# confound (every story already has its own dedicated, equally-deep fact-base). All local
-# files -- never touches the data repo, the live app, or any Supabase/D1 write.
+# Runs every stage per-article (one Gemini prompt per story, never shared): Stage 3 gather
+# (--per-story), Stage 4 fact-check (new per-story test version vs production's
+# one-call-for-all), and Stage 5 native EN write. Long-form, real headlines. Motivated by a
+# confirmed finding: a batched Stage 3 call starved a later story (9 facts vs the 10-14
+# target) while the lead story in the same call got 617 narrative words -- batching dilutes
+# attention across stories in one call. All local files -- never touches the data repo, the
+# live app, or any Supabase/D1 write.
 
 on:
   workflow_dispatch:
     inputs:
       max_stories:
-        description: 'Max number of stories for the Stage 5 batched-vs-per-article comparison (default 4)'
+        description: 'Max number of stories to write natively (default 4)'
         required: false
         default: '4'
 

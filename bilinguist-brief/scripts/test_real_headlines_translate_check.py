@@ -90,14 +90,14 @@ PLAIN_OUTPUT_FORMAT = (
     "process, no notes. Just these three fields."
 )
 
-# Translation -- same plain-text mechanism, targets the EN source's own actual word count
-# rather than a fixed number, since a faithful translation should mirror source length, not
-# hit an independent target.
+# Translation -- same plain-text mechanism. Target defaults to the EN source's own actual
+# word count (a faithful translation should mirror source length), except where
+# LANG_TARGET_OVERRIDE below gives a language its own fixed number instead.
 TRANSLATE_OUTPUT_FORMAT_TEMPLATE = (
     "OUTPUT FORMAT — plain text, not JSON:\n"
     "First, draft the article. Count its words by actually going through it and counting -- "
-    "not estimating. Your target is {TARGET} words (the English source's own length) -- if "
-    "your count is more than 10 words away from {TARGET}, revise and count again.\n\n"
+    "not estimating. Your target is {TARGET} words -- if your count is more than 10 words "
+    "away from {TARGET}, revise and count again.\n\n"
     "Once it is close, output ONLY the following, in this exact format:\n"
     "HEADLINE: <the headline, one line>\n"
     "BODY:\n"
@@ -200,12 +200,19 @@ def write_native_en(client: "genai.Client", story: dict) -> dict:
     }
 
 
+# French consistently overshoots its English source (measured: +81 words / +31% on one
+# story, +16 words / +12% on another) while German tracks close to source length. Testing
+# a fixed, lower target for French specifically rather than "match the source" -- see if
+# that reins in the overshoot.
+LANG_TARGET_OVERRIDE = {"fr": 200}
+
+
 def translate(client: "genai.Client", lang: str, en_article: dict) -> dict:
     import bilinguist_write as w
     lang_name = w.LANGUAGE_NAMES.get(lang, lang)
     outlet = w.NATIVE_OUTLETS.get(lang, w.NATIVE_OUTLET_FALLBACK)
     quote_rule = w.QUOTE_RULES.get(lang, w.QUOTE_RULE_FALLBACK)
-    target = en_article["actual_words"]
+    target = LANG_TARGET_OVERRIDE.get(lang, en_article["actual_words"])
 
     prompt = TRANSLATE_PROMPT.format(
         LANGUAGE=lang_name, OUTLET=outlet, QUOTE_RULE=quote_rule,
@@ -268,7 +275,7 @@ def main() -> None:
                 print(f"\n[{story.get('slug')}/{lang}] ERROR: {tr['error']}", file=sys.stderr)
                 continue
             print(f"\n{'-' * 15} {lang.upper()} translation ({tr['actual_words']} words, "
-                  f"target {tr['target_words']} [=EN], dev {tr['deviation_from_en']:+d}, "
+                  f"target {tr['target_words']}, dev {tr['deviation_from_en']:+d}, "
                   f"self-reported {tr['self_reported'] or 'none'}, "
                   f"fact-count reported {tr['fact_count_reported'] or 'none'}) {'-' * 15}\n")
             print(f"Headline: {tr['headline']}\n")
