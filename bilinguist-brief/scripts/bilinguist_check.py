@@ -73,19 +73,18 @@ WORD_TARGETS: dict[str, dict[str, tuple[int, int]]] = {
     # Same LENGTH at every level — only the reading level changes. A1 alone is shorter.
     # Bumped from (85,105)/(180,200) on 2026-08-12 -- must agree with WORDS_PER_ARTICLE in
     # bilinguist_write.py, see its comment for why.
-    "A1":     {"short": (100, 125), "longer": (210, 235)},
-    "A2":     {"short": (95, 115),   "longer": (210, 230)},
-    "B1":     {"short": (95, 115),   "longer": (210, 230)},
-    "B2":     {"short": (95, 115),   "longer": (210, 230)},
-    "C1":     {"short": (95, 115),   "longer": (210, 230)},
-    "C2":     {"short": (95, 115),   "longer": (210, 230)},
+    # "longer" widened 2026-08-14 to match WORDS_PER_ARTICLE in bilinguist_write.py -- see
+    # its comment for why (was proportionally the tightest band despite no smaller absolute
+    # deviation than "short").
+    "A1":     {"short": (100, 125), "longer": (195, 250)},
+    "A2":     {"short": (95, 115),   "longer": (195, 245)},
+    "B1":     {"short": (95, 115),   "longer": (195, 245)},
+    "B2":     {"short": (95, 115),   "longer": (195, 245)},
+    "C1":     {"short": (95, 115),   "longer": (195, 245)},
+    "C2":     {"short": (95, 115),   "longer": (195, 245)},
     # Native now reads its band from WORDS_PER_ARTICLE in bilinguist_write.py — the prompt
     # no longer hardcodes it — so these two must agree.
-    # Set to 210–230 on 2026-08-10 from measurement rather than argument: across two runs
-    # native/longer produced 194–247 (avg ~220) whether or not the prompt authorised a
-    # short article, so 250–270 was above what it reliably writes and 210–230 is centred
-    # on what it does.
-    "Native": {"short": (95, 115),   "longer": (210, 230)},
+    "Native": {"short": (95, 115),   "longer": (195, 245)},
 }
 
 # Turkish and Arabic words carry more information per word (agglutination / attached

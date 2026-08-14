@@ -417,16 +417,23 @@ WORDS_PER_ARTICLE: dict[str, dict[str, str]] = {
     # undershooting the old band (133w/167-186 target in German, 154w/196-218 in French)
     # under the new GRAMMAR_RULE_A1 constraint. Testing whether a higher target moves real
     # output up, or whether the model self-limits content regardless of the ceiling.
-    "A1":     {"short": "100–125", "longer": "210–235"},
-    "A2":     {"short": "95–115",  "longer": "210–230"},
-    "B1":     {"short": "95–115",  "longer": "210–230"},
-    "B2":     {"short": "95–115",  "longer": "210–230"},
-    "C1":     {"short": "95–115",  "longer": "210–230"},
-    "C2":     {"short": "95–115",  "longer": "210–230"},
+    # "longer" bands widened 2026-08-14: they were only ~9-11% wide against "short"'s
+    # ~19-22% -- proportionally the tightest band even though the model's absolute word
+    # deviation on longer pieces (10-20 words) is no smaller than on short ones. That
+    # mismatch was the dominant source of "outside target range" warnings on longer length
+    # across every language/level. Widened to match short's proportional width instead of
+    # narrowing the instruction further -- three rounds of prompt tuning already tried to
+    # hit the tight band exactly and real output still deviates by this much.
+    "A1":     {"short": "100–125", "longer": "195–250"},
+    "A2":     {"short": "95–115",  "longer": "195–245"},
+    "B1":     {"short": "95–115",  "longer": "195–245"},
+    "B2":     {"short": "95–115",  "longer": "195–245"},
+    "C1":     {"short": "95–115",  "longer": "195–245"},
+    "C2":     {"short": "95–115",  "longer": "195–245"},
     # Native is NOT written from this table — the range is hardcoded in
     # PROMPT_3_HEADER / PROMPT_3_SHORT_HEADER. Kept here so the reporting targets in
     # bilinguist_check.py have one place to track. Change all three together.
-    "Native": {"short": "95–115",  "longer": "210–230"},
+    "Native": {"short": "95–115",  "longer": "195–245"},
 }
 
 # C1 is the native/journalistic writing tier — "Native" maps to C1 prompt level.
