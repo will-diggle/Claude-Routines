@@ -260,7 +260,14 @@ GLOSS_RULE_BEGINNER = (
     "to know — major countries, and any current head of state or government (e.g. Donald "
     "Trump), are always familiar; never gloss them. A gloss explains what something IS, "
     "never a person's political status — never write \"(former president)\" or similar next "
-    "to a name. If a title needs glossing, explain the institution, not the person's status."
+    "to a name. If a title needs glossing, explain the institution, not the person's status.\n"
+    "The same bracket applies to a precise figure that is hard to picture at this level — a "
+    "large sum of money, a percentage, a vote count, a market value. On first mention only, "
+    "add a short bracket that puts it in plain terms, in {LEVEL_DESCRIPTION} {LANGUAGE} — "
+    "e.g. \"$852 billion (an extremely large amount of money)\", \"63% of the votes (about "
+    "two out of three)\". Never round or change the figure itself — the number stays exact, "
+    "the bracket only helps the reader picture it. Do not gloss a simple, everyday number "
+    "(a date, a small count, an age)."
 )
 GLOSS_RULE_FALLBACK = ""
 
@@ -290,34 +297,171 @@ ATTRIBUTION_RULE_FALLBACK = ""
 # clause with its own compound tense inside it. ATTRIBUTION_RULE_BEGINNER already handles
 # the "that"-clause case; this is broader -- it also blocks passive voice and relative
 # pronouns beyond simple qui/que, which ATTRIBUTION_RULE_BEGINNER never covered.
-GRAMMAR_RULE_A1 = (
-    " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and simple passé composé "
-    "(or {LANGUAGE}'s equivalent simple past) — never the imperfect, the pluperfect, or any "
-    "passive construction; rewrite passives as active sentences. Never use a relative "
-    "pronoun other than a simple \"qui\"/\"que\" (or {LANGUAGE}'s equivalent) as the "
-    "subject/object of its own short clause — no \"dans lequel\", \"auquel\", \"dont\" or "
-    "equivalents. Never embed one subordinate clause inside another (e.g. \"said that X had "
-    "done Y\") — split into two short sentences or a direct quote instead. One idea, one "
-    "verb, per sentence."
+# Bespoke per language, not one French-templated rule with "(or {LANGUAGE}'s equivalent)".
+# That version named passé composé, qui/que, and dans lequel/auquel/dont explicitly and left
+# every other language to guess a mapping -- English has no separate "imperfect" tense at
+# all (that's a Romance-language category), German A1 is conventionally taught Perfekt not
+# "passé composé", Swedish's single preteritum already covers what French splits into
+# passé composé/imparfait, and Italian/Spanish each have their own compound-vs-simple-past
+# split that doesn't line up with French's either. A rule the model can silently reinterpret
+# per language isn't actually constraining anything -- confirmed 2026-08-14 on the real
+# pipeline: English A1 graded A2 in 5/6 language, with the model reaching for correct
+# grammar under its own (unstated) idea of "simple past", not a rule that pinned it down.
+GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
+    "fr": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and simple passé "
+        "composé — never the imparfait, the plus-que-parfait, or any passive construction; "
+        "rewrite passives as active sentences. Never use a relative pronoun other than a "
+        "simple \"qui\"/\"que\" as the subject/object of its own short clause — no \"dans "
+        "lequel\", \"auquel\", \"dont\". Never embed one subordinate clause inside another "
+        "(e.g. \"a dit que X avait fait Y\") — split into two short sentences or a direct "
+        "quote instead. One idea, one verb, per sentence."
+    ),
+    "en": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple past "
+        "(\"he said\", \"they won\") — never the past perfect (\"had said\"), never the "
+        "past continuous for narration (\"was saying\"), or any passive construction; "
+        "rewrite passives as active sentences. Never use a relative pronoun other than a "
+        "simple \"who\"/\"which\"/\"that\" as the subject/object of its own short clause — "
+        "no \"whom\", \"whose\", or a relative clause built with a preposition (\"in which\", "
+        "\"to whom\"). Never embed one subordinate clause inside another (e.g. \"said that X "
+        "had happened\") — split into two short sentences or a direct quote instead. One "
+        "idea, one verb, per sentence."
+    ),
+    "de": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense (Präsens) and the "
+        "Perfekt (\"er hat gesagt\") for anything in the past — never the Präteritum except "
+        "for \"haben\"/\"sein\"/modal verbs (\"war\", \"hatte\", \"konnte\" are fine), never "
+        "the Plusquamperfekt, or any passive construction (\"wurde gesagt\"); rewrite "
+        "passives as active sentences. Never use a relative pronoun other than a simple "
+        "nominative/accusative \"der\"/\"die\"/\"das\" as the subject/object of its own short "
+        "clause — no genitive (\"dessen\", \"deren\") or a relative clause built with a "
+        "preposition. Never embed one subordinate clause inside another (e.g. \"sagte, dass "
+        "X passiert war\") — split into two short sentences or a direct quote instead. One "
+        "idea, one verb, per sentence."
+    ),
+    "sv": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense (presens) and the "
+        "simple past (preteritum, \"han sa\", \"de vann\") — never the perfekt (\"har sagt\"), "
+        "never the pluskvamperfekt, or any passive construction (the \"-s\" passive or "
+        "\"bli\" + participle); rewrite passives as active sentences. Never use a relative "
+        "pronoun other than a simple \"som\" as the subject/object of its own short clause. "
+        "Never embed one subordinate clause inside another (e.g. \"sa att X hade hänt\") — "
+        "split into two short sentences or a direct quote instead. One idea, one verb, per "
+        "sentence."
+    ),
+    "it": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple passato "
+        "prossimo (\"ha detto\") — never the imperfetto, the trapassato prossimo, or any "
+        "passive construction (\"è stato detto\"); rewrite passives as active sentences. "
+        "Never use a relative pronoun other than a simple \"che\" as the subject/object of "
+        "its own short clause — no \"cui\", \"il quale\" or equivalents. Never embed one "
+        "subordinate clause inside another (e.g. \"ha detto che X era successo\") — split "
+        "into two short sentences or a direct quote instead. One idea, one verb, per "
+        "sentence."
+    ),
+    "es": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple past "
+        "(pretérito indefinido/perfecto simple, \"dijo\", \"ganó\") — never the imperfecto, "
+        "the pluscuamperfecto, or any passive construction (\"fue dicho\"); rewrite passives "
+        "as active sentences. Never use a relative pronoun other than a simple \"que\" as "
+        "the subject/object of its own short clause — no \"el cual\", \"cuyo\", or a "
+        "relative clause built with a preposition. Never embed one subordinate clause "
+        "inside another (e.g. \"dijo que X había pasado\") — split into two short sentences "
+        "or a direct quote instead. One idea, one verb, per sentence."
+    ),
+}
+# Any language without a bespoke entry above falls back to the old French-templated
+# wording rather than silently getting no grammar rule at all.
+GRAMMAR_RULE_A1_FALLBACK = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and {LANGUAGE}'s simple "
+    "past — never a compound past-in-the-past, the imperfect/habitual past, or any passive "
+    "construction; rewrite passives as active sentences. Never use a relative pronoun other "
+    "than the simplest form as the subject/object of its own short clause — no complex or "
+    "prepositional relative clauses. Never embed one subordinate clause inside another — "
+    "split into two short sentences or a direct quote instead. One idea, one verb, per "
+    "sentence."
 )
 
-# A2 gets no grammar guidance at all today (falls through to GRAMMAR_RULE_FALLBACK, which is
-# empty) -- unlike A1, which has the detailed rule above. A2 CAN handle more than A1 (the
-# imperfect for background/habitual actions, one level of subordinate clause, simple
-# relative pronouns) but still can't handle what A1 can't (subjunctive, conditional,
-# nested/complex clauses, complex relative pronouns). Written as positive permission plus
-# explicit limits, same structure as GRAMMAR_RULE_A1.
-GRAMMAR_RULE_A2 = (
-    " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, simple passé composé (or "
-    "{LANGUAGE}'s equivalent simple past), AND the imperfect (or {LANGUAGE}'s equivalent) "
-    "for background description and habitual or ongoing past actions — never the "
-    "pluperfect, the conditional, the subjunctive, or any passive construction; rewrite "
-    "passives as active sentences. A simple relative pronoun (\"qui\"/\"que\" or {LANGUAGE}'s "
-    "equivalent) as the subject/object of its own short clause is fine — never a complex "
-    "one (\"dans lequel\", \"auquel\", \"dont\" or equivalents). ONE level of subordinate "
-    "clause is fine (e.g. reported speech: \"said that X happened\") — but never nest a "
-    "second subordinate clause inside it. Keep each sentence to one main idea with at most "
-    "one supporting clause."
+# A2 CAN handle more than A1 (the imperfect/background-past for habitual or ongoing past
+# actions, one level of subordinate clause, simple relative pronouns) but still can't handle
+# what A1 can't (subjunctive, conditional, nested/complex clauses, complex relative
+# pronouns). Same bespoke-per-language structure as A1, for the same reason.
+GRAMMAR_RULE_A2_BY_LANG: dict[str, str] = {
+    "fr": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, simple passé composé, AND "
+        "the imparfait for background description and habitual or ongoing past actions — "
+        "never the plus-que-parfait, the conditionnel, the subjonctif, or any passive "
+        "construction; rewrite passives as active sentences. A simple relative pronoun "
+        "(\"qui\"/\"que\") as the subject/object of its own short clause is fine — never a "
+        "complex one (\"dans lequel\", \"auquel\", \"dont\"). ONE level of subordinate "
+        "clause is fine (e.g. reported speech: \"a dit que X s'est passé\") — but never nest "
+        "a second subordinate clause inside it. Keep each sentence to one main idea with at "
+        "most one supporting clause."
+    ),
+    "en": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the simple past, AND the "
+        "past continuous (\"was doing\") for background description and ongoing past "
+        "actions — never the past perfect, the conditional (\"would have\"), or any passive "
+        "construction; rewrite passives as active sentences. A simple relative pronoun "
+        "(\"who\"/\"which\"/\"that\") as the subject/object of its own short clause is fine "
+        "— never \"whom\", \"whose\", or a prepositional relative clause. ONE level of "
+        "subordinate clause is fine (e.g. reported speech: \"said that X happened\") — but "
+        "never nest a second subordinate clause inside it. Keep each sentence to one main "
+        "idea with at most one supporting clause."
+    ),
+    "de": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the Perfekt, AND the "
+        "Präteritum of \"haben\"/\"sein\"/modal verbs AND ordinary verbs used for background "
+        "description — never the Plusquamperfekt, the Konjunktiv, or any passive "
+        "construction; rewrite passives as active sentences. A simple nominative/accusative "
+        "relative pronoun (\"der\"/\"die\"/\"das\") as the subject/object of its own short "
+        "clause is fine — never a genitive or prepositional one. ONE level of subordinate "
+        "clause is fine (e.g. reported speech: \"sagte, dass X passiert ist\") — but never "
+        "nest a second subordinate clause inside it. Keep each sentence to one main idea "
+        "with at most one supporting clause."
+    ),
+    "sv": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the preteritum, AND the "
+        "perfekt (\"har gjort\") for background description, experience, or results still "
+        "relevant now — never the pluskvamperfekt, conditional \"skulle\"-constructions, or "
+        "any passive construction; rewrite passives as active sentences. A simple relative "
+        "pronoun (\"som\") as the subject/object of its own short clause is fine. ONE level "
+        "of subordinate clause is fine (e.g. reported speech: \"sa att X hade hänt\") — but "
+        "never nest a second subordinate clause inside it. Keep each sentence to one main "
+        "idea with at most one supporting clause."
+    ),
+    "it": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the passato prossimo, AND "
+        "the imperfetto for background description and habitual or ongoing past actions — "
+        "never the trapassato prossimo, the congiuntivo, the condizionale, or any passive "
+        "construction; rewrite passives as active sentences. A simple relative pronoun "
+        "(\"che\") as the subject/object of its own short clause is fine — never \"cui\" or "
+        "\"il quale\". ONE level of subordinate clause is fine (e.g. reported speech: \"ha "
+        "detto che X è successo\") — but never nest a second subordinate clause inside it. "
+        "Keep each sentence to one main idea with at most one supporting clause."
+    ),
+    "es": (
+        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the pretérito "
+        "indefinido/perfecto simple, AND the imperfecto for background description and "
+        "habitual or ongoing past actions — never the pluscuamperfecto, the subjuntivo, the "
+        "condicional, or any passive construction; rewrite passives as active sentences. A "
+        "simple relative pronoun (\"que\") as the subject/object of its own short clause is "
+        "fine — never \"el cual\" or \"cuyo\". ONE level of subordinate clause is fine (e.g. "
+        "reported speech: \"dijo que X había pasado\") — but never nest a second subordinate "
+        "clause inside it. Keep each sentence to one main idea with at most one supporting "
+        "clause."
+    ),
+}
+GRAMMAR_RULE_A2_FALLBACK = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, {LANGUAGE}'s simple past, AND "
+    "its imperfect/habitual-past equivalent for background description and habitual or "
+    "ongoing past actions — never a compound past-in-the-past, the conditional, the "
+    "subjunctive, or any passive construction; rewrite passives as active sentences. A "
+    "simple relative pronoun as the subject/object of its own short clause is fine — never "
+    "a complex or prepositional one. ONE level of subordinate clause is fine (e.g. reported "
+    "speech) — but never nest a second subordinate clause inside it. Keep each sentence to "
+    "one main idea with at most one supporting clause."
 )
 GRAMMAR_RULE_FALLBACK = ""
 
@@ -353,10 +497,13 @@ TITLE_RULE_RELAXED_A1 = (
 # telling the model anything) — this only stops a gloss aside from inflating the complexity
 # judgement, it doesn't confirm a target level to the model.
 GLOSS_JUDGE_RULE_BEGINNER = (
-    "\n   Some articles gloss a hard name or term in brackets on first mention, e.g. \"die "
-    "Bundesbank (Deutschlands Zentralbank)\" — this is a built-in definition for the "
-    "learner, not part of the article's own prose. Ignore bracketed glosses entirely when "
-    "judging complexity; grade only the surrounding sentence."
+    "\n   Some articles gloss a hard name, term, or precise figure in brackets on first "
+    "mention, e.g. \"die Bundesbank (Deutschlands Zentralbank)\" or \"852 Milliarden Dollar "
+    "(eine sehr große Summe Geld)\" — this is a built-in definition for the learner, not "
+    "part of the article's own prose. Ignore bracketed glosses entirely when judging "
+    "complexity, including the exact figures inside them; grade only the surrounding "
+    "sentence. A precise number or statistic that has been glossed this way is not, on its "
+    "own, evidence of a higher level."
 )
 GLOSS_JUDGE_RULE_FALLBACK = ""
 

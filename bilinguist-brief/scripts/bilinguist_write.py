@@ -106,7 +106,9 @@ SERVICE_TIER: Optional[str] = None
 # turned off 2026-08-11 for faster iteration while re-testing after the thinking_budget=0
 # fix. Re-add entries here (value "flex") to turn it back on per stage; every stage falls
 # back to --tier/SERVICE_TIER when absent from this dict.
-SERVICE_TIER_BY_STAGE: dict[str, str] = {}
+SERVICE_TIER_BY_STAGE: dict[str, str] = {
+    "3": "flex", "2B": "flex", "2S": "flex", "2M": "flex", "4b": "flex",
+}
 
 # gemini-2.5-pro rejects thinking_budget=0 outright ("Budget 0 is invalid. This model
 # only works in thinking mode.") — confirmed 2026-08-11: every Stage 5 (native) call
@@ -588,7 +590,8 @@ else:
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
-        GRAMMAR_RULE_A1, GRAMMAR_RULE_A2, GRAMMAR_RULE_FALLBACK,
+        GRAMMAR_RULE_A1_BY_LANG, GRAMMAR_RULE_A1_FALLBACK,
+        GRAMMAR_RULE_A2_BY_LANG, GRAMMAR_RULE_A2_FALLBACK, GRAMMAR_RULE_FALLBACK,
         TITLE_RULE_STRICT, TITLE_RULE_RELAXED_A1,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
@@ -683,8 +686,8 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
                        ATTRIBUTION_RULE_BEGINNER if level in ("A1", "A2")
                        else ATTRIBUTION_RULE_FALLBACK)
               .replace("{GRAMMAR_RULE}",
-                       GRAMMAR_RULE_A1 if level == "A1"
-                       else GRAMMAR_RULE_A2 if level == "A2"
+                       GRAMMAR_RULE_A1_BY_LANG.get(lang, GRAMMAR_RULE_A1_FALLBACK) if level == "A1"
+                       else GRAMMAR_RULE_A2_BY_LANG.get(lang, GRAMMAR_RULE_A2_FALLBACK) if level == "A2"
                        else GRAMMAR_RULE_FALLBACK)
               .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))

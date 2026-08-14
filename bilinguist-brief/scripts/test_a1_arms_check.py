@@ -197,7 +197,7 @@ def a1_from_facts(client: "genai.Client", lang: str, story: dict) -> dict:
     prompt = w.build_writing_prompt(w.PROMPT_2S_HEADER, lang, "A1", "longer", [story])
     w.OUTPUT_FORMAT_SINGLE = orig_format
 
-    grammar_rule = p.GRAMMAR_RULE_A1.format(
+    grammar_rule = p.GRAMMAR_RULE_A1_BY_LANG.get(lang, p.GRAMMAR_RULE_A1_FALLBACK).format(
         LEVEL_DESCRIPTION=p.LEVEL_DESCRIPTIONS.get("A1", "A1"),
         LANGUAGE=w.LANGUAGE_NAMES.get(lang, lang),
     )
