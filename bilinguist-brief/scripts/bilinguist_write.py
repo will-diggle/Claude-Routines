@@ -262,13 +262,14 @@ _SCHEMA_VERIFY = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "type":     {"type": "string",
-                                 "enum": ["INVENTED", "CHANGED", "CONTRADICTED", "WRONG"]},
-                    "quote":    {"type": "string"},
-                    "factbase": {"type": "string"},
-                    "why":      {"type": "string"},
+                    "type":      {"type": "string",
+                                  "enum": ["INVENTED", "CHANGED", "CONTRADICTED", "WRONG"]},
+                    "quote":     {"type": "string"},
+                    "factbase":  {"type": "string"},
+                    "why":       {"type": "string"},
+                    "corrected": {"type": "string"},
                 },
-                "required": ["type", "quote", "factbase", "why"],
+                "required": ["type", "quote", "factbase", "why", "corrected"],
             },
         },
     },
@@ -1379,6 +1380,7 @@ def run_native_journalism(
             if article:
                 article["body"], nf = numcheck.verify_and_fix_numbers(
                     article["body"], story, "en")
+                nf += numcheck.find_unverified_entities(article["body"], story)
                 for f in nf:
                     _NUMCHECK_FINDINGS.append({**f, "lang": "en", "length": length,
                                                 "slug": story.get("slug")})
@@ -1408,6 +1410,7 @@ def run_native_journalism(
             if article:
                 article["body"], nf = numcheck.verify_and_fix_numbers(
                     article["body"], story, lang)
+                nf += numcheck.find_unverified_entities(article["body"], story)
                 for f in nf:
                     _NUMCHECK_FINDINGS.append({**f, "lang": lang,
                                                 "slug": story.get("slug")})
@@ -1461,10 +1464,12 @@ def run_native_journalism(
                 print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
 
     fixed_count = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "AUTO_FIXED")
-    flagged_count = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER")
+    flagged_numbers = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER")
+    flagged_entities = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_ENTITY")
     if _NUMCHECK_FINDINGS:
-        print(f"[3] Number check: {fixed_count} magnitude mismatch(es) auto-fixed, "
-              f"{flagged_count} number(s) flagged as unverified")
+        print(f"[3] Number/entity check: {fixed_count} magnitude mismatch(es) auto-fixed, "
+              f"{flagged_numbers} number(s) and {flagged_entities} name(s)/entit(ies) "
+              f"flagged as unverified")
 
     # Only include languages/lengths that produced at least one article
     return {lang: {ln: arts for ln, arts in lengths.items() if arts}
@@ -1619,7 +1624,14 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
     invention here reaches every level beneath it.
 
     One call per article, search enabled so a fact that is in the notes but simply wrong
-    can also be caught. Advisory — it never blocks the brief.
+    can also be caught. No longer purely advisory: CHANGED/CONTRADICTED/WRONG findings
+    with a usable "corrected" substring are applied directly to the article body in
+    native_journalism (mutated in place, so every level article rewritten from this
+    native article inherits the fix too) — previously these were only logged to the
+    ntfy notification and never acted on, the same gap Stage 4 closed for the
+    fact-base itself. INVENTED findings are never auto-applied (see PROMPT_5B_VERIFY —
+    a substring swap can't safely remove a whole invented claim) and stay flag-only.
+    Still never blocks the brief on failure.
     """
     by_slug = {s_.get("slug"): s_ for s_ in (factbase or []) if s_.get("slug")}
     jobs = []
@@ -1662,9 +1674,21 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
                                       "decimal separator", "wording", "correctly",
                                       "same value", "conversion of", "abbreviat")):
                 continue
-            out.append({"lang": lang, "length": length, "slug": art.get("slug"),
-                        "type": f.get("type"), "quote": f.get("quote"),
-                        "factbase": f.get("factbase"), "why": f.get("why")})
+            entry = {"lang": lang, "length": length, "slug": art.get("slug"),
+                      "type": f.get("type"), "quote": f.get("quote"),
+                      "factbase": f.get("factbase"), "why": f.get("why")}
+            quote = f.get("quote") or ""
+            corrected = f.get("corrected") or ""
+            # INVENTED never gets a "corrected" substring (see PROMPT_5B_VERIFY) --
+            # a substring swap can't safely remove a whole invented claim, only a
+            # CHANGED/CONTRADICTED/WRONG value-swap is safe to apply automatically.
+            if entry["type"] != "INVENTED" and quote and corrected and quote in art["body"]:
+                art["body"] = art["body"].replace(quote, corrected, 1)
+                entry["applied"] = True
+                entry["corrected"] = corrected
+            else:
+                entry["applied"] = False
+            out.append(entry)
         return out
 
     findings: list = []
@@ -1673,18 +1697,20 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
             findings.extend(res)
 
     clean = len(jobs) - len({(f["lang"], f["length"], f["slug"]) for f in findings})
+    applied_count = sum(1 for f in findings if f.get("applied"))
     by_type: dict = {}
     for f in findings:
         by_type[f.get("type") or "?"] = by_type.get(f.get("type") or "?", 0) + 1
     if findings:
         summary = (f"🔎 Native fact-check: {clean}/{len(jobs)} articles clean, "
-                   f"{len(findings)} finding(s) — "
+                   f"{len(findings)} finding(s), {applied_count} auto-corrected — "
                    + ", ".join(f"{k} {v}" for k, v in sorted(by_type.items())))
     else:
         summary = f"🔎 Native fact-check: all {len(jobs)} articles match the factbase ✓"
     print(f"[5b] {summary}")
     for f in findings:
-        print(f"[5b]   {f['type']} {f['lang']}/{f['length']}/{f['slug']}: "
+        tag = "FIXED" if f.get("applied") else f["type"]
+        print(f"[5b]   {tag} {f['lang']}/{f['length']}/{f['slug']}: "
               f"\"{(f.get('quote') or '')[:90]}\" — {f.get('why')}", file=sys.stderr)
 
     return {"summary": summary, "findings": findings, "articles_checked": len(jobs)}
@@ -1994,14 +2020,15 @@ def main():
         # Stage 5b's verdict, so check.py can report it without recomputing.
         "nativeFactCheck": native_check,
         "grading": grading,
-        # Deterministic Python-only number check (bilinguist_numcheck.py) -- no LLM
-        # call. AUTO_FIXED entries were already corrected in-place before this bundle
-        # was assembled; UNVERIFIED_NUMBER entries could not be safely corrected (no
-        # fact-base value matches at any magnitude) and are reported as-is.
+        # Deterministic Python-only number + entity check (bilinguist_numcheck.py) --
+        # no LLM call. AUTO_FIXED entries were already corrected in-place before this
+        # bundle was assembled; UNVERIFIED_NUMBER/UNVERIFIED_ENTITY entries could not
+        # be safely corrected (no fact-base match at all) and are reported as-is.
         "numberCheck": {
             "findings": _NUMCHECK_FINDINGS,
             "auto_fixed": sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "AUTO_FIXED"),
-            "unverified": sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER"),
+            "unverified": sum(1 for f in _NUMCHECK_FINDINGS
+                              if f["type"] in ("UNVERIFIED_NUMBER", "UNVERIFIED_ENTITY")),
         },
     }
 

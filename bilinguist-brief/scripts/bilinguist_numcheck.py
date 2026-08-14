@@ -245,3 +245,56 @@ def verify_and_fix_numbers(body: str, story: dict, lang: str) -> tuple[str, list
         })
 
     return body, findings
+
+
+# ── Proper-noun cross-check ─────────────────────────────────────────────────────
+# Flag-only, no auto-fix: an invented name has no deterministic correct replacement
+# the way a magnitude word does, so this only ever reports, never rewrites.
+
+# Runs of 2+ consecutive capitalised words (allowing a single short lowercase
+# connector like "de"/"von"/"van" for names such as "Charles de Gaulle"). A single
+# capitalised word is deliberately NOT enough on its own -- German capitalises every
+# noun, not just proper nouns, so a single-capital heuristic would be mostly noise
+# in German. Two-or-more-word runs are a real proper-noun signal in every one of
+# these languages.
+_ENTITY_RE = re.compile(
+    r"\b[A-ZÀ-ÖØ-Þ][\wÀ-öø-ÿ'-]*(?:\s+(?:de|von|van|del|della|dos|das|al)\s+"
+    r"[A-ZÀ-ÖØ-Þ][\wÀ-öø-ÿ'-]*|\s+[A-ZÀ-ÖØ-Þ][\wÀ-öø-ÿ'-]*)+\b"
+)
+
+
+def _factbase_entity_text(story: dict) -> str:
+    parts = []
+    for key in ("proper_nouns", "what_happened", "attribution", "verified",
+                "contested", "key_terms"):
+        val = story.get(key)
+        if isinstance(val, list):
+            parts.extend(str(v) for v in val)
+        elif val:
+            parts.append(str(val))
+    return " ".join(parts)
+
+
+def find_unverified_entities(body: str, story: dict) -> list[dict]:
+    """Flag multi-word capitalised spans in `body` that don't appear anywhere in
+    the fact-base (case-insensitive substring match against every text field, not
+    just "proper_nouns" -- a name can legitimately show up only in "attribution" or
+    "what_happened"). Returns UNVERIFIED_ENTITY findings; never modifies `body`."""
+    fb_text_lower = _factbase_entity_text(story).lower()
+    if not fb_text_lower:
+        return []
+    findings = []
+    seen = set()
+    for m in _ENTITY_RE.finditer(body or ""):
+        span_text = m.group(0)
+        key = span_text.lower()
+        if key in seen:
+            continue  # only report each distinct name once per article
+        if key in fb_text_lower:
+            continue
+        seen.add(key)
+        findings.append({
+            "type": "UNVERIFIED_ENTITY", "original": span_text,
+            "reason": "name/entity not found anywhere in the fact-base",
+        })
+    return findings

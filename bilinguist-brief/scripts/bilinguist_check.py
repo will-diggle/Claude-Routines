@@ -846,20 +846,23 @@ def check(bundle_path: Path) -> int:
     if native_factcheck.get("summary"):
         body_parts += ["", native_factcheck["summary"]]
         for f in (native_factcheck.get("findings") or [])[:8]:
+            mark = "✅ FIXED" if f.get("applied") else f"⚠️ {f.get('type')}"
             body_parts.append(
-                f"  ⚠️ {f.get('type')} {f.get('lang')}/{f.get('length')} "
-                f"{f.get('slug')}: \"{(f.get('quote') or '')[:80]}\"")
+                f"  {mark} {f.get('lang')}/{f.get('length')} "
+                f"{f.get('slug')}: \"{(f.get('quote') or '')[:80]}\""
+                + (f" → \"{f.get('corrected')[:80]}\"" if f.get("applied") else ""))
             if f.get("why"):
                 body_parts.append(f"      ↳ {f['why'][:150]}")
 
     # Deterministic Python-only check (bilinguist_numcheck.py, no LLM call) — AUTO_FIXED
-    # entries were already corrected in the shipped articles; UNVERIFIED_NUMBER entries
-    # have no fact-base value at any magnitude and could not be safely corrected.
+    # entries were already corrected in the shipped articles; UNVERIFIED_NUMBER and
+    # UNVERIFIED_ENTITY entries have no fact-base match at all and could not be safely
+    # corrected (a substring swap needs a known-correct replacement; there isn't one).
     num_findings = number_check.get("findings") or []
     if num_findings:
         auto_fixed = number_check.get("auto_fixed", 0)
         unverified = number_check.get("unverified", 0)
-        body_parts += ["", f"🔢 Number check (deterministic, no LLM): {auto_fixed} "
+        body_parts += ["", f"🔢 Number/entity check (deterministic, no LLM): {auto_fixed} "
                             f"magnitude mismatch(es) auto-fixed, {unverified} flagged unverified"]
         for f in num_findings[:8]:
             if f.get("type") == "AUTO_FIXED":
@@ -867,8 +870,9 @@ def check(bundle_path: Path) -> int:
                     f"  ✅ FIXED {f.get('lang')} {f.get('slug')}: "
                     f"\"{f.get('original')}\" → \"{f.get('corrected')}\"")
             else:
+                label = "entity" if f.get("type") == "UNVERIFIED_ENTITY" else "number"
                 body_parts.append(
-                    f"  ⚠️ UNVERIFIED {f.get('lang')} {f.get('slug')}: "
+                    f"  ⚠️ UNVERIFIED {label} {f.get('lang')} {f.get('slug')}: "
                     f"\"{f.get('original')}\" — {f.get('reason')}")
 
     if native_intermediate:

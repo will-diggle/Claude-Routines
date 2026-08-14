@@ -1023,7 +1023,7 @@ WRITING RULES:
 - Write in {LANGUAGE}. {VARIANT_RULE}
 - Write original prose from the facts. Never copy source phrasing. A quotation appears as reported speech — who said what, paraphrased — never as quoted text.
 - The fact-base sometimes wraps a phrase in quotation marks with no named speaker attached (no "said"/"stated" nearby) — that marks an informal or colloquial expression, not a verbatim quotation. Paraphrase it in your own words; do not reproduce it in quotation marks.
-- Use only facts from the fact-base.
+- Use only facts from the fact-base. This applies to names and quotes specifically, not just events and figures: never introduce a person, organisation, place, or direct quotation that does not appear in the fact-base's own fields ("proper_nouns", "attribution", "what_happened", etc.) — an invented name is exactly as serious an error as an invented number. A quotation must be verbatim from an "attribution" entry; never write a quotation mark around a paraphrase.
 - ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
 - DATES: always carry the fact-base's own specific date exactly as given (e.g. "Friday, 14 August 2026", "the week ending August 9"). Never substitute a vague relative reference instead — "this summer", "on Friday", "early August", "this Thursday" are all banned even though they read naturally in journalism. This is the single most common fact-check finding: every other language translates from this article, so a vague date written once here becomes a vague date in six languages.
@@ -1076,10 +1076,13 @@ NOW, the only four things to report:
 
 For each finding, quote the exact phrase from the article, give what the fact-base says instead, and say in one sentence why the VALUE or CLAIM differs. If your explanation would contain the words "translate", "omits", "format", "wording" or "correctly", it is not a finding — drop it.
 
+For CHANGED, CONTRADICTED and WRONG findings only: also give "corrected" — the exact replacement phrase, in {LANGUAGE}, that would make the sentence accurate if it substituted for "quote" word-for-word in the article. It must fit grammatically in place of "quote" with no other change to the sentence. If no single substring can fix it without rewriting the whole sentence, leave "corrected" empty — do not force one.
+For INVENTED findings: never give "corrected" (leave it empty). An invented claim needs the sentence rewritten or removed, not a word swapped — a substring replacement here would produce a grammatically broken sentence.
+
 OUTPUT FORMAT:
 {"verdict":"ok","findings":[]}
 or
-{"verdict":"issues","findings":[{"type":"CHANGED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence"}]}
+{"verdict":"issues","findings":[{"type":"CHANGED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence","corrected":"the exact replacement phrase, or empty string"}]}
 
 ARTICLE ({LANGUAGE}, {LENGTH}):
 {ARTICLE}
