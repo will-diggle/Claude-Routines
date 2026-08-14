@@ -61,6 +61,8 @@ from typing import Optional
 from google import genai
 from google.genai import types
 
+import bilinguist_numcheck as numcheck
+
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -1314,6 +1316,12 @@ def write_costs_report(date: str, script_dir: str) -> dict:
 
 # ── Stage runners ─────────────────────────────────────────────────────────────
 
+# Deterministic, Python-only number check (bilinguist_numcheck.py) -- no LLM call.
+# Populated by run_native_journalism as each native/translated article is produced;
+# written to output/numcheck_<date>.json in main() for Stage 9 to report.
+_NUMCHECK_FINDINGS: list[dict] = []
+
+
 def run_native_journalism(
     client: genai.Client,
     factbase: list,
@@ -1337,6 +1345,7 @@ def run_native_journalism(
     exercised by this stage regardless.
 
     Returns {lang: {short: [articles], longer: [articles]}}."""
+    _NUMCHECK_FINDINGS.clear()
     # Honour the language matrix: only write native journalism for active languages
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
     # so disabled languages (empty level lists) and levels-only languages still had
@@ -1368,6 +1377,11 @@ def run_native_journalism(
                 continue
             article = parse_plain_article(raw, story.get("genre", ""), story.get("slug", ""))
             if article:
+                article["body"], nf = numcheck.verify_and_fix_numbers(
+                    article["body"], story, "en")
+                for f in nf:
+                    _NUMCHECK_FINDINGS.append({**f, "lang": "en", "length": length,
+                                                "slug": story.get("slug")})
                 return article
             print(f"[WARN] [{attempt_label}] unparseable response — retrying", file=sys.stderr)
         print(f"[ERROR] [{label}]: no usable EN article after retries", file=sys.stderr)
@@ -1392,6 +1406,11 @@ def run_native_journalism(
                 continue
             article = parse_plain_article(raw, story.get("genre", ""), story.get("slug", ""))
             if article:
+                article["body"], nf = numcheck.verify_and_fix_numbers(
+                    article["body"], story, lang)
+                for f in nf:
+                    _NUMCHECK_FINDINGS.append({**f, "lang": lang,
+                                                "slug": story.get("slug")})
                 return article
             print(f"[WARN] [{attempt_label}] unparseable response — retrying", file=sys.stderr)
         print(f"[ERROR] [{label}]: no usable translation after retries", file=sys.stderr)
@@ -1417,6 +1436,7 @@ def run_native_journalism(
         return out
 
     chains = [(story, length) for story in factbase for length in ("short", "longer")]
+    slug_order = {(s.get("slug") or "").strip(): i for i, s in enumerate(factbase)}
     native_journalism: dict = {lang: {"short": [], "longer": []} for lang in native_langs}
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
         futures = {ex.submit(_process_chain, story, length): (story, length)
@@ -1426,6 +1446,12 @@ def run_native_journalism(
             for lang, article in fut.result().items():
                 native_journalism[lang][length].append(article)
 
+    # Re-sort into factbase order (as_completed yields in finish order, not story order)
+    for lang in native_langs:
+        for length in ("short", "longer"):
+            native_journalism[lang][length].sort(
+                key=lambda a: slug_order.get((a.get("slug") or "").strip(), 999))
+
     for lang in native_langs:
         for length in ("short", "longer"):
             n = len(native_journalism[lang][length])
@@ -1433,6 +1459,12 @@ def run_native_journalism(
                 print(f"[3] {lang}/{length}: {n} articles ✓")
             else:
                 print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
+
+    fixed_count = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "AUTO_FIXED")
+    flagged_count = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER")
+    if _NUMCHECK_FINDINGS:
+        print(f"[3] Number check: {fixed_count} magnitude mismatch(es) auto-fixed, "
+              f"{flagged_count} number(s) flagged as unverified")
 
     # Only include languages/lengths that produced at least one article
     return {lang: {ln: arts for ln, arts in lengths.items() if arts}
@@ -1962,6 +1994,15 @@ def main():
         # Stage 5b's verdict, so check.py can report it without recomputing.
         "nativeFactCheck": native_check,
         "grading": grading,
+        # Deterministic Python-only number check (bilinguist_numcheck.py) -- no LLM
+        # call. AUTO_FIXED entries were already corrected in-place before this bundle
+        # was assembled; UNVERIFIED_NUMBER entries could not be safely corrected (no
+        # fact-base value matches at any magnitude) and are reported as-is.
+        "numberCheck": {
+            "findings": _NUMCHECK_FINDINGS,
+            "auto_fixed": sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "AUTO_FIXED"),
+            "unverified": sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER"),
+        },
     }
 
     bundle_json = json.dumps(bundle, ensure_ascii=False, indent=2)

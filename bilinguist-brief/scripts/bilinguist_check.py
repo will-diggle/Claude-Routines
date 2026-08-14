@@ -461,6 +461,176 @@ def _language_table(
     return "\n".join(rows)
 
 
+def _language_table_data(
+    briefings: dict,
+    native_journalism: dict,
+    native_grades: dict,
+) -> list[dict]:
+    """Structured twin of _language_table() — same loop, same cell values, but as
+    JSON-safe rows instead of a markdown table string. Kept as a separate function
+    (rather than having _language_table build both) so the markdown path this repo's
+    ntfy notification already depends on stays completely untouched."""
+    CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
+    rows = []
+
+    for lang, levels in LANGUAGE_LEVELS.items():
+        native_grade = native_grades.get(lang, "")
+        skip_from_idx = (
+            CEFR_ORDER.index(native_grade)
+            if native_grade in CEFR_ORDER else len(CEFR_ORDER)
+        )
+
+        cells: dict[str, str | None] = {}
+        for lvl in CEFR_ORDER:
+            if lvl not in levels:
+                cells[f"{lvl} S"] = None
+                cells[f"{lvl} L"] = None
+                continue
+            if CEFR_ORDER.index(lvl) >= skip_from_idx:
+                cells[f"{lvl} S"] = "↑"
+                cells[f"{lvl} L"] = "↑"
+                continue
+            for length, col in ((LENGTHS[0], "S"), (LENGTHS[1], "L")):
+                articles = (
+                    briefings.get(lang, {}).get(lvl, {}).get(length, {}).get("articles", [])
+                )
+                key = f"{lvl} {col}"
+                if not articles:
+                    cells[key] = None
+                    continue
+                avg = _avg_body_words(articles)
+                target = _target(lvl, length, lang)
+                color = _word_color(avg, *target) if target else "🟢"
+                cells[key] = f"{color} {int(avg)}"
+
+        native_cell = None
+        if "Native" in levels:
+            lang_native = native_journalism.get(lang, {})
+            by_length = _native_by_length(lang_native)
+            if by_length:
+                parts = []
+                for length in LENGTHS:
+                    arts = by_length.get(length, [])
+                    if not arts:
+                        parts.append(None)
+                        continue
+                    avg = _avg_body_words(arts)
+                    target = _target("Native", length, lang)
+                    color = _word_color(avg, *target) if target else "🟢"
+                    parts.append(f"{color} {int(avg)}")
+                native_cell = {"short": parts[0], "longer": parts[1], "grade": native_grade or None}
+
+        rows.append({
+            "lang": lang,
+            "lang_name": LANG_NAMES.get(lang, lang),
+            "flag": LANG_FLAGS.get(lang, ""),
+            "cells": cells,
+            "native": native_cell,
+        })
+
+    return rows
+
+
+def _level_accuracy_data(grading: dict) -> list[dict]:
+    """Structured twin of _level_grade_table()'s `rows` dict."""
+    rows: dict = {}
+    for lang, assessments in (grading or {}).items():
+        for a in assessments or []:
+            want = a.get("written_level")
+            if not want:
+                continue
+            key = (lang, want, a.get("written_length") or "?")
+            r = rows.setdefault(key, {"n": 0, "hit": 0, "got": {}})
+            r["n"] += 1
+            got = a.get("level") or "?"
+            r["got"][got] = r["got"].get(got, 0) + 1
+            if got == want:
+                r["hit"] += 1
+
+    out = []
+    for (lang, want, length), r in sorted(rows.items()):
+        out.append({
+            "lang": lang,
+            "lang_name": LANG_NAMES.get(lang, lang),
+            "level": want,
+            "length": length,
+            "hit": r["hit"],
+            "total": r["n"],
+            "distribution": r["got"],
+            "ok": r["hit"] * 2 >= r["n"],
+        })
+    return out
+
+
+def _native_intermediates_data(native_intermediate: dict) -> list[dict]:
+    rows = []
+    for lang, by_len in sorted(native_intermediate.items()):
+        for length, arts in sorted(_native_by_length(by_len).items()):
+            avg = _avg_body_words(arts)
+            target = _target("Native", length, lang)
+            rows.append({
+                "lang": lang,
+                "lang_name": LANG_NAMES.get(lang, lang),
+                "length": length,
+                "count": len(arts),
+                "avg_words": int(avg),
+                "target": list(target) if target else None,
+                "color": _word_color(avg, *target) if target else "🟢",
+            })
+    return rows
+
+
+def _global_news_data(factbase: list) -> list[dict]:
+    global_news = [s for s in factbase if s.get("genre", "").upper() == "GLOBAL NEWS"]
+    rows = []
+    for story in sorted(global_news, key=lambda s: s.get("cross_reference_score", {}).get("rank", 99)):
+        crs = story.get("cross_reference_score", {})
+        rows.append({
+            "rank": crs.get("rank"),
+            "score": crs.get("total"),
+            "max_score": MAX_XREF_SCORE,
+            "headline": (story.get("what_happened") or ["?"])[0],
+            "outlets": crs.get("outlets_covering", []),
+        })
+    return rows
+
+
+def _cost_data(output_dir: Path, date: str) -> dict | None:
+    costs_path = output_dir / f"costs_{date}.json"
+    if not costs_path.exists():
+        return None
+    try:
+        with open(costs_path) as f:
+            costs = json.load(f)
+    except Exception:
+        return None
+
+    stage_labels = {
+        "1_gather": "2+3 Select + Gather",
+        "3": "5 Write Native",
+        "4a": "6 Grade Native",
+        "2S": "7 Write Levels (B1+/short)",
+        "2B": "7 Write Levels (A1-A2)",
+        "2M": "7 Write Levels (B1+/longer)",
+        "4b": "8 Grade Levels",
+        "4": "Grade (legacy)",
+    }
+    stages = []
+    for sname, label in stage_labels.items():
+        sdata = costs["stages"].get(sname)
+        if not sdata or sdata.get("calls", 0) == 0:
+            continue
+        stages.append({
+            "name": label,
+            "calls": sdata["calls"],
+            "tokens_in": sdata.get("input_tokens", 0),
+            "tokens_out": sdata.get("output_tokens", 0),
+            "tokens_think": sdata.get("thinking_tokens", 0),
+            "cost_gbp": sdata.get("cost_gbp", 0),
+        })
+    return {"total_gbp": costs.get("total_gbp"), "total_usd": costs.get("total_usd"), "stages": stages}
+
+
 def check(bundle_path: Path) -> int:
     with open(bundle_path, encoding="utf-8") as f:
         bundle = json.load(f)
@@ -472,6 +642,7 @@ def check(bundle_path: Path) -> int:
     # language and would otherwise be reported nowhere.
     native_intermediate   = bundle.get("nativeIntermediate", {})
     native_factcheck      = bundle.get("nativeFactCheck", {}) or {}
+    number_check          = bundle.get("numberCheck", {}) or {}
     native_grades         = bundle.get("nativeGrades", {})
     grading               = bundle.get("grading", {})
     date                  = bundle.get("date", "unknown")
@@ -681,6 +852,25 @@ def check(bundle_path: Path) -> int:
             if f.get("why"):
                 body_parts.append(f"      ↳ {f['why'][:150]}")
 
+    # Deterministic Python-only check (bilinguist_numcheck.py, no LLM call) — AUTO_FIXED
+    # entries were already corrected in the shipped articles; UNVERIFIED_NUMBER entries
+    # have no fact-base value at any magnitude and could not be safely corrected.
+    num_findings = number_check.get("findings") or []
+    if num_findings:
+        auto_fixed = number_check.get("auto_fixed", 0)
+        unverified = number_check.get("unverified", 0)
+        body_parts += ["", f"🔢 Number check (deterministic, no LLM): {auto_fixed} "
+                            f"magnitude mismatch(es) auto-fixed, {unverified} flagged unverified"]
+        for f in num_findings[:8]:
+            if f.get("type") == "AUTO_FIXED":
+                body_parts.append(
+                    f"  ✅ FIXED {f.get('lang')} {f.get('slug')}: "
+                    f"\"{f.get('original')}\" → \"{f.get('corrected')}\"")
+            else:
+                body_parts.append(
+                    f"  ⚠️ UNVERIFIED {f.get('lang')} {f.get('slug')}: "
+                    f"\"{f.get('original')}\" — {f.get('reason')}")
+
     if native_intermediate:
         lines = ["🔧 Native intermediates (not shipped — every level is a rewrite of these):"]
         for lang, by_len in sorted(native_intermediate.items()):
@@ -743,6 +933,51 @@ def check(bundle_path: Path) -> int:
             env_file.write(f"BRIEF_TITLE={title}\n")
             env_file.write(f"BRIEF_EMOJI={emoji}\n")
             env_file.write(f"BRIEF_BODY<<BRIEF_EOF\n{body}\nBRIEF_EOF\n")
+
+    # ── Structured JSON export, for the companion iOS app ──────────────────────
+    # Same source values as the markdown body above, just not flattened to text —
+    # ntfy.sh turns anything past ~4KB into a file attachment that expires after
+    # ~12 hours, so that transport can't be the app's source of truth for this
+    # report. This file gets pushed to the data repo (reports/{date}.json and
+    # reports/latest.json) by the "Push bundle to data repo" workflow step,
+    # right alongside the existing latest.json/costs.csv push.
+    report = {
+        "date": date,
+        "volume": volume,
+        "title": title,
+        "emoji": emoji,
+        "present": present,
+        "total": total,
+        "published": not critical,
+        "teaser": daily_notification or None,
+        "stats": {
+            "story_count": story_count,
+            "duration": duration_str.strip().lstrip("⏱").strip() or None,
+            "articles_generated": total_articles,
+            "words_total": total_words,
+            "level_hit": level_hit,
+            "level_total": level_total,
+        },
+        "missing": missing,
+        "warnings": warnings,
+        "language_table": _language_table_data(briefings, native_journalism, native_grades),
+        "native_factcheck": native_factcheck or None,
+        "native_intermediates": _native_intermediates_data(native_intermediate),
+        "level_accuracy": _level_accuracy_data(grading),
+        "outlet_search_log": search_log,
+        "global_news_scores": _global_news_data(factbase),
+        "fact_check_summary": factcheck_str or None,
+        "cost": _cost_data(bundle_path.parent, date),
+    }
+    report_path = bundle_path.parent / f"report_{date}.json"
+    try:
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        print(f"Wrote {report_path}")
+    except Exception as e:
+        # Never let the report export take down a run that otherwise succeeded —
+        # the markdown/ntfy path above is unaffected either way.
+        print(f"WARNING: failed to write report JSON: {e}", file=sys.stderr)
 
     return 1 if critical else 0
 
