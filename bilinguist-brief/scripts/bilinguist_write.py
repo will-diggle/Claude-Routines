@@ -1166,6 +1166,16 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
     print(f"[write] per-article: {len(tasks)} combos → {len(subtasks)} calls "
           f"(max {_MAX_WORKERS} at a time)")
 
+    # Canonical story order from the factbase: slug → position index.
+    # Used to re-sort results after as_completed() collects them in
+    # finish order (which is non-deterministic and differs per language).
+    slug_order: dict[str, int] = {}
+    for task in tasks:
+        for i, story in enumerate(task.factbase or []):
+            slug = (story.get("slug") or "").strip()
+            if slug and slug not in slug_order:
+                slug_order[slug] = i
+
     lock = threading.Lock()
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         futures = {executor.submit(_execute_task, client, st): key
@@ -1175,6 +1185,12 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
             articles = future.result() or []
             with lock:
                 results[key].extend(articles)
+
+    # Re-sort every result group into factbase story order so the bundle
+    # is deterministic regardless of which API calls finished first.
+    for key in results:
+        results[key].sort(key=lambda a: slug_order.get(
+            (a.get("slug") or "").strip(), 999))
 
     return results
 
