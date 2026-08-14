@@ -705,8 +705,24 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str,
     with no facts, so neither the stub check nor the field validator should complain.
     """
     index = headlines_for_genre(genre)
+    total_headlines = sum(len(v) for v in index.values())
     print(f"\n[gather] ===== {genre} ({cfg['count']} stories, "
-          f"{sum(len(v) for v in index.values())} headlines) =====")
+          f"{total_headlines} headlines) =====")
+
+    # 0 headlines means Stage 1 failed for this genre (a scraper outage, not "nothing
+    # happened in the world") -- confirmed 2026-08-14: with 0 headlines in, Gemini's
+    # selection call still returned "winners", inventing placeholder slugs like
+    # "no-business-economy-headlines-provided-for-selection-1" that described the
+    # absence of data rather than signalling it. Nothing downstream recognised those as
+    # special, so Stage 3 ran real fact-gathering calls against them and Stage 5 wrote
+    # full native articles from fabricated content -- genuine invention, not factual
+    # drift. Skip the Gemini call entirely rather than trust it to signal "nothing here"
+    # through a slug the rest of the pipeline doesn't know to treat differently.
+    if total_headlines == 0:
+        print(f"[gather] {genre}: 0 headlines scraped -- skipping selection, "
+              f"no winners for this genre this run", file=sys.stderr)
+        return {"factbase": [], "search_log": [], "parsed": {},
+                "usage": {}, "model": None, "index": index}
     # 1. Load and prepare the prompt
     raw_prompt = load_prompt(prompt_file)
     prompt = inject_date(raw_prompt)
