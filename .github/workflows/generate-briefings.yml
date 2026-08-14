@@ -70,17 +70,13 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
-        # Adopted from the A/B on 2026-08-10 (run 31378288971). Splitting selection from
-        # fact-finding took Global News from 87 narrative words per story to ~290 — a 3.3x
-        # gain — and cost LESS than the old combined call (£0.049 vs £0.0614), at the same
-        # wall clock. The combined call had to select, score and write facts in one
-        # response, and Global's three stories were starved by it.
-        #
-        # --facts-input winners sends only the ranked winners and their own grouped
-        # headlines. Note the A/B measured 'all' as equal on Global (1.0x) and slightly
-        # BETTER on UK Politics (1.2x) and Business (1.5x), for the same money — switching
-        # is one flag if those genres look thin.
-        run: python bilinguist_gather.py --from selection.json --facts-input winners
+        # --per-story: one dedicated Gemini+Search call per story, never shared with other
+        # stories in the same genre. Adopted 2026-08-13 after a real production run showed
+        # the previous genre-batched call starving a later story to 9 facts (below even the
+        # 10-point floor) while the lead story in the same call got 617 narrative words —
+        # the model spends its effort on the first story in a shared context. --facts-input
+        # no longer applies: --per-story is its own code path with its own per-story prompt.
+        run: python bilinguist_gather.py --from selection.json --per-story
 
       - name: Guard - the factbase must have facts, a notification and a search log
         working-directory: bilinguist-brief/scripts

@@ -698,6 +698,8 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
     # live in three places (prompt, table, check.py) and had to be changed together.
     lo, hi = word_band(WORDS_PER_ARTICLE["Native"][length], lang)
     word_min, word_max = str(lo), str(hi)
+    # Exact target = the low end of the band -- see NATIVE_WORD_RULE's comment for why.
+    word_target = word_min
 
     # Per-article mode carries exactly one story, so its genre selects the block. Batched
     # mode mixes genres in one call and gets none rather than the wrong one.
@@ -713,6 +715,7 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
                   length, STRUCTURE_BY_LENGTH_NATIVE["longer"]))
               .replace("{GENRE_RULE}", genre_rule)
               .replace("{WORD_RULE}", NATIVE_WORD_RULE.get(length, NATIVE_WORD_RULE["longer"]))
+              .replace("{WORD_TARGET}", word_target)
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
               .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
               .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))

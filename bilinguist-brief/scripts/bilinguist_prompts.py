@@ -418,40 +418,40 @@ GENRE_RULES: dict[str, str] = {
 }
 GENRE_RULE_FALLBACK = ""
 
-# The merge into one template kept only the LONGER prompt's word-count wording — "your
-# fact-base is several hundred words of notes, ample for N words of prose" — which reads as
-# encouragement to write long. Native/short went from 114 words to 167 in one run, and every
-# short level article inherited it. Short gets its own wording again.
+# Switched from a range instruction to an exact-count instruction 2026-08-13, after a
+# 7-story real-headlines A/B: exact-210 (a single number, "count and revise until it
+# matches") landed noticeably tighter than the old "between X and Y words" range on the
+# same fact-bases -- range-based testing repeatedly failed to reliably control output
+# length regardless of the stated band, while a single number gave the model something
+# concrete to check itself against. {WORD_TARGET} is the LOW end of the language-calibrated
+# band (word_band()'s min) -- deliberately below the canonical midpoint, since every range
+# test this session showed the model overshooting more often than undershooting; aiming low
+# compensates. {WORD_MIN}/{WORD_MAX} are still substituted for reference in the "revise
+# until within range" fallback language, not as the primary instruction.
 NATIVE_WORD_RULE: dict[str, str] = {
-    # Base text VERBATIM from the pre-merge PROMPT_3_SHORT_HEADER (d42c4b1), which measured
-    # 91-114 words across five languages. The paragraph-count sentence that used to close this
-    # block now lives in STRUCTURE_BY_LENGTH_NATIVE["short"] instead, so paragraph shape has
-    # one home, not two.
     "short": (
-        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word "
-        "before submitting.\n"
-        "If you are under {WORD_MIN}, add the next most important fact from the fact-base — a "
-        "figure, a named source, or a consequence. Do not stop short because the fact-base is "
-        "terse.\n"
-        "Do not exceed {WORD_MAX} words — cut the least essential detail. Never pad with empty "
-        "phrases, never invent facts."
+        "Write exactly {WORD_TARGET} words. Count every word before submitting. If your "
+        "count is not {WORD_TARGET}, revise the article and count again until it is. This "
+        "is a precise target, not a range -- a few words off is a miss, not close enough. "
+        "If you are short on material, add the next most important fact from the fact-base "
+        "— a figure, a named source, or a consequence — rather than stopping short. Never "
+        "pad with empty phrases, never invent facts. Acceptable range if you cannot hit the "
+        "target exactly: {WORD_MIN}-{WORD_MAX} words."
     ),
-    # VERBATIM from the pre-merge PROMPT_3_HEADER at ff3d19d, same treatment. Measured
-    # 183-235 words.
     "longer": (
-        "Each article body must be between {WORD_MIN} and {WORD_MAX} words. Count every word "
-        "before submitting.\n"
+        "Write exactly {WORD_TARGET} words. Count every word before submitting. If your "
+        "count is not {WORD_TARGET}, revise the article and count again until it is. This "
+        "is a precise target, not a range -- a few words off is a miss, not close enough.\n"
         "You have the material. This story's fact-base is several hundred words of notes — "
-        "ample for {WORD_MIN} words of prose. Reaching the count is ordinary journalism, not "
-        "padding: attribute every claim to the person or institution that made it, follow the "
-        "sequence of events, and carry the context and consequences that are already in the "
-        "notes.\n"
+        "ample for {WORD_TARGET} words of prose. Reaching the count is ordinary journalism, "
+        "not padding: attribute every claim to the person or institution that made it, "
+        "follow the sequence of events, and carry the context and consequences that are "
+        "already in the notes.\n"
         "Never reach the count by generalising (\"his tenure will be closely watched\"), by "
-        "restating a fact you have already given, or by supplying context you were not given. "
-        "An invented fact is a worse failure than a short article — but with these notes, a "
-        "short article should not be necessary.\n"
-        "Do not exceed {WORD_MAX} words — trim the least essential detail. Never cut "
-        "mid-thought."
+        "restating a fact you have already given, or by supplying context you were not "
+        "given. An invented fact is a worse failure than a short article — but with these "
+        "notes, a short article should not be necessary. Acceptable range if you cannot hit "
+        "the target exactly: {WORD_MIN}-{WORD_MAX} words."
     ),
 }
 
