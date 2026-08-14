@@ -611,7 +611,9 @@ else:
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
         GRAMMAR_RULE_A1_BY_LANG, GRAMMAR_RULE_A1_FALLBACK,
-        GRAMMAR_RULE_A2_BY_LANG, GRAMMAR_RULE_A2_FALLBACK, GRAMMAR_RULE_FALLBACK,
+        GRAMMAR_RULE_A2_BY_LANG, GRAMMAR_RULE_A2_FALLBACK,
+        GRAMMAR_RULE_B1_BY_LANG, GRAMMAR_RULE_B1_FALLBACK,
+        GRAMMAR_RULE_B2_BY_LANG, GRAMMAR_RULE_B2_FALLBACK, GRAMMAR_RULE_FALLBACK,
         TITLE_RULE_STRICT, TITLE_RULE_RELAXED_A1,
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
@@ -708,6 +710,8 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
               .replace("{GRAMMAR_RULE}",
                        GRAMMAR_RULE_A1_BY_LANG.get(lang, GRAMMAR_RULE_A1_FALLBACK) if level == "A1"
                        else GRAMMAR_RULE_A2_BY_LANG.get(lang, GRAMMAR_RULE_A2_FALLBACK) if level == "A2"
+                       else GRAMMAR_RULE_B1_BY_LANG.get(lang, GRAMMAR_RULE_B1_FALLBACK) if level == "B1"
+                       else GRAMMAR_RULE_B2_BY_LANG.get(lang, GRAMMAR_RULE_B2_FALLBACK) if level == "B2"
                        else GRAMMAR_RULE_FALLBACK)
               .replace("{LEVELS_DOWN}", str(levels_down))
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
@@ -1354,7 +1358,13 @@ def run_native_journalism(
         return None
 
     def _translate_one(lang: str, story: dict, en_article: dict) -> Optional[dict]:
-        target = str(len(en_article["body"].split()))
+        # Was the EN article's raw word count with no adjustment -- every language was told
+        # to match English's exact length even though LANGUAGE_WORD_FACTOR says French needs
+        # ~9% more words for the same content and German/Swedish need ~7-10% fewer. That
+        # mismatch was the likely dominant cause of word-count drift across every translated
+        # language, not just the language with the largest factor.
+        en_words = len(en_article["body"].split())
+        target = str(round(en_words * LANGUAGE_WORD_FACTOR.get(lang, 1.0)))
         prompt = build_translate_prompt(lang, en_article, target)
         label = f"3/{lang}-{story.get('slug')}"
         for attempt in range(_THIN_RETRY_LIMIT + 1):

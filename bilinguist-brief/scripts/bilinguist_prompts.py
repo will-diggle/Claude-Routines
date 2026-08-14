@@ -6,7 +6,8 @@
 # out grammatical rules was tested and produced WORSE output — it optimises for rule
 # compliance over natural writing. Do not "improve" these into rule lists.
 LEVEL_DESCRIPTIONS: dict[str, str] = {
-    "A1": "A1", "A2": "A2", "B1": "B1", "B2": "B2", "C1": "C1", "C2": "C2",
+    "A1": "A1 (Beginner)", "A2": "A2 (Elementary)", "B1": "B1 (Intermediate)",
+    "B2": "B2 (Upper Intermediate)", "C1": "C1 (Advanced)", "C2": "C2 (Proficient)",
 }
 
 # Per-length instruction. Only the relevant length is shown per call.
@@ -150,6 +151,7 @@ KEEP, EXACTLY:
 - Every fact in the article, and the order they appear in. Never add, drop or reorder facts.
 - Every person's name, place name and organisation name, verbatim -- these do not translate.
 - Every number, verbatim.
+- Every date exactly as given in the English article — never shorten a full date ("Friday, 14 August 2026") into a vague relative reference ("this Friday", "on Friday") even if that reads more naturally in {LANGUAGE}.
 
 POLITICAL TITLES -- CRITICAL: translate the title itself into {LANGUAGE} as an ordinary word ("President" -> "{LANGUAGE}'s own word for President", not left in English) -- only the person's NAME stays untranslated. Keep the same rank and status as the English source: never upgrade or downgrade it, never add "former"/"ex-" (or {LANGUAGE}'s equivalent) unless the English source itself says the person has left office.
 
@@ -551,6 +553,216 @@ GRAMMAR_RULE_A2_FALLBACK = (
     "speech) — but never nest a second subordinate clause inside it. Keep each sentence to "
     "one main idea with at most one supporting clause."
 )
+# B1/B2 previously had no bespoke rule at all (both fell through to the empty
+# GRAMMAR_RULE_FALLBACK below), and shared the same word band and the same "reduce" cut
+# rule against a C1+ native -- confirmed 2026-08-14 that a B1 and B2 rewrite of the same
+# article were nearly indistinguishable, which is why Stage 8 consistently collapsed B2
+# down to B1. Same REQUIRED-not-optional structure as A2: MAY use gives an escape hatch a
+# cautious rewrite will take, so the differentiator has to be mandatory.
+GRAMMAR_RULE_B1_BY_LANG: dict[str, str] = {
+    "fr": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, "
+        "a simple conditional (\"si X, Y\" with present or futur simple, not a hypothetical "
+        "past), and causal, temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"parce que\", \"quand\", \"depuis que\") AND at least one "
+        "simple conditional or future-tense sentence. Writing only what A2 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction; "
+        "a second short supporting clause in a sentence (never two subordinate clauses both "
+        "carrying new facts).\n"
+        "BANNED, with no exceptions: the subjonctif, the conditionnel passé or any "
+        "hypothetical-past construction, nesting a subordinate clause inside another "
+        "subordinate clause, rare or literary vocabulary."
+    ),
+    "en": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, "
+        "a simple conditional (\"if X, Y\" with present or will-future, not a hypothetical "
+        "past), and causal, temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"because\", \"when\", \"since\") AND at least one simple "
+        "conditional or future-tense sentence. Writing only what A2 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction; "
+        "a second short supporting clause in a sentence (never two subordinate clauses both "
+        "carrying new facts).\n"
+        "BANNED, with no exceptions: the third conditional (\"would have\"), nesting a "
+        "subordinate clause inside another subordinate clause, rare or literary vocabulary."
+    ),
+    "de": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely "
+        "(Perfekt, Präteritum, Futur), a simple conditional with \"wenn\" (present tense, "
+        "not Konjunktiv II), and causal, temporal or purpose subordinate clauses (up to one "
+        "level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"weil\", \"als\", \"seitdem\") AND at least one \"wenn\"-"
+        "conditional or Futur-tense sentence. Writing only what A2 would write is a failure "
+        "at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction "
+        "(\"wurde gemacht\"); a second short supporting clause in a sentence (never two "
+        "subordinate clauses both carrying new facts).\n"
+        "BANNED, with no exceptions: the Konjunktiv II, nesting a subordinate clause inside "
+        "another subordinate clause, rare or literary vocabulary."
+    ),
+    "sv": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, a "
+        "simple conditional with \"om\" (present tense, not the hypothetical \"skulle ha\"), "
+        "and causal, temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"eftersom\", \"när\", \"sedan\") AND at least one \"om\"-"
+        "conditional or future-tense sentence. Writing only what A2 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction "
+        "(the \"-s\" passive); a second short supporting clause in a sentence (never two "
+        "subordinate clauses both carrying new facts).\n"
+        "BANNED, with no exceptions: the hypothetical \"skulle ha\" construction, nesting a "
+        "subordinate clause inside another subordinate clause, rare or literary vocabulary."
+    ),
+    "it": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, a "
+        "simple conditional with \"se\" (present indicative, not congiuntivo), and causal, "
+        "temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"perché\", \"quando\", \"da quando\") AND at least one \"se\"-"
+        "conditional or future-tense sentence. Writing only what A2 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction "
+        "(\"è stato fatto\"); a second short supporting clause in a sentence (never two "
+        "subordinate clauses both carrying new facts).\n"
+        "BANNED, with no exceptions: the congiuntivo, the condizionale passato, nesting a "
+        "subordinate clause inside another subordinate clause, rare or literary vocabulary."
+    ),
+    "es": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, a "
+        "simple conditional with \"si\" (present indicative, not subjuntivo/condicional), "
+        "and causal, temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal "
+        "subordinate clause (\"porque\", \"cuando\", \"desde que\") AND at least one \"si\"-"
+        "conditional or future-tense sentence. Writing only what A2 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction "
+        "(\"fue hecho\"); a second short supporting clause in a sentence (never two "
+        "subordinate clauses both carrying new facts).\n"
+        "BANNED, with no exceptions: the subjuntivo, the condicional compuesto, nesting a "
+        "subordinate clause inside another subordinate clause, rare or literary vocabulary."
+    ),
+}
+GRAMMAR_RULE_B1_FALLBACK = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: use any past/present/future tense freely in "
+    "{LANGUAGE}, PLUS a simple present-tense conditional and causal/temporal subordinate "
+    "clauses (up to one level) — this article MUST include at least one causal or temporal "
+    "subordinate clause AND one simple conditional or future-tense sentence. A simple "
+    "passive construction may be used if it reads naturally. Never a hypothetical/"
+    "counterfactual mood, never nest a subordinate clause inside another, never rare or "
+    "literary vocabulary."
+)
+
+# B2's differentiator from B1 is passive voice used naturally plus a concessive/contrastive
+# clause ("although X, Y") — the two constructions a B1 writer avoids by habit. Required,
+# not merely permitted, for the same reason as A2/B1 above.
+GRAMMAR_RULE_B2_BY_LANG: dict[str, str] = {
+    "fr": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative pronouns (\"dont\", \"lequel\", \"auquel\"), concessive/contrastive "
+        "clauses (\"bien que\", \"même si\", \"cependant\"), and a wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"bien que X, Y\" / \"cependant\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: the subjonctif in a common fixed expression; a "
+        "complex relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+    "en": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative pronouns (\"whom\", \"whose\", prepositional relative clauses), "
+        "concessive/contrastive clauses (\"although\", \"even though\", \"however\"), and a "
+        "wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"although X, Y\" / \"however\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: a hypothetical conditional (\"would\"); a complex "
+        "relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+    "de": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative pronouns (genitive \"dessen\"/\"deren\", prepositional relative clauses), "
+        "concessive/contrastive clauses (\"obwohl\", \"auch wenn\", \"dennoch\"), and a "
+        "wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"obwohl X, Y\" / \"dennoch\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: the Konjunktiv II in a common fixed expression; a "
+        "complex relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+    "sv": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative constructions (\"vars\", \"vilket\"), concessive/contrastive clauses "
+        "(\"även om\", \"trots att\", \"dock\"), and a wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"även om X, Y\" / \"dock\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: the hypothetical \"skulle ha\" in a common fixed "
+        "expression; a complex relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+    "it": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative pronouns (\"cui\", \"il quale\"), concessive/contrastive clauses "
+        "(\"sebbene\", \"anche se\", \"tuttavia\"), and a wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"sebbene X, Y\" / \"tuttavia\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: the congiuntivo in a common fixed expression; a "
+        "complex relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+    "es": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex "
+        "relative pronouns (\"cuyo\", \"el cual\"), concessive/contrastive clauses "
+        "(\"aunque\", \"a pesar de que\", \"sin embargo\"), and a wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive "
+        "construction where it reads naturally AND at least one concessive/contrastive "
+        "clause (\"aunque X, Y\" / \"sin embargo\"). Writing only what B1 would write is a "
+        "failure at this level.\n"
+        "MAY use, at your discretion: the subjuntivo in a common fixed expression; a "
+        "complex relative clause.\n"
+        "BANNED, with no exceptions: rare or archaic literary register that a general news "
+        "reader would find obscure."
+    ),
+}
+GRAMMAR_RULE_B2_FALLBACK = (
+    " GRAMMAR at {LEVEL_DESCRIPTION}: everything permitted at B1 in {LANGUAGE}, PLUS "
+    "passive voice used naturally and concessive/contrastive clauses — this article MUST "
+    "include at least one passive construction where it reads naturally AND at least one "
+    "concessive/contrastive clause. Writing only what B1 would write is a failure at this "
+    "level. A common fixed hypothetical/subjunctive expression may be used if natural. "
+    "Never rare or archaic literary register."
+)
+
 GRAMMAR_RULE_FALLBACK = ""
 
 # Production line, unchanged from before the {TITLE_RULE} extraction — single source of
@@ -757,6 +969,7 @@ WRITING RULES:
 - Use only facts from the fact-base.
 - ATTRIBUTION: attribute claims to the people and institutions that made them — named officials, ministries, spokespeople, companies. Never name a news outlet, wire service, newspaper or social-media channel in the article. The fact-base records which outlet reported a thing so you know how firm it is, not so you can cite it. If a claim is unconfirmed, say so plainly — "the reports are unverified" — without naming who failed to verify it.
 - FACT ORDER: follow the "what_happened" sequence exactly. Do not reorder.
+- DATES: always carry the fact-base's own specific date exactly as given (e.g. "Friday, 14 August 2026", "the week ending August 9"). Never substitute a vague relative reference instead — "this summer", "on Friday", "early August", "this Thursday" are all banned even though they read naturally in journalism. This is the single most common fact-check finding: every other language translates from this article, so a vague date written once here becomes a vague date in six languages.
 - POLITICAL TITLES — CRITICAL, every genre, not just politics stories: use ONLY the title given in the fact-base. Never alter a political title from your own training data.
   * Never add "former" or "ex-" unless the fact-base explicitly says the person has left office.
   * If the fact-base says "President Trump", write "President Trump" — never "former President". This applies wherever the person appears, including stories not primarily about politics.

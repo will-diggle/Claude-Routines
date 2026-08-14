@@ -160,6 +160,51 @@ def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
     return "\n".join(lines), warnings
 
 
+def _level_accuracy_table(grading: dict) -> str:
+    """Markdown table version of _level_grade_table's data — same rows dict, laid out as
+    languages × CEFR levels (short/longer columns) like _language_table's word-count
+    table, so pass/fail is scannable at a glance in the ntfy notification instead of
+    buried in a long bullet list."""
+    rows: dict = {}
+    for lang, assessments in (grading or {}).items():
+        for a in assessments or []:
+            want = a.get("written_level")
+            if not want:
+                continue
+            key = (lang, want, a.get("written_length") or "?")
+            r = rows.setdefault(key, {"n": 0, "hit": 0})
+            r["n"] += 1
+            if a.get("level") == want:
+                r["hit"] += 1
+    if not rows:
+        return ""
+
+    langs = sorted({lang for lang, _, _ in rows})
+    col_headers = []
+    for lvl in CEFR_SCALE[:4]:  # A1/A2/B1/B2 -- C1/C2 aren't rewritten from native today
+        col_headers += [f"{lvl} S", f"{lvl} L"]
+    header = "| Lang | " + " | ".join(col_headers) + " |"
+    sep    = "|------|" + "|".join(["-----"] * len(col_headers)) + "|"
+    table_rows = [header, sep]
+
+    for lang in langs:
+        flag      = LANG_FLAGS.get(lang, "  ")
+        lang_name = LANG_NAMES.get(lang, lang)
+        cells = []
+        for lvl in CEFR_SCALE[:4]:
+            for length in ("short", "longer"):
+                r = rows.get((lang, lvl, length))
+                if not r:
+                    cells.append("—")
+                    continue
+                mark = "🟢" if r["hit"] * 2 >= r["n"] else "🔴"
+                cells.append(f"{mark} {r['hit']}/{r['n']}")
+        table_rows.append(f"| {flag} {lang_name} | " + " | ".join(cells) + " |")
+
+    return ("🎯 Level accuracy (Stage 8 graded blind — hit/total at each target level):\n"
+            + "\n".join(table_rows))
+
+
 def _target(level: str, length: str, lang: str = "") -> tuple[int, int] | None:
     """The band this language was actually asked for.
 
@@ -647,6 +692,10 @@ def check(bundle_path: Path) -> int:
                              f"{len(arts)} articles, avg {int(avg)}w"
                              + (f", target {target[0]}–{target[1]}w" if target else ""))
         body_parts += ["", "\n".join(lines)]
+
+    level_accuracy_table_str = _level_accuracy_table(grading)
+    if level_accuracy_table_str:
+        body_parts += ["", level_accuracy_table_str]
 
     if level_grade_str:
         body_parts += ["", level_grade_str]
