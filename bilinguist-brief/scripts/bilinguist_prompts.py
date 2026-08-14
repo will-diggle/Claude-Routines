@@ -150,8 +150,9 @@ Below is a news article originally written in English. Write it in {LANGUAGE} th
 KEEP, EXACTLY:
 - Every fact in the article, and the order they appear in. Never add, drop or reorder facts.
 - Every person's name, place name and organisation name, verbatim -- these do not translate.
-- Every number, verbatim.
+- Every number, verbatim, INCLUDING its magnitude word (million/billion/trillion). Never convert a trillion figure into an equivalent number of billions, or a billion into millions, even though the arithmetic is correct — "$1.77 trillion" stays "trillion" in {LANGUAGE}, never becomes "1,770 milliards"/"1.77 billones" or similar. Use {LANGUAGE}'s own word for that same magnitude, not a different one.
 - Every date exactly as given in the English article — never shorten a full date ("Friday, 14 August 2026") into a vague relative reference ("this Friday", "on Friday") even if that reads more naturally in {LANGUAGE}.
+- Every claim's exact strength and certainty, unchanged. If the English article states something as a flat fact, keep it a flat fact. If it attributes a claim to someone, keep the same attribution. If it says a claim was denied, disputed, or contradicted, keep that same word's strength — never soften "police denied this" into "this is unverified", and never harden "an unconfirmed report" into a stated fact.
 
 POLITICAL TITLES -- CRITICAL: translate the title itself into {LANGUAGE} as an ordinary word ("President" -> "{LANGUAGE}'s own word for President", not left in English) -- only the person's NAME stays untranslated. Keep the same rank and status as the English source: never upgrade or downgrade it, never add "former"/"ex-" (or {LANGUAGE}'s equivalent) unless the English source itself says the person has left office.
 
@@ -996,7 +997,8 @@ WRITING RULES:
 - GLOSSARY:
   * LITERAL (numbers, specific names, titles, the "genre" field): reproduce exactly. Names and titles are not translated or simplified. "genre" is a system key — copy it VERBATIM in English (e.g. "GLOBAL NEWS").
   * SEMANTIC (descriptive terms in headline and body): translate naturally and consistently. Never leave English inside a non-English headline or body.
-- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to their named source.
+- NEUTRALITY: honour the verified/contested separation. Attribute contested claims to their named source. Match the fact-base's own certainty language exactly — never soften a stated denial or contradiction into "unverified"/"disputed", and never harden a contested or attributed claim into a flat, unattributed fact. The strength of a claim is itself a fact; changing it is inventing.
+- UNITS: keep every number's magnitude word (million/billion/trillion) exactly as given in the fact-base. Never convert between them, even when the arithmetic is correct.
 - HEADLINE: exactly as a chief sub-editor would write it. Punchy, precise, informative. Never clickbait.
 
 {OUTPUT_FORMAT}
