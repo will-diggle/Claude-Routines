@@ -124,9 +124,23 @@ jobs:
         # from the fact-base. Adopted from the A/B on 2026-08-10 (run over 252 articles):
         # fact order held in 91% of level articles against 60% for the fact-base arm, and
         # it was closer on `longer` (7w off centre vs 18w), marginally cheaper and the
-        # same speed. It also removes a hidden translation step — every level used to
-        # translate the English fact-base independently, which is why terminology drifted
-        # between levels; now the translation happens once, in native.
+        # same speed.
+        #
+        # Stage 5 itself (internal key "3") is two phases as of 2026-08-14, not every
+        # language writing independently from the fact-base: English native is written
+        # once per (story, length) directly from the fact-base, then every other language
+        # (fr/de/sv/it, plus es as an internal-only intermediate) translates that exact
+        # English article "as their own outlet's journalist would." This is what "the
+        # translation happens once, in native" now means in practice — one EN source, not
+        # one independent write per language. Plain-text output (no forced JSON) throughout.
+        # See run_native_journalism() in bilinguist_write.py for the full history.
+        #
+        # Flex tier (50% discount, 1-15 min latency) is applied per-stage inside
+        # bilinguist_write.py's SERVICE_TIER_BY_STAGE dict, not via a CLI flag here — it
+        # currently covers native+translate (stage 3), all three level-rewrite stages
+        # (2B/2S/2M) and level grading (4b); native grading (4a) and native fact-check (5b,
+        # a separate step below) stay standard tier. Change SERVICE_TIER_BY_STAGE directly
+        # to adjust which stages are on Flex, not this workflow file.
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels
 
       - name: Stage 9 - Check completeness

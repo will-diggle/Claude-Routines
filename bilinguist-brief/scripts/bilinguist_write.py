@@ -5,14 +5,27 @@ Stages 5-8 of the Bilinguist Brief daily pipeline:
   5 Write Native  6 Grade Native  7 Write Levels  8 Grade Levels
 (Internal stage keys 3/4a/2S/2B/2M/4b are kept for the cost report.)
 
-Reads the factbase produced by bilinguist_gather.py and:
-  2S — Short writing (B1+)  : gemini-2.5-flash  Concurrent  B1+/Native short
-  2B — Beginner writing     : gemini-2.5-flash  Concurrent  A1/A2 all lengths
-  2M — Medium/long (B1+)    : gemini-2.5-flash  Concurrent  B1+/Native medium (2 batches) + longer (3 batches)
-  3  — Native journalism    : gemini-2.5-flash  Concurrent  one per language (2 proactive batches)
-  4  — Grading              : gemini-2.5-flash  Sequential  grades Stage 5 output
+Stage 5 (internal key "3") is two phases, not one call per language independently:
+  5a — English native written once per (story, length), directly from the fact-base.
+  5b — Every other native/intermediate language (fr/de/sv/it, plus es as an internal-only
+       intermediate) translates that exact English article -- "as their own outlet's
+       journalist would," not a literal translation -- rather than writing independently
+       from the fact-base. Adopted 2026-08-14; see run_native_journalism()'s docstring.
+Both phases are plain-text output (no forced JSON), gemini-2.5-pro + Flex tier.
+(Not to be confused with the separate pipeline stage "5b" in generate-briefings.yml, which
+is Verify Native / run_verify_native() -- a different, later step, still Flash/standard.)
 
-Proactive splitting (2M and 3): medium→2 batches, longer→3 batches, native→2 batches.
+Reads the factbase produced by bilinguist_gather.py and:
+  2S — Short writing (B1+)  : gemini-2.5-flash + Flex  Concurrent  B1+/Native short
+  2B — Beginner writing     : gemini-2.5-flash + Flex  Concurrent  A1/A2 all lengths
+  2M — Medium/long (B1+)    : gemini-2.5-flash + Flex  Concurrent  B1+/Native medium (2 batches) + longer (3 batches)
+  3  — Native + translate   : gemini-2.5-pro + Flex    Concurrent  EN written once per (story,length), every other language translates from it
+  4a — Grade native         : gemini-2.5-flash         Sequential  grades Stage 5 output, standard tier
+  4b — Grade levels         : gemini-2.5-flash + Flex  Sequential  grades Stage 7 output
+
+Proactive splitting (2M): medium→2 batches, longer→3 batches. Stage 3 (native + translate)
+runs entirely on n_splits=1 under --per-article (production's real config) -- one call per
+(story, length, language), never proactively split.
 This eliminates MAX_TOKENS cascades by keeping each output stream well within 8192 tokens.
 
 A1/A2 tasks run on gemini-2.5-flash (same model as B1+). Article output for beginner
