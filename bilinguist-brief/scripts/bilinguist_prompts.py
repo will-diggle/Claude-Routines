@@ -122,6 +122,49 @@ OUTPUT_FORMAT_ARRAY = (
     'One entry per fact-base story. Copy "slug" and "genre" verbatim from each story.'
 )
 
+# Stage 5 (native) only, tested across this session's A/B runs: plain text beat forced JSON
+# on word-count precision (avg |dev| 24.3 vs 28.0 on a 7-story real A/B) and lets the model
+# focus on writing rather than also policing JSON structure.
+OUTPUT_FORMAT_PLAIN_SINGLE = (
+    "OUTPUT FORMAT — plain text, not JSON:\n"
+    "Output ONLY the following, in this exact format:\n"
+    "HEADLINE: <the headline, one line>\n"
+    "BODY:\n"
+    "<the final article body. Paragraphs separated by one blank line.>\n\n"
+    "Return nothing else -- no JSON, no markdown, no commentary about your drafting "
+    "process, no notes. Just these two fields."
+)
+
+# Single-source-of-truth translation (Stage 5): English native is written once per story,
+# per length, from the fact-base; every other native language then translates that exact
+# English article "as their own outlet's journalist would" rather than writing independently
+# from the fact-base. Tested this session (test_real_headlines_translate_check.py): facts,
+# fact order and no-hallucination held across two separate real-headline runs. Removes the
+# risk of independent per-language drift on terminology/facts that writing from the fact-base
+# separately in each language could otherwise introduce.
+TRANSLATE_PROMPT_TEMPLATE = """You are a high-end journalist writing for {OUTLET}, the most respected news outlet writing in {LANGUAGE}.
+
+Below is a news article originally written in English. Write it in {LANGUAGE} the way a {OUTLET} journalist would write it natively for their own readers -- NOT a literal, word-for-word translation. Restructure sentences for natural {LANGUAGE} rhythm and idiom.
+
+KEEP, EXACTLY:
+- Every fact in the article, and the order they appear in. Never add, drop or reorder facts.
+- Every number, name, place and organisation, verbatim.
+
+POLITICAL TITLES -- CRITICAL: use ONLY the title given in the English source. Never alter a political title from your own training data. Never add "former" or "ex-" unless the source explicitly says the person has left office.
+
+QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
+Never name a news outlet, wire service or social-media channel.
+{VARIANT_RULE}
+
+Write exactly {TARGET} words -- match the English source's own length. Count every word before submitting.
+
+{OUTPUT_FORMAT}
+
+[ENGLISH ARTICLE BELOW]
+Headline: {HEADLINE}
+Body: {BODY}
+"""
+
 
 # Learner template. build_writing_prompt substitutes all {placeholders}.
 #

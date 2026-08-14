@@ -507,6 +507,37 @@ def build_combinations(
 
 # ── JSON helpers ──────────────────────────────────────────────────────────────
 
+import re as _re
+
+
+def parse_plain_article(raw: str, genre: str, slug: str) -> Optional[dict]:
+    """Parse the HEADLINE:/BODY: plain-text format (Stage 5 native + translation calls)
+    into the same {genre, slug, headline, body} shape the JSON schema path produces."""
+    if not raw:
+        return None
+    m_headline = _re.search(r"HEADLINE:\s*(.+?)\n", raw)
+    m_body = _re.search(r"BODY:\s*\n?(.*)", raw, _re.DOTALL)
+    headline = m_headline.group(1).strip() if m_headline else ""
+    body = m_body.group(1).strip() if m_body else raw.strip()
+    if not headline or not body:
+        return None
+    return {"genre": genre, "slug": slug, "headline": headline, "body": body}
+
+
+def build_translate_prompt(lang: str, en_article: dict, target_words: str) -> str:
+    """Stage 5 translation arm: translate the already-written EN native article into
+    `lang` as that language's own outlet would write it, not word-for-word."""
+    return (TRANSLATE_PROMPT_TEMPLATE
+            .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
+            .replace("{OUTLET}", NATIVE_OUTLETS.get(lang, NATIVE_OUTLET_FALLBACK))
+            .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
+            .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
+            .replace("{TARGET}", target_words)
+            .replace("{OUTPUT_FORMAT}", OUTPUT_FORMAT_PLAIN_SINGLE)
+            .replace("{HEADLINE}", en_article.get("headline", ""))
+            .replace("{BODY}", en_article.get("body", "")))
+
+
 def parse_llm_json(raw: str) -> Optional[dict]:
     """Extract and parse a JSON object, tolerating fences/preamble. Fails soft."""
     if not raw:
@@ -551,7 +582,8 @@ else:
         PROMPT_3_HEADER, PROMPT_3_SHORT_HEADER,
         PROMPT_4_HEADER, PROMPT_4A_HEADER,
         LEVEL_DESCRIPTIONS, LENGTH_INSTRUCTIONS, VARIANT_RULES,
-        OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY,
+        OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY, OUTPUT_FORMAT_PLAIN_SINGLE,
+        TRANSLATE_PROMPT_TEMPLATE,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
         PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
@@ -759,6 +791,7 @@ def call_gemini(
     stage: Optional[str] = None,
     schema: Optional[dict] = None,
     max_output_tokens: Optional[int] = None,
+    plain: bool = False,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Call generate_content() directly with retry logic for transient errors.
@@ -766,6 +799,10 @@ def call_gemini(
     Records token usage in _stage_usage[stage] when stage is provided.
     Returns (text, finish_reason). finish_reason is None on normal completion
     or "MAX_TOKENS" when the response was truncated.
+
+    plain=True skips response_mime_type/response_schema entirely (plain-text output,
+    parsed downstream by parse_plain_article) -- Stage 5 (native) only, tested this
+    session to beat forced JSON on word-count precision.
     """
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -775,8 +812,10 @@ def call_gemini(
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.1,
-                        response_mime_type="application/json",
-                        response_schema=schema,
+                        **({} if plain else {
+                            "response_mime_type": "application/json",
+                            "response_schema": schema,
+                        }),
                         max_output_tokens=max_output_tokens,
                         thinking_config=types.ThinkingConfig(
                             thinking_budget=THINKING_BUDGET_BY_STAGE.get(stage, 0)),
@@ -905,12 +944,13 @@ def call_llm(
     stage: Optional[str] = None,
     schema: Optional[dict] = None,
     max_output_tokens: Optional[int] = None,
+    plain: bool = False,
 ) -> tuple[Optional[str], Optional[str]]:
     """Dispatch to the active writer backend (Gemini by default, Claude under --api claude)."""
     if WRITER_BACKEND == "claude":
         return call_claude(model, prompt, label, stage=stage, schema=schema,
                             max_output_tokens=max_output_tokens)
-    return call_gemini(client, model, prompt, label, stage, schema, max_output_tokens)
+    return call_gemini(client, model, prompt, label, stage, schema, max_output_tokens, plain=plain)
 
 
 # ── Task executor (handles proactive splitting) ───────────────────────────────
@@ -1235,45 +1275,119 @@ def run_native_journalism(
     client: genai.Client,
     factbase: list,
 ) -> dict:
-    """Stage 5 (Write Native) — generate native journalism for all languages × both lengths.
+    """Stage 5 (Write Native) — English native is written once per story per length,
+    directly from the fact-base. Every other native/intermediate language then translates
+    that English article ("as their own outlet's journalist would," not word-for-word)
+    rather than writing independently from the fact-base again.
+
+    Adopted 2026-08-14: single-source-of-truth translation was tested this session
+    (test_real_headlines_translate_check.py) across two real-headline runs — facts, fact
+    order and no-hallucination all held through translation. Writing every language
+    independently from the fact-base risked per-language fact drift by construction;
+    translating from one already-correct EN article removes that risk structurally.
+
+    Plain-text output (HEADLINE:/BODY:, no forced JSON) throughout this stage — tested
+    to modestly beat JSON on word-count precision (avg |dev| 24.3 vs 28.0 words on a
+    7-story real A/B) and lets the model focus on the writing task, not JSON structure.
+    Confirmed safe to drop here: production's per-article calls always run with
+    n_splits=1, so the multi-part JSON-array merge path in _execute_task is never
+    exercised by this stage regardless.
+
     Returns {lang: {short: [articles], longer: [articles]}}."""
     # Honour the language matrix: only write native journalism for active languages
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
     # so disabled languages (empty level lists) and levels-only languages still had
     # native articles generated, graded, and shipped in the bundle.
     native_langs = NATIVE_PUBLISHED + NATIVE_INTERMEDIATE
+    other_langs = [lang for lang in native_langs if lang != "en"]
     if NATIVE_INTERMEDIATE:
         print(f"[3] Native for {NATIVE_PUBLISHED} (published) + "
               f"{NATIVE_INTERMEDIATE} (intermediate, rewritten from but not shipped)")
-    tasks: list[_WriteTask] = []
+    if "en" not in native_langs:
+        print("[3] ERROR: English is not active — the translation architecture requires "
+              "an English native article to translate every other language from",
+              file=sys.stderr)
+        return {}
+
+    print(f"[3] Writing English native, then translating to {other_langs} "
+          f"({len(factbase)} stories × 2 lengths)...")
+
+    def _write_en(story: dict, length: str) -> Optional[dict]:
+        prompt = build_native_prompt("en", [story], length)
+        prompt = prompt.replace(OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_PLAIN_SINGLE, 1)
+        label = f"3/en-{length}-{story.get('slug')}"
+        for attempt in range(_THIN_RETRY_LIMIT + 1):
+            attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
+            raw, finish = call_llm(client, _resolve_model(MODEL_3, False), prompt,
+                                    attempt_label, "3", None, 8192, plain=True)
+            if finish == "MAX_TOKENS":
+                print(f"[WARN] [{attempt_label}] MAX_TOKENS — retrying", file=sys.stderr)
+                continue
+            article = parse_plain_article(raw, story.get("genre", ""), story.get("slug", ""))
+            if article:
+                return article
+            print(f"[WARN] [{attempt_label}] unparseable response — retrying", file=sys.stderr)
+        print(f"[ERROR] [{label}]: no usable EN article after retries", file=sys.stderr)
+        return None
+
+    def _translate_one(lang: str, story: dict, en_article: dict) -> Optional[dict]:
+        target = str(len(en_article["body"].split()))
+        prompt = build_translate_prompt(lang, en_article, target)
+        label = f"3/{lang}-{story.get('slug')}"
+        for attempt in range(_THIN_RETRY_LIMIT + 1):
+            attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
+            raw, finish = call_llm(client, _resolve_model(MODEL_3, False), prompt,
+                                    attempt_label, "3", None, 8192, plain=True)
+            if finish == "MAX_TOKENS":
+                print(f"[WARN] [{attempt_label}] MAX_TOKENS — retrying", file=sys.stderr)
+                continue
+            article = parse_plain_article(raw, story.get("genre", ""), story.get("slug", ""))
+            if article:
+                return article
+            print(f"[WARN] [{attempt_label}] unparseable response — retrying", file=sys.stderr)
+        print(f"[ERROR] [{label}]: no usable translation after retries", file=sys.stderr)
+        return None
+
+    def _process_chain(story: dict, length: str) -> dict:
+        """EN must finish before its translations can start; other (story, length)
+        chains run concurrently with this one via the outer pool below."""
+        out: dict = {}
+        en_article = _write_en(story, length)
+        if not en_article:
+            return out
+        out["en"] = en_article
+        if other_langs:
+            with ThreadPoolExecutor(max_workers=len(other_langs)) as ex:
+                futures = {ex.submit(_translate_one, lang, story, en_article): lang
+                           for lang in other_langs}
+                for fut in as_completed(futures):
+                    lang = futures[fut]
+                    article = fut.result()
+                    if article:
+                        out[lang] = article
+        return out
+
+    chains = [(story, length) for story in factbase for length in ("short", "longer")]
+    native_journalism: dict = {lang: {"short": [], "longer": []} for lang in native_langs}
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
+        futures = {ex.submit(_process_chain, story, length): (story, length)
+                   for story, length in chains}
+        for fut in as_completed(futures):
+            story, length = futures[fut]
+            for lang, article in fut.result().items():
+                native_journalism[lang][length].append(article)
+
     for lang in native_langs:
-        tasks.append(_WriteTask(
-            stage="3", lang=lang, level=None, length="short",
-            model=_resolve_model(MODEL_3, False), prompt=build_native_prompt(lang, factbase, "short"),
-            schema=_SCHEMA_NATIVE, max_output_tokens=8192,
-            template=PROMPT_3_SHORT_HEADER, factbase=factbase, n_splits=1,
-        ))
-        tasks.append(_WriteTask(
-            stage="3", lang=lang, level=None, length="longer",
-            model=_resolve_model(MODEL_3, False), prompt=build_native_prompt(lang, factbase, "longer"),
-            schema=_SCHEMA_NATIVE, max_output_tokens=16384,
-            template=PROMPT_3_HEADER, factbase=factbase, n_splits=2,
-        ))
+        for length in ("short", "longer"):
+            n = len(native_journalism[lang][length])
+            if n:
+                print(f"[3] {lang}/{length}: {n} articles ✓")
+            else:
+                print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
 
-    total = len(native_langs) * 2
-    print(f"[3] Generating native journalism: {len(native_langs)} languages × 2 lengths ({total} tasks)...")
-    native_journalism: dict = {lang: {} for lang in native_langs}
-
-    grouped = _run_task_group(client, tasks)
-    for (_stage, lang, _level, length), articles in grouped.items():
-        if articles:
-            native_journalism[lang][length] = articles
-            print(f"[3] {lang}/{length}: {len(articles)} articles ✓")
-        else:
-            print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
-
-    # Only include languages that produced at least one length variant
-    return {lang: lengths for lang, lengths in native_journalism.items() if lengths}
+    # Only include languages/lengths that produced at least one article
+    return {lang: {ln: arts for ln, arts in lengths.items() if arts}
+            for lang, lengths in native_journalism.items() if any(lengths.values())}
 
 
 def run_grade_native(
