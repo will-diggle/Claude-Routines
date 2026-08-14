@@ -148,9 +148,10 @@ Below is a news article originally written in English. Write it in {LANGUAGE} th
 
 KEEP, EXACTLY:
 - Every fact in the article, and the order they appear in. Never add, drop or reorder facts.
-- Every number, name, place and organisation, verbatim.
+- Every person's name, place name and organisation name, verbatim -- these do not translate.
+- Every number, verbatim.
 
-POLITICAL TITLES -- CRITICAL: use ONLY the title given in the English source. Never alter a political title from your own training data. Never add "former" or "ex-" unless the source explicitly says the person has left office.
+POLITICAL TITLES -- CRITICAL: translate the title itself into {LANGUAGE} as an ordinary word ("President" -> "{LANGUAGE}'s own word for President", not left in English) -- only the person's NAME stays untranslated. Keep the same rank and status as the English source: never upgrade or downgrade it, never add "former"/"ex-" (or {LANGUAGE}'s equivalent) unless the English source itself says the person has left office.
 
 QUOTATION MARKS: {QUOTE_RULE}. Never straight ASCII quotes.
 Never name a news outlet, wire service or social-media channel.
@@ -307,150 +308,203 @@ ATTRIBUTION_RULE_FALLBACK = ""
 # per language isn't actually constraining anything -- confirmed 2026-08-14 on the real
 # pipeline: English A1 graded A2 in 5/6 language, with the model reaching for correct
 # grammar under its own (unstated) idea of "simple past", not a rule that pinned it down.
+# Rewritten 2026-08-14, second pass: the first bespoke-per-language version (below, in
+# spirit) still left grey area -- it named specific banned CONSTRUCTIONS ("said that X had
+# done Y") rather than banning a whole CATEGORY, so the model found other members of the
+# same category it hadn't been told about by name. Confirmed on real A1 output: German used
+# a comparative clause with its own verb ("wie er es getan hat") and a "zu"+infinitive
+# dependent clause, neither literally named in the old rule; Italian and Spanish used
+# "che"/"que" reported-speech clauses in present tense (the old rule's example used a past
+# tense, so the model treated present-tense "che" as a different, allowed case) and Spanish
+# used the subjunctive triggered by "pedir que". Rewritten as an ALLOWED/BANNED list per
+# language: ONE simple relative clause is the only exception ever permitted; every other
+# clause with its own conjugated verb is banned by category (reported speech, causal,
+# comparative, purpose, whatever it is), not by a list of named examples with gaps between
+# them. A2 is now built explicitly as "everything A1 allows, plus X" -- CEFR levels are
+# cumulative for a reader, so the rule should be cumulative too, not a second unrelated list.
 GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
     "fr": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and simple passé "
-        "composé — never the imparfait, the plus-que-parfait, or any passive construction; "
-        "rewrite passives as active sentences. Never use a relative pronoun other than a "
-        "simple \"qui\"/\"que\" as the subject/object of its own short clause — no \"dans "
-        "lequel\", \"auquel\", \"dont\". Never embed one subordinate clause inside another "
-        "(e.g. \"a dit que X avait fait Y\") — split into two short sentences or a direct "
-        "quote instead. One idea, one verb, per sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense and the simple passé composé, active voice only. ONE "
+        "relative clause per sentence, only with \"qui\"/\"que\", describing a noun. A "
+        "direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the imparfait, the plus-que-parfait, the conditionnel, "
+        "the subjonctif, any passive construction (rewrite as active). Any relative pronoun "
+        "other than \"qui\"/\"que\" (\"dans lequel\", \"auquel\", \"dont\" are all banned). "
+        "Any OTHER clause with its own conjugated verb — reported speech (\"a dit que X\"), "
+        "causal (\"parce que X a fait Y\"), comparative (\"comme il l'a fait\"), purpose "
+        "(\"pour faire X\") — these all count as a second clause; split into two short "
+        "sentences or a direct quote instead. One idea, one verb, per sentence, except the "
+        "one allowed relative clause."
     ),
     "en": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple past "
-        "(\"he said\", \"they won\") — never the past perfect (\"had said\"), never the "
-        "past continuous for narration (\"was saying\"), or any passive construction; "
-        "rewrite passives as active sentences. Never use a relative pronoun other than a "
-        "simple \"who\"/\"which\"/\"that\" as the subject/object of its own short clause — "
-        "no \"whom\", \"whose\", or a relative clause built with a preposition (\"in which\", "
-        "\"to whom\"). Never embed one subordinate clause inside another (e.g. \"said that X "
-        "had happened\") — split into two short sentences or a direct quote instead. One "
-        "idea, one verb, per sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense and the simple past, active voice only. ONE relative "
+        "clause per sentence, only with \"who\"/\"which\"/\"that\", describing a noun. A "
+        "direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the past perfect (\"had done\"), the past continuous "
+        "used for narration (\"was doing\"), the conditional, the subjunctive, any passive "
+        "construction (rewrite as active). Any relative pronoun other than \"who\"/\"which\"/"
+        "\"that\" (\"whom\", \"whose\", \"in which\", \"to whom\" are all banned). Any OTHER "
+        "clause with its own conjugated verb — reported speech (\"said that X\"), causal "
+        "(\"because X did Y\"), comparative (\"as X did\"), purpose (\"in order to X\") — "
+        "these all count as a second clause; split into two short sentences or a direct "
+        "quote instead. One idea, one verb, per sentence, except the one allowed relative "
+        "clause."
     ),
     "de": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense (Präsens) and the "
-        "Perfekt (\"er hat gesagt\") for anything in the past — never the Präteritum except "
-        "for \"haben\"/\"sein\"/modal verbs (\"war\", \"hatte\", \"konnte\" are fine), never "
-        "the Plusquamperfekt, or any passive construction (\"wurde gesagt\"); rewrite "
-        "passives as active sentences. Never use a relative pronoun other than a simple "
-        "nominative/accusative \"der\"/\"die\"/\"das\" as the subject/object of its own short "
-        "clause — no genitive (\"dessen\", \"deren\") or a relative clause built with a "
-        "preposition. Never embed one subordinate clause inside another (e.g. \"sagte, dass "
-        "X passiert war\") — split into two short sentences or a direct quote instead. One "
-        "idea, one verb, per sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense (Präsens) and the Perfekt (\"er hat gesagt\"); the "
+        "Präteritum of \"haben\"/\"sein\"/modal verbs (\"war\", \"hatte\", \"konnte\") is "
+        "also fine. Active voice only. ONE relative clause per sentence, only nominative/"
+        "accusative \"der\"/\"die\"/\"das\", describing a noun. A direct quote in "
+        "quotation marks.\n"
+        "BANNED, with no exceptions: the Präteritum of ordinary verbs, the Plusquamperfekt, "
+        "the Konjunktiv, any passive construction (rewrite as active). Any relative pronoun "
+        "other than nominative/accusative \"der\"/\"die\"/\"das\" (genitive \"dessen\"/"
+        "\"deren\" and prepositional relative clauses are banned). Any OTHER clause with its "
+        "own conjugated verb — reported speech (\"sagte, dass X\"), causal (\"weil X das "
+        "getan hat\"), comparative (\"wie er es getan hat\"), purpose or dependent "
+        "infinitive clauses (\"um X zu tun\", \"die Freiheit, zu sprechen\") — these all "
+        "count as a second clause; split into two short sentences or a direct quote instead. "
+        "One idea, one verb, per sentence, except the one allowed relative clause. Never "
+        "report what one person said about what another person said — attribute the final "
+        "quote directly to whoever actually said it."
     ),
     "sv": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense (presens) and the "
-        "simple past (preteritum, \"han sa\", \"de vann\") — never the perfekt (\"har sagt\"), "
-        "never the pluskvamperfekt, or any passive construction (the \"-s\" passive or "
-        "\"bli\" + participle); rewrite passives as active sentences. Never use a relative "
-        "pronoun other than a simple \"som\" as the subject/object of its own short clause. "
-        "Never embed one subordinate clause inside another (e.g. \"sa att X hade hänt\") — "
-        "split into two short sentences or a direct quote instead. One idea, one verb, per "
-        "sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense (presens) and the simple past (preteritum), active "
+        "voice only. ONE relative clause per sentence, only with \"som\", describing a "
+        "noun. A direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the perfekt (\"har sagt\"), the pluskvamperfekt, the "
+        "conditional (\"skulle\"), any passive construction (the \"-s\" passive or \"bli\" + "
+        "participle — rewrite as active). Any relative pronoun other than \"som\". Any OTHER "
+        "clause with its own conjugated verb — reported speech (\"sa att X\"), causal "
+        "(\"eftersom X gjorde Y\"), comparative (\"som han gjorde\"), purpose (\"för att "
+        "göra X\") — these all count as a second clause; split into two short sentences or a "
+        "direct quote instead. One idea, one verb, per sentence, except the one allowed "
+        "relative clause."
     ),
     "it": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple passato "
-        "prossimo (\"ha detto\") — never the imperfetto, the trapassato prossimo, or any "
-        "passive construction (\"è stato detto\"); rewrite passives as active sentences. "
-        "Never use a relative pronoun other than a simple \"che\" as the subject/object of "
-        "its own short clause — no \"cui\", \"il quale\" or equivalents. Never embed one "
-        "subordinate clause inside another (e.g. \"ha detto che X era successo\") — split "
-        "into two short sentences or a direct quote instead. One idea, one verb, per "
-        "sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense and the simple passato prossimo (\"ha detto\"), active "
+        "voice only. ONE relative clause per sentence, only with \"che\", describing a "
+        "noun. A direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the imperfetto, the trapassato prossimo, the "
+        "congiuntivo, the condizionale, any passive construction (\"è stato detto\" — "
+        "rewrite as active), any formal or literary command form (e.g. a congiuntivo-derived "
+        "imperative like \"Rompa il silenzio\"). Any relative pronoun other than \"che\" "
+        "(\"cui\", \"il quale\" are banned). Any OTHER clause with its own conjugated verb "
+        "— reported speech (\"ha detto che X\", including present tense: \"dicono che X "
+        "parla\" is equally banned), causal (\"perché X ha fatto Y\"), comparative (\"come "
+        "ha fatto lui\"), purpose (\"per fare X\") — these all count as a second clause; "
+        "split into two short sentences or a direct quote instead. One idea, one verb, per "
+        "sentence, except the one allowed relative clause."
     ),
     "es": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and the simple past "
-        "(pretérito indefinido/perfecto simple, \"dijo\", \"ganó\") — never the imperfecto, "
-        "the pluscuamperfecto, or any passive construction (\"fue dicho\"); rewrite passives "
-        "as active sentences. Never use a relative pronoun other than a simple \"que\" as "
-        "the subject/object of its own short clause — no \"el cual\", \"cuyo\", or a "
-        "relative clause built with a preposition. Never embed one subordinate clause "
-        "inside another (e.g. \"dijo que X había pasado\") — split into two short sentences "
-        "or a direct quote instead. One idea, one verb, per sentence."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the present tense and the simple past (pretérito indefinido/perfecto "
+        "simple, \"dijo\", \"ganó\"), active voice only. ONE relative clause per sentence, "
+        "only with \"que\", describing a noun. A direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the imperfecto, the pluscuamperfecto, the "
+        "condicional, the subjuntivo in any form (including after \"pedir que\", \"querer "
+        "que\", \"decir que\" + subjunctive — rephrase as a direct command in quotes "
+        "instead), any passive construction (\"fue dicho\" — rewrite as active). Any "
+        "relative pronoun other than \"que\" (\"el cual\", \"cuyo\" are banned). Any OTHER "
+        "clause with its own conjugated verb — reported speech (\"dijo que X\", including "
+        "present tense), causal (\"porque X hizo Y\"), comparative (\"como lo hizo él\"), "
+        "purpose (\"para hacer X\") — these all count as a second clause; split into two "
+        "short sentences or a direct quote instead. One idea, one verb, per sentence, except "
+        "the one allowed relative clause."
     ),
 }
-# Any language without a bespoke entry above falls back to the old French-templated
-# wording rather than silently getting no grammar rule at all.
+# Any language without a bespoke entry above falls back to a generic categorical version
+# rather than silently getting no grammar rule at all.
 GRAMMAR_RULE_A1_FALLBACK = (
-    " GRAMMAR at {LEVEL_DESCRIPTION}: use ONLY the present tense and {LANGUAGE}'s simple "
-    "past — never a compound past-in-the-past, the imperfect/habitual past, or any passive "
-    "construction; rewrite passives as active sentences. Never use a relative pronoun other "
-    "than the simplest form as the subject/object of its own short clause — no complex or "
-    "prepositional relative clauses. Never embed one subordinate clause inside another — "
-    "split into two short sentences or a direct quote instead. One idea, one verb, per "
-    "sentence."
+    " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+    "ALLOWED: the present tense and {LANGUAGE}'s simple past, active voice only. ONE "
+    "relative clause per sentence, using only the simplest relative pronoun, describing a "
+    "noun. A direct quote in quotation marks.\n"
+    "BANNED, with no exceptions: a compound past-in-the-past, the imperfect/habitual past, "
+    "the conditional, the subjunctive, any passive construction (rewrite as active). Any "
+    "relative pronoun beyond the simplest form. Any OTHER clause with its own conjugated "
+    "verb — reported speech, causal, comparative, purpose — these all count as a second "
+    "clause; split into two short sentences or a direct quote instead. One idea, one verb, "
+    "per sentence, except the one allowed relative clause."
 )
 
-# A2 CAN handle more than A1 (the imperfect/background-past for habitual or ongoing past
-# actions, one level of subordinate clause, simple relative pronouns) but still can't handle
-# what A1 can't (subjunctive, conditional, nested/complex clauses, complex relative
-# pronouns). Same bespoke-per-language structure as A1, for the same reason.
+# A2 is built explicitly as "everything A1 allows, plus X" — a B1+ reader is not confused by
+# an A1-level sentence, so the rule should be additive, not a second unrelated list.
 GRAMMAR_RULE_A2_BY_LANG: dict[str, str] = {
     "fr": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, simple passé composé, AND "
-        "the imparfait for background description and habitual or ongoing past actions — "
-        "never the plus-que-parfait, the conditionnel, the subjonctif, or any passive "
-        "construction; rewrite passives as active sentences. A simple relative pronoun "
-        "(\"qui\"/\"que\") as the subject/object of its own short clause is fine — never a "
-        "complex one (\"dans lequel\", \"auquel\", \"dont\"). ONE level of subordinate "
-        "clause is fine (e.g. reported speech: \"a dit que X s'est passé\") — but never nest "
-        "a second subordinate clause inside it. Keep each sentence to one main idea with at "
-        "most one supporting clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, passé composé, ONE \"qui\"/"
+        "\"que\" relative clause, direct quotes), PLUS the imparfait for background "
+        "description and habitual or ongoing past actions, AND one subordinate clause per "
+        "sentence of any kind — reported speech, causal, or comparative. Never nest a second "
+        "one inside it.\n"
+        "BANNED, with no exceptions: the plus-que-parfait, the conditionnel, the subjonctif, "
+        "any passive construction. Any relative pronoun beyond \"qui\"/\"que\". More than "
+        "one subordinate clause in the same sentence."
     ),
     "en": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the simple past, AND the "
-        "past continuous (\"was doing\") for background description and ongoing past "
-        "actions — never the past perfect, the conditional (\"would have\"), or any passive "
-        "construction; rewrite passives as active sentences. A simple relative pronoun "
-        "(\"who\"/\"which\"/\"that\") as the subject/object of its own short clause is fine "
-        "— never \"whom\", \"whose\", or a prepositional relative clause. ONE level of "
-        "subordinate clause is fine (e.g. reported speech: \"said that X happened\") — but "
-        "never nest a second subordinate clause inside it. Keep each sentence to one main "
-        "idea with at most one supporting clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, simple past, ONE \"who\"/"
+        "\"which\"/\"that\" relative clause, direct quotes), PLUS the past continuous "
+        "(\"was doing\") for background description and ongoing past actions, AND one "
+        "subordinate clause per sentence of any kind — reported speech, causal, or "
+        "comparative. Never nest a second one inside it.\n"
+        "BANNED, with no exceptions: the past perfect, the conditional, the subjunctive, "
+        "any passive construction. Any relative pronoun beyond \"who\"/\"which\"/\"that\". "
+        "More than one subordinate clause in the same sentence."
     ),
     "de": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the Perfekt, AND the "
-        "Präteritum of \"haben\"/\"sein\"/modal verbs AND ordinary verbs used for background "
-        "description — never the Plusquamperfekt, the Konjunktiv, or any passive "
-        "construction; rewrite passives as active sentences. A simple nominative/accusative "
-        "relative pronoun (\"der\"/\"die\"/\"das\") as the subject/object of its own short "
-        "clause is fine — never a genitive or prepositional one. ONE level of subordinate "
-        "clause is fine (e.g. reported speech: \"sagte, dass X passiert ist\") — but never "
-        "nest a second subordinate clause inside it. Keep each sentence to one main idea "
-        "with at most one supporting clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, Perfekt, haben/sein/modal "
+        "Präteritum, ONE nominative/accusative \"der\"/\"die\"/\"das\" relative clause, "
+        "direct quotes), PLUS the Präteritum of ordinary verbs for background description, "
+        "AND one subordinate clause per sentence of any kind — reported speech, causal, "
+        "comparative, or a dependent infinitive clause. Never nest a second one inside it.\n"
+        "BANNED, with no exceptions: the Plusquamperfekt, the Konjunktiv, any passive "
+        "construction. Any relative pronoun beyond nominative/accusative \"der\"/\"die\"/"
+        "\"das\". More than one subordinate clause in the same sentence — this includes "
+        "reporting what one person said about what another person said; attribute the final "
+        "quote directly instead."
     ),
     "sv": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the preteritum, AND the "
-        "perfekt (\"har gjort\") for background description, experience, or results still "
-        "relevant now — never the pluskvamperfekt, conditional \"skulle\"-constructions, or "
-        "any passive construction; rewrite passives as active sentences. A simple relative "
-        "pronoun (\"som\") as the subject/object of its own short clause is fine. ONE level "
-        "of subordinate clause is fine (e.g. reported speech: \"sa att X hade hänt\") — but "
-        "never nest a second subordinate clause inside it. Keep each sentence to one main "
-        "idea with at most one supporting clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, preteritum, ONE \"som\" "
+        "relative clause, direct quotes), PLUS the perfekt (\"har gjort\") for background "
+        "description, experience, or results still relevant now, AND one subordinate clause "
+        "per sentence of any kind — reported speech, causal, or comparative. Never nest a "
+        "second one inside it.\n"
+        "BANNED, with no exceptions: the pluskvamperfekt, the conditional (\"skulle\"), any "
+        "passive construction. Any relative pronoun beyond \"som\". More than one "
+        "subordinate clause in the same sentence."
     ),
     "it": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the passato prossimo, AND "
-        "the imperfetto for background description and habitual or ongoing past actions — "
-        "never the trapassato prossimo, the congiuntivo, the condizionale, or any passive "
-        "construction; rewrite passives as active sentences. A simple relative pronoun "
-        "(\"che\") as the subject/object of its own short clause is fine — never \"cui\" or "
-        "\"il quale\". ONE level of subordinate clause is fine (e.g. reported speech: \"ha "
-        "detto che X è successo\") — but never nest a second subordinate clause inside it. "
-        "Keep each sentence to one main idea with at most one supporting clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, passato prossimo, ONE \"che\" "
+        "relative clause, direct quotes), PLUS the imperfetto for background description "
+        "and habitual or ongoing past actions, AND one subordinate clause per sentence of "
+        "any kind — reported speech, causal, or comparative. Never nest a second one "
+        "inside it.\n"
+        "BANNED, with no exceptions: the trapassato prossimo, the congiuntivo, the "
+        "condizionale, any passive construction, any formal or literary command form. Any "
+        "relative pronoun beyond \"che\". More than one subordinate clause in the same "
+        "sentence."
     ),
     "es": (
-        " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, the pretérito "
-        "indefinido/perfecto simple, AND the imperfecto for background description and "
-        "habitual or ongoing past actions — never the pluscuamperfecto, the subjuntivo, the "
-        "condicional, or any passive construction; rewrite passives as active sentences. A "
-        "simple relative pronoun (\"que\") as the subject/object of its own short clause is "
-        "fine — never \"el cual\" or \"cuyo\". ONE level of subordinate clause is fine (e.g. "
-        "reported speech: \"dijo que X había pasado\") — but never nest a second subordinate "
-        "clause inside it. Keep each sentence to one main idea with at most one supporting "
-        "clause."
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (present tense, pretérito indefinido/perfecto "
+        "simple, ONE \"que\" relative clause, direct quotes), PLUS the imperfecto for "
+        "background description and habitual or ongoing past actions, AND one subordinate "
+        "clause per sentence of any kind — reported speech, causal, or comparative. Never "
+        "nest a second one inside it.\n"
+        "BANNED, with no exceptions: the pluscuamperfecto, the subjuntivo in any form "
+        "(including after \"pedir que\"/\"querer que\" — rephrase as a direct command in "
+        "quotes instead), the condicional, any passive construction. Any relative pronoun "
+        "beyond \"que\". More than one subordinate clause in the same sentence."
     ),
 }
 GRAMMAR_RULE_A2_FALLBACK = (
