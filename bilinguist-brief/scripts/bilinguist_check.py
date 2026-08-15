@@ -425,6 +425,7 @@ def _language_table(
     native_journalism: dict,
     native_grades: dict,
     issues: set[str],
+    native_intermediate: dict | None = None,
 ) -> str:
     """Markdown table: languages × CEFR levels split into short/longer columns."""
     # Was missing C2 — the table had no column for it at all, independent of the
@@ -477,7 +478,25 @@ def _language_table(
 
         # Native column
         if "Native" not in levels:
-            cells.append("—")
+            # No shipped Native edition, but a language like Spanish still gets one
+            # written internally as the source every level is rewritten from --
+            # show its word count too, marked as internal so it's never mistaken
+            # for a real shipped edition.
+            lang_intermediate = (native_intermediate or {}).get(lang, {})
+            if _native_by_length(lang_intermediate):
+                parts = []
+                for length in LENGTHS:
+                    arts = _native_by_length(lang_intermediate).get(length, [])
+                    if not arts:
+                        parts.append("❌")
+                        continue
+                    avg = _avg_body_words(arts)
+                    target = _target("Native", length, lang)
+                    color = _word_color(avg, *target) if target else "🟢"
+                    parts.append(f"{color} {int(avg)}")
+                cells.append(" / ".join(parts) + " (internal)")
+            else:
+                cells.append("—")
         else:
             lang_native = native_journalism.get(lang, {})
             if _native_by_length(lang_native):
@@ -770,7 +789,8 @@ def check(bundle_path: Path) -> int:
                             f"{key} ({len(articles)} articles from {story_count} stories)")
 
     all_issues = set(wrong_length + thin + bloated)
-    table = _language_table(briefings, native_journalism, native_grades, all_issues)
+    table = _language_table(briefings, native_journalism, native_grades, all_issues,
+                             native_intermediate)
 
     script_dir   = bundle_path.parent.parent
     cost_str     = _cost_summary(bundle_path.parent, date)
