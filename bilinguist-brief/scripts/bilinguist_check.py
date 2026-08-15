@@ -118,6 +118,35 @@ def _overall_level_accuracy(grading: dict) -> tuple[int, int]:
     return hit, total
 
 
+def _severity_counts(want: str, got_counts: dict) -> dict:
+    """Bucket a (target, {got_level: count}) distribution by how much it matters,
+    not just whether it's an exact hit. A miss that is one level off in either
+    direction, or simpler than intended by any margin, is still readable —
+    undershooting doesn't hurt a learner the way overshooting does. Only a grade
+    TWO OR MORE levels above the target is flagged as a real risk: that's content
+    genuinely harder than the reader asked for, not just imprecise targeting."""
+    exact = orange = red = 0
+    want_idx = CEFR_SCALE.index(want) if want in CEFR_SCALE else None
+    for got, count in got_counts.items():
+        if got == want:
+            exact += count
+            continue
+        got_idx = CEFR_SCALE.index(got) if got in CEFR_SCALE else None
+        if want_idx is not None and got_idx is not None and (got_idx - want_idx) >= 2:
+            red += count
+        else:
+            orange += count
+    return {"exact": exact, "orange": orange, "red": red}
+
+
+def _severity_mark(counts: dict) -> str:
+    if counts["red"]:
+        return "🔴"
+    if counts["orange"]:
+        return "🟠"
+    return "🟢"
+
+
 def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
     """Stage 8's verdicts, per (language, level, length) — did each prompt hit its target?
 
@@ -148,15 +177,19 @@ def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
                           sorted(r["got"].items(),
                                  key=lambda kv: CEFR_SCALE.index(kv[0])
                                  if kv[0] in CEFR_SCALE else 99))
-        mark = "🟢" if r["hit"] * 2 >= r["n"] else "🔴"
+        sev = _severity_counts(want, r["got"])
+        mark = _severity_mark(sev)
         lines.append(f"  {mark} {LANG_NAMES.get(lang, lang)} {want}/{length}: "
-                     f"{r['hit']}/{r['n']} graded {want}  [{spread}]")
-        # Nothing graded at the target at all means the prompt is missing its level
-        # entirely, which is different from ordinary scatter around it.
-        if r["hit"] == 0 and r["n"]:
-            drift = max(r["got"], key=r["got"].get)
+                     f"{r['hit']}/{r['n']} graded exactly {want}  [{spread}]")
+        # Only flag a warning when something is genuinely too advanced (red) --
+        # undershooting or a one-level miss is normal scatter, not a problem worth
+        # a separate warning line (the table mark already shows it as orange).
+        if sev["red"]:
+            drift = max((g for g in r["got"] if g != want),
+                        key=lambda g: r["got"][g], default="?")
             warnings.append(f"⚠️ {LANG_NAMES.get(lang, lang)} {want}/{length} — "
-                            f"0/{r['n']} graded {want}, mostly {drift}")
+                            f"{sev['red']}/{r['n']} graded two+ levels too advanced "
+                            f"(mostly {drift})")
     return "\n".join(lines), warnings
 
 
@@ -172,9 +205,11 @@ def _level_accuracy_table(grading: dict) -> str:
             if not want:
                 continue
             key = (lang, want, a.get("written_length") or "?")
-            r = rows.setdefault(key, {"n": 0, "hit": 0})
+            r = rows.setdefault(key, {"n": 0, "hit": 0, "got": {}})
             r["n"] += 1
-            if a.get("level") == want:
+            got = a.get("level") or "?"
+            r["got"][got] = r["got"].get(got, 0) + 1
+            if got == want:
                 r["hit"] += 1
     if not rows:
         return ""
@@ -197,7 +232,11 @@ def _level_accuracy_table(grading: dict) -> str:
                 if not r:
                     cells.append("—")
                     continue
-                mark = "🟢" if r["hit"] * 2 >= r["n"] else "🔴"
+                # 🟢 exact · 🟠 one level off (either direction) or simpler than
+                # intended by any margin -- still readable, not flagged as a
+                # problem · 🔴 two+ levels MORE ADVANCED than intended -- genuinely
+                # harder than the reader asked for, the only case that matters.
+                mark = _severity_mark(_severity_counts(lvl, r["got"]))
                 cells.append(f"{mark} {r['hit']}/{r['n']}")
         table_rows.append(f"| {flag} {lang_name} | " + " | ".join(cells) + " |")
 
