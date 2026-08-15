@@ -69,6 +69,31 @@ def word_band(band: str, lang: str = "") -> tuple[int, int]:
     return round(lo * f), round(hi * f)
 
 
+# Per-(language, level) override of LANGUAGE_WORD_FACTOR, for cases where a language's
+# general factor is right everywhere except one specific level. Italian A1 (both lengths)
+# was landing 5-7% under its floor on 2026-08-15 while Italian A2/B1/Native were all
+# comfortably green -- lowering LANGUAGE_WORD_FACTOR["it"] itself would have broken those.
+# A1 tends to run shorter than other levels in every language (simpler grammar leaves less
+# room to fill the count), so a level-specific override is the correct lever, not a
+# language-wide one. Checked before LANGUAGE_WORD_FACTOR in word_band_for_level(); absent
+# entries fall through to the language's normal factor.
+LEVEL_WORD_FACTOR_OVERRIDE: dict[str, dict[str, float]] = {
+    "it": {"A1": 1.00},
+}
+
+
+def word_band_for_level(band: str, lang: str, level: str) -> tuple[int, int]:
+    """Like word_band(), but checks LEVEL_WORD_FACTOR_OVERRIDE for this exact
+    (lang, level) first. Use this wherever a level is known (Stage 7 rewrites);
+    word_band() stays level-agnostic for Stage 5 native, which has no level."""
+    override = LEVEL_WORD_FACTOR_OVERRIDE.get(lang, {}).get(level)
+    if override is None:
+        return word_band(band, lang)
+    parts = str(band).replace("\u2013", "-").split("-")
+    lo, hi = int(parts[0].strip()), int(parts[-1].strip())
+    return round(lo * override), round(hi * override)
+
+
 # One outlet per language, injected as {OUTLET}. The native prompt used to list all eight
 # and let the model pick its own line — the same shape as the "IF German is English" bug
 # that VARIANT_RULES below was created to fix. Only the relevant one is now shown.

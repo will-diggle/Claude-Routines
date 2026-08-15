@@ -17,7 +17,7 @@ from pathlib import Path
 # Word bands and the per-language factor live in bilinguist_prompts.py so the prompt, the
 # reporting target and the A/B comparison cannot disagree. That module is pure data — no
 # API client, nothing to initialise.
-from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band  # noqa: F401
+from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band, word_band_for_level  # noqa: F401
 
 # Every active language now writes every CEFR level below its own native grade
 # (bilinguist_write.py --all-levels, production default since 2026-08-11), not just a
@@ -248,8 +248,11 @@ def _target(level: str, length: str, lang: str = "") -> tuple[int, int] | None:
     """The band this language was actually asked for.
 
     WORD_TARGETS_LANG wins where set (Turkish and Arabic deviate far more than a factor);
-    otherwise the canonical band is scaled by LANGUAGE_WORD_FACTOR, exactly as the prompt
-    builder does.
+    otherwise the canonical band is scaled by LANGUAGE_WORD_FACTOR (or
+    LEVEL_WORD_FACTOR_OVERRIDE where one exists for this exact language+level, e.g.
+    Italian A1), exactly as the prompt builder does -- word_band_for_level falls
+    through to word_band when there's no override, so this always matches Stage 7's
+    real instruction rather than reporting a stale target.
     """
     override = WORD_TARGETS_LANG.get(lang, {}).get(level, {}).get(length)
     if override:
@@ -257,7 +260,7 @@ def _target(level: str, length: str, lang: str = "") -> tuple[int, int] | None:
     canon = WORD_TARGETS.get(level, {}).get(length)
     if not canon:
         return None
-    return word_band(f"{canon[0]}-{canon[1]}", lang)
+    return word_band_for_level(f"{canon[0]}-{canon[1]}", lang, level)
 
 
 def _word_color(avg: float, lo: int, hi: int) -> str:

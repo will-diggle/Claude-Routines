@@ -106,7 +106,12 @@ for level, bands in W.WORDS_PER_ARTICLE.items():
         # And the language-adjusted band the prompt asks for must equal the band the
         # report measures against, or the notification contradicts the instruction.
         for lang in ("en", "fr", "de", "sv", "it", "es"):
-            asked = P.word_band(band, lang)
+            # word_band_for_level, not word_band -- LEVEL_WORD_FACTOR_OVERRIDE lets a
+            # specific (lang, level) diverge from the language's general factor (e.g.
+            # Italian A1), and the real prompt in build_rewrite_prompt uses the level-
+            # aware lookup too. Using plain word_band here would make this guard fail
+            # on a legitimate, intentional override.
+            asked = P.word_band_for_level(band, lang, level)
             measured = C._target(level, length, lang)
             check(asked == measured,
                   f"band mismatch {lang} {level}/{length}: prompt asks {asked}, "

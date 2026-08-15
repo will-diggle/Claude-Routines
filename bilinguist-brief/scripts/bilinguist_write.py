@@ -621,7 +621,7 @@ else:
         GLOSS_JUDGE_RULE_BEGINNER, GLOSS_JUDGE_RULE_FALLBACK,
         PROMPT_NATIVE_TEMPLATE, NATIVE_FRAMING, STRUCTURE_BY_LENGTH_NATIVE,
         GENRE_RULES, GENRE_RULE_FALLBACK, NATIVE_WORD_RULE,
-        LANGUAGE_WORD_FACTOR, word_band,
+        LANGUAGE_WORD_FACTOR, word_band, word_band_for_level,
     )
 
 # Prompts are now in bilinguist_prompts.py (prod) / bilinguist_prompts_test.py (test).
@@ -674,7 +674,8 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
     if not source or not source.get("body"):
         return ""
     def _band(lvl):
-        return word_band(WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length], lang)
+        return word_band_for_level(
+            WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length], lang, lvl)
 
     word_min_i, word_max_i = _band(level)
     src_min, src_max = _band("Native")
