@@ -48,8 +48,16 @@ LANGUAGE_WORD_FACTOR: dict[str, float] = {
     "it": 1.08,
     "es": 1.08,   # no native data yet — assumed to behave like Italian. Revisit once measured.
     "en": 0.98,
-    "de": 0.93,
-    "sv": 0.90,
+    # Bumped 0.93 -> 0.96 on 2026-08-15: real output was landing at or just under the floor
+    # in every German combo that day (never over it), including one real miss (B1/short,
+    # 85w vs an 88w floor) -- the old factor was leaving no headroom anywhere. Every other
+    # combo had real margin to the ceiling, so this is a low-risk nudge, not a guess; still
+    # worth re-checking against the next run's real numbers.
+    "de": 0.96,
+    # Bumped 0.90 -> 0.94 on 2026-08-15, same reasoning as German: real output was at or
+    # under the floor everywhere that day, never over it, with the worst miss (B1/short,
+    # 78w vs an 86w floor, 9.3% under) bigger than German's -- a larger bump to match.
+    "sv": 0.94,
 }
 
 
