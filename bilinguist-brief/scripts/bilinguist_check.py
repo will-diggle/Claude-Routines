@@ -140,11 +140,11 @@ def _severity_counts(want: str, got_counts: dict) -> dict:
 
 
 def _severity_mark(counts: dict) -> str:
-    if counts["red"]:
-        return "🔴"
-    if counts["orange"]:
-        return "🟠"
-    return "🟢"
+    """Two tiers, not three: 🔴 only for a genuine overshoot (two+ levels more advanced
+    than intended -- see _severity_counts), 🟢 for everything else. An exact hit and a
+    one-level miss (in either direction) are both fine for a reader, so there's no
+    orange middle tier here -- either it's a real problem or it isn't."""
+    return "🔴" if counts["red"] else "🟢"
 
 
 def _level_grade_table(grading: dict) -> tuple[str, list[str]]:
