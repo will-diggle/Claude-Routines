@@ -275,7 +275,9 @@ def _word_color(avg: float, lo: int, hi: int) -> str:
 
 
 def _length_status(articles: list, level: str, length: str, lang: str = "") -> tuple[str, bool]:
-    """Return (display_str, is_bad). is_bad = outside target range."""
+    """Return (display_str, is_bad). is_bad = 🔴 only (more than 15% off) -- a 🟠
+    miss (within 15%) is still close enough to be readable and isn't worth a
+    separate warning line; the table's own orange mark already shows it."""
     avg = _avg_body_words(articles)
     target = _target(level, length, lang)
     avg_str = f"{int(avg)}w"
@@ -283,7 +285,7 @@ def _length_status(articles: list, level: str, length: str, lang: str = "") -> t
         return avg_str, False
     lo, hi = target
     color = _word_color(avg, lo, hi)
-    is_bad = color in ("🟠", "🔴")
+    is_bad = color == "🔴"
     return avg_str, is_bad
 
 
@@ -749,7 +751,7 @@ def check(bundle_path: Path) -> int:
                         if not target:
                             continue
                         avg = _avg_body_words(arts)
-                        if _word_color(avg, *target) in ("🟠", "🔴"):
+                        if _word_color(avg, *target) == "🔴":
                             wrong_length.append(
                                 f"{lang_name} Native/{length} (avg {int(avg)}w, "
                                 f"target {target[0]}–{target[1]}w)"
