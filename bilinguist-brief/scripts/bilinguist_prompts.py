@@ -79,6 +79,12 @@ def word_band(band: str, lang: str = "") -> tuple[int, int]:
 # entries fall through to the language's normal factor.
 LEVEL_WORD_FACTOR_OVERRIDE: dict[str, dict[str, float]] = {
     "it": {"A1": 1.00},
+    # English Native (both lengths) landed at or under its floor in every run this
+    # session (four consecutive runs, 2026-08-14/15) while English's other levels
+    # (A1/A2/B1/B2) were mixed, not uniformly low -- Native-specific, not English-wide,
+    # so this needed the same kind of targeted lever as Italian A1, not a change to
+    # LANGUAGE_WORD_FACTOR["en"] (which would have shifted every English level).
+    "en": {"Native": 1.02},
 }
 
 
