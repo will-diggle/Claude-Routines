@@ -675,7 +675,7 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
         return ""
     def _band(lvl):
         return word_band_for_level(
-            WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length], lang, lvl)
+            WORDS_PER_ARTICLE.get(lvl, WORDS_PER_ARTICLE["C1"])[length], lang, lvl, length)
 
     word_min_i, word_max_i = _band(level)
     src_min, src_max = _band("Native")
@@ -761,7 +761,7 @@ def build_native_prompt(lang: str, factbase: list, length: Optional[str] = None)
     # live in three places (prompt, table, check.py) and had to be changed together.
     # word_band_for_level, not word_band -- LEVEL_WORD_FACTOR_OVERRIDE lets a specific
     # (lang, level) diverge from the language's general factor (e.g. English Native).
-    lo, hi = word_band_for_level(WORDS_PER_ARTICLE["Native"][length], lang, "Native")
+    lo, hi = word_band_for_level(WORDS_PER_ARTICLE["Native"][length], lang, "Native", length)
     word_min, word_max = str(lo), str(hi)
     # Exact target = the low end of the band -- see NATIVE_WORD_RULE's comment for why.
     word_target = word_min

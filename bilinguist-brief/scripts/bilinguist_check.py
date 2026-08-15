@@ -260,7 +260,7 @@ def _target(level: str, length: str, lang: str = "") -> tuple[int, int] | None:
     canon = WORD_TARGETS.get(level, {}).get(length)
     if not canon:
         return None
-    return word_band_for_level(f"{canon[0]}-{canon[1]}", lang, level)
+    return word_band_for_level(f"{canon[0]}-{canon[1]}", lang, level, length)
 
 
 def _word_color(avg: float, lo: int, hi: int) -> str:

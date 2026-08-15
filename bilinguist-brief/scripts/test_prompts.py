@@ -111,7 +111,7 @@ for level, bands in W.WORDS_PER_ARTICLE.items():
             # Italian A1), and the real prompt in build_rewrite_prompt uses the level-
             # aware lookup too. Using plain word_band here would make this guard fail
             # on a legitimate, intentional override.
-            asked = P.word_band_for_level(band, lang, level)
+            asked = P.word_band_for_level(band, lang, level, length)
             measured = C._target(level, length, lang)
             check(asked == measured,
                   f"band mismatch {lang} {level}/{length}: prompt asks {asked}, "

@@ -77,7 +77,7 @@ def word_band(band: str, lang: str = "") -> tuple[int, int]:
 # room to fill the count), so a level-specific override is the correct lever, not a
 # language-wide one. Checked before LANGUAGE_WORD_FACTOR in word_band_for_level(); absent
 # entries fall through to the language's normal factor.
-LEVEL_WORD_FACTOR_OVERRIDE: dict[str, dict[str, float]] = {
+LEVEL_WORD_FACTOR_OVERRIDE: dict[str, dict[str, float | dict[str, float]]] = {
     "it": {"A1": 1.00},
     # English Native (both lengths) landed at or under its floor in every run this
     # session (four consecutive runs, 2026-08-14/15) while English's other levels
@@ -85,14 +85,26 @@ LEVEL_WORD_FACTOR_OVERRIDE: dict[str, dict[str, float]] = {
     # so this needed the same kind of targeted lever as Italian A1, not a change to
     # LANGUAGE_WORD_FACTOR["en"] (which would have shifted every English level).
     "en": {"Native": 1.02},
+    # Spanish A1/A2 "longer" specifically landed under floor on 2026-08-15 (A1: 208w vs
+    # 211w, 1.4% under; A2: 196w vs 211w, 7.1% under) while "short" at the SAME levels had
+    # real margin (A1 short only 1 word above its own floor, B1 short only 9 words below
+    # its ceiling) -- a blanket factor bump risked flipping those into overshoot. A value
+    # here may be a plain float (applies to both lengths, as it/en above) or a
+    # {"short": f, "longer": f} dict to touch only one length -- resolved by
+    # word_band_for_level's optional `length` argument.
+    "es": {"A1": {"longer": 1.02}, "A2": {"longer": 1.00}},
 }
 
 
-def word_band_for_level(band: str, lang: str, level: str) -> tuple[int, int]:
+def word_band_for_level(band: str, lang: str, level: str, length: str = "") -> tuple[int, int]:
     """Like word_band(), but checks LEVEL_WORD_FACTOR_OVERRIDE for this exact
-    (lang, level) first. Use this wherever a level is known (Stage 7 rewrites);
-    word_band() stays level-agnostic for Stage 5 native, which has no level."""
+    (lang, level[, length]) first. Use this wherever a level is known (Stage 7
+    rewrites); word_band() stays level-agnostic for Stage 5 native, which has no
+    level. `length` only matters when the override is length-specific (a dict);
+    a plain-float override (e.g. Italian A1) applies regardless of length."""
     override = LEVEL_WORD_FACTOR_OVERRIDE.get(lang, {}).get(level)
+    if isinstance(override, dict):
+        override = override.get(length)
     if override is None:
         return word_band(band, lang)
     parts = str(band).replace("\u2013", "-").split("-")
@@ -381,8 +393,10 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "one allowed relative clause. This ban applies to EVERY attributed claim in the "
         "article, not just the first — a longer article has more people saying things, "
         "which is more chances for this exact violation to slip in partway through. Before "
-        "finishing, check every sentence with \"a dit\"/\"a déclaré\" and confirm none of "
-        "them use a \"que\"-clause."
+        "finishing, check every sentence with a verb of saying — \"a dit\"/\"a déclaré\", "
+        "but also present-tense forms like \"dit\"/\"déclare\"/\"affirme\" (\"les rapports "
+        "disent que...\" is exactly as banned as \"a dit que...\") — and confirm none of "
+        "them use a \"que\"-clause, in any tense."
     ),
     "en": (
         " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
@@ -401,8 +415,10 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "clause. This ban applies to EVERY attributed claim in the article, not just the "
         "first — a longer article has more people saying things, which is more chances for "
         "this exact violation to slip in partway through. Before finishing, check every "
-        "sentence with \"said\"/\"stated\"/\"according to\" and confirm none of them use a "
-        "\"that\"-clause."
+        "sentence with a verb of saying — \"said\"/\"stated\", but also present-tense "
+        "forms like \"says\"/\"reports say\" (\"reports say that X is happening\" is "
+        "exactly as banned as \"said that X happened\") — and confirm none of them use "
+        "a \"that\"-clause, in any tense."
     ),
     "de": (
         " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
@@ -425,8 +441,11 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "quote directly to whoever actually said it. This ban applies to EVERY attributed "
         "claim in the article, not just the first — a longer article has more people saying "
         "things, which is more chances for this exact violation to slip in partway through. "
-        "Before finishing, check every sentence with \"sagte\"/\"erklärte\" and confirm none "
-        "of them use a \"dass\"-clause."
+        "Before finishing, check every sentence with a verb of saying — \"sagte\"/"
+        "\"erklärte\", but also present-tense forms like \"sagt\"/\"berichten\" "
+        "(\"Berichten zufolge ist X passiert\" and \"sagt, dass X ist\" are exactly as "
+        "banned as \"sagte, dass X war\") — and confirm none of them use a \"dass\"-"
+        "clause, in any tense."
     ),
     "sv": (
         " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
@@ -444,8 +463,10 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "relative clause. This ban applies to EVERY attributed claim in the article, not "
         "just the first — a longer article has more people saying things, which is more "
         "chances for this exact violation to slip in partway through. Before finishing, "
-        "check every sentence with \"sa\"/\"uppgav\" and confirm none of them use an "
-        "\"att\"-clause."
+        "check every sentence with a verb of saying — \"sa\"/\"uppgav\", but also "
+        "present-tense forms like \"säger\"/\"uppger\" (\"rapporter säger att X\" is "
+        "exactly as banned as \"sa att X\") — and confirm none of them use an \"att\"-"
+        "clause, in any tense."
     ),
     "it": (
         " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
@@ -465,8 +486,11 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "sentence, except the one allowed relative clause. This ban applies to EVERY "
         "attributed claim in the article, not just the first — a longer article has more "
         "people saying things, which is more chances for this exact violation to slip in "
-        "partway through. Before finishing, check every sentence with \"ha detto\"/\"ha "
-        "dichiarato\" and confirm none of them use a \"che\"-clause."
+        "partway through. Before finishing, check every sentence with a verb of saying — "
+        "\"ha detto\"/\"ha dichiarato\", but also present-tense forms like \"dice\"/"
+        "\"dicono\"/\"riferisce\" (\"i rapporti dicono che X\" is exactly as banned as "
+        "\"ha detto che X\") — and confirm none of them use a \"che\"-clause, in any "
+        "tense."
     ),
     "es": (
         " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
@@ -486,8 +510,11 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "the one allowed relative clause. This ban applies to EVERY attributed claim in the "
         "article, not just the first — a longer article has more people saying things, "
         "which is more chances for this exact violation to slip in partway through. Before "
-        "finishing, check every sentence with \"dijo\"/\"declaró\" and confirm none of them "
-        "use a \"que\"-clause."
+        "finishing, check every sentence with a verb of saying — \"dijo\"/\"declaró\", "
+        "but also present-tense forms like \"dice\"/\"dicen\"/\"informa\" (\"los "
+        "informes dicen que las condiciones son malas\" is exactly as banned as \"dijo "
+        "que las condiciones eran malas\") — and confirm none of them use a \"que\"-"
+        "clause, in any tense."
     ),
 }
 # Any language without a bespoke entry above falls back to a generic categorical version
