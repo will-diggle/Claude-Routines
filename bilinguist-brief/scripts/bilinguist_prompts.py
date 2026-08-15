@@ -256,17 +256,29 @@ PROMPT_2M_HEADER = PROMPT_LEARNER_TEMPLATE
 # wording would make it drop facts for no reason. That was already visible when the rule
 # was length-based: arm B's short order scores were its weakest (fr 6/7, de 5/7) while
 # every longer combo hit 7/7, and short was the length that needed only a 20% trim.
+# {WORD_TARGET} added 2026-08-15: every entry here previously only ever gave a range
+# ({WORD_MIN}-{WORD_MAX}), never a single number to aim for -- unlike native writing
+# (NATIVE_WORD_RULE), which has always said "write exactly N words" and been the more
+# word-count-precise of the two paths. Stage 7 (every level article, every language) was
+# the one path that had never gotten that treatment. Target = the low end of the band,
+# same convention NATIVE_WORD_RULE uses.
 REWRITE_CUT_RULES: dict[str, str] = {
     # Target is the same size as the source: a pure level change.
     "same": (
-        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words — the same length as the source.\n"
+        "WORD COUNT: write exactly {WORD_TARGET} words. Count every word before "
+        "submitting. If your count is not {WORD_TARGET}, revise and count again — this "
+        "is a precise target, not a range. Acceptable range if you cannot hit it "
+        "exactly: {WORD_MIN}–{WORD_MAX} words, the same length as the source.\n"
         "- Keep EVERY fact. Nothing is dropped and nothing is added. Only the reading "
         "level changes.\n"
         "- Never invent, never generalise, never merge two facts into a vaguer one."
     ),
     # Target is modestly smaller: tighten, do not drop.
     "trim": (
-        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source is a little longer than "
+        "WORD COUNT: write exactly {WORD_TARGET} words. Count every word before "
+        "submitting. If your count is not {WORD_TARGET}, revise and count again — this "
+        "is a precise target, not a range. Acceptable range if you cannot hit it "
+        "exactly: {WORD_MIN}–{WORD_MAX} words. The source is a little longer than "
         "this.\n"
         "- Keep EVERY fact. Reach the count by tightening the phrasing, not by dropping "
         "anything.\n"
@@ -278,7 +290,10 @@ REWRITE_CUT_RULES: dict[str, str] = {
     # word budget leaves no room to simplify, so the rewrite kept the content and kept the
     # complexity. Simplifying costs words, so at a fixed length it has to carry fewer facts.
     "reduce": (
-        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words — the same length as the source, but you "
+        "WORD COUNT: write exactly {WORD_TARGET} words. Count every word before "
+        "submitting. If your count is not {WORD_TARGET}, revise and count again — this "
+        "is a precise target, not a range. Acceptable range if you cannot hit it "
+        "exactly: {WORD_MIN}–{WORD_MAX} words — the same length as the source, but you "
         "are writing {LEVELS_DOWN} CEFR levels below it.\n"
         "- Simple language needs MORE words to say the same thing, so at this length you must "
         "carry FEWER facts than the source. That is correct, not a loss.\n"
@@ -289,7 +304,10 @@ REWRITE_CUT_RULES: dict[str, str] = {
     ),
     # Target is much smaller: facts have to go, so stop earlier in the same sequence.
     "cut": (
-        "WORD COUNT: {WORD_MIN}–{WORD_MAX} words. The source is much longer than this, so "
+        "WORD COUNT: write exactly {WORD_TARGET} words. Count every word before "
+        "submitting. If your count is not {WORD_TARGET}, revise and count again — this "
+        "is a precise target, not a range. Acceptable range if you cannot hit it "
+        "exactly: {WORD_MIN}–{WORD_MAX} words. The source is much longer than this, so "
         "you must stop earlier in the story.\n"
         "- Keep the opening facts in their order and end where the count runs out. Never "
         "reorder.\n"

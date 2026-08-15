@@ -680,6 +680,8 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
     word_min_i, word_max_i = _band(level)
     src_min, src_max = _band("Native")
     word_min, word_max = str(word_min_i), str(word_max_i)
+    # Exact target = the low end of the band -- same convention NATIVE_WORD_RULE uses.
+    word_target = word_min
 
     # Which instruction the rewrite gets follows the real ratio, not the length. With every
     # level now the same size as native except A1, "you must cut" would be wrong almost
@@ -721,6 +723,7 @@ def build_rewrite_prompt(lang: str, level: str, length: str, source: dict,
               .replace("{LANGUAGE}", LANGUAGE_NAMES.get(lang, lang))
               .replace("{LEVEL_DESCRIPTION}", LEVEL_DESCRIPTIONS.get(level, level))
               .replace("{WORD_MIN}", word_min).replace("{WORD_MAX}", word_max)
+              .replace("{WORD_TARGET}", word_target)
               .replace("{STRUCTURE}", PROMPT_LEVEL_STRUCTURE)
               .replace("{VARIANT_RULE}", VARIANT_RULES.get(lang, ""))
               .replace("{QUOTE_RULE}", QUOTE_RULES.get(lang, QUOTE_RULE_FALLBACK))
