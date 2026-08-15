@@ -955,8 +955,10 @@ def check(bundle_path: Path) -> int:
     if level_accuracy_table_str:
         body_parts += ["", level_accuracy_table_str]
 
-    if level_grade_str:
-        body_parts += ["", level_grade_str]
+    # The long per-combo bullet list (level_grade_str) is no longer appended here --
+    # the matrix table above shows the same hit/total per (language, level, length)
+    # more compactly. _level_grade_table() is still called for level_grade_warnings,
+    # which the main warnings list further down still uses.
 
     # Global News search log (per-outlet Step 1 headlines)
     if search_log:
