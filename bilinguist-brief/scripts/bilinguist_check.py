@@ -881,6 +881,8 @@ def check(bundle_path: Path) -> int:
                 body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
             for g in grading_warnings + level_grade_warnings:
                 body_parts.append(f"  {g}")
+            for nw in native_check_warnings:
+                body_parts.append(f"  {nw}")
             for fw in factcheck_warnings:
                 body_parts.append(f"  {fw}")
     else:
@@ -904,6 +906,8 @@ def check(bundle_path: Path) -> int:
             body_parts.append(f"  ⚠️ {b} — MORE articles than stories")
         for g in grading_warnings + level_grade_warnings:
             body_parts.append(f"  {g}")
+        for nw in native_check_warnings:
+            body_parts.append(f"  {nw}")
         for fw in factcheck_warnings:
             body_parts.append(f"  {fw}")
 

@@ -682,17 +682,21 @@ def assemble_notification(factbase: list) -> str:
     """Build the push notification from each Global story's own notification_line.
 
     The genre call used to write this, which needed the facts to be in the same response.
-    With fact-finding split out, each story writes its own sentence while holding its own
-    facts, and Python joins them in rank order — no extra call.
+    With fact-finding split out, each story writes its own short topic phrase while
+    holding its own facts, and Python combines them into one sentence, in rank order —
+    no extra call. Previously each story wrote a full sentence and Python just
+    concatenated them, so 3 stories read as 3 separate sentences — too long for a push
+    notification. Now it's one sentence covering all of them.
     """
     globals_ = [s for s in factbase if (s.get("genre") or "").upper() == "GLOBAL NEWS"]
     globals_.sort(key=lambda s: (s.get("cross_reference_score") or {}).get("rank", 99))
-    lines = []
-    for s in globals_:
-        line = (s.get("notification_line") or "").strip()
-        if line:
-            lines.append(line if line.endswith((".", "!", "?")) else line + ".")
-    return " ".join(lines)
+    phrases = [(s.get("notification_line") or "").strip().rstrip(".!?") for s in globals_]
+    phrases = [p for p in phrases if p]
+    if not phrases:
+        return ""
+    if len(phrases) == 1:
+        return f"Today: {phrases[0]}."
+    return f"Today: {', '.join(phrases[:-1])} and {phrases[-1]}."
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

@@ -42,8 +42,10 @@ FIELDS — arrays of short strings, one clean point per string, no paragraphs:
 - "numbers": exact figures as they must appear in every language (e.g. "12,000", "3.5%").
 - "proper_nouns": people, organisations, places, spelled canonically.
 - "key_terms": core descriptive terms for the event (e.g. "ceasefire", "evacuation").
-- "notification_line": ONE short factual sentence summarising the story for a push
-  notification. No opinion, no filler, no call to action.
+- "notification_line": the story's topic as a short phrase (3-6 words, no ending
+  punctuation), for a push notification that combines several stories into one sentence —
+  e.g. "a ceasefire collapsing in Gaza", "record flooding in Valencia". No opinion, no
+  filler, no call to action.
 
 RULES:
 - Add only facts you can verify by search. Never invent, never speculate. If you cannot
@@ -77,7 +79,7 @@ Respond with ONLY a valid JSON object. No markdown, no code fences, no preamble.
 "numbers":["12,000","3.5%"],
 "proper_nouns":["Valencia","Pedro Sánchez"],
 "key_terms":["flood","evacuation"],
-"notification_line":"One factual sentence."
+"notification_line":"short topic phrase"
 }]}
 
 Exactly {STORY_COUNT} objects, one per selected story. Every key present in every object;
