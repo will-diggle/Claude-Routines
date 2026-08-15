@@ -1383,7 +1383,13 @@ def run_native_journalism(
             if article:
                 article["body"], nf = numcheck.verify_and_fix_numbers(
                     article["body"], story, "en")
-                nf += numcheck.find_unverified_entities(article["body"], story)
+                # find_unverified_entities disabled 2026-08-15: nearly every real finding
+                # was a false positive -- "Mr Farage"/"Mr Trump" (fact-base has "Nigel
+                # Farage"/"Donald Trump", no literal "Mr X" substring) and, for translated
+                # languages, entirely correct translated names/titles/places that simply
+                # never appear in the English-only fact-base text. See
+                # find_unverified_entities()'s docstring before re-enabling; needs a real
+                # fix (strip title words, match core name only) not just a re-flip.
                 for f in nf:
                     _NUMCHECK_FINDINGS.append({**f, "lang": "en", "length": length,
                                                 "slug": story.get("slug")})
@@ -1413,7 +1419,7 @@ def run_native_journalism(
             if article:
                 article["body"], nf = numcheck.verify_and_fix_numbers(
                     article["body"], story, lang)
-                nf += numcheck.find_unverified_entities(article["body"], story)
+                # find_unverified_entities disabled -- see matching comment in _write_en.
                 for f in nf:
                     _NUMCHECK_FINDINGS.append({**f, "lang": lang,
                                                 "slug": story.get("slug")})
