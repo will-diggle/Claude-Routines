@@ -35,13 +35,17 @@ export async function handleContact(request, env) {
   // Honeypot: real people leave this hidden field empty, bots fill it in.
   if (clean(form.website)) return Response.json({ ok: true });
 
-  const name = clean(form.name);
+  // The home page form asks for a single name, the contact page splits it.
+  const name = [clean(form.name), clean(form.first), clean(form.last)]
+    .filter(Boolean)
+    .join(' ');
   const email = clean(form.email);
+  const phone = clean(form.phone);
   const message = clean(form.message);
   const subject = clean(form.subject) || 'Website enquiry';
 
   if (!name || !email || !message) {
-    return bad('Please fill in your name, email and message.');
+    return bad('Please add your name, email and message.');
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return bad('That email address does not look right.');
@@ -54,10 +58,11 @@ export async function handleContact(request, env) {
   const body = [
     `Name: ${name}`,
     `Email: ${email}`,
+    phone ? `Phone: ${phone}` : null,
     `Subject: ${subject}`,
     '',
     message,
-  ].join('\n');
+  ].filter((line) => line !== null).join('\n');
 
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',

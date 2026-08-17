@@ -1,104 +1,304 @@
-/* Temporary holding-page styles. Replaced once the real design is copied. */
+/* ==========================================================================
+   willdiggle.co.uk — rebuilt from the Wix original.
+   Type and palette taken from the saved pages: Oswald for display, Poppins
+   for headings, Jost standing in for Futura (which is not web-licensed).
+   ========================================================================== */
+
+:root {
+  --ink: #000000;
+  --paper: #f6f1ef;      /* warm off-white used across the Wix site */
+  --grey: #94918f;
+  --grey-soft: #8f8f8f;
+  --rule: #e2e2e2;
+  --measure: 1200px;
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 
+html { scroll-behavior: smooth; }
+
 body {
   margin: 0;
-  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #1c1c1c;
-  background: #faf9f7;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
+  font-size: 1rem;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
 }
+
+img { max-width: 100%; display: block; }
+a { color: inherit; }
 
 .wrap {
-  max-width: 40rem;
+  width: 100%;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 4rem 1.25rem 6rem;
+  padding: 0 1.5rem;
 }
 
-.head { text-align: center; margin-bottom: 2.5rem; }
+/* ── Header ─────────────────────────────────────────────────────────────── */
 
-h1 {
+.site-head {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-head .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 5rem;
+}
+
+.wordmark {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 300;
+  font-size: 1.05rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav ul {
+  display: flex;
+  gap: 2rem;
   margin: 0;
-  font-size: clamp(2rem, 8vw, 3rem);
-  font-weight: 400;
-  letter-spacing: 0.08em;
+  padding: 0;
+  list-style: none;
+}
+
+.nav a {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 300;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+}
+
+.nav a:hover,
+.nav a[aria-current='page'] { border-bottom-color: var(--ink); }
+
+.nav-toggle {
+  display: none;
+  background: none;
+  border: 0;
+  padding: 0.5rem;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+
+.hero { position: relative; background: var(--ink); }
+
+.hero img {
+  width: 100%;
+  height: clamp(20rem, 62vh, 40rem);
+  object-fit: cover;
+  opacity: 0.72;
+}
+
+.hero-caption {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: #fff;
+  padding: 1.5rem;
+}
+
+.hero-caption h1 {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 200;
+  font-size: clamp(2.1rem, 7vw, 4.6rem);
+  letter-spacing: 0.16em;
+  line-height: 1.05;
+  margin: 0;
   text-transform: uppercase;
 }
 
-.tagline {
-  margin: 0.5rem 0 0;
-  color: #6b6b6b;
+.hero-caption .role {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 300;
+  font-size: clamp(1rem, 3vw, 1.6rem);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  margin: 0.75rem 0 0;
+}
+
+/* ── Sections and headings ──────────────────────────────────────────────── */
+
+section { padding: clamp(3rem, 8vw, 6rem) 0; }
+
+.section-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.25rem, 3.2vw, 1.9rem);
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-size: 0.8rem;
+  margin: 0 0 2.5rem;
 }
 
-.notice {
-  padding: 1rem 1.25rem;
-  margin-bottom: 3rem;
-  border-left: 3px solid #c9a227;
-  background: #fff;
-  color: #4a4a4a;
-  font-size: 0.9rem;
-}
-
-h2 {
-  font-size: 1.1rem;
-  font-weight: 400;
-  letter-spacing: 0.12em;
+.page-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 200;
+  font-size: clamp(1.9rem, 6vw, 3.4rem);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  margin: 0 0 1.5rem;
+  margin: 0 0 3rem;
 }
 
-form { display: grid; gap: 1.25rem; }
+.lede { font-size: 1.0625rem; }
 
-label {
+.prose p { margin: 0 0 1.4rem; max-width: 62ch; }
+.prose p:last-child { margin-bottom: 0; }
+
+/* Two-column: text beside a portrait. */
+.split {
   display: grid;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6b6b6b;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
 }
 
-input, textarea {
+.split img { width: 100%; object-fit: cover; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-block;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 300;
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.85rem 2.25rem;
+  border: 1px solid var(--ink);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Diary ──────────────────────────────────────────────────────────────── */
+
+.production {
+  border-top: 1px solid var(--rule);
+  padding: 2.5rem 0;
+}
+
+.production:last-of-type { border-bottom: 1px solid var(--rule); }
+
+.production h2 {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 300;
+  font-size: clamp(1.15rem, 3vw, 1.6rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.production .role-name {
+  font-style: italic;
+  color: var(--grey);
+  margin: 0.35rem 0 0;
+}
+
+.production .venue {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 1.25rem 0 0.25rem;
+}
+
+.production .address {
+  color: var(--grey);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+.dates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
+.dates li {
+  font-size: 0.9375rem;
+  color: #333;
+  white-space: nowrap;
+}
+
+/* ── Gallery ────────────────────────────────────────────────────────────── */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+
+.gallery img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+
+/* ── Contact form ───────────────────────────────────────────────────────── */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  max-width: 44rem;
+}
+
+.field { display: grid; gap: 0.4rem; }
+.field.full { grid-column: 1 / -1; }
+
+.field label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.field input,
+.field textarea {
   font: inherit;
-  color: #1c1c1c;
-  text-transform: none;
-  letter-spacing: normal;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid #d8d4cd;
-  border-radius: 2px;
-  background: #fff;
+  color: var(--ink);
+  padding: 0.65rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  border-radius: 0;
+  background: none;
   width: 100%;
 }
 
-input:focus-visible, textarea:focus-visible {
-  outline: 2px solid #c9a227;
-  outline-offset: 1px;
-  border-color: #c9a227;
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  border-bottom-width: 2px;
 }
 
-textarea { resize: vertical; }
+.field textarea { resize: vertical; }
 
-button {
-  font: inherit;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  padding: 0.85rem 1.5rem;
-  border: 0;
-  border-radius: 2px;
-  background: #1c1c1c;
-  color: #fff;
-  cursor: pointer;
-  justify-self: start;
-}
-
-button:hover:not(:disabled) { background: #3a3a3a; }
-button:disabled { opacity: 0.55; cursor: default; }
-
-/* Visually hidden but still reachable by bots that parse the DOM. */
+/* Hidden from people, visible to bots that fill every field. */
 .hp {
   position: absolute;
   width: 1px; height: 1px;
@@ -107,6 +307,50 @@ button:disabled { opacity: 0.55; cursor: default; }
   white-space: nowrap;
 }
 
-.status { margin: 0; font-size: 0.9rem; min-height: 1.4em; }
-.status.error { color: #a8201a; }
-.status.ok { color: #1f6b3b; }
+.form-status { margin: 0; min-height: 1.5em; font-size: 0.9375rem; }
+.form-status.error { color: #a8201a; }
+.form-status.ok { color: #1f6b3b; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+
+.site-foot {
+  border-top: 1px solid var(--rule);
+  padding: 2.5rem 0;
+  text-align: center;
+}
+
+.site-foot p {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--grey-soft);
+}
+
+/* ── Small screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 48rem) {
+  .nav-toggle { display: block; }
+
+  .nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
+  .nav.open { display: block; }
+  .nav ul { flex-direction: column; gap: 1.25rem; }
+
+  .site-head .wrap { position: relative; }
+
+  .split { grid-template-columns: 1fr; }
+  .split img { order: -1; }
+
+  .form-grid { grid-template-columns: 1fr; }
+}
