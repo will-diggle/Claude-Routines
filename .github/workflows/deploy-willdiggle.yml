@@ -29,8 +29,18 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: willdiggle
-          # Pushed to the Worker as a runtime secret on each deploy. Harmless
-          # if unset — the contact form then reports that it is unconfigured.
+
+      # Separate and conditional: wrangler-action fails the whole run if a
+      # declared secret has no value, and the site should still deploy when
+      # the contact form has not been configured yet.
+      - name: Upload contact form secret
+        if: ${{ secrets.RESEND_API_KEY != '' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: willdiggle
+          command: secret put RESEND_API_KEY
           secrets: |
             RESEND_API_KEY
         env:
