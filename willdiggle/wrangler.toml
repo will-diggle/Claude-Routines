@@ -1,0 +1,29 @@
+name = "willdiggle"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+# Serve the static site from ./public, with the Worker in front of it so
+# /api/contact can be handled before falling through to the asset server.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Custom domains — commented out until the site is ready to go live.
+# Uncommenting these and deploying takes willdiggle.co.uk off Wix, so leave
+# them alone while reviewing on the workers.dev preview URL.
+#
+# routes = [
+#   { pattern = "willdiggle.co.uk", custom_domain = true },
+#   { pattern = "www.willdiggle.co.uk", custom_domain = true }
+# ]
+
+# ── Secrets — never put values here ──────────────────────────────────────────
+# Set each with: wrangler secret put <NAME>
+# Or via Cloudflare dashboard → Workers → willdiggle → Settings → Variables
+#
+#   RESEND_API_KEY — from resend.com, sends the contact form enquiries
+
+[vars]
+CONTACT_TO = "williamdiggz@gmail.com"
+# Switch to site@willdiggle.co.uk once the domain is verified in Resend.
+CONTACT_FROM = "Website <onboarding@resend.dev>"

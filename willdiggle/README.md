@@ -12,28 +12,41 @@ Static rebuild of the Wix site, hosted on Cloudflare Pages.
 
 ## Layout
 
+Same shape as `bilinguist-web`: a Worker serving static assets, so the site
+and the contact endpoint live in one deployment.
+
 ```
-public/          static site (HTML/CSS/images) — Pages build output
-functions/api/   Cloudflare Pages Functions (server-side routes)
+public/        static site (HTML/CSS/images), served via the ASSETS binding
+src/worker.js  Worker entry — routes /api/contact, else falls through to assets
+src/contact.js contact form handler
+wrangler.toml  Worker config
 ```
 
 ## Deploying
 
-1. Cloudflare dashboard → Workers & Pages → Create → Pages → connect this repo.
-2. Build command: none. Build output directory: `willdiggle/public`.
-3. Settings → Environment variables, add:
-   - `RESEND_API_KEY` (secret) — sign up at resend.com, free tier is plenty
-   - `CONTACT_TO` — `williamdiggz@gmail.com`
-   - `CONTACT_FROM` — e.g. `site@willdiggle.co.uk`, once the domain is verified
-     in Resend. Until then the form falls back to Resend's test sender.
-4. Custom domain: add `willdiggle.co.uk` and `www` under the Pages project's
-   Custom domains tab. Do this only once the site looks right — pointing the
-   domain here takes it off Wix.
+Deploys run from GitHub Actions (`.github/workflows/deploy-willdiggle.yml`) on
+every push to the working branch. Two repository secrets are required —
+GitHub → Settings → Secrets and variables → Actions:
+
+- `CLOUDFLARE_API_TOKEN` — Cloudflare → My Profile → API Tokens → Create,
+  using the "Edit Cloudflare Workers" template
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare dashboard sidebar, Workers & Pages
+
+The Resend key is a Worker secret rather than a repo secret, set once:
+
+```
+npx wrangler secret put RESEND_API_KEY --name willdiggle
+```
+
+Deploys land on `willdiggle.<subdomain>.workers.dev` for review. Going live is
+a separate, deliberate step: uncomment the `routes` block in `wrangler.toml`
+and deploy again. That is what takes the domain off Wix, so don't do it until
+the site looks right.
 
 ## Local preview
 
 ```
-npx wrangler pages dev willdiggle/public
+npx wrangler dev
 ```
 
 ## Contact form contract

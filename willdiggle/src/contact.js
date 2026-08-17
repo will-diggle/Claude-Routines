@@ -1,11 +1,8 @@
 /**
- * Cloudflare Pages Function: POST /api/contact
+ * Contact form handler for POST /api/contact.
  *
- * Handles contact form submissions and emails them on via Resend.
- * Configure in the Cloudflare dashboard (Settings > Environment variables):
- *   RESEND_API_KEY  - secret, from resend.com
- *   CONTACT_TO      - where enquiries land, e.g. williamdiggz@gmail.com
- *   CONTACT_FROM    - a verified sender on your domain, e.g. site@willdiggle.co.uk
+ * Emails submissions on via Resend. RESEND_API_KEY is a secret set with
+ * `wrangler secret put`; CONTACT_TO and CONTACT_FROM live in wrangler.toml.
  */
 
 const MAX_FIELD = 5000;
@@ -24,7 +21,7 @@ function escapeHtml(value) {
   ));
 }
 
-export async function onRequestPost({ request, env }) {
+export async function handleContact(request, env) {
   let form;
   try {
     const type = request.headers.get('content-type') || '';
@@ -84,8 +81,4 @@ export async function onRequestPost({ request, env }) {
   }
 
   return Response.json({ ok: true });
-}
-
-export function onRequest() {
-  return new Response('Method not allowed', { status: 405 });
 }

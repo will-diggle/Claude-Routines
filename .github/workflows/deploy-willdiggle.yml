@@ -1,0 +1,31 @@
+name: Deploy willdiggle.co.uk
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/singing-site-cloudflare-migration-71arl1
+    paths:
+      - 'willdiggle/**'
+      - '.github/workflows/deploy-willdiggle.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: willdiggle
