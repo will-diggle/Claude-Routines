@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # The secrets context cannot be read from a step-level `if`, so surface
+    # this one as an environment variable and test that instead.
+    env:
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +39,7 @@ jobs:
       # declared secret has no value, and the site should still deploy when
       # the contact form has not been configured yet.
       - name: Upload contact form secret
-        if: ${{ secrets.RESEND_API_KEY != '' }}
+        if: env.RESEND_API_KEY != ''
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -43,5 +48,3 @@ jobs:
           command: secret put RESEND_API_KEY
           secrets: |
             RESEND_API_KEY
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
