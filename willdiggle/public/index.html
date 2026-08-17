@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Will Diggle</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="Will Diggle — singer.">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="head">
+    <h1>Will Diggle</h1>
+    <p class="tagline">Singer</p>
+  </header>
+
+  <p class="notice">
+    This is a temporary holding page while the site is rebuilt. The contact
+    form below is live &mdash; use it to check that enquiries reach your inbox.
+  </p>
+
+  <section class="contact">
+    <h2>Get in touch</h2>
+    <form id="contact-form" novalidate>
+      <label>
+        Name
+        <input type="text" name="name" autocomplete="name" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" autocomplete="email" required>
+      </label>
+      <label>
+        Subject
+        <input type="text" name="subject" placeholder="Enquiry">
+      </label>
+      <label>
+        Message
+        <textarea name="message" rows="6" required></textarea>
+      </label>
+
+      <!-- Honeypot: hidden from people, catches bots. Do not remove. -->
+      <div class="hp" aria-hidden="true">
+        <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      </div>
+
+      <button type="submit">Send message</button>
+      <p class="status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+<script src="/contact.js"></script>
+</body>
+</html>

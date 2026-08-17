@@ -1,0 +1,112 @@
+/* Temporary holding-page styles. Replaced once the real design is copied. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1c1c1c;
+  background: #faf9f7;
+}
+
+.wrap {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4rem 1.25rem 6rem;
+}
+
+.head { text-align: center; margin-bottom: 2.5rem; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  color: #6b6b6b;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.notice {
+  padding: 1rem 1.25rem;
+  margin-bottom: 3rem;
+  border-left: 3px solid #c9a227;
+  background: #fff;
+  color: #4a4a4a;
+  font-size: 0.9rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 1.5rem;
+}
+
+form { display: grid; gap: 1.25rem; }
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+
+input, textarea {
+  font: inherit;
+  color: #1c1c1c;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #d8d4cd;
+  border-radius: 2px;
+  background: #fff;
+  width: 100%;
+}
+
+input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #c9a227;
+  outline-offset: 1px;
+  border-color: #c9a227;
+}
+
+textarea { resize: vertical; }
+
+button {
+  font: inherit;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  padding: 0.85rem 1.5rem;
+  border: 0;
+  border-radius: 2px;
+  background: #1c1c1c;
+  color: #fff;
+  cursor: pointer;
+  justify-self: start;
+}
+
+button:hover:not(:disabled) { background: #3a3a3a; }
+button:disabled { opacity: 0.55; cursor: default; }
+
+/* Visually hidden but still reachable by bots that parse the DOM. */
+.hp {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.status { margin: 0; font-size: 0.9rem; min-height: 1.4em; }
+.status.error { color: #a8201a; }
+.status.ok { color: #1f6b3b; }
