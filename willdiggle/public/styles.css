@@ -1,16 +1,39 @@
 /* ==========================================================================
    willdiggle.co.uk — rebuilt from the Wix original.
-   Type and palette taken from the saved pages: Oswald for display, Poppins
-   for headings, Jost standing in for Futura (which is not web-licensed).
+
+   Every size, colour and position below was read off the live site with
+   Playwright at a 1440px viewport (see the notes beside each value). Type
+   scales with `clamp(floor, Nvw, exact)` so 1440px renders the measured
+   pixel value and narrower screens shrink from it.
+
+   Typefaces: Oswald Medium (display) and Poppins SemiBold (the hero name)
+   are the originals. Futura LT Book/Light is Wix-licensed and not available
+   to us, so Jost 400/300 stands in for it — the same geometric sans
+   proportions. DIN Next is not used anywhere on the live site.
    ========================================================================== */
 
 :root {
-  --ink: #000000;
-  --paper: #f6f1ef;      /* warm off-white used across the Wix site */
-  --grey: #94918f;
-  --grey-soft: #8f8f8f;
-  --rule: #e2e2e2;
-  --measure: 1200px;
+  /* Palette, sampled from computed styles. */
+  --paper:      #f6f1ef;  /* rgb(246,241,239) — page ground */
+  --ink:        #000000;
+  --pitch:      #161513;  /* rgb(22,21,19)  — diary hero band */
+  --slate:      #373b4d;  /* rgb(55,59,77)  — teaching text, input borders */
+  --slate-blue: #4a6389;  /* rgb(74,99,137) — "TENOR" */
+  --cream:      #fff8f1;  /* rgb(255,248,241) — teaching left panel */
+  --peach:      #ffe2c8;  /* rgb(255,226,200) — teaching accent block */
+  --hairline:   #94918f;  /* rgb(148,145,143) — Tickets button border */
+  --nav-dim:    #666666;  /* current page in the nav */
+  --cv-ink:     #313030;  /* Download CV border + label */
+  --btn-ink:    #1d2430;  /* Book a Lesson */
+  --slate-grey: #323232;  /* the "UCH" half of the contact title */
+
+  --f-display: 'Oswald', 'Haettenschweiler', sans-serif;
+  --f-name:    'Poppins', sans-serif;
+  --f-body:    'Jost', 'Futura', 'Century Gothic', sans-serif;
+  --f-cta:     'Raleway', sans-serif;
+
+  --head-h: 54px;
+  --shell:  1200px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -21,71 +44,89 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: 'Jost', 'Futura', 'Century Gothic', sans-serif;
-  font-size: 1rem;
-  line-height: 1.75;
+  font-family: var(--f-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;               /* 25.6px / 16px */
   -webkit-font-smoothing: antialiased;
 }
 
 img { max-width: 100%; display: block; }
 a { color: inherit; }
 
-.wrap {
+.shell {
   width: 100%;
-  max-width: var(--measure);
+  max-width: var(--shell);
   margin: 0 auto;
   padding: 0 1.5rem;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
+/* Visually hidden, but reachable by keyboard and read by bots that fill
+   every field they find. */
+.hp {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.hp:focus-visible {
+  position: fixed; top: 0.5rem; left: 0.5rem;
+  width: auto; height: auto; clip-path: none;
+  padding: 0.5rem 1rem; background: var(--ink); color: var(--paper);
+  z-index: 100;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────
+   54px tall, translucent paper (0.69 alpha), sticky. Logo sits 246px in at
+   1440px, nav right edge 1186px — i.e. a 948px strip, centred.            */
 
 .site-head {
   position: sticky;
   top: 0;
-  z-index: 50;
-  background: var(--paper);
-  border-bottom: 1px solid var(--rule);
+  z-index: 60;
+  height: var(--head-h);
+  background: rgba(246, 241, 239, 0.69);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
-.site-head .wrap {
+.site-head .shell {
+  max-width: 948px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  min-height: 5rem;
 }
 
-.wordmark {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 300;
-  font-size: 1.05rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  text-decoration: none;
-  white-space: nowrap;
-}
+.brand { display: block; flex: none; }
+.brand img { width: 35px; height: 44px; object-fit: contain; }
 
 .nav ul {
   display: flex;
-  gap: 2rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* 16px Oswald Medium, 0.8px tracking, uppercase. The 69px-wide link boxes
+   around 46px of text give ~11.5px of padding either side. */
 .nav a {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 300;
-  font-size: 0.8rem;
-  letter-spacing: 0.18em;
+  display: block;
+  padding: 0.625rem 11.5px;
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   text-decoration: none;
-  padding-bottom: 2px;
-  border-bottom: 1px solid transparent;
+  white-space: nowrap;
 }
 
-.nav a:hover,
-.nav a[aria-current='page'] { border-bottom-color: var(--ink); }
+.nav a:hover { color: var(--nav-dim); }
+.nav a[aria-current='page'] { color: var(--nav-dim); }
 
 .nav-toggle {
   display: none;
@@ -94,244 +135,705 @@ a { color: inherit; }
   padding: 0.5rem;
   font-size: 1.4rem;
   line-height: 1;
+  color: inherit;
   cursor: pointer;
 }
 
-/* ── Hero ───────────────────────────────────────────────────────────────── */
+/* ── Shared display type ──────────────────────────────────────────────────
+   Oswald Medium throughout. The Wix pages set tracking as a px value; the
+   em equivalents are noted.                                               */
+
+.display {
+  font-family: var(--f-display);
+  font-weight: 500;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* 91px / 18.2px tracking — Contact and Teaching page titles. */
+.title-xl {
+  font-size: clamp(34px, 6.32vw, 91px);
+  line-height: 1.48;
+  letter-spacing: 0.2em;
+}
+
+/* 76px / 15.2px tracking — "BIOGRAPHY". */
+.title-lg {
+  font-size: clamp(32px, 5.28vw, 76px);
+  line-height: 1.48;
+  letter-spacing: 0.2em;
+}
+
+/* 106px, 1.4 leading — "LISTEN" on its black band. */
+.title-band {
+  font-size: clamp(40px, 7.36vw, 106px);
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+/* 145px, 1.4 leading — "DIARY" over the hero. */
+.title-hero {
+  font-size: clamp(48px, 10.07vw, 145px);
+  line-height: 1.4;
+  letter-spacing: normal;
+}
+
+/* ── Body copy ──────────────────────────────────────────────────────────── */
+
+.prose p {
+  margin: 0 0 22.4px;             /* one 16px line of leading */
+  text-align: justify;
+}
+.prose p:last-child { margin-bottom: 0; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────
+   Each of the five buttons on the site is styled differently; they are kept
+   separate rather than forced into one component.                          */
+
+/* Home → "More": 224 × 39, paper on black, Oswald 19px. */
+.btn-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 224px;
+  max-width: 100%;
+  height: 39px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 19px;
+  line-height: 1.15;
+  text-decoration: none;
+  border: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-more::after { content: '\203A'; margin-left: 0.6em; font-size: 1.15em; line-height: 0; }
+.btn-more:hover { background: var(--ink); color: var(--paper); outline: 1px solid var(--paper); }
+
+/* About → "Download CV": 144 × 42, 4px double border, Oswald 15px. */
+.btn-cv {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 144px;
+  height: 42px;
+  background: var(--paper);
+  color: var(--cv-ink);
+  border: 4px double var(--cv-ink);
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.15;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-cv:hover { background: var(--cv-ink); color: var(--paper); }
+
+/* Diary → "Tickets": 141 × 40, black with a grey hairline, Oswald 17px. */
+.btn-tickets {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 141px;
+  height: 40px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--hairline);
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.15;
+  letter-spacing: 0.1em;          /* 1.7px */
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-tickets:hover { background: var(--paper); color: var(--ink); border-color: var(--ink); }
+
+/* Teaching → "Book a Lesson": 128 × 45, Raleway Bold 14px. */
+.btn-lesson {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 128px;
+  height: 45px;
+  background: var(--cream);
+  color: var(--btn-ink);
+  border: 1px solid var(--btn-ink);
+  font-family: var(--f-cta);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.41;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-lesson:hover { background: var(--btn-ink); color: var(--cream); }
+
+/* Contact forms → "Submit": 150 × 40, 2px black rule. */
+.btn-submit {
+  width: 150px;
+  height: 40px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 18px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.btn-submit:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.btn-submit:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Social row ───────────────────────────────────────────────────────────
+   30px icons with a 10px gutter on the home panel, 34px on About, 22px on
+   Teaching.                                                                */
+
+.social { display: flex; align-items: center; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.social a { display: block; line-height: 0; }
+.social img { width: 30px; height: 30px; }
+.social.lg img { width: 34px; height: 34px; gap: 10px; }
+.social.sm img { width: 22px; height: 22px; }
+.social.sm { gap: 10px; }
+.social a:hover { opacity: 0.7; }
+
+/* ── Home: hero ───────────────────────────────────────────────────────────
+   Full-bleed 1440 × 732 image, anchored to its top edge. The name sits at
+   x835 (58% across) in Poppins SemiBold 119px / 95.2px leading, tracking
+   -2.38px, and breaks after "WILLIAM".                                     */
 
 .hero { position: relative; background: var(--ink); }
 
-.hero img {
+.hero-img {
   width: 100%;
-  height: clamp(20rem, 62vh, 40rem);
+  height: 732px;
+  max-height: 51vw;
   object-fit: cover;
-  opacity: 0.72;
+  object-position: 50% 0;
 }
 
 .hero-caption {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: #fff;
-  padding: 1.5rem;
-}
-
-.hero-caption h1 {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 200;
-  font-size: clamp(2.1rem, 7vw, 4.6rem);
-  letter-spacing: 0.16em;
-  line-height: 1.05;
-  margin: 0;
-  text-transform: uppercase;
-}
-
-.hero-caption .role {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 300;
-  font-size: clamp(1rem, 3vw, 1.6rem);
-  letter-spacing: 0.42em;
-  text-transform: uppercase;
-  margin: 0.75rem 0 0;
-}
-
-/* ── Sections and headings ──────────────────────────────────────────────── */
-
-section { padding: clamp(3rem, 8vw, 6rem) 0; }
-
-.section-title {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 600;
-  font-size: clamp(1.25rem, 3.2vw, 1.9rem);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  margin: 0 0 2.5rem;
-}
-
-.page-title {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 200;
-  font-size: clamp(1.9rem, 6vw, 3.4rem);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  margin: 0 0 3rem;
-}
-
-.lede { font-size: 1.0625rem; }
-
-.prose p { margin: 0 0 1.4rem; max-width: 62ch; }
-.prose p:last-child { margin-bottom: 0; }
-
-/* Two-column: text beside a portrait. */
-.split {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: clamp(2rem, 5vw, 4rem);
-  align-items: start;
-}
-
-.split img { width: 100%; object-fit: cover; }
-
-/* ── Buttons ────────────────────────────────────────────────────────────── */
-
-.btn {
-  display: inline-block;
-  font-family: 'Oswald', sans-serif;
-  font-weight: 300;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  text-decoration: none;
-  padding: 0.85rem 2.25rem;
-  border: 1px solid var(--ink);
-  background: none;
-  color: var(--ink);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
-.btn:disabled { opacity: 0.5; cursor: default; }
-
-/* ── Diary ──────────────────────────────────────────────────────────────── */
-
-.production {
-  border-top: 1px solid var(--rule);
-  padding: 2.5rem 0;
-}
-
-.production:last-of-type { border-bottom: 1px solid var(--rule); }
-
-.production h2 {
-  font-family: 'Oswald', sans-serif;
-  font-weight: 300;
-  font-size: clamp(1.15rem, 3vw, 1.6rem);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin: 0;
-}
-
-.production .role-name {
-  font-style: italic;
-  color: var(--grey);
-  margin: 0.35rem 0 0;
-}
-
-.production .venue {
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.85rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin: 1.25rem 0 0.25rem;
-}
-
-.production .address {
-  color: var(--grey);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-.dates {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  padding: 72px 1.5rem 0 58%;   /* text block starts at x835 of 1440 */
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  color: var(--paper);
+  pointer-events: none;
 }
 
-.dates li {
-  font-size: 0.9375rem;
-  color: #333;
-  white-space: nowrap;
+.hero-name {
+  font-family: var(--f-name);
+  font-weight: 600;
+  font-size: clamp(40px, 8.26vw, 119px);
+  line-height: 0.8;               /* 95.2 / 119 */
+  letter-spacing: -0.02em;        /* -2.38px */
+  margin: 0;
+  text-transform: uppercase;
 }
 
-/* ── Gallery ────────────────────────────────────────────────────────────── */
+/* "TENOR" — Oswald 58px, slate blue, sitting under the name. */
+.hero-role {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: clamp(26px, 4.03vw, 58px);
+  line-height: 1.4;
+  color: var(--slate-blue);
+  margin: 53px 0 0;
+  text-transform: uppercase;
+}
 
-.gallery {
+/* ── Home: the black About panel ──────────────────────────────────────────
+   1250 wide (95px inset each side), 720 tall, 2px white rule. Text column
+   and portrait are both 465px with a 70px gutter.                          */
+
+.home-about { padding: 44px 0 36px; }
+
+.panel-about {
+  max-width: 1250px;
+  margin: 0 auto;
+  min-height: 720px;
+  background: var(--ink);
+  border: 2px solid #fff;
+  color: var(--paper);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
-  gap: 1rem;
+  grid-template-columns: 465px 465px;
+  gap: 70px;
+  padding: 21px 99px 40px 151px;
 }
 
-.gallery img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+.panel-about .display { color: var(--paper); }
+.panel-about-name {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
 
-/* ── Contact form ───────────────────────────────────────────────────────── */
+/* 18px / 25.2px, justified. */
+.panel-about .prose { font-size: 18px; line-height: 1.4; }
+.panel-about .prose p { margin-bottom: 25.2px; }
+
+.panel-about .social { margin: 26px 0 22px; }
+.panel-about figure { margin: 42px 0 0; }   /* portrait starts 42px lower */
+.panel-about figure img { width: 100%; height: 613px; object-fit: cover; }
+
+/* ── Home: the contact band ───────────────────────────────────────────────
+   Full-width black band, 492 tall, with a paper panel filling the right
+   half. Left half carries the heading, socials and a 447 × 251 photo.      */
+
+.band-contact {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--ink);
+  color: var(--paper);
+  margin: 4px 0 35px;
+  min-height: 492px;
+}
+
+.band-contact-intro { padding: 31px 40px 40px 158px; }
+.band-contact-intro .display { color: var(--paper); }
+
+/* "GET IN TOUCH" — Oswald 50px. */
+.title-md {
+  font-size: clamp(26px, 3.47vw, 50px);
+  line-height: 1.48;
+  letter-spacing: normal;
+}
+
+.band-contact-intro .social { margin: 12px 0 20px; }
+.band-contact-intro img.aside { width: 447px; max-width: 100%; height: 251px; object-fit: cover; }
+
+.band-contact-form {
+  background: var(--paper);
+  color: var(--ink);
+  padding: 13px 130px 40px 129px;
+}
+
+/* ── Home: full-width plate ─────────────────────────────────────────────── */
+
+.band-plate { background: var(--ink); }
+.band-plate img {
+  width: 1286px;
+  max-width: 100%;
+  margin: 0 auto;
+  height: 623px;
+  max-height: 43.3vw;
+  object-fit: cover;
+}
+
+/* ── Forms ────────────────────────────────────────────────────────────────
+   Labels are Jost Light 14px with a tight 14px line box. Inputs are paper
+   with a 2px slate rule, no radius, ~47px tall; the textarea is 108px.
+   Submit is right-aligned in the column.                                   */
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem;
-  max-width: 44rem;
+  gap: 23px 23px;
 }
 
-.field { display: grid; gap: 0.4rem; }
+.field { display: grid; gap: 15px; align-content: start; }
 .field.full { grid-column: 1 / -1; }
 
+.field .req { color: #c0392b; }
+
 .field label {
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #555;
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .field input,
 .field textarea {
-  font: inherit;
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 16px;
   color: var(--ink);
-  padding: 0.65rem 0;
-  border: 0;
-  border-bottom: 1px solid var(--ink);
+  padding: 0.5rem 0.75rem;
+  height: 47px;
+  border: 2px solid var(--slate);
   border-radius: 0;
-  background: none;
+  background: var(--paper);
   width: 100%;
 }
 
+.field textarea { height: 108px; resize: vertical; }
+
 .field input:focus-visible,
-.field textarea:focus-visible {
-  outline: none;
-  border-bottom-width: 2px;
+.field textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-top: 5px;
 }
 
-.field textarea { resize: vertical; }
-
-/* Hidden from people, visible to bots that fill every field. */
-.hp {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.form-status { margin: 0; min-height: 1.5em; font-size: 0.9375rem; }
+.form-status { margin: 0; min-height: 1.5em; font-size: 15px; text-align: right; }
 .form-status.error { color: #a8201a; }
 .form-status.ok { color: #1f6b3b; }
 
-/* ── Footer ─────────────────────────────────────────────────────────────── */
+/* ── About page ───────────────────────────────────────────────────────────
+   Heading at x115, prose column 471 wide at x124, portrait 545 × 742 on the
+   right, then a full-width 760px-tall plate.                              */
+
+.about-main { padding: 14px 0 0; }
+
+.about-grid {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 60px 0 115px;
+  display: grid;
+  grid-template-columns: 471px 545px;
+  justify-content: space-between;
+  align-items: start;
+}
+
+.about-copy { padding-top: 0; }
+.about-copy .title-lg { margin-bottom: 22px; white-space: nowrap; }
+.about-copy .prose { padding-left: 9px; font-size: 16px; line-height: 1.4; }
+.about-copy .prose p { margin-bottom: 22.4px; }
+
+.about-portrait { margin: 82px 0 0; }        /* image top sits 82px below the heading */
+.about-portrait img { width: 100%; height: 742px; object-fit: cover; object-position: 50% 0; }
+
+.about-foot {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 34px 1.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.band-wide { background: var(--ink); margin-top: 40px; }
+.band-wide img {
+  width: 1156px;
+  max-width: 100%;
+  margin: 0 auto;
+  height: 760px;
+  max-height: 52.8vw;
+  object-fit: cover;
+}
+
+/* ── Listen page ──────────────────────────────────────────────────────────
+   A 158px black title band, then two black bands of 625 × 352 embeds (two
+   side by side, then one centred), then a 4 × 305px gallery on paper with a
+   20px gutter, where every third tile spans 2 × 2.                          */
+
+.listen-title {
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+  padding: 5px 1.5rem 0;
+  min-height: 158px;
+}
+
+.video-band { background: var(--ink); padding: 32px 0 33px; }
+.video-band + .video-band { padding-top: 32px; }
+
+.video-row {
+  max-width: 1336px;              /* 1288 of content + gutters */
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 38px;
+}
+
+.video {
+  width: 625px;
+  max-width: 100%;
+  aspect-ratio: 625 / 352;
+  border: 0;
+  background: #000;
+}
+
+.gallery-wrap { padding: 102px 0 61px; }
+
+.gallery {
+  max-width: 1328px;              /* 1280 of content + gutters */
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 20px;
+}
+
+.gallery figure { margin: 0; grid-column: span 1; }
+.gallery figure.wide { grid-column: span 2; grid-row: span 2; }
+.gallery img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; }
+
+/* ── Diary page ───────────────────────────────────────────────────────────
+   Hero: near-black band, 1239 × 652 image, "DIARY" centred over it. Rows:
+   left column from x310, right column 208 wide ending at x1190 — the date
+   is right-aligned there and allowed to overflow leftwards, with the
+   Tickets button flush left beneath it.                                    */
+
+.diary-hero {
+  position: relative;
+  background: var(--pitch);
+  min-height: 652px;
+  display: grid;
+  place-items: center;
+}
+
+.diary-hero img {
+  position: absolute;
+  inset: 0;
+  width: 1239px;
+  max-width: 100%;
+  margin: 0 auto;
+  height: 100%;
+  object-fit: cover;
+}
+
+.diary-hero .title-hero {
+  position: relative;
+  color: var(--paper);
+  text-align: center;
+  align-self: start;
+  padding: 52px 1.5rem 0;
+}
+
+.diary-list {
+  max-width: 928px;             /* 880 of content + the 1.5rem gutters */
+  margin: 0 auto;
+  padding: 32px 1.5rem 61px;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 208px;
+  gap: 0 102px;
+  padding-bottom: 43px;
+}
+
+.event-title {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 32px;
+  line-height: 1.4;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.event-role {
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 18px 0 0;
+}
+
+.event-venue {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 2px 0 0;
+}
+
+.event-address {
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 34px 0 0;
+}
+
+.event-side { text-align: right; padding-top: 10px; }
+
+.event-date {
+  font-family: var(--f-body);
+  font-weight: 600;              /* Futura Book rendered bold on the original */
+  font-size: 21px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.event-side .btn-tickets { margin-top: 26px; }
+
+/* ── Contact page ─────────────────────────────────────────────────────────
+   The title straddles the photo's right edge: the part over the image is
+   paper, the part over the page ground is dark grey. The photo is 606 × 815
+   and bleeds off the left edge; the form column is 431 wide.               */
+
+.contact-main { position: relative; }
+
+.contact-title {
+  position: absolute;
+  top: -9px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  pointer-events: none;
+}
+.contact-title .a { color: var(--paper); }
+.contact-title .b { color: var(--slate-grey); }
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 606px) minmax(0, 1fr);
+  gap: 0 40px;
+  align-items: start;
+  min-height: 815px;
+}
+
+.contact-photo { width: 100%; height: 815px; object-fit: cover; }
+
+.contact-form-wrap {
+  max-width: 431px;
+  padding: 146px 1.5rem 40px 0;
+}
+
+/* ── Teaching page ────────────────────────────────────────────────────────
+   A 1320-wide panel split into a 660 cream half and a 660 paper half, with
+   a peach rectangle sitting behind the portrait's left edge.               */
+
+.teaching-panel {
+  position: relative;
+  max-width: 1320px;
+  margin: 0 auto;
+  background: var(--ink);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 976px;
+  color: var(--slate);
+  overflow: hidden;
+}
+
+.teaching-copy {
+  position: relative;
+  z-index: 2;
+  background: var(--cream);
+  padding: 51px 27px 40px 85px;
+}
+
+.teaching-figure {
+  position: relative;
+  background: var(--paper);
+  padding: 83px 85px 26px 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.teaching-copy .title-xl { color: var(--slate); }
+
+.teaching-sub {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: clamp(22px, 1.94vw, 28px);
+  line-height: 1.4;
+  margin: 47px 0 24px;
+  text-transform: uppercase;
+}
+
+.teaching-copy .prose { font-weight: 300; font-size: 16px; line-height: 1.4; }
+.teaching-copy .prose p { margin-bottom: 22.4px; }
+.teaching-copy .prose a { font-weight: 600; text-transform: uppercase; text-decoration: none; }
+.teaching-copy .prose a:hover { text-decoration: underline; }
+
+.studios-logo { width: 497px; max-width: 100%; height: auto; margin: 43px 0 0; }
+
+.teaching-cta {
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: clamp(18px, 1.46vw, 21px);
+  line-height: 1.4;
+  text-transform: uppercase;
+  text-align: center;
+  margin: 32px 0 22px;
+  max-width: 497px;
+}
+
+.teaching-cta + .btn-lesson { margin-left: 185px; }
+
+.teaching-figure img.portrait {
+  position: relative;
+  z-index: 2;
+  width: 491px;
+  max-width: 100%;
+  height: 786px;
+  object-fit: cover;
+}
+
+.teaching-figure .social { position: relative; z-index: 2; margin: 25px 0 0 202px; }
+
+/* ── Footer ───────────────────────────────────────────────────────────────
+   61px tall, paper, 14px Jost Light copy centred with the mark to the right. */
 
 .site-foot {
-  border-top: 1px solid var(--rule);
-  padding: 2.5rem 0;
-  text-align: center;
+  height: 61px;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+}
+
+.site-foot .shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .site-foot p {
   margin: 0;
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--grey-soft);
+  font-family: var(--f-body);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
 }
 
-/* ── Small screens ──────────────────────────────────────────────────────── */
+.site-foot a { text-decoration: none; }
+.site-foot a:hover { text-decoration: underline; }
 
-@media (max-width: 48rem) {
+.site-foot .brand {
+  position: absolute;
+  right: 1.5rem;
+}
+.site-foot .brand img { width: 45px; height: 54px; }
+
+/* ── Narrower screens ─────────────────────────────────────────────────────
+   The Wix original serves a separate mobile layout. These breakpoints keep
+   the same type and colour and let the fixed columns fall into one.        */
+
+@media (max-width: 1280px) {
+  .panel-about { padding: 21px 40px 40px 48px; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .band-contact-intro { padding: 31px 40px; }
+  .band-contact-form { padding: 24px 40px 40px; }
+  .about-grid { grid-template-columns: minmax(0, 471px) minmax(0, 545px); gap: 0 48px; padding: 0 2rem; }
+  .about-copy .title-lg { white-space: normal; }
+  .teaching-copy { padding: 40px 32px; }
+  .teaching-figure { padding: 48px 32px 26px; }
+  .teaching-cta + .btn-lesson,
+  .teaching-figure .social { margin-left: 0; }
+  .diary-list { padding-left: 2rem; padding-right: 2rem; }
+}
+
+@media (max-width: 900px) {
   .nav-toggle { display: block; }
+
+  .site-head .shell { position: relative; }
 
   .nav {
     display: none;
@@ -340,17 +842,56 @@ section { padding: clamp(3rem, 8vw, 6rem) 0; }
     left: 0;
     right: 0;
     background: var(--paper);
-    border-bottom: 1px solid var(--rule);
-    padding: 1rem 1.5rem 1.5rem;
+    padding: 0.5rem 0 1rem;
   }
-
   .nav.open { display: block; }
-  .nav ul { flex-direction: column; gap: 1.25rem; }
+  .nav ul { flex-direction: column; }
+  .nav a { padding: 0.6rem 1.5rem; }
 
-  .site-head .wrap { position: relative; }
+  .hero-img { height: auto; max-height: none; aspect-ratio: 1440 / 732; }
+  .hero-caption { padding: 8% 1.5rem 0; }
+  .hero-caption > * { margin-left: 0; width: auto; }
 
-  .split { grid-template-columns: 1fr; }
-  .split img { order: -1; }
+  .panel-about { grid-template-columns: 1fr; min-height: 0; }
+  .panel-about figure { margin-top: 0; order: -1; }
+  .panel-about figure img { height: auto; aspect-ratio: 465 / 613; }
+
+  .band-contact { grid-template-columns: 1fr; min-height: 0; }
+  .band-plate img { height: auto; max-height: none; aspect-ratio: 1286 / 623; }
+
+  .about-grid { grid-template-columns: 1fr; }
+  .about-portrait { margin-top: 0; order: -1; }
+  .about-portrait img { height: auto; aspect-ratio: 545 / 742; }
+  .band-wide img { height: auto; max-height: none; aspect-ratio: 1156 / 760; }
+
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gallery figure.wide { grid-column: span 2; grid-row: span 1; }
+
+  .diary-hero { min-height: 0; aspect-ratio: 1440 / 652; }
+
+  .event { grid-template-columns: 1fr; gap: 0; padding-bottom: 36px; border-bottom: 1px solid var(--hairline); }
+  .event-side { text-align: left; padding-top: 14px; }
+  .event-side .btn-tickets { margin-top: 14px; }
+  .event-address { margin-top: 14px; }
+
+  .contact-title { position: static; padding: 24px 1.5rem 16px; }
+  .contact-title .a, .contact-title .b { color: var(--slate-grey); }
+  .contact-grid { grid-template-columns: 1fr; min-height: 0; }
+  .contact-photo { height: auto; aspect-ratio: 606 / 815; }
+  .contact-form-wrap { padding: 32px 1.5rem 40px; max-width: none; }
+
+  .teaching-panel { grid-template-columns: 1fr; min-height: 0; }
+  .teaching-figure { order: -1; }
+  .teaching-figure img.portrait { height: auto; aspect-ratio: 491 / 786; width: 100%; }
 
   .form-grid { grid-template-columns: 1fr; }
+
+  .site-foot { height: auto; padding: 1rem 0; }
+  .site-foot .shell { flex-direction: column; gap: 0.75rem; }
+  .site-foot .brand { position: static; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
 }

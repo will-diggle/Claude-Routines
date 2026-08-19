@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Contact | Will Diggle Tenor</title>
-<meta name="description" content="British tenor William Diggle has performed with Opera Australia, New Generation Festival (Florence), Nevill Holt Opera and The Grange Festival. Having graduated from the Royal College of Music and Royal Academy of Music.">
-<meta property="og:title" content="Contact | Will Diggle Tenor">
-<meta property="og:description" content="British tenor William Diggle has performed with Opera Australia, New Generation Festival (Florence), Nevill Holt Opera and The Grange Festival. Having graduated from the Royal College of Music and Royal Academy of Music.">
+<title>CONTACT | Will Diggle Tenor</title>
+<meta name="description" content="Get in touch with British tenor William Diggle for engagements, auditions and enquiries.">
+<meta property="og:title" content="CONTACT | Will Diggle Tenor">
 <meta property="og:type" content="website">
+<meta property="og:image" content="/img/contact-portrait.jpg">
+<link rel="icon" href="/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;500&family=Poppins:wght@400;600&family=Jost:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;600&family=Oswald:wght@400;500&family=Poppins:wght@600&family=Raleway:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<a class="hp" href="#main">Skip to content</a>
+<a class="hp" href="#main">Skip to main content</a>
 
 <header class="site-head">
-  <div class="wrap">
-    <a class="wordmark" href="/">William Diggle</a>
+  <div class="shell">
+    <a class="brand" href="/" aria-label="Will Diggle — home"><img src="/img/logo.png" alt="" width="35" height="44"></a>
     <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu">&#9776;</button>
     <nav class="nav" id="nav">
       <ul>
@@ -32,48 +33,56 @@
   </div>
 </header>
 
-<main id="main">
-  <section>
-    <div class="wrap">
-      <h1 class="page-title">Get in touch</h1>
+<main id="main" class="contact-main">
+
+  <!-- The title straddles the photo's edge: paper over the image, dark grey
+       over the page ground. -->
+  <h1 class="display title-xl contact-title"><span class="a">Get in to</span><span class="b">uch</span></h1>
+
+  <div class="contact-grid">
+    <img class="contact-photo" src="/img/contact-portrait.jpg" alt="Portrait of William Diggle" width="606" height="815">
+
+    <div class="contact-form-wrap">
       <form id="contact-form" novalidate>
         <div class="form-grid">
           <div class="field">
-            <label for="first">First name</label>
+            <label for="first">First Name <span class="req" aria-hidden="true">*</span></label>
             <input id="first" name="first" type="text" autocomplete="given-name" required>
           </div>
           <div class="field">
-            <label for="last">Last name</label>
-            <input id="last" name="last" type="text" autocomplete="family-name">
+            <label for="last">Last Name <span class="req" aria-hidden="true">*</span></label>
+            <input id="last" name="last" type="text" autocomplete="family-name" required>
           </div>
-          <div class="field">
-            <label for="email">Email</label>
+          <div class="field full">
+            <label for="email">Email <span class="req" aria-hidden="true">*</span></label>
             <input id="email" name="email" type="email" autocomplete="email" required>
           </div>
-          <div class="field">
+          <div class="field full">
             <label for="phone">Phone</label>
             <input id="phone" name="phone" type="tel" autocomplete="tel">
           </div>
           <div class="field full">
-            <label for="message">Message</label>
-            <textarea id="message" name="message" rows="5" required></textarea>
+            <label for="message">Message <span class="req" aria-hidden="true">*</span></label>
+            <textarea id="message" name="message" required></textarea>
           </div>
           <div class="hp" aria-hidden="true">
             <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
           </div>
-          <div class="field full">
-            <button class="btn" type="submit">Submit</button>
+          <div class="form-actions">
+            <button class="btn-submit" type="submit">Submit</button>
             <p class="form-status" role="status" aria-live="polite"></p>
           </div>
         </div>
       </form>
     </div>
-  </section>
+  </div>
+
 </main>
 
 <footer class="site-foot">
-  <div class="wrap">
-    <p>Will Diggle 2025 &copy; All rights reserved. Web design by AriosoWebs</p>
+  <div class="shell">
+    <p>WILL DIGGLE 2025 &copy; ALL RIGHTS RESERVED. WEB DESIGN BY AriosoWebs</p>
+    <a class="brand" href="/" aria-label="Will Diggle — home"><img src="/img/logo.png" alt="" width="45" height="54"></a>
   </div>
 </footer>
 
