@@ -20,6 +20,14 @@ export default {
       return handleContact(request, env);
     }
 
+    // The Wix site served the diary from /items. Keep those links working
+    // for anything already indexed or bookmarked.
+    if (url.pathname === "/items" || url.pathname === "/items/") {
+      const to = new URL(request.url);
+      to.pathname = "/diary";
+      return Response.redirect(to.toString(), 301);
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
