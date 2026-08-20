@@ -20,16 +20,16 @@
 <header class="site-head">
   <div class="shell">
     <a class="brand" href="/" aria-label="Will Diggle — home"><img src="/img/logo.png" alt="" width="35" height="44"></a>
-    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu">&#9776;</button>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu"><span></span><span></span><span></span></button>
     <nav class="nav" id="nav">
       <ul>
         <li><a href="/about">About</a></li>
         <li><a href="/listen">Listen</a></li>
-        <li><a href="/diary">Diary</a></li>
         <li><a href="/contact" aria-current="page">Contact</a></li>
         <li><a href="/teaching">Teaching</a></li>
       </ul>
     </nav>
+    <a class="head-social" href="https://www.instagram.com/willdiggle.opera/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><img src="/img/header-icon.png" alt="" width="26" height="26"></a>
   </div>
 </header>
 
@@ -40,9 +40,12 @@
   <h1 class="display title-xl contact-title"><span class="a">Get in to</span><span class="b">uch</span></h1>
 
   <div class="contact-grid">
-    <img class="contact-photo" src="/img/contact-portrait.jpg" alt="Portrait of William Diggle" width="606" height="815">
+    <picture>
+      <source media="(max-width: 900px)" srcset="/img/contact-mobile.jpg">
+      <img class="contact-photo" src="/img/contact-portrait.jpg" alt="Portrait of William Diggle" width="606" height="815">
+    </picture>
 
-    <div class="contact-form-wrap">
+    <div class="contact-form-wrap" data-reveal>
       <form id="contact-form" novalidate>
         <div class="form-grid">
           <div class="field">

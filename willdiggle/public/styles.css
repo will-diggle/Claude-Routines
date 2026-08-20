@@ -52,6 +52,7 @@ body {
 }
 
 img { max-width: 100%; display: block; }
+picture { display: block; }
 a { color: inherit; }
 
 .shell {
@@ -101,6 +102,7 @@ a { color: inherit; }
 }
 
 .brand { display: block; flex: none; }
+.head-social { display: none; }
 .brand img { width: 35px; height: 44px; object-fit: contain; }
 
 .nav ul {
@@ -198,6 +200,7 @@ a { color: inherit; }
   width: 224px;
   max-width: 100%;
   height: 39px;
+  border-radius: 1000px;           /* full pill */
   background: var(--paper);
   color: var(--ink);
   font-family: var(--f-display);
@@ -218,6 +221,7 @@ a { color: inherit; }
   justify-content: center;
   width: 144px;
   height: 42px;
+  border-radius: 50px;
   background: var(--paper);
   color: var(--cv-ink);
   border: 4px double var(--cv-ink);
@@ -257,6 +261,7 @@ a { color: inherit; }
   justify-content: center;
   width: 128px;
   height: 45px;
+  border-radius: 50px;
   background: var(--cream);
   color: var(--btn-ink);
   border: 1px solid var(--btn-ink);
@@ -830,68 +835,305 @@ a { color: inherit; }
   .diary-list { padding-left: 2rem; padding-right: 2rem; }
 }
 
-@media (max-width: 900px) {
-  .nav-toggle { display: block; }
-
-  .site-head .shell { position: relative; }
-
-  .nav {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--paper);
-    padding: 0.5rem 0 1rem;
-  }
-  .nav.open { display: block; }
-  .nav ul { flex-direction: column; }
-  .nav a { padding: 0.6rem 1.5rem; }
-
-  .hero-img { height: auto; max-height: none; aspect-ratio: 1440 / 732; }
-  .hero-caption { padding: 8% 1.5rem 0; }
-  .hero-caption > * { margin-left: 0; width: auto; }
-
-  .panel-about { grid-template-columns: 1fr; min-height: 0; }
-  .panel-about figure { margin-top: 0; order: -1; }
-  .panel-about figure img { height: auto; aspect-ratio: 465 / 613; }
-
-  .band-contact { grid-template-columns: 1fr; min-height: 0; }
-  .band-plate img { height: auto; max-height: none; aspect-ratio: 1286 / 623; }
-
-  .about-grid { grid-template-columns: 1fr; }
-  .about-portrait { margin-top: 0; order: -1; }
-  .about-portrait img { height: auto; aspect-ratio: 545 / 742; }
-  .band-wide img { height: auto; max-height: none; aspect-ratio: 1156 / 760; }
-
-  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .gallery figure.wide { grid-column: span 2; grid-row: span 1; }
-
-  .diary-hero { min-height: 0; aspect-ratio: 1440 / 652; }
-
-  .event { grid-template-columns: 1fr; gap: 0; padding-bottom: 36px; border-bottom: 1px solid var(--hairline); }
-  .event-side { text-align: left; padding-top: 14px; }
-  .event-side .btn-tickets { margin-top: 14px; }
-  .event-address { margin-top: 14px; }
-
-  .contact-title { position: static; padding: 24px 1.5rem 16px; }
-  .contact-title .a, .contact-title .b { color: var(--slate-grey); }
-  .contact-grid { grid-template-columns: 1fr; min-height: 0; }
-  .contact-photo { height: auto; aspect-ratio: 606 / 815; }
-  .contact-form-wrap { padding: 32px 1.5rem 40px; max-width: none; }
-
-  .teaching-panel { grid-template-columns: 1fr; min-height: 0; }
-  .teaching-figure { order: -1; }
-  .teaching-figure img.portrait { height: auto; aspect-ratio: 491 / 786; width: 100%; }
-
-  .form-grid { grid-template-columns: 1fr; }
-
-  .site-foot { height: auto; padding: 1rem 0; }
-  .site-foot .shell { flex-direction: column; gap: 0.75rem; }
-  .site-foot .brand { position: static; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   * { transition: none !important; }
+  .hero-name, .hero-role { animation: none; }
+  .reveal { opacity: 1; transform: none; }
+}
+
+
+/* ── Motion ───────────────────────────────────────────────────────────────
+   Taken from the live site: the two hero lines slide toward each other from
+   ±59px over ~1.05s, and section content floats up 21px with a fade as it
+   enters the viewport (Wix calls this one "motion-floatIn").               */
+
+@keyframes hero-in-right { from { transform: translateX(59px);  opacity: 0; }
+                           to   { transform: translateX(0);     opacity: 1; } }
+@keyframes hero-in-left  { from { transform: translateX(-59px); opacity: 0; }
+                           to   { transform: translateX(0);     opacity: 1; } }
+
+.hero-name { animation: hero-in-right 1.05s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.hero-role { animation: hero-in-left  1.05s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+.reveal { opacity: 0; transform: translateY(21px);
+          transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.reveal.is-in { opacity: 1; transform: none; }
+
+/* Nothing should stay invisible if the observer never runs. */
+.no-js .reveal { opacity: 1; transform: none; }
+
+/* ── Mobile welcome screen ────────────────────────────────────────────────
+   The Wix mobile site opens on a paper field, fades the mark in, then fades
+   the whole thing away. Injected by site.js on small viewports only.       */
+
+.welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+.welcome img { width: 120px; height: auto; opacity: 0; transition: opacity 0.6s ease; }
+.welcome.logo-in img { opacity: 1; }
+.welcome.done { opacity: 0; visibility: hidden; }
+
+/* ==========================================================================
+   Mobile layout
+   --------------------------------------------------------------------------
+   Wix serves a separate mobile site drawn on a fixed 320px canvas which the
+   browser then scales up to the device width (on an iPhone 13 that is a
+   factor of 390/320 = 1.219). Reproducing it therefore needs the same
+   scaling, not raw pixels — otherwise everything renders ~18% small.
+
+   `--s` is that factor, so every value below is the measured 320-canvas
+   number multiplied by it. The scale is capped so the layout stops growing
+   on large phones and small tablets.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+
+  :root { --s: min(calc(100vw / 320), 1.9px);   /* Wix canvas → device scale, capped */ --head-h: calc(54 * var(--s)); }
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
+
+  .site-head .shell {
+    position: relative;
+    max-width: none;
+    padding: 0 calc(19 * var(--s));
+    justify-content: space-between;
+  }
+
+  .site-head .brand { position: absolute; left: 50%; transform: translateX(-50%); }
+  .site-head .brand img { width: calc(34 * var(--s)); height: calc(39 * var(--s)); }
+
+  .nav-toggle {
+    display: grid;
+    gap: calc(6 * var(--s));
+    width: calc(28 * var(--s));
+    padding: 0;
+    order: -1;
+  }
+  .nav-toggle span {
+    display: block;
+    height: calc(3 * var(--s));
+    border-radius: calc(1.5 * var(--s));
+    background: var(--ink);
+    transition: transform 0.25s ease, opacity 0.2s ease, width 0.25s ease;
+  }
+  .nav-toggle span:nth-child(1) { width: calc(13 * var(--s)); }
+  .nav-toggle span:nth-child(2) { width: calc(26 * var(--s)); }
+  .nav-toggle span:nth-child(3) { width: calc(13 * var(--s)); justify-self: end; }
+
+  .nav-toggle[aria-expanded='true'] span:nth-child(1) { width: calc(26 * var(--s)); transform: translateY(calc(9 * var(--s))) rotate(45deg); }
+  .nav-toggle[aria-expanded='true'] span:nth-child(2) { opacity: 0; }
+  .nav-toggle[aria-expanded='true'] span:nth-child(3) { width: calc(26 * var(--s)); transform: translateY(calc(-9 * var(--s))) rotate(-45deg); }
+
+  .head-social { display: block; line-height: 0; }
+  .head-social img { width: calc(26 * var(--s)); height: calc(26 * var(--s)); }
+
+  .nav { display: none; position: absolute; top: 100%; left: 0; right: 0;
+         background: var(--paper); padding: calc(8 * var(--s)) 0 calc(16 * var(--s)); }
+  .nav.open { display: block; }
+  .nav ul { flex-direction: column; }
+  .nav a { padding: calc(10 * var(--s)) calc(20 * var(--s)); font-size: calc(16 * var(--s)); }
+
+  /* ── Home hero: mobile crop, "TENOR" sitting above the name ───────────── */
+
+  .hero-img { height: calc(497 * var(--s)); max-height: none; object-position: 50% 50%; }
+
+  .hero-caption {
+    padding: 0 calc(20 * var(--s)) calc(14 * var(--s)) calc(33 * var(--s));
+    flex-direction: column-reverse;   /* source is name-then-role */
+    justify-content: flex-start;      /* reversed axis — this is the bottom */
+  }
+
+  .hero-name {
+    font-size: calc(58 * var(--s));
+    line-height: 0.8;                 /* 46.4 / 58 */
+    letter-spacing: -0.02em;          /* -1.16px */
+  }
+  .hero-role {
+    font-size: calc(39 * var(--s));
+    line-height: 1.4;                 /* 54.6 / 39 */
+    color: #525c84;                   /* deeper than the desktop blue */
+    margin: 0 0 calc(-13 * var(--s));
+  }
+
+  /* ── Home about panel: photo on top, heading over its top-right ───────── */
+
+  .home-about { padding: calc(20 * var(--s)) 0 0; }
+
+  .panel-about {
+    position: relative;
+    max-width: none;
+    margin: 0 calc(20 * var(--s));
+    min-height: 0;
+    border: 0;
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 0 0 calc(30 * var(--s));
+  }
+  .panel-about figure { order: -1; margin: 0; }
+  .panel-about figure img { height: auto; aspect-ratio: 280 / 304; }
+
+  .panel-about > div { display: flex; flex-direction: column; padding: 0 calc(12 * var(--s)); }
+
+  .panel-about .title-md {
+    position: absolute;
+    top: calc(11 * var(--s));
+    right: calc(4 * var(--s));
+    font-size: calc(37 * var(--s));
+    line-height: 1.5;
+  }
+  .panel-about-name { display: none; }        /* not carried on the mobile site */
+
+  .panel-about .prose { order: 1; font-size: calc(17 * var(--s)); line-height: 1.4; padding-top: calc(9 * var(--s)); }
+  .panel-about .prose p { margin-bottom: calc(23.8 * var(--s)); }
+
+  .panel-about .btn-more {
+    order: 2;
+    width: calc(105 * var(--s));
+    height: calc(40 * var(--s));
+    font-size: calc(19 * var(--s));
+    display: flex;
+    margin: calc(10 * var(--s)) auto calc(8 * var(--s));
+  }
+  .panel-about .social { order: 3; justify-content: center; margin: 0 auto; gap: calc(10 * var(--s)); }
+  .panel-about .social img { width: calc(30 * var(--s)); height: calc(30 * var(--s)); }
+
+  /* The home contact form is not part of the mobile site. */
+  .band-contact { display: none; }
+
+  .band-plate { padding: calc(41 * var(--s)) 0 calc(20 * var(--s)); }
+  .band-plate img { width: calc(311 * var(--s)); height: auto; max-height: none; aspect-ratio: 311 / 175; }
+
+  /* ── About ───────────────────────────────────────────────────────────── */
+
+  .about-main { padding: 0; }
+
+  .about-grid {
+    grid-template-columns: 1fr;
+    padding: calc(11 * var(--s)) calc(20 * var(--s)) 0;
+    gap: 0;
+    max-width: none;
+  }
+  .about-portrait { order: -1; margin: 0 calc(-4 * var(--s)) calc(28 * var(--s)); }
+  .about-portrait img { height: auto; aspect-ratio: 284 / 171; }
+
+  .about-copy .title-lg {
+    font-size: calc(36 * var(--s));
+    letter-spacing: 0.2em;            /* 7.2px */
+    white-space: normal;
+    margin: 0 0 calc(22 * var(--s));
+  }
+  .about-copy .prose { padding-left: 0; font-size: calc(16 * var(--s)); line-height: 1.4; }
+  .about-copy .prose p { margin-bottom: calc(22.4 * var(--s)); }
+
+  .about-foot { flex-direction: column; padding: calc(28 * var(--s)) calc(20 * var(--s)) 0; }
+  .btn-cv { width: calc(109 * var(--s)); height: calc(32 * var(--s)); font-size: calc(12 * var(--s)); border-width: calc(3 * var(--s)); }
+  .about-foot .social { display: none; }      /* no social row on mobile About */
+
+  .band-wide { margin-top: calc(38 * var(--s)); padding: calc(5 * var(--s)) 0; }
+  .band-wide img { width: 100%; height: auto; max-height: none; aspect-ratio: 320 / 209; }
+
+  /* ── Listen ──────────────────────────────────────────────────────────── */
+
+  .listen-title { display: none; }            /* the mobile site drops the title band */
+
+  .video-band { padding: calc(10 * var(--s)) 0 0; }
+  .video-row { gap: calc(10 * var(--s)); padding: 0; max-width: none; justify-content: center; }
+  .video { width: calc(280 * var(--s)); }
+
+  /* 281 of 320 wide, flush left, with 137px tiles. */
+  .gallery-wrap { padding: 0 0 calc(40 * var(--s)); }
+  /* Wide tiles span two columns but only one row on mobile. */
+  .gallery figure.wide { grid-column: span 2; grid-row: span 1; }
+
+  .gallery {
+    width: 87.8%;
+    margin: 0;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: auto;          /* rows size to the tiles, not to the widest */
+    gap: calc(8 * var(--s));
+    padding: 0;
+    max-width: none;
+  }
+  .gallery img { height: auto; }
+
+  /* ── Diary: date first, then title ───────────────────────────────────── */
+
+  .diary-hero { min-height: 0; aspect-ratio: 320 / 170; }
+  .diary-hero img { width: calc(306 * var(--s)); height: 100%; }
+  .diary-hero .title-hero { display: none; }  /* no overlay on the mobile hero */
+
+  .diary-list { padding: calc(20 * var(--s)) calc(20 * var(--s)) calc(40 * var(--s)); max-width: none; }
+
+  .event { grid-template-columns: 1fr; gap: 0; padding-bottom: calc(30 * var(--s)); border-bottom: 0; }
+  .event > div:first-child { display: contents; }
+  .event-side { order: -1; text-align: right; padding: 0; }
+  .event-date { font-size: calc(17 * var(--s)); line-height: 1.6; }
+  .event-title { order: 1; font-size: calc(20 * var(--s)); line-height: 1.4; margin-top: calc(12 * var(--s)); }
+  .event-role { order: 2; font-size: calc(14 * var(--s)); }
+  .event-venue { order: 3; font-size: calc(16 * var(--s)); }
+  .event-address { order: 4; font-size: calc(13 * var(--s)); margin-top: calc(12 * var(--s)); }
+  .event-side .btn-tickets { order: 5; margin: calc(12 * var(--s)) 0 0;
+    width: calc(141 * var(--s)); height: calc(40 * var(--s)); font-size: calc(17 * var(--s)); }
+
+  /* ── Contact ─────────────────────────────────────────────────────────── */
+
+  .contact-title { position: absolute; top: 0; padding: 0 calc(5 * var(--s)); max-width: none; }
+  .contact-title .a, .contact-title .b { color: var(--paper); }   /* both sit over the photo */
+  .contact-title.title-xl { font-size: calc(39 * var(--s)); letter-spacing: 0.2em; }
+
+  .contact-grid { grid-template-columns: 1fr; min-height: 0; gap: 0; }
+  .contact-photo { height: auto; aspect-ratio: 304 / 204; width: calc(100% - (16 * var(--s))); margin: 0 calc(8 * var(--s)); }
+  .contact-form-wrap { padding: calc(30 * var(--s)) calc(17 * var(--s)) calc(40 * var(--s)); max-width: none; }
+
+  .form-grid { grid-template-columns: 1fr; gap: calc(15 * var(--s)); }
+  .field label { font-size: calc(16 * var(--s)); }
+  .field input { height: calc(61 * var(--s)); font-size: calc(16 * var(--s)); }
+  .field textarea { height: calc(59 * var(--s)); font-size: calc(16 * var(--s)); }
+  .form-actions { align-items: center; }
+  .btn-submit { width: calc(120 * var(--s)); height: calc(40 * var(--s)); font-size: calc(18 * var(--s)); }
+
+  /* ── Teaching ────────────────────────────────────────────────────────── */
+
+  .teaching-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--cream);
+    padding: calc(10 * var(--s)) calc(20 * var(--s)) calc(40 * var(--s));
+  }
+  /* Flatten both columns so the photo can sit between the title and the
+     sub-heading, as it does on the mobile site. */
+  .teaching-copy, .teaching-figure { display: contents; }
+  .teaching-copy .title-xl        { order: 0; }
+  .teaching-figure img.portrait   { order: 1; }
+  .teaching-sub                   { order: 2; }
+  .teaching-copy .prose           { order: 3; }
+  .teaching-copy a                { order: 4; }
+  .teaching-cta                   { order: 5; }
+  .teaching-copy a.btn-lesson     { order: 6; }
+  .teaching-copy .title-xl { font-size: calc(51 * var(--s)); letter-spacing: 0.2em; }
+  .teaching-sub { font-size: calc(20 * var(--s)); margin: calc(24 * var(--s)) 0 calc(14 * var(--s)); }
+  .teaching-copy .prose { font-size: calc(16 * var(--s)); }
+  .teaching-copy .prose p { margin-bottom: calc(22.4 * var(--s)); }
+  .teaching-figure img.portrait { width: 100%; height: auto; aspect-ratio: 280 / 383; margin-bottom: calc(12 * var(--s)); }
+  .teaching-figure .social { display: none; }
+  .studios-logo { width: 100%; margin: calc(26 * var(--s)) 0 0; }
+  .teaching-cta { font-size: calc(18 * var(--s)); max-width: none; margin: calc(22 * var(--s)) 0 calc(12 * var(--s)); }
+  .teaching-cta + .btn-lesson { width: calc(160 * var(--s)); height: calc(42 * var(--s)); margin: 0 auto; display: flex; }
+
+  /* ── Footer ──────────────────────────────────────────────────────────── */
+
+  .site-foot { height: calc(40 * var(--s)); padding: 0; }
+  .site-foot .shell { flex-direction: row; padding: 0 calc(9 * var(--s)); }
+  .site-foot p { font-size: calc(6 * var(--s)); line-height: 1.4; }
+  .site-foot .brand { position: absolute; right: calc(10 * var(--s)); }
+  .site-foot .brand img { width: calc(18 * var(--s)); height: calc(21 * var(--s)); }
 }

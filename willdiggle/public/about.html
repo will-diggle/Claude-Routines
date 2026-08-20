@@ -20,23 +20,23 @@
 <header class="site-head">
   <div class="shell">
     <a class="brand" href="/" aria-label="Will Diggle — home"><img src="/img/logo.png" alt="" width="35" height="44"></a>
-    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu">&#9776;</button>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu"><span></span><span></span><span></span></button>
     <nav class="nav" id="nav">
       <ul>
         <li><a href="/about" aria-current="page">About</a></li>
         <li><a href="/listen">Listen</a></li>
-        <li><a href="/diary">Diary</a></li>
         <li><a href="/contact">Contact</a></li>
         <li><a href="/teaching">Teaching</a></li>
       </ul>
     </nav>
+    <a class="head-social" href="https://www.instagram.com/willdiggle.opera/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><img src="/img/header-icon.png" alt="" width="26" height="26"></a>
   </div>
 </header>
 
 <main id="main" class="about-main">
 
   <div class="about-grid">
-    <div class="about-copy">
+    <div class="about-copy" data-reveal>
       <h1 class="display title-lg">Biography</h1>
       <div class="prose">
         <p>Originally from the United Kingdom, William trained at the Royal College of
@@ -71,8 +71,11 @@
       </div>
     </div>
 
-    <figure class="about-portrait">
-      <img src="/img/about-portrait.png" alt="Portrait of William Diggle" width="545" height="742">
+    <figure class="about-portrait" data-reveal>
+      <picture>
+        <source media="(max-width: 900px)" srcset="/img/about-mobile.jpg">
+        <img src="/img/about-portrait.png" alt="Portrait of William Diggle" width="545" height="742">
+      </picture>
     </figure>
   </div>
 
@@ -85,7 +88,7 @@
     </ul>
   </div>
 
-  <div class="band-wide">
+  <div class="band-wide" data-reveal>
     <img src="/img/about-wide.jpg" alt="William Diggle on stage" width="1156" height="760">
   </div>
 

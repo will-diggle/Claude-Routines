@@ -1,5 +1,46 @@
-// Mobile menu and contact form submission.
+/* ==========================================================================
+   willdiggle — mobile menu, welcome screen, entrance animations, contact form.
+   ========================================================================== */
+
 (function () {
+  'use strict';
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = () => window.matchMedia('(max-width: 900px)').matches;
+
+  /* ── Mobile welcome screen ───────────────────────────────────────────────
+     The Wix mobile site opens on a paper field, fades the mark in, then
+     fades away. Mobile only, and skipped entirely for reduced motion.     */
+
+  function welcome() {
+    if (reduced || !isMobile()) return;
+
+    const screen = document.createElement('div');
+    screen.className = 'welcome';
+    screen.setAttribute('aria-hidden', 'true');
+
+    const mark = document.createElement('img');
+    mark.src = '/img/welcome-logo.png';
+    mark.alt = '';
+    mark.width = 120;
+    mark.height = 116;
+    screen.appendChild(mark);
+    document.body.appendChild(screen);
+
+    // Match the original's beat: a blank hold, the mark in, then out.
+    setTimeout(() => screen.classList.add('logo-in'), 400);
+    setTimeout(() => screen.classList.add('done'), 1700);
+    setTimeout(() => screen.remove(), 2300);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', welcome);
+  } else {
+    welcome();
+  }
+
+  /* ── Menu ──────────────────────────────────────────────────────────────── */
+
   const toggle = document.querySelector('.nav-toggle');
   const nav = document.getElementById('nav');
 
@@ -8,7 +49,45 @@
       const open = nav.classList.toggle('open');
       toggle.setAttribute('aria-expanded', String(open));
     });
+
+    // Close it when a link is chosen or focus leaves the header.
+    nav.addEventListener('click', (e) => {
+      if (e.target.closest('a')) {
+        nav.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && nav.classList.contains('open')) {
+        nav.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.focus();
+      }
+    });
   }
+
+  /* ── Float-in on scroll ──────────────────────────────────────────────────
+     Section content rises 21px with a fade as it enters the viewport, as on
+     the original. Without IntersectionObserver everything stays visible.  */
+
+  const targets = document.querySelectorAll('[data-reveal]');
+
+  if (targets.length && !reduced && 'IntersectionObserver' in window) {
+    targets.forEach((el) => el.classList.add('reveal'));
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-in');
+        io.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.05 });
+
+    targets.forEach((el) => io.observe(el));
+  }
+
+  /* ── Contact form ──────────────────────────────────────────────────────── */
 
   const form = document.getElementById('contact-form');
   if (!form) return;

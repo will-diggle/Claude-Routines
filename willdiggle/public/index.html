@@ -21,23 +21,26 @@
 <header class="site-head">
   <div class="shell">
     <a class="brand" href="/" aria-label="Will Diggle — home"><img src="/img/logo.png" alt="" width="35" height="44"></a>
-    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu">&#9776;</button>
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu"><span></span><span></span><span></span></button>
     <nav class="nav" id="nav">
       <ul>
         <li><a href="/about">About</a></li>
         <li><a href="/listen">Listen</a></li>
-        <li><a href="/diary">Diary</a></li>
         <li><a href="/contact">Contact</a></li>
         <li><a href="/teaching">Teaching</a></li>
       </ul>
     </nav>
+    <a class="head-social" href="https://www.instagram.com/willdiggle.opera/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><img src="/img/header-icon.png" alt="" width="26" height="26"></a>
   </div>
 </header>
 
 <main id="main">
 
   <div class="hero">
-    <img class="hero-img" src="/img/home-hero.jpg" alt="William Diggle performing on stage" width="1440" height="732">
+    <picture>
+      <source media="(max-width: 900px)" srcset="/img/mobile-hero.jpg">
+      <img class="hero-img" src="/img/home-hero.jpg" alt="William Diggle performing on stage" width="1440" height="732">
+    </picture>
     <div class="hero-caption">
       <h1 class="hero-name">William<br>Diggle</h1>
       <p class="hero-role">Tenor</p>
@@ -45,7 +48,7 @@
   </div>
 
   <section class="home-about" aria-labelledby="about-h">
-    <div class="panel-about">
+    <div class="panel-about" data-reveal>
       <div>
         <h2 class="display title-md" id="about-h">About</h2>
         <p class="panel-about-name">William Diggle</p>
@@ -114,7 +117,7 @@
     </div>
   </section>
 
-  <div class="band-plate">
+  <div class="band-plate" data-reveal>
     <img src="/img/home-wide.jpg" alt="William Diggle on stage in Eine Nacht in Venedig" width="1286" height="623">
   </div>
 
