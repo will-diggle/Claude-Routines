@@ -462,7 +462,7 @@ a { color: inherit; }
   font-weight: 300;
   font-size: 16px;
   color: var(--ink);
-  padding: 0.5rem 0.75rem;
+  padding: 3px 3px 3px 22px;
   height: 47px;
   border: 2px solid var(--slate);
   border-radius: 0;
@@ -686,18 +686,24 @@ a { color: inherit; }
   left: 0;
   right: 0;
   z-index: 2;
-  max-width: var(--shell);
-  margin: 0 auto;
-  padding: 0 1.5rem;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 0 131px;
   pointer-events: none;
+  background-image: linear-gradient(to right,
+    var(--paper) 0 632px, var(--slate-grey) 632px);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-.contact-title .a { color: var(--paper); }
-.contact-title .b { color: var(--slate-grey); }
+.contact-title .a,
+.contact-title .b { color: inherit; }
 
 .contact-grid {
   display: grid;
   grid-template-columns: minmax(0, 606px) minmax(0, 1fr);
-  gap: 0 40px;
+  gap: 0;
+  padding-left: 16px;              /* the photo sits 16px in */
   align-items: start;
   min-height: 815px;
 }
@@ -705,8 +711,11 @@ a { color: inherit; }
 .contact-photo { width: 100%; height: 815px; object-fit: cover; }
 
 .contact-form-wrap {
-  max-width: 431px;
-  padding: 146px 1.5rem 40px 0;
+  width: 431px;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: min(154px, 10.7vw);   /* puts the form at x855 on a 1440 viewport */
+  padding: 146px 0 40px;
 }
 
 /* ── Teaching page ────────────────────────────────────────────────────────
@@ -715,11 +724,14 @@ a { color: inherit; }
 
 .teaching-panel {
   position: relative;
-  max-width: 1320px;
+  /* 1320 wide at 1440, growing to a 1455 cap — matches the original at both. */
+  max-width: min(1455px, calc(100vw - 120px));
   margin: 0 auto;
-  background: var(--ink);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* The cream/paper split is a background; the columns sit on top of it. */
+  background: linear-gradient(to right, var(--cream) 0 50%, var(--paper) 50% 100%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 85px;
   min-height: 976px;
   color: var(--slate);
   overflow: hidden;
@@ -728,14 +740,14 @@ a { color: inherit; }
 .teaching-copy {
   position: relative;
   z-index: 2;
-  background: var(--cream);
-  padding: 51px 27px 40px 85px;
+  width: 491px;
+  padding: 51px 0 40px;
 }
 
 .teaching-figure {
   position: relative;
-  background: var(--paper);
-  padding: 83px 85px 26px 84px;
+  width: 491px;
+  padding: 83px 0 26px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -840,7 +852,7 @@ a { color: inherit; }
   html { scroll-behavior: auto; }
   * { transition: none !important; }
   .hero-name, .hero-role { animation: none; }
-  .reveal { opacity: 1; transform: none; }
+  .reveal { transform: none; }
 }
 
 
@@ -849,20 +861,18 @@ a { color: inherit; }
    ±59px over ~1.05s, and section content floats up 21px with a fade as it
    enters the viewport (Wix calls this one "motion-floatIn").               */
 
-@keyframes hero-in-right { from { transform: translateX(59px);  opacity: 0; }
-                           to   { transform: translateX(0);     opacity: 1; } }
-@keyframes hero-in-left  { from { transform: translateX(-59px); opacity: 0; }
-                           to   { transform: translateX(0);     opacity: 1; } }
+@keyframes hero-in-right { from { transform: translateX(59px);  }
+                           to   { transform: translateX(0);     } }
+@keyframes hero-in-left  { from { transform: translateX(-59px); }
+                           to   { transform: translateX(0);     } }
 
 .hero-name { animation: hero-in-right 1.05s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 .hero-role { animation: hero-in-left  1.05s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 
-.reveal { opacity: 0; transform: translateY(21px);
-          transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1); }
-.reveal.is-in { opacity: 1; transform: none; }
-
-/* Nothing should stay invisible if the observer never runs. */
-.no-js .reveal { opacity: 1; transform: none; }
+/* site.js adds .reveal, so without JS nothing is transformed at all. */
+.reveal { transform: translateY(60px);
+          transition: transform 1.1s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.reveal.is-in { transform: none; }
 
 /* ── Mobile welcome screen ────────────────────────────────────────────────
    The Wix mobile site opens on a paper field, fades the mark in, then fades
@@ -1091,7 +1101,7 @@ a { color: inherit; }
 
   .contact-grid { grid-template-columns: 1fr; min-height: 0; gap: 0; }
   .contact-photo { height: auto; aspect-ratio: 304 / 204; width: calc(100% - (16 * var(--s))); margin: 0 calc(8 * var(--s)); }
-  .contact-form-wrap { padding: calc(30 * var(--s)) calc(17 * var(--s)) calc(40 * var(--s)); max-width: none; }
+  .contact-form-wrap { width: 100%; max-width: none; margin: 0; padding: calc(30 * var(--s)) calc(17 * var(--s)) calc(40 * var(--s)); }
 
   .form-grid { grid-template-columns: 1fr; gap: calc(15 * var(--s)); }
   .field label { font-size: calc(16 * var(--s)); }
@@ -1105,6 +1115,8 @@ a { color: inherit; }
   .teaching-panel {
     display: flex;
     flex-direction: column;
+    max-width: none;
+    background: var(--cream);
     min-height: 0;
     background: var(--cream);
     padding: calc(10 * var(--s)) calc(20 * var(--s)) calc(40 * var(--s));

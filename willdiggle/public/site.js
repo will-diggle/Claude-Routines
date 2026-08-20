@@ -74,8 +74,6 @@
   const targets = document.querySelectorAll('[data-reveal]');
 
   if (targets.length && !reduced && 'IntersectionObserver' in window) {
-    targets.forEach((el) => el.classList.add('reveal'));
-
     const io = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
@@ -84,7 +82,14 @@
       });
     }, { rootMargin: '0px 0px -12% 0px', threshold: 0.05 });
 
-    targets.forEach((el) => io.observe(el));
+    targets.forEach((el) => {
+      // Elements laid out with `display: contents` (the Teaching columns on
+      // mobile) generate no box, so the observer would never fire for them
+      // and they would sit in the pre-animation state forever.
+      if (!el.getClientRects().length) return;
+      el.classList.add('reveal');
+      io.observe(el);
+    });
   }
 
   /* ── Contact form ──────────────────────────────────────────────────────── */
