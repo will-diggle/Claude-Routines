@@ -405,6 +405,9 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "en": ["Native"],
     "it": ["A2", "Native"],
     "es": ["A2"],
+    # NEW 2026-08-22 — Brazilian Portuguese trial. Full level set so the prompt can be
+    # judged across the whole range; "pt" + VARIANT_RULES pins Brazilian over European.
+    "pt": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
     "tr": [],  # temporarily disabled to cut prompt cost during testing
     "hu": [],  # temporarily disabled to cut prompt cost during testing
     "ar": [],  # temporarily disabled to cut prompt cost during testing
@@ -420,6 +423,7 @@ LANGUAGE_NAMES: dict[str, str] = {
     "tr": "Turkish",
     "hu": "Hungarian",
     "ar": "Arabic (Modern Standard)",
+    "pt": "Portuguese (Brazilian)",
 }
 
 LEVEL_LABELS: dict[str, str] = {
@@ -477,6 +481,28 @@ NATIVE_PUBLISHED = [l for l in ACTIVE_LANGUAGES if "Native" in LANGUAGE_LEVELS[l
 NATIVE_INTERMEDIATE = [l for l in ACTIVE_LANGUAGES if "Native" not in LANGUAGE_LEVELS[l]]
 
 
+# ── TEMPORARY: reduced CEFR test matrix ──────────────────────────────────────
+# Explicit (language, level, length) triples for the CEFR write stages while the
+# pipeline is being tuned. When this list is non-empty it REPLACES the combinations
+# that would otherwise come from LANGUAGE_LEVELS / --all-levels.
+#
+# Native journalism is NOT affected — Stage 5 reads LANGUAGE_LEVELS directly, so every
+# language keeps its native edition and the workflow shape stays intact.
+#
+# TO RESTORE FULL OUTPUT: set this back to [] (empty list). Nothing else to change.
+TEST_MATRIX: list[tuple[str, str, str]] = [
+    ("de", "A2", "longer"),
+    ("fr", "A2", "longer"),
+    ("fr", "B1", "longer"),
+    ("it", "A1", "longer"),
+    ("it", "A1", "short"),
+    # Brazilian Portuguese on trial — every level, both lengths, to check the prompt
+    # holds across the range. Delete these five-plus-twelve rows together when done.
+    *[("pt", lvl, ln) for lvl in ("A1", "A2", "B1", "B2", "C1", "C2")
+                      for ln in ("longer", "short")],
+]
+
+
 # ── Combination matrix ────────────────────────────────────────────────────────
 
 def _active_levels() -> dict:
@@ -518,6 +544,23 @@ def build_combinations(
     """
     combos_2s: list[tuple[str, str, str]] = []
     combos_2m: list[tuple[str, str, str]] = []
+
+    if TEST_MATRIX:
+        # Reduced matrix. The native-grade skip still applies — writing a level at or
+        # above the native grade duplicates work Stage 5 already did — but say so out
+        # loud rather than dropping entries silently.
+        for lang, level, length in TEST_MATRIX:
+            grade = (native_grades or {}).get(lang)
+            if grade in CEFR_ORDER and level in CEFR_ORDER \
+                    and CEFR_ORDER.index(level) >= CEFR_ORDER.index(grade):
+                print(f"[write] TEST_MATRIX: skipping {lang}/{level}/{length} — "
+                      f"native graded {grade}, so this level is already covered",
+                      file=sys.stderr)
+                continue
+            (combos_2s if length == "short" else combos_2m).append((lang, level, length))
+        print(f"[write] TEST_MATRIX active — {len(combos_2s) + len(combos_2m)} CEFR combos "
+              f"instead of the full matrix. Set TEST_MATRIX = [] to restore.")
+        return combos_2s, combos_2m
 
     for lang, levels in _active_levels().items():
         # Determine the skip threshold from P4a output

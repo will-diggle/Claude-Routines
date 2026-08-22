@@ -36,7 +36,7 @@ PLACEHOLDERS = ("{LANGUAGE}", "{OUTLET}", "{FRAMING}", "{STRUCTURE}", "{GENRE_RU
                 "{CUT_RULE}", "{GLOSS_RULE}", "{ATTRIBUTION_RULE}", "{TITLE_RULE}",
                 "{GRAMMAR_RULE}")
 
-for lang in ("en", "fr", "de", "sv", "it", "es"):
+for lang in ("en", "fr", "de", "sv", "it", "es", "pt"):
     for length in ("short", "longer"):
         p = W.build_native_prompt(lang, [STORY], length)
         for ph in PLACEHOLDERS:
@@ -105,7 +105,7 @@ for level, bands in W.WORDS_PER_ARTICLE.items():
               f"write.py {want_canon} vs check.py {got_canon}")
         # And the language-adjusted band the prompt asks for must equal the band the
         # report measures against, or the notification contradicts the instruction.
-        for lang in ("en", "fr", "de", "sv", "it", "es"):
+        for lang in ("en", "fr", "de", "sv", "it", "es", "pt"):
             # word_band_for_level, not word_band -- LEVEL_WORD_FACTOR_OVERRIDE lets a
             # specific (lang, level) diverge from the language's general factor (e.g.
             # Italian A1), and the real prompt in build_rewrite_prompt uses the level-

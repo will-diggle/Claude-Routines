@@ -58,6 +58,7 @@ LANGUAGE_WORD_FACTOR: dict[str, float] = {
     # under the floor everywhere that day, never over it, with the worst miss (B1/short,
     # 78w vs an 86w floor, 9.3% under) bigger than German's -- a larger bump to match.
     "sv": 0.94,
+    "pt": 1.08,   # Brazilian Portuguese — Romance, same expansion as es/it
 }
 
 
@@ -125,6 +126,7 @@ NATIVE_OUTLETS: dict[str, str] = {
     "hu": "HVG",
     "ar": "Al Jazeera (Modern Standard Arabic / الفصحى only — no dialect, no transliteration)",
     "tr": "Cumhuriyet",
+    "pt": "Folha de S.Paulo",
 }
 # Any language without an entry falls back to this rather than naming a wrong outlet.
 NATIVE_OUTLET_FALLBACK = "the most respected national daily"
@@ -134,6 +136,13 @@ NATIVE_OUTLET_FALLBACK = "the most respected national daily"
 VARIANT_RULES: dict[str, str] = {
     "ar": "Write exclusively in Modern Standard Arabic (الفصحى). No dialect. No transliteration. Western numerals (0–9).",
     "en": "Write in British English throughout.",
+    "pt": (
+        "Write in BRAZILIAN Portuguese, not European Portuguese. Use the post-1990 orthography. "
+        "Progressive is \"est\u00e1 fazendo\", never the European \"est\u00e1 a fazer\". Object pronouns go BEFORE "
+        "the verb (\"me disse\", not \"disse-me\"); mes\u00f3clise (\"dir-se-\u00e1\") is banned outright. "
+        "Use \"voc\u00ea\", never \"tu\" or \"v\u00f3s\". Brazilian vocabulary throughout: \"\u00f4nibus\" not \"autocarro\", "
+        "\"trem\" not \"comboio\", \"celular\" not \"telem\u00f3vel\", \"time\" not \"equipa\", \"caf\u00e9 da manh\u00e3\" not \"pequeno-almo\u00e7o\"."
+    ),
 }
 
 # One correct line per language. The native prompt used to show all seven to everyone, and
@@ -149,6 +158,7 @@ QUOTE_RULES: dict[str, str] = {
     "hu": "„…” (U+201E opening, U+201D closing)",
     "tr": "“…” (U+201C opening, U+201D closing)",
     "ar": "«…» (U+00AB … U+00BB)",
+    "pt": "\u201c\u2026\u201d (U+201C \u2026 U+201D) \u2014 Brazilian press style, NOT the European Portuguese \u00ab\u00bb",
 }
 QUOTE_RULE_FALLBACK = "the target language's own typographic quotation marks"
 
@@ -534,6 +544,23 @@ GRAMMAR_RULE_A1_BY_LANG: dict[str, str] = {
         "que las condiciones eran malas\") — and confirm none of them use a \"que\"-"
         "clause, in any tense."
     ),
+    "pt": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: the presente and the pretérito perfeito simples (\"disse\", \"anunciou\"), active voice only. "
+        "ONE relative clause per sentence, only with \"que\", describing a noun. A direct quote in quotation marks.\n"
+        "BANNED, with no exceptions: the imperfeito, the mais-que-perfeito, the subjuntivo in any form, the futuro do "
+        "pretérito (conditional), the futuro simples, any passive construction (\"foi dito\" — rewrite as active), and the "
+        "pretérito perfeito composto (\"tem dito\" — in Portuguese this means a repeated ongoing action, not a single past "
+        "event, so it is wrong here as well as too advanced). Any relative pronoun other than \"que\" (\"o qual\", \"cujo\" are "
+        "banned). Any OTHER clause with its own conjugated verb — reported speech (\"disse que X\", including present tense: "
+        "\"dizem que X fala\" is equally banned), causal (\"porque X fez Y\"), comparative (\"como ele fez\"), temporal "
+        "(\"quando X fez Y\"), purpose (\"para fazer X\") — these all count as a second clause; split into two short sentences "
+        "or a direct quote instead. One idea, one verb, per sentence, except the one allowed relative clause. This ban applies "
+        "to EVERY attributed claim in the article, not just the first — a longer article has more people saying things, which is "
+        "more chances for this exact violation to slip in partway through. Before finishing, check every sentence with a verb of "
+        "saying — \"disse\"/\"declarou\", but also present-tense forms like \"diz\"/\"dizem\"/\"afirma\" (\"os relatórios dizem que X\" "
+        "is exactly as banned as \"disse que X\") — and confirm none of them use a \"que\"-clause, in any tense."
+    ),
 }
 # Any language without a bespoke entry above falls back to a generic categorical version
 # rather than silently getting no grammar rule at all.
@@ -683,6 +710,23 @@ GRAMMAR_RULE_A2_BY_LANG: dict[str, str] = {
         "quotes instead), the condicional, any passive construction. Any relative pronoun "
         "beyond \"que\". More than one subordinate clause in the same sentence."
     ),
+    "pt": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A1 (presente, pretérito perfeito simples, ONE \"que\" relative clause, direct quotes), "
+        "PLUS the imperfeito for background description and habitual or ongoing past actions, AND one subordinate clause per "
+        "sentence of any kind — reported speech, causal, or comparative. Never nest a second one inside it.\n"
+        "REQUIRED, not optional: this article MUST actually use the imperfeito at least once AND MUST include at least one "
+        "subordinate clause somewhere in the article. If the article is too short to fit a natural imperfeito sentence, TWO "
+        "subordinate clauses in different sentences (never nested) satisfies this requirement instead. Writing only what A1 would "
+        "write is a failure at this level, even if nothing is technically wrong — A2 is defined by USING these features, not "
+        "merely being allowed to.\n"
+        "MAY use, at your discretion: a second subordinate clause in a different sentence (never more than one per sentence); a "
+        "wider range of everyday connectors (\"então\", \"mas\", \"ou\").\n"
+        "BANNED, with no exceptions: the mais-que-perfeito, the pretérito perfeito composto (\"tem feito\" — use the pretérito "
+        "perfeito simples instead), the subjuntivo in any form (including after \"pedir que\"/\"querer que\" — rephrase as a direct "
+        "command in quotes instead), the futuro do pretérito, any passive construction. Any relative pronoun beyond \"que\". "
+        "More than one subordinate clause in the same sentence."
+    ),
 }
 GRAMMAR_RULE_A2_FALLBACK = (
     " GRAMMAR at {LEVEL_DESCRIPTION}: use the present tense, {LANGUAGE}'s simple past, AND "
@@ -793,6 +837,19 @@ GRAMMAR_RULE_B1_BY_LANG: dict[str, str] = {
         "BANNED, with no exceptions: the subjuntivo, the condicional compuesto, nesting a "
         "subordinate clause inside another subordinate clause, rare or literary vocabulary."
     ),
+    "pt": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at A2, PLUS any past/present/future tense freely, a simple conditional with \"se\" "
+        "(present indicative, not subjuntivo), and causal, temporal or purpose subordinate clauses (up to one level).\n"
+        "REQUIRED, not optional: this article MUST include at least one causal or temporal subordinate clause (\"porque\", "
+        "\"quando\", \"desde que\") AND at least one \"se\"-conditional or future-tense sentence. Writing only what A2 would write "
+        "is a failure at this level.\n"
+        "MAY use, at your discretion, if it reads naturally: a simple passive construction (\"foi feito\"); a second short "
+        "supporting clause in a sentence (never two subordinate clauses both carrying new facts).\n"
+        "BANNED, with no exceptions: the subjuntivo (including the futuro do subjuntivo after \"quando\"/\"se\" — keep those "
+        "clauses in the present indicative at this level), the futuro do pretérito composto, nesting a subordinate clause inside "
+        "another subordinate clause, rare or literary vocabulary."
+    ),
 }
 GRAMMAR_RULE_B1_FALLBACK = (
     " GRAMMAR at {LEVEL_DESCRIPTION}: use any past/present/future tense freely in "
@@ -893,6 +950,18 @@ GRAMMAR_RULE_B2_BY_LANG: dict[str, str] = {
         "complex relative clause.\n"
         "BANNED, with no exceptions: rare or archaic literary register that a general news "
         "reader would find obscure."
+    ),
+    "pt": (
+        " GRAMMAR at {LEVEL_DESCRIPTION} — strict, no exceptions:\n"
+        "ALLOWED: everything permitted at B1, PLUS passive voice used naturally, complex relative pronouns (\"cujo\", \"o qual\"), "
+        "concessive/contrastive clauses (\"embora\", \"apesar de\", \"no entanto\"), and a wider range of connectors.\n"
+        "REQUIRED, not optional: this article MUST include at least one passive construction where it reads naturally AND at "
+        "least one concessive/contrastive clause (\"embora X, Y\" / \"no entanto\"). Writing only what B1 would write is a failure "
+        "at this level.\n"
+        "MAY use, at your discretion: the subjuntivo where Portuguese genuinely requires it — after \"embora\", and the futuro do "
+        "subjuntivo after \"quando\"/\"se\" referring to the future (\"quando chegar\"); a complex relative clause.\n"
+        "BANNED, with no exceptions: mesóclise (\"far-se-á\"), which is literary and European; rare or archaic literary register "
+        "that a general news reader would find obscure."
     ),
 }
 GRAMMAR_RULE_B2_FALLBACK = (

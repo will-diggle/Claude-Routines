@@ -35,6 +35,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "en": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
     "it": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
     "es": ["A1", "A2", "B1", "B2", "C1", "C2"],  # no shipped Native edition
+    "pt": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],  # Brazilian Portuguese trial
     "tr": [],  # temporarily disabled
     "hu": [],  # temporarily disabled
     "ar": [],  # temporarily disabled
@@ -45,11 +46,13 @@ LENGTHS = ["short", "longer"]
 LANG_FLAGS = {
     "fr": "🇫🇷", "de": "🇩🇪", "sv": "🇸🇪", "en": "🇬🇧",
     "it": "🇮🇹", "es": "🇪🇸", "tr": "🇹🇷", "hu": "🇭🇺", "ar": "🇸🇦",
+    "pt": "🇧🇷",
 }
 LANG_NAMES = {
     "fr": "French", "de": "German", "sv": "Swedish",
     "en": "English", "it": "Italian", "es": "Spanish",
     "tr": "Turkish", "hu": "Hungarian", "ar": "Arabic",
+    "pt": "Portuguese (BR)",
 }
 
 MIN_ARTICLES = 5  # fewer than this is suspiciously thin
