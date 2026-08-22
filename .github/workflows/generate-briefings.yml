@@ -15,6 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
+    env:
+      # Actions gives Python a pipe, not a TTY, so stdout is block-buffered: output
+      # sits in an 8KB buffer and is only flushed when the process exits. When a run
+      # is cancelled the buffer is discarded, so a hung step shows NOTHING at all —
+      # two 2h+ stalls on 2026-08-22 produced zero log lines, which made them
+      # impossible to diagnose from the run. Unbuffered means progress streams live.
+      PYTHONUNBUFFERED: "1"
+
     steps:
       - name: Checkout app repo
         uses: actions/checkout@v4
@@ -159,9 +167,20 @@ jobs:
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
 
           mkdir -p /tmp/bilinguist-data/briefings
+          mkdir -p /tmp/bilinguist-data/reports
 
           cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
+
+          # Structured report for the companion iOS app — written by
+          # bilinguist_check.py (Stage 9, above). Not required: an older
+          # bilinguist_check.py or a run where it failed to write its report
+          # shouldn't block the actual briefing from publishing.
+          REPORT_JSON="bilinguist-brief/scripts/output/report_${DATE}.json"
+          if [ -f "$REPORT_JSON" ]; then
+            cp "$REPORT_JSON" /tmp/bilinguist-data/reports/${DATE}.json
+            cp "$REPORT_JSON" /tmp/bilinguist-data/reports/latest.json
+          fi
 
           COSTS_JSON="bilinguist-brief/scripts/output/costs_${DATE}.json"
           if [ -f "$COSTS_JSON" ]; then
@@ -172,6 +191,7 @@ jobs:
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
           git add latest.json briefings/${DATE}.json
+          [ -f reports/${DATE}.json ] && git add reports/${DATE}.json reports/latest.json || true
           [ -f costs.csv ] && git add costs.csv || true
 
           if git diff --cached --quiet; then
@@ -210,3 +230,42 @@ jobs:
             -H "Tags: rotating_light" \
             -d "Briefing generation failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
             https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      # Real push to the Piggy Figs iOS app, via Expo's push API — separate from
+      # the ntfy calls above, which stay as a fallback/other-subscribers channel.
+      # EXPO_PUSH_TOKEN comes from Settings → Notifications → Enable notifications
+      # in the app; empty/unset just no-ops rather than failing the run.
+      - name: Push notification (success) to Piggy Figs
+        if: success()
+        env:
+          EXPO_PUSH_TOKEN: ${{ secrets.EXPO_PUSH_TOKEN }}
+          PUSH_TITLE: ${{ env.BRIEF_TITLE }}
+          PUSH_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          if [ -z "$EXPO_PUSH_TOKEN" ]; then
+            echo "EXPO_PUSH_TOKEN not set — skipping app push."
+            exit 0
+          fi
+          TITLE="${PUSH_TITLE:-Bilinguist Brief - Done}"
+          curl -s -X POST https://exp.host/--/api/v2/push/send \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$(jq -n --arg to "$EXPO_PUSH_TOKEN" --arg title "$TITLE" --arg date "$PUSH_DATE" \
+              '{to: $to, title: $title, body: ("Report for " + $date + " is ready."), sound: "default", data: {screen: "Pipeline"}}')" \
+            || true
+
+      - name: Push notification (failure) to Piggy Figs
+        if: failure()
+        env:
+          EXPO_PUSH_TOKEN: ${{ secrets.EXPO_PUSH_TOKEN }}
+        run: |
+          if [ -z "$EXPO_PUSH_TOKEN" ]; then
+            echo "EXPO_PUSH_TOKEN not set — skipping app push."
+            exit 0
+          fi
+          curl -s -X POST https://exp.host/--/api/v2/push/send \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$(jq -n --arg to "$EXPO_PUSH_TOKEN" \
+              '{to: $to, title: "Bilinguist Brief - Failed", body: "Briefing generation failed — check GitHub Actions.", sound: "default", priority: "high", data: {screen: "Pipeline"}}')" \
+            || true

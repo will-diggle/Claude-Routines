@@ -188,6 +188,16 @@ def _set_workers(n: int) -> None:
 # Retry settings for transient API errors.
 # Delays are SHORT — jitter below breaks the thundering-herd where all 4 workers
 # would otherwise retry at the exact same instant, causing a second 503 wave.
+# HTTP timeout for every write call. bilinguist_gather.py has always set one;
+# this file did not, and genai.Client() defaults to waiting FOREVER. A request whose
+# connection stalls therefore never returns and never raises, so the retry ladder
+# below never fires and that worker thread is lost permanently. With 16 workers and
+# 400+ per-article calls, workers were consumed one by one until the stage sat silent
+# and indefinite — two production runs hung for 2h+ with no output and no error
+# (2026-08-22). 300s is ~10-30x a normal single-article call: generous for a slow
+# Pro/thinking generation, but a hang now surfaces in five minutes instead of never.
+WRITE_TIMEOUT_MS = 300_000
+
 MAX_RETRIES   = 4
 RETRY_DELAYS  = [5, 15, 30, 60]   # base seconds; actual sleep = delay × (0.5–1.5)
 
@@ -903,7 +913,7 @@ def _get_anthropic_client():
     global _anthropic_client
     if _anthropic_client is None:
         import anthropic
-        _anthropic_client = anthropic.Anthropic()
+        _anthropic_client = anthropic.Anthropic(timeout=WRITE_TIMEOUT_MS / 1000)
     return _anthropic_client
 
 
@@ -1175,15 +1185,24 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
     print(f"[write] per-article: {len(tasks)} combos → {len(subtasks)} calls "
           f"(max {_MAX_WORKERS} at a time)")
 
-    # Canonical story order from the factbase: slug → position index.
-    # Used to re-sort results after as_completed() collects them in
-    # finish order (which is non-deterministic and differs per language).
+    # Canonical story order AND genre from the factbase: slug → (position, genre).
+    # Order: re-sort results after as_completed() collects them in finish order
+    #        (non-deterministic, differs per language).
+    # Genre: overwrite the model's output genre with the factbase genre so it is
+    #        always the English canonical string regardless of which language was
+    #        written. The model may translate the genre into the target language
+    #        (e.g. Swedish "VÄRLDSNYHETER" instead of "GLOBAL NEWS"), which breaks
+    #        the front-end sort/filter that keys on English genre strings.
     slug_order: dict[str, int] = {}
+    slug_genre: dict[str, str] = {}
     for task in tasks:
         for i, story in enumerate(task.factbase or []):
             slug = (story.get("slug") or "").strip()
             if slug and slug not in slug_order:
                 slug_order[slug] = i
+                genre = (story.get("genre") or "").strip()
+                if genre:
+                    slug_genre[slug] = genre
 
     lock = threading.Lock()
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
@@ -1195,9 +1214,12 @@ def _run_task_group(client: genai.Client, tasks: list) -> dict:
             with lock:
                 results[key].extend(articles)
 
-    # Re-sort every result group into factbase story order so the bundle
-    # is deterministic regardless of which API calls finished first.
+    # Re-sort into factbase story order and pin genres from the source.
     for key in results:
+        for article in results[key]:
+            slug = (article.get("slug") or "").strip()
+            if slug in slug_genre:
+                article["genre"] = slug_genre[slug]
         results[key].sort(key=lambda a: slug_order.get(
             (a.get("slug") or "").strip(), 999))
 
@@ -1614,6 +1636,10 @@ def run_writing_concurrent(
             if not articles:
                 continue
 
+            for a in articles:
+                a["word_count"] = len(
+                    (a.get("headline", "") + " " + a.get("body", "")).split()
+                )
             briefings.setdefault(lang, {}).setdefault(level, {})[length] = {
                 "articles": articles,
                 "date": date,
@@ -1899,7 +1925,7 @@ def main():
         print(f"[write]   {lang}: {', '.join(_lv[lang])}")
 
     # Initialise Gemini client
-    client = genai.Client()
+    client = genai.Client(http_options=types.HttpOptions(timeout=WRITE_TIMEOUT_MS))
     print("[write] Gemini client initialised")
 
     # ── Stage 5 (Write Native) — runs before the CEFR levels ─────────────────
