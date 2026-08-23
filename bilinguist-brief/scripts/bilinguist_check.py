@@ -43,6 +43,18 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
 
 LENGTHS = ["short", "longer"]
 
+# What the write stage was actually ASKED to produce. bilinguist_write.TEST_MATRIX pins
+# the CEFR stages to an explicit (language, level, length) list while the pipeline is
+# being tuned; when it is empty the full LANGUAGE_LEVELS matrix above applies.
+#
+# This MUST be read from write.py rather than restated here. On 2026-08-23 the matrix was
+# cut to 13 combos but this file still expected all 60, so coverage read 19/60 = 32%,
+# fell under PUBLISH_THRESHOLD, and a brief that had generated correctly was withheld.
+# Importing it means the two can never drift again.
+from bilinguist_write import TEST_MATRIX as _WRITE_TEST_MATRIX
+
+_EXPECTED_CEFR = {(l, lv, ln) for l, lv, ln in _WRITE_TEST_MATRIX}
+
 LANG_FLAGS = {
     "fr": "🇫🇷", "de": "🇩🇪", "sv": "🇸🇪", "en": "🇬🇧",
     "it": "🇮🇹", "es": "🇪🇸", "tr": "🇹🇷", "hu": "🇭🇺", "ar": "🇸🇦",
@@ -767,6 +779,10 @@ def check(bundle_path: Path) -> int:
                 if level in CEFR_ORDER and CEFR_ORDER.index(level) >= skip_from_idx:
                     continue
                 for length in LENGTHS:
+                    # A reduced matrix means these were never requested. Counting them as
+                    # missing would punish the run for doing exactly what it was told.
+                    if _EXPECTED_CEFR and (lang, level, length) not in _EXPECTED_CEFR:
+                        continue
                     total += 1
                     key = f"{lang_name} {level}/{length}"
                     articles = (
