@@ -229,6 +229,29 @@ def render_headline_block(index: dict) -> str:
 # were never scraped (Xinhua, Politico Europe both appeared in earlier runs) have
 # no entry to look up and are rejected.
 
+def _same_headline(a, b) -> bool:
+    """Is the headline Stage 2 echoed the one actually scraped at that position?
+
+    score_story() used to validate only that an outlet and position EXISTED, never
+    that the headline there was about the story. On 2026-08-26 the US-Iran sanctions
+    story was credited to CNN, El Pais and the Washington Post, none of which carried
+    a single Iran or sanctions headline; it scored 20.0 against a true 7.5 and took
+    second place from a story that outranked it. Stage 2 now echoes the headline text
+    and Python checks it, so an invented attribution cannot score.
+
+    Compared on significant-word overlap, not equality: feeds add outlet suffixes
+    (" - Reuters") and truncate, and the check must not reject an honest source.
+    """
+    import re as _re
+    def toks(t):
+        t = _re.sub(r"[^\w\s]", " ", str(t).lower())
+        return {w for w in t.split() if len(w) > 3}
+    ta, tb = toks(a), toks(b)
+    if not ta or not tb:
+        return True                       # nothing to compare on — do not reject
+    return len(ta & tb) / min(len(ta), len(tb)) >= 0.5
+
+
 CARRYING_POINTS = 1.0                                    # per outlet carrying it
 POSITION_BONUS  = {1: 2.5, 2: 2.0, 3: 1.5, 4: 1.0, 5: 0.5}
 
@@ -260,8 +283,14 @@ def score_story(story: dict, index: dict) -> tuple[float, list, list]:
         if not isinstance(pos, int) or not 1 <= pos <= len(index[outlet]):
             problems.append(f"{outlet} position {pos} out of range")
             continue
-        verified.append({"outlet": outlet, "position": pos,
-                         "headline": index[outlet][pos - 1]})
+        scraped = index[outlet][pos - 1]
+        claimed = (src.get("headline_text") or "").strip()
+        if claimed and not _same_headline(claimed, scraped):
+            problems.append(
+                f"{outlet} #{pos} headline does not match the scrape — "
+                f"claimed {claimed[:60]!r}, scraped {str(scraped)[:60]!r}")
+            continue
+        verified.append({"outlet": outlet, "position": pos, "headline": scraped})
 
     # Breadth is per OUTLET, not per headline: the signal is how many independent
     # newsrooms ran the story, so an outlet that ran five pieces still counts once,
@@ -1002,6 +1031,11 @@ def main():
             x = st.get("cross_reference_score", {})
             print(f"[gather]   rank {x.get('rank','?')} [{x.get('total','?')}] "
                   f"{st.get('slug','?')} — {x.get('outlets_covering', [])}")
+            # Print what was actually grouped. A coordinate can be real and still
+            # belong to a different event; only the headline text shows that.
+            for v in x.get("sources", []):
+                print(f"[gather]        {v.get('outlet','?')} #{v.get('position','?')}: "
+                      f"{str(v.get('headline',''))[:78]}")
 
     if args.select_only:
         print(f"[gather] STAGE 2 (Select) done — {len(factbase)} stories ranked, no facts. "

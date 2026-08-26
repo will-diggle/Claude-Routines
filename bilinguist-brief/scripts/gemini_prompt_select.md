@@ -32,7 +32,7 @@ Schema:
 "slug":"short-kebab-id",
 "headline":"one neutral sentence naming the event, in British English",
 "cross_reference_score":{
-"sources":[{"outlet":"Reuters","position":1},{"outlet":"BBC News","position":2}]
+"sources":[{"outlet":"Reuters","position":1,"headline_text":"copy the headline exactly"},{"outlet":"BBC News","position":2,"headline_text":"copy the headline exactly"}]
 }
 }]}
 
@@ -40,5 +40,6 @@ FIELD RULES:
 - One object per event group. Return as many as you formed — there is no target number, and returning fewer than you found is the one thing that breaks this stage.
 - "slug": short, kebab-case, specific to the event. Never a placeholder like "story-1" — a placeholder slug causes the story to be rejected.
 - "headline": ONE sentence, your own neutral wording, naming what happened and who is involved. This is the only description you write; the fact-finding call works from it, so it must identify the event unambiguously. Do not copy an outlet's phrasing.
-- "sources": one entry per headline you grouped, each with the outlet name EXACTLY as written in Step 1 and its position number (1 = first). List every headline in the group, including several from the same outlet. An outlet name or position not appearing in Step 1 causes the story to be rejected.
+- "sources": one entry per headline you grouped, each with the outlet name EXACTLY as written in Step 1, its position number (1 = first), and "headline_text" copied VERBATIM from Step 1. List every headline in the group, including several from the same outlet.
+- Only list a headline that is genuinely about THIS event. Do not add an outlet because you expect it to have covered the story, and do not attach a headline about a related-but-different event — "US sanctions Iran" and "Pakistan mediates Iran-US talks" are two events, not one. Code compares your "headline_text" against the headline actually scraped at that outlet and position; a mismatch drops that source, and an outlet name or position not appearing in Step 1 causes the story to be rejected.
 - Do NOT include a "rank" field, a score, or any other field. No facts, no numbers, no proper nouns, no key terms, no notification. Those come later. Keep this response short — it is an indexing pass, not an article.
