@@ -54,7 +54,13 @@ OUTLETS = [
     },
     {
         "name": "BBC News",
+        # World section alone cannot see a UK or US story; the front page alone
+        # cannot see half the world stories. Read both -- see fetch_merged().
         "rss": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "feeds": [
+            "https://feeds.bbci.co.uk/news/world/rss.xml",
+            "https://feeds.bbci.co.uk/news/rss.xml",
+        ],
     },
     {
         "name": "The Guardian",
@@ -179,8 +185,9 @@ def scrape_guardian() -> list[str]:
     return headlines[:HEADLINES_PER_OUTLET]
 
 
-def fetch_rss(url: str) -> list[str]:
+def fetch_rss(url: str, limit: int = None) -> list[str]:
     """Fetch an RSS feed and return the top N headline strings."""
+    limit = HEADLINES_PER_OUTLET if limit is None else limit
     resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
     resp.raise_for_status()
 
@@ -192,7 +199,7 @@ def fetch_rss(url: str) -> list[str]:
         el = item.find("title")
         if el is not None and el.text and el.text.strip():
             titles.append(el.text.strip())
-        if len(titles) >= HEADLINES_PER_OUTLET:
+        if len(titles) >= limit:
             break
 
     # Atom fallback: entry/title
@@ -202,11 +209,44 @@ def fetch_rss(url: str) -> list[str]:
             el = entry.find("atom:title", ns)
             if el is not None and el.text and el.text.strip():
                 titles.append(el.text.strip())
-            if len(titles) >= HEADLINES_PER_OUTLET:
+            if len(titles) >= limit:
                 break
 
-    return titles[:HEADLINES_PER_OUTLET]
+    return titles[:limit]
 
+
+
+# ── Merged feeds ─────────────────────────────────────────────────────────────
+# No single RSS feed reproduces an outlet's front page. The BBC proves it: on
+# 2026-08-26 Dolly Parton's death led the site and was the FIRST item of
+# /news/rss.xml, but /news/world/rss.xml -- the only feed we read -- did not carry
+# it at all, so five outlets scored the day's biggest story and the BBC scored zero.
+# Swapping to the front page is not the answer either: in that same feed the Canada
+# tariffs story sat at position 22 and the US-Iran sanctions story was absent from
+# all 33 items, so we would have traded two published stories for one.
+#
+# Reading both and keeping each headline's BEST position across them costs nothing
+# (RSS is free, no API call) and loses neither. Outlets read this way get a deeper
+# cap, since two feeds genuinely offer more real candidates than one -- positions
+# past 5 earn no bonus but still carry their breadth point.
+MERGED_HEADLINES_PER_OUTLET = 8
+
+
+def fetch_merged(urls: list[str]) -> list[str]:
+    """Read several feeds for one outlet; order by best position across them."""
+    best: dict[str, tuple[int, int, str]] = {}       # key -> (position, feed_idx, title)
+    for feed_idx, url in enumerate(urls):
+        try:
+            titles = fetch_rss(url, limit=HEADLINES_PER_OUTLET)
+        except Exception as e:
+            print(f"[1-scrape]   merged feed {feed_idx + 1} failed: {e}", file=sys.stderr)
+            continue
+        for pos, title in enumerate(titles, 1):
+            key = " ".join(title.lower().split())
+            if key not in best or (pos, feed_idx) < best[key][:2]:
+                best[key] = (pos, feed_idx, title)
+    ordered = sorted(best.values(), key=lambda t: (t[0], t[1]))
+    return [t[2] for t in ordered[:MERGED_HEADLINES_PER_OUTLET]]
 
 
 # ── Genre feeds (UK Politics, Business & Economy) ────────────────────────────
@@ -312,6 +352,11 @@ def main() -> None:
                 headlines = scrape_guardian()
                 if headlines:
                     print(f"[1-scrape] {name}: front-page HTML (editorial order)")
+            if not headlines and outlet.get("feeds"):
+                headlines = fetch_merged(outlet["feeds"])
+                if headlines:
+                    print(f"[1-scrape] {name}: merged {len(outlet['feeds'])} feeds "
+                          f"(best position across them)")
             if not headlines:
                 headlines = fetch_rss(rss_url)
             if headlines:
