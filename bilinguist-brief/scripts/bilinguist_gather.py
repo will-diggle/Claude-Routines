@@ -260,9 +260,23 @@ def score_story(story: dict, index: dict) -> tuple[float, list, list]:
         if not isinstance(pos, int) or not 1 <= pos <= len(index[outlet]):
             problems.append(f"{outlet} position {pos} out of range")
             continue
-        total += CARRYING_POINTS + POSITION_BONUS.get(pos, 0.0)
         verified.append({"outlet": outlet, "position": pos,
                          "headline": index[outlet][pos - 1]})
+
+    # Breadth is per OUTLET, not per headline: the signal is how many independent
+    # newsrooms ran the story, so an outlet that ran five pieces still counts once,
+    # at its best position. Stage 2 is asked to list EVERY grouped headline, which is
+    # what makes duplicates arrive here at all -- on 2026-08-26 the Guardian's front
+    # page gave five slots to Dolly Parton (one story, four photo captions) and the
+    # NYT three, scoring the story 30.5 against a true 18.0 across 7 outlets. It won
+    # either way, but the number was inflated and a single outlet running a story
+    # repeatedly could outscore a genuine consensus.
+    best: dict[str, int] = {}
+    for v in verified:
+        o, pos = v["outlet"], v["position"]
+        if o not in best or pos < best[o]:
+            best[o] = pos
+    total = sum(CARRYING_POINTS + POSITION_BONUS.get(p, 0.0) for p in best.values())
     return round(total, 1), verified, problems
 
 
