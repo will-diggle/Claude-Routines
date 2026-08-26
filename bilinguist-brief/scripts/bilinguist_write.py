@@ -496,10 +496,12 @@ TEST_MATRIX: list[tuple[str, str, str]] = [
     ("fr", "B1", "longer"),
     ("it", "A1", "longer"),
     ("it", "A1", "short"),
-    # Brazilian Portuguese on trial — every level, both lengths, to check the prompt
-    # holds across the range. Delete these five-plus-twelve rows together when done.
-    *[("pt", lvl, ln) for lvl in ("A1", "A2", "B1", "B2", "C1", "C2")
-                      for ln in ("longer", "short")],
+    # Brazilian Portuguese CEFR levels are OFF for now — the native edition still
+    # ships (Stage 5 reads LANGUAGE_LEVELS, which is untouched). Uncomment to put the
+    # full level range back on trial; it graded 7/7 at A1 short+long, A2 short and
+    # B1 short on 2026-08-23, and 0/7 at B2 both lengths.
+    # *[("pt", lvl, ln) for lvl in ("A1", "A2", "B1", "B2", "C1", "C2")
+    #                   for ln in ("longer", "short")],
 ]
 
 
