@@ -860,6 +860,31 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str,
     for st in factbase:
         st["genre"] = genre
     apply_scores(factbase, index)
+
+    # Python picks the winners, not Gemini. Stage 2 asks the model to group EVERY headline
+    # into events -- the one judgement a model is needed for -- and returns every group.
+    # The selection is then pure arithmetic on breadth and position.
+    #
+    # Until 2026-08-26 the prompt told Gemini to return "exactly {STORY_COUNT}" groups
+    # ranked by its own sense of "real-world importance", so apply_scores() only ever saw
+    # the three the model had already chosen and the scoring was decorative. On 2026-08-26
+    # Dolly Parton's death was carried at position 1-4 by the Guardian, CNN, the Washington
+    # Post, the NYT and Le Monde -- 14.0 points against the 12.5 of the story that won --
+    # and never reached the arithmetic, because Gemini did not nominate it.
+    if not expect_facts and index:
+        ranked = sorted(factbase,
+                        key=lambda st: (st.get("cross_reference_score") or {}).get("total", 0),
+                        reverse=True)
+        keep, drop = ranked[:cfg["count"]], ranked[cfg["count"]:]
+        for st in drop:
+            x = st.get("cross_reference_score", {})
+            print(f"[gather]   not selected [{x.get('total', 0)}] {st.get('slug', '?')} "
+                  f"— {x.get('outlets_covering', [])}", file=sys.stderr)
+        for rank, st in enumerate(keep, 1):
+            st.setdefault("cross_reference_score", {})["rank"] = rank
+        print(f"[gather] {genre}: grouped {len(factbase)} events, kept top {len(keep)} by score")
+        factbase = keep
+
     return {"factbase": factbase, "search_log": search_log, "parsed": parsed,
             "usage": usage_metadata, "model": model, "index": index}
 
