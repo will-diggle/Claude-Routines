@@ -2115,6 +2115,25 @@ def main():
         },
     }
 
+    # Last enrichment before publish: attach a tokenMap to every article so a tapped
+    # word resolves to its full lexical unit. Runs here because the prose is final --
+    # every native and CEFR variant is written and graded above, and nothing after
+    # this rewrites text -- and because positions must match the article as shipped.
+    #
+    # Fixes German separable verbs: tapping "lehnt" in "...lehnt einen Vorschlag ab"
+    # looked up "lehnen" (to lean) instead of "ablehnen" (to reject). Pure spaCy,
+    # local, no API call, milliseconds per article -- no risk to the 07:30 deadline.
+    # A language with no model ships without a tokenMap and the app falls back.
+    try:
+        import bilinguist_tokenise
+        _t0 = time.time()
+        bilinguist_tokenise.enrich_bundle_with_token_maps(bundle)
+        print(f"[timing]   tokenise: {time.time() - _t0:.1f}s")
+    except Exception as e:                                        # noqa: BLE001
+        # Never let enrichment block the brief -- articles are valid without it.
+        print(f"[WARN] tokenise skipped ({e}) — articles ship without tokenMap",
+              file=sys.stderr)
+
     bundle_json = json.dumps(bundle, ensure_ascii=False, indent=2)
     dated_path  = os.path.join(output_dir, f"{date}.json")
     latest_path = os.path.join(output_dir, "latest.json")

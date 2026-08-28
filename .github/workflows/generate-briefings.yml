@@ -46,6 +46,16 @@ jobs:
         working-directory: bilinguist-brief/scripts
         run: pip install -r requirements.txt
 
+      - name: Download spaCy models
+        # German and Swedish only: these are the two languages with separable /
+        # particle verbs, the bug the tokenMap exists to fix. spaCy has no models at
+        # all for tr/hu/ar, and the other languages gain only lemmas -- all of them
+        # ship without a tokenMap and the app falls back to current behaviour.
+        # ~30MB, a few seconds, and it keeps the pipeline well inside 07:30.
+        run: |
+          python -m spacy download de_core_news_sm
+          python -m spacy download sv_core_news_sm
+
       - name: Set pipeline date
         run: |
           echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV

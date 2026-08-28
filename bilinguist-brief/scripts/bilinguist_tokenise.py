@@ -28,6 +28,7 @@ import argparse
 import json
 import os
 import re
+import bisect
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,9 +38,13 @@ from pathlib import Path
 from typing import Optional
 
 import regex as uregex                          # pip install regex — true \p{L} support
-from google import genai
-from google.genai import types
-from supabase import create_client
+# NOTE: google-genai and supabase are imported lazily inside the dictionary
+# functions. The tokenMap path is pure spaCy and must import cleanly without them.
+try:                                    # pragma: no cover - optional, dictionary half only
+    from google import genai
+    from google.genai import types
+except Exception:                       # noqa: BLE001
+    genai = types = None
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -84,6 +89,175 @@ def word_positions(text: str) -> list[tuple[int, str]]:
 
 def count_words(text: str) -> int:
     return len(_WORD_RE.findall(text))
+
+
+# ── spaCy token analysis ─────────────────────────────────────────────────────
+# Replaces the Gemini call this script was originally built around. This is a
+# solved deterministic parsing task: spaCy is free, offline, needs no API key,
+# runs in milliseconds per article, and cannot hallucinate a position or a lemma.
+#
+# The bug being fixed: German separable verbs. In "Eine Koalition lehnt einen
+# Vorschlag ab", the prefix "ab" sits at the end of the clause, so tapping "lehnt"
+# looked up "lehnen" (to lean) rather than "ablehnen" (to reject) -- frequently the
+# opposite meaning. Swedish particle verbs have the same problem.
+#
+# The two languages need DIFFERENT handling, and neither matches the obvious guess:
+#
+#   German  de_core_news_sm uses the TIGER scheme, not Universal Dependencies, so
+#           the relation is "svp" and NOT "compound:prt". spaCy also does not
+#           reunite the compound -- head.lemma_ for "lehnt ... ab" is "lehnen",
+#           so the infinitive is built here as prefix + stem -> "ablehnen".
+#   Swedish sv_core_news_sm uses UD, so the relation IS "compound:prt", and the
+#           lemma is written with a space -- "slå upp", not "slåupp".
+#
+# Verified on 2026-08-28: svp fires on "lehnt...ab", "wies...zurück" (ablaut) and
+# "trat...zurück", and correctly does NOT fire on the subordinate clause "weil ich
+# dich ansehe", the participle "angesehen", or prepositional "Ab Montag".
+SPACY_MODELS = {
+    "de": "de_core_news_sm",   # priority 1 -- the reported bug
+    "sv": "sv_core_news_sm",   # priority 2 -- same class of bug
+    "en": "en_core_web_sm",
+    "fr": "fr_core_news_sm",
+    "es": "es_core_news_sm",
+    "it": "it_core_news_sm",
+    "pt": "pt_core_news_sm",
+}
+
+# Dependency label marking a detached verb particle, per language scheme.
+_PARTICLE_DEP = {"de": "svp", "sv": "compound:prt"}
+
+_NLP_CACHE: dict = {}
+
+
+def _load_nlp(lang: str):
+    """Load a spaCy model once per language. Missing model -> None, never raises.
+
+    A language with no model (tr, hu, ar have none at all) simply ships without a
+    tokenMap, and the app falls back to its current behaviour.
+    """
+    if lang in _NLP_CACHE:
+        return _NLP_CACHE[lang]
+    name = SPACY_MODELS.get(lang)
+    nlp = None
+    if name:
+        try:
+            import spacy
+            nlp = spacy.load(name, disable=["ner"])
+        except Exception as e:                                    # noqa: BLE001
+            print(f"[tokenise] no spaCy model for {lang} ({name}): {e}", file=sys.stderr)
+    _NLP_CACHE[lang] = nlp
+    return nlp
+
+
+def _compound_lemma(lang: str, particle: str, stem: str) -> str:
+    """Reunite a separated particle verb into its dictionary form."""
+    if lang == "de":
+        return f"{particle.lower()}{stem.lower()}"      # ab + lehnen -> ablehnen
+    return f"{stem.lower()} {particle.lower()}"          # slå + upp   -> slå upp
+
+
+_GENDER = {"Masc": "m", "Fem": "f", "Neut": "n"}
+
+
+def analyse_article(text: str, lang: str) -> Optional[list]:
+    """Build the tokenMap for one article. Returns None if the language has no model.
+
+    Positions follow the app's contract exactly: zero-indexed over _WORD_RE matches
+    of `headline + "\n" + body`, counting ONLY word tokens -- whitespace and
+    punctuation consume no index.
+    """
+    nlp = _load_nlp(lang)
+    if nlp is None:
+        return None
+
+    spans = [(m.start(), m.end()) for m in _WORD_RE.finditer(text)]
+    if not spans:
+        return []
+
+    doc = nlp(text)
+
+    # spaCy tokenises differently from _WORD_RE (it splits punctuation into its own
+    # tokens, and _WORD_RE keeps "l'homme" whole). Map by character offset rather
+    # than by index -- using spaCy's own indices is the main correctness risk here.
+    starts = [a for a, _ in spans]
+    tok_at: dict[int, object] = {}
+    for t in doc:
+        if not t.text.strip() or t.is_punct or t.is_space:
+            continue
+        i = bisect.bisect_right(starts, t.idx) - 1
+        if i < 0 or not (spans[i][0] <= t.idx < spans[i][1]):
+            continue
+        # Several spaCy tokens can fall inside one _WORD_RE match; keep the longest,
+        # which is the one carrying the real lemma.
+        prev = tok_at.get(i)
+        if prev is None or len(t.text) > len(prev.text):
+            tok_at[i] = t
+
+    tokens = []
+    for pos, (a, b) in enumerate(spans):
+        t = tok_at.get(pos)
+        surface = text[a:b]
+        entry = {"position": pos, "surface": surface,
+                 # spaCy's own casing is kept: German dictionary forms are
+                 # capitalised for nouns ("Koalition"), lowercase for verbs.
+                 "lemma": (t.lemma_ if t is not None and t.lemma_ else surface),
+                 "pos": (t.pos_ if t is not None else "X"),
+                 "linked_positions": []}
+        if t is not None:
+            g = t.morph.get("Gender")
+            if g and g[0] in _GENDER:
+                entry["gender"] = _GENDER[g[0]]
+        tokens.append(entry)
+
+    # Reunite separated particle verbs: same compound lemma on BOTH positions,
+    # linked symmetrically so the app highlights the pair.
+    dep = _PARTICLE_DEP.get(lang)
+    if dep:
+        # Key on spaCy's own token index, NOT id(): spaCy builds a fresh Token
+        # object on every access, so identity is not stable across iterations and
+        # the lookup silently misses every time.
+        pos_of = {t.i: i for i, t in tok_at.items()}
+        for t in doc:
+            if t.dep_ != dep:
+                continue
+            p_pos, v_pos = pos_of.get(t.i), pos_of.get(t.head.i)
+            if p_pos is None or v_pos is None or p_pos == v_pos:
+                continue
+            lemma = _compound_lemma(lang, t.text, t.head.lemma_)
+            for x, y in ((v_pos, p_pos), (p_pos, v_pos)):
+                tokens[x]["lemma"] = lemma
+                if y not in tokens[x]["linked_positions"]:
+                    tokens[x]["linked_positions"].append(y)
+            tokens[p_pos]["pos"] = "PART"
+
+    return tokens
+
+
+def validate_token_map(tokens: list, text: str, label: str) -> list:
+    """Enforce the app contract. Drops bad links rather than shipping a wrong map."""
+    words = [m.group(0) for m in _WORD_RE.finditer(text)]
+    n = len(words)
+
+    for t in tokens:
+        p = t["position"]
+        # 1. surface must equal the app's Nth \p{L} match -- assert, don't trust
+        if not (0 <= p < n) or t["surface"] != words[p]:
+            print(f"[tokenise] {label}: position {p} does not match the app's "
+                  f"tokenisation — dropping tokenMap", file=sys.stderr)
+            return []
+        # in-bounds, no self-links
+        t["linked_positions"] = [x for x in t["linked_positions"] if 0 <= x < n and x != p]
+
+    # 2. symmetry: if 2 links to 7, 7 must link back to 2
+    by_pos = {t["position"]: t for t in tokens}
+    for t in tokens:
+        for x in list(t["linked_positions"]):
+            other = by_pos.get(x)
+            if other is None:
+                t["linked_positions"].remove(x)
+            elif t["position"] not in other["linked_positions"]:
+                other["linked_positions"].append(t["position"])
+    return tokens
 
 
 # ── Gemini schema for P5 token analysis ──────────────────────────────────────
@@ -288,64 +462,55 @@ def run_token_analysis(
 
 # ── P5 — run over whole bundle ────────────────────────────────────────────────
 
-def enrich_bundle_with_token_maps(
-    client: genai.Client,
-    bundle: dict,
-) -> dict:
-    """
-    Walk every article variant in briefings and nativeJournalism, run P5,
-    embed tokenMap. Returns dict[lang][lemma] = True (all lemmas found this day).
-    """
-    briefings         = bundle.get("briefings", {})
-    native_journalism = bundle.get("nativeJournalism", {})
+def enrich_bundle_with_token_maps(bundle: dict) -> int:
+    """Add a tokenMap to every article variant in the bundle. Returns articles enriched.
 
-    tasks: list[tuple[dict, str, str]] = []  # (article_obj, lang, label)
+    Runs after every native and CEFR variant is written and graded -- so no later
+    step rewrites the prose -- and before the bundle is serialised. It mutates the
+    article dicts in place; the caller then writes the bundle as normal.
 
-    # CEFR briefings: briefings[lang][level][length] = {articles: [...]}
-    for lang, lang_data in briefings.items():
+    Deliberately does NOT touch the dictionary half of this script. The app reads
+    word meanings from a Cloudflare Worker backed by D1, generated and cached on
+    demand; it does not read Supabase, and enabling that path would deepen the split
+    between two dictionary backends.
+    """
+    tasks: list[tuple[dict, str, str]] = []
+    for lang, lang_data in (bundle.get("briefings") or {}).items():
         for level, level_data in lang_data.items():
             for length, briefing in level_data.items():
                 for i, article in enumerate(briefing.get("articles", [])):
-                    label = f"P5/{lang}/{level}/{length}/{i}"
-                    tasks.append((article, lang, label))
-
-    # Native journalism: nativeJournalism[lang] = [{slug, headline, body, ...}]
-    for lang, articles in native_journalism.items():
+                    tasks.append((article, lang, f"{lang}/{level}/{length}/{i}"))
+    for lang, articles in (bundle.get("nativeJournalism") or {}).items():
         for i, article in enumerate(articles):
-            label = f"P5/{lang}/Native/{i}"
-            tasks.append((article, lang, label))
+            tasks.append((article, lang, f"{lang}/Native/{i}"))
 
-    total = len(tasks)
-    done  = 0
-    print(f"[P5] Token analysis — {total} article variants")
+    langs = sorted({l for _, l, _ in tasks})
+    have  = [l for l in langs if _load_nlp(l) is not None]
+    skip  = [l for l in langs if l not in have]
+    print(f"[tokenise] {len(tasks)} article variants | models: {', '.join(have) or 'none'}"
+          + (f" | no model, shipping without tokenMap: {', '.join(skip)}" if skip else ""))
 
-    # Collect all (lang, lemma) pairs for dictionary population
-    lemmas_by_lang: dict[str, set] = {}  # lang → set of lemmas
+    enriched = linked = 0
+    for article, lang, label in tasks:
+        text = _p5_article_text(article)
+        try:
+            tokens = analyse_article(text, lang)
+        except Exception as e:                                    # noqa: BLE001
+            print(f"[tokenise] {label}: analysis failed ({e}) — shipping without "
+                  f"tokenMap", file=sys.stderr)
+            continue
+        if tokens is None:
+            continue
+        tokens = validate_token_map(tokens, text, label)
+        if not tokens:
+            continue
+        article["tokenMap"] = tokens
+        enriched += 1
+        linked += sum(1 for t in tokens if t["linked_positions"])
 
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        future_to_task = {
-            executor.submit(run_token_analysis, client, art, lang, lbl): (art, lang, lbl)
-            for art, lang, lbl in tasks
-        }
-        for future in as_completed(future_to_task):
-            art, lang, lbl = future_to_task[future]
-            tokens = future.result()
-            done += 1
-            if tokens is not None:
-                art["tokenMap"] = tokens
-                # Collect lemmas (skip punctuation/determiners for dictionary)
-                skip_pos = {"PRON", "DET", "PUNCT", "NUM", "CONJ", "ADP"}
-                for t in tokens:
-                    if t.get("pos") not in skip_pos and t.get("lemma"):
-                        lemma = t["lemma"].lower()
-                        lemmas_by_lang.setdefault(lang, set()).add(lemma)
-                print(f"[P5] {lbl}: {len(tokens)} tokens ✓  [{done}/{total}]")
-            else:
-                print(f"[WARN] [P5] {lbl}: no token map (article ships without it)", file=sys.stderr)
-
-    print(f"[P5] Done — {sum(len(v) for v in lemmas_by_lang.values())} unique lemmas across "
-          f"{len(lemmas_by_lang)} languages")
-    return lemmas_by_lang
+    print(f"[tokenise] Done — {enriched}/{len(tasks)} articles carry a tokenMap, "
+          f"{linked} tokens in multi-word units")
+    return enriched
 
 
 # ── Dictionary card generation ────────────────────────────────────────────────
@@ -559,7 +724,7 @@ def main():
     print(f"[P5] Bundle loaded — {article_count} article variants")
 
     # Initialise Gemini
-    client = genai.Client()
+    client = genai.Client() if genai else None
     print(f"[P5] Gemini client initialised (model: {MODEL_P5})")
 
     # Initialise Supabase
@@ -568,6 +733,7 @@ def main():
     supa_key = env.get("SUPABASE_SERVICE_ROLE_KEY", "")
     supa = None
     if supa_url and supa_key:
+        from supabase import create_client
         supa = create_client(supa_url, supa_key)
         print(f"[P5] Supabase client initialised")
     else:

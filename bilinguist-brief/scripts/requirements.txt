@@ -3,3 +3,4 @@ anthropic>=0.40.0
 supabase>=2.0.0
 regex>=2024.0.0
 requests>=2.31.0
+spacy>=3.7,<4.0
