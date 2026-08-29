@@ -480,9 +480,29 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
             for length, briefing in level_data.items():
                 for i, article in enumerate(briefing.get("articles", [])):
                     tasks.append((article, lang, f"{lang}/{level}/{length}/{i}"))
-    for lang, articles in (bundle.get("nativeJournalism") or {}).items():
-        for i, article in enumerate(articles):
-            tasks.append((article, lang, f"{lang}/Native/{i}"))
+    # nativeJournalism/nativeIntermediate are shaped {lang: {length: [articles]}} --
+    # NOT {lang: [articles]} like an earlier version of this walk assumed. That bug
+    # enumerated the length KEYS, so `article` was the string "short"/"longer",
+    # _p5_article_text raised AttributeError, and the per-task except swallowed it as
+    # "analysis failed". Every native article shipped without a tokenMap for a full
+    # day, silently -- and native is the richest German in the product, exactly where
+    # separable verbs matter most.
+    for key in ("nativeJournalism", "nativeIntermediate"):
+        for lang, length_data in (bundle.get(key) or {}).items():
+            if not isinstance(length_data, dict):
+                print(f"[tokenise] {key}.{lang}: expected {{length: [...]}}, got "
+                      f"{type(length_data).__name__} — skipped", file=sys.stderr)
+                continue
+            for length, articles in length_data.items():
+                for i, article in enumerate(articles or []):
+                    tasks.append((article, lang, f"{lang}/Native/{length}/{i}"))
+
+    # Guard: a task item must be an article dict. The shape bug above was invisible
+    # because a wrong type only surfaced as a swallowed per-article exception.
+    bad = [lbl for art, _, lbl in tasks if not isinstance(art, dict)]
+    if bad:
+        raise TypeError(f"tokenise: {len(bad)} task(s) are not article dicts, "
+                        f"e.g. {bad[:3]} — bundle shape has changed")
 
     langs = sorted({l for _, l, _ in tasks})
     have  = [l for l in langs if _load_nlp(l) is not None]
@@ -491,7 +511,9 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
           + (f" | no model, shipping without tokenMap: {', '.join(skip)}" if skip else ""))
 
     enriched = linked = 0
+    by_lang: dict[str, list] = {l: [0, 0, 0] for l in langs}   # enriched, total, linked-pairs
     for article, lang, label in tasks:
+        by_lang[lang][1] += 1
         text = _p5_article_text(article)
         try:
             tokens = analyse_article(text, lang)
@@ -506,7 +528,24 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
             continue
         article["tokenMap"] = tokens
         enriched += 1
+        by_lang[lang][0] += 1
+        by_lang[lang][2] += sum(1 for t in tokens if t["linked_positions"]) // 2
         linked += sum(1 for t in tokens if t["linked_positions"])
+
+    # Report per language, and shout if a language with a model enriched nothing --
+    # that is what a silent failure looks like from the outside.
+    for lang in sorted(by_lang):
+        got, want, pairs = by_lang[lang]
+        note = "" if _load_nlp(lang) is None else (
+            "  ← ZERO ENRICHED, model loaded: something is wrong" if got == 0 else "")
+        # Linked pairs per language make separable-verb recall measurable run over
+        # run, instead of something eyeballed from a sample.
+        print(f"[tokenise]   {lang}: {got}/{want} enriched, {pairs} multi-word "
+              f"unit(s){note}" + ("" if _load_nlp(lang) is not None else "  (no model)"))
+    for lang, (got, want, _pairs) in by_lang.items():
+        if want and got == 0 and _load_nlp(lang) is not None:
+            print(f"[WARN] tokenise: {lang} has a spaCy model but produced no tokenMaps "
+                  f"across {want} articles", file=sys.stderr)
 
     print(f"[tokenise] Done — {enriched}/{len(tasks)} articles carry a tokenMap, "
           f"{linked} tokens in multi-word units")
