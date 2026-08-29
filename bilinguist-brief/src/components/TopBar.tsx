@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../hooks/useTheme';
@@ -15,8 +15,6 @@ const MASTHEADS: Record<BackgroundKey, ReturnType<typeof require>> = {
   white:    require('../../assets/masthead-compact-white.png'),
   night:    require('../../assets/masthead-compact-black.png'),
 };
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // Logomark: 600×297 source → 2.02:1 ratio
 const LOGOMARK_W = 68;
@@ -36,6 +34,7 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 
 export function TopBar({ routeName, onLogoPress }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
   const { colors, fontFamily, isNight, background } = useTheme();
   const navigation = useNavigation<any>();
   const isBriefing = routeName === 'Briefing';
@@ -99,7 +98,7 @@ export function TopBar({ routeName, onLogoPress }: Props) {
         <Image
           key={bg}
           source={MASTHEADS[bg]}
-          style={[styles.compactLockup, imageStyle]}
+          style={[styles.compactLockup, { width: winW - 48, height: Math.round((winW - 48) / 6.21) }, imageStyle]}
           resizeMode="contain"
         />
       </TouchableOpacity>
@@ -119,18 +118,18 @@ const styles = StyleSheet.create({
 
   ruleOuter: {
     height: 2,
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
   },
   ruleInner: {
     height: 1,
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
     marginVertical: 1,
   },
 
   logotypeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
     paddingVertical: 4,
     paddingHorizontal: 6,
   },
@@ -158,7 +157,7 @@ const styles = StyleSheet.create({
   },
   hairline: {
     height: StyleSheet.hairlineWidth,
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
   },
 
   // ── Compact header ─────────────────────────────────────────────────────────
@@ -168,15 +167,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 0,
   },
-  // Fixed pixel width & height so the container is always the same size
-  // regardless of the masthead image's intrinsic dimensions.
+  // Width/height set inline reactively using winW from useWindowDimensions().
   compactLockup: {
-    width: SCREEN_WIDTH - 48,
-    height: Math.round((SCREEN_WIDTH - 48) / 6.21),
     marginVertical: 6,
   },
   compactRule: {
     height: StyleSheet.hairlineWidth,
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
   },
 });

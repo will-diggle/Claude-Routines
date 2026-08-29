@@ -50,6 +50,10 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   const [activeWord, setActiveWord] = useState<string | null>(null);
   // The lemma to look up (may differ from surface, e.g. "sehe" → "ansehen")
   const [activeLemma, setActiveLemma] = useState<string | null>(null);
+  // Set only when the tapped token is half of a split lexical unit (separable
+  // verb) — the popup must then look up the compound, since the surface form on
+  // its own means something else ("lief" = to run, "lief … über" = to overflow).
+  const [activeCompound, setActiveCompound] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
 
   const articleTappedRef = React.useRef(false);
@@ -75,10 +79,14 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActivePositions(allPositions);
     setActiveWord(word);
     setActiveLemma(lemma);
+    setActiveCompound(linked.length > 0 ? lemma : null);
     setActiveSentence(sentence);
 
-    // Separable verb detection — de and sv only, fails silently
-    if (language === 'de' || language === 'sv') {
+    // Separable verb detection — de and sv only, fails silently.
+    // Skipped when the token map already linked this token: the pipeline's parse
+    // is authoritative, whereas this heuristic picks the *nearest* matching
+    // particle, which can be a different (unrelated) one in the same article.
+    if (linked.length === 0 && (language === 'de' || language === 'sv')) {
       (async () => {
         let separablePrefix: string | null = null;
 
@@ -141,6 +149,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         // "einsteigen" rather than just "steigen".
         if (compoundLemma) {
           setActiveLemma(compoundLemma);
+          setActiveCompound(compoundLemma);
         }
       })().catch(() => {});
     }
@@ -150,6 +159,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActivePositions(new Set());
     setActiveWord(null);
     setActiveLemma(null);
+    setActiveCompound(null);
   }, []);
 
   const isRTL = language === 'ar';
@@ -165,7 +175,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           text={article.headline}
           style={[
             styles.headline,
-            { color: colors.inkDark, fontFamily: isRTL ? arabicFontBold : fontFamily.bold, fontSize: fontSize.heading },
+            { color: colors.inkDark, fontFamily: isRTL ? arabicFontBold : fontFamily.bold, fontSize: fontSize.heading, lineHeight: Math.round(fontSize.heading * 1.25) },
             isRTL && styles.rtlText,
           ]}
           activePositions={activePositions}
@@ -199,12 +209,12 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         })
       )}
 
-      {!isLast && <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />}
 
       {activeWord && (
         <WordPopup
           word={activeWord}
           lemma={activeLemma ?? activeWord}
+          compoundLemma={activeCompound}
           sentence={activeSentence}
           language={language}
           level={level}
@@ -227,9 +237,7 @@ const styles = StyleSheet.create({
   headlineRow: {
     marginBottom: Spacing.sm,
   },
-  headline: {
-    lineHeight: 28,
-  },
+  headline: {},
   body: {
     lineHeight: 26,
     textAlign: 'justify',

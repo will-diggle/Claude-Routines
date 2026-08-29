@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env
 .env*.local
+# any other .env variant (.env.rtf, .env.txt.rtf, .env.backup …) — but keep .env.example
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

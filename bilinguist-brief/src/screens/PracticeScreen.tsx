@@ -2,7 +2,7 @@ import { SpringButton } from '../components/SpringButton';
 import { BlurView } from 'expo-blur';
 import React, { useState, useMemo } from 'react';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
-import { View, Text, ScrollView, Modal, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, Modal, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +57,8 @@ const LANG_NATIVE: Record<LanguageCode, string> = {
 export function PracticeScreen() {
   const onScrollTabBar = useScrollTabBar();
   const { colors, fontFamily, fontSize, isDark } = useTheme();
+  const { width: winW } = useWindowDimensions();
+  const isIPad = winW >= 768;
   const navigation = useNavigation<PracticeNav>();
   const words = useWordBankStore(useShallow((s) => s.words));
   const { streak, freezeDatesUsed } = useStreakStore(useShallow((s) => ({ streak: s.streak, freezeDatesUsed: s.freezeDatesUsed })));

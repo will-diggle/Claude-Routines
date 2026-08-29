@@ -26,6 +26,33 @@ const STREAK_REMINDER_MINUTE = 0;
 // The pipeline reliably finishes by this time each morning (shown as a hint in Settings UI).
 export const PIPELINE_READY_TIME = '07:30';
 
+/**
+ * Returns the earliest allowed notification time in the device's local timezone.
+ * Reference: 06:30 UK local (BST or GMT), which equals 07:30 for EU users (CEST/CET).
+ * Uses Intl to detect whether UK is currently in BST (+1) or GMT (+0).
+ */
+export function getMinNotifTime(): string {
+  try {
+    const now = new Date();
+    // Detect UK's current UTC offset (0 = GMT winter, 1 = BST summer)
+    const londonHour = parseInt(
+      new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', hour12: false }).format(now),
+      10,
+    );
+    const ukOffsetHours = ((londonHour - now.getUTCHours() + 24) % 24);
+    // 06:30 UK local expressed as minutes since midnight UTC
+    const refUtcMinutes = 6 * 60 + 30 - ukOffsetHours * 60;
+    // Shift to device local time
+    const deviceOffsetMinutes = -now.getTimezoneOffset();
+    const localMinutes = refUtcMinutes + deviceOffsetMinutes;
+    const h = Math.floor(localMinutes / 60) % 24;
+    const m = localMinutes % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  } catch {
+    return '06:30';
+  }
+}
+
 // Maps store topic keys to the genre label strings used in brief article data.
 const TOPIC_LABELS: Record<string, string> = {
   worldNews:   'Global News',

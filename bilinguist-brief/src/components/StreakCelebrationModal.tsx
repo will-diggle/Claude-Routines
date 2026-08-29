@@ -16,6 +16,7 @@ const FLAG_CONFETTI_COLORS: Record<string, string[]> = {
   fr: ['#002395', '#FFFFFF', '#ED2939', '#002395', '#ED2939'],
   de: ['#000000', '#DD0000', '#FFCE00', '#DD0000', '#FFCE00'],
   es: ['#AA151B', '#F1BF00', '#AA151B', '#F1BF00', '#C60B1E'],
+  pt: ['#009C3B', '#FFDF00', '#002776', '#FFFFFF', '#009C3B'],
   sv: ['#006AA7', '#FECC02', '#006AA7', '#FECC02', '#FFFFFF'],
   tr: ['#E30A17', '#FFFFFF', '#E30A17', '#FFFFFF', '#E30A17'],
   hu: ['#CE2939', '#FFFFFF', '#477050', '#CE2939', '#477050'],
@@ -26,7 +27,7 @@ const DEFAULT_CONFETTI_COLORS = [Colors.cream, Colors.accentGold, Colors.accentR
 
 const LANG_FLAG_EMOJI: Record<string, string> = {
   fr: '🇫🇷', de: '🇩🇪', es: '🇪🇸', it: '🇮🇹',
-  sv: '🇸🇪', tr: '🇹🇷', hu: '🇭🇺', ar: '🇸🇦', en: '🇬🇧',
+  pt: '🇧🇷', sv: '🇸🇪', tr: '🇹🇷', hu: '🇭🇺', ar: '🇸🇦', en: '🇬🇧',
 };
 
 const STREAK_COPY: Record<string, string> = {
@@ -38,6 +39,42 @@ const STREAK_COPY: Record<string, string> = {
   es: '¡Tu racha está en llamas!',
   tr: 'Seriniz ateşte!',
   hu: 'A sorozatod lángol!',
+  pt: 'Sua sequência está em chamas!',
+  ar: 'سلسلتك مشتعلة!',
+};
+
+const LANG_ENDONYM: Record<string, string> = {
+  en: 'English', fr: 'français', de: 'Deutsch', es: 'español',
+  it: 'italiano', pt: 'português', sv: 'svenska', tr: 'Türkçe',
+  hu: 'magyar', ar: 'عربية',
+};
+
+// One-day: "You read 247 English words today."
+const WORDS_TODAY_COPY: Record<string, (n: string, lang: string) => string> = {
+  en: (n, lang) => `You read ${n} ${lang} words today.`,
+  fr: (n, lang) => `Tu as lu ${n} mots en ${lang} aujourd'hui.`,
+  de: (n, lang) => `Du hast heute ${n} Wörter auf ${lang} gelesen.`,
+  sv: (n, lang) => `Du läste ${n} ${lang}-ord idag.`,
+  it: (n, lang) => `Hai letto ${n} parole in ${lang} oggi.`,
+  es: (n, lang) => `Has leído ${n} palabras en ${lang} hoy.`,
+  pt: (n, lang) => `Você leu ${n} palavras em ${lang} hoje.`,
+  tr: (n, lang) => `Bugün ${n} ${lang} kelime okudun.`,
+  hu: (n, lang) => `Ma ${n} ${lang} szót olvastál.`,
+  ar: (n, lang) => `قرأت ${n} كلمة ${lang} اليوم.`,
+};
+
+// Multi-day: "You read 247 English words today — 1,840 since your 5-day streak began."
+const WORDS_STREAK_COPY: Record<string, (today: string, total: string, days: string, lang: string) => string> = {
+  en: (t, tot, d, lang) => `You read ${t} ${lang} words today — ${tot} since your ${d}-day streak began.`,
+  fr: (t, tot, d, lang) => `Tu as lu ${t} mots en ${lang} aujourd'hui — ${tot} depuis ta série de ${d} jours.`,
+  de: (t, tot, d, lang) => `Heute ${t} Wörter auf ${lang} — ${tot} seit Beginn deiner ${d}-Tage-Serie.`,
+  sv: (t, tot, d, lang) => `${t} ${lang}-ord idag — ${tot} sedan din ${d}-dagarssvit började.`,
+  it: (t, tot, d, lang) => `${t} parole in ${lang} oggi — ${tot} dall'inizio della tua serie di ${d} giorni.`,
+  es: (t, tot, d, lang) => `${t} palabras en ${lang} hoy — ${tot} desde que comenzó tu racha de ${d} días.`,
+  pt: (t, tot, d, lang) => `${t} palavras em ${lang} hoje — ${tot} desde o início da sua sequência de ${d} dias.`,
+  tr: (t, tot, d, lang) => `Bugün ${t} ${lang} kelime — ${d} günlük seride toplamda ${tot}.`,
+  hu: (t, tot, d, lang) => `Ma ${t} ${lang} szó — ${tot} a ${d} napos sorozatod kezdete óta.`,
+  ar: (t, tot, d, lang) => `${t} كلمة ${lang} اليوم — ${tot} كلمة منذ بدء سلسلة ${d} أيام.`,
 };
 
 // ── Colour palettes end ───────────────────────────────────────────────────────
@@ -49,6 +86,8 @@ interface Props {
   visible: boolean;
   streakCount: number;
   langCode: string;
+  wordsToday: number;
+  streakTotal: number;
   onDismiss: () => void;
 }
 
@@ -57,7 +96,7 @@ interface Props {
 // 'hidden'   = fully dismissed
 type Phase = 'hidden' | 'showing' | 'draining';
 
-export function StreakCelebrationModal({ visible, streakCount, langCode, onDismiss }: Props) {
+export function StreakCelebrationModal({ visible, streakCount, langCode, wordsToday, streakTotal, onDismiss }: Props) {
   const { colors, fontFamily, isDark } = useTheme();
 
   const confettiColors = FLAG_CONFETTI_COLORS[langCode] ?? DEFAULT_CONFETTI_COLORS;
@@ -146,7 +185,27 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, onDismi
   const toArabicNumerals = (n: number) =>
     String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
   const displayCount = langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount);
-  const copy         = STREAK_COPY[langCode] ?? 'Your streak is on fire!';
+
+  const fmt = (n: number) => {
+    const s = langCode === 'ar' ? toArabicNumerals(n) : n.toLocaleString('en');
+    return s;
+  };
+
+  const langName = LANG_ENDONYM[langCode] ?? langCode;
+
+  let copy: string;
+  if (wordsToday > 0) {
+    if (streakCount <= 1) {
+      copy = (WORDS_TODAY_COPY[langCode] ?? WORDS_TODAY_COPY.en)(fmt(wordsToday), langName);
+    } else {
+      const totalFmt  = fmt(streakTotal > 0 ? streakTotal : wordsToday);
+      copy = (WORDS_STREAK_COPY[langCode] ?? WORDS_STREAK_COPY.en)(
+        fmt(wordsToday), totalFmt, langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount), langName
+      );
+    }
+  } else {
+    copy = STREAK_COPY[langCode] ?? 'Your streak is on fire!';
+  }
 
   if (phase === 'hidden') return null;
 

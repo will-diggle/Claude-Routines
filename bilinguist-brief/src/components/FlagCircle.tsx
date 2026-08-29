@@ -69,6 +69,15 @@ function FlagInterior({ code, size }: { code: string; size: number }) {
           </View>
         </View>
       );
+    case 'pt':
+      // Brazil — green with yellow diamond and blue circle (simplified: green bg, yellow band, blue centre)
+      return (
+        <View style={{ flex: 1, backgroundColor: '#009C3B', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: size * 0.75, height: size * 0.55, backgroundColor: '#FFDF00', transform: [{ rotate: '0deg' }], position: 'absolute', borderRadius: size * 0.04 }} />
+          <View style={{ width: size * 0.38, height: size * 0.38, borderRadius: size * 0.19, backgroundColor: '#002776', position: 'absolute' }} />
+          <View style={{ width: size * 0.38, height: size * 0.1, backgroundColor: '#FFFFFF', position: 'absolute' }} />
+        </View>
+      );
     case 'en':
     default:
       return (

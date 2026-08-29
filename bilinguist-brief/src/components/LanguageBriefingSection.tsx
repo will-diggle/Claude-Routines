@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Share, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
@@ -35,18 +35,18 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
 // The API should return genre in English, but some language pipelines (e.g. Native
 // journalism) may translate it. translateGenre handles both directions.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
-  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER',        hu: 'VILÁGHÍREK',          ar: 'أخبار عالمية'      },
-  'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK',     hu: 'BRIT POLITIKA',       ar: 'السياسة البريطانية' },
-  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK',              hu: 'POLITIKA',            ar: 'السياسة'           },
-  'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              it: 'ECONOMIA',              sv: 'EKONOMI',              hu: 'GAZDASÁG',            ar: 'الاقتصاد'          },
-  'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK',   hu: 'TUDOMÁNY & TECH',     ar: 'العلوم والتكنولوجيا' },
-  'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR',               hu: 'KULTÚRA',             ar: 'الفنون والثقافة'   },
-  'ASIA':                { en: 'ASIA',                fr: 'ASIE',                 de: 'ASIEN',                   es: 'ASIA',                  it: 'ASIA',                  sv: 'ASIEN',                hu: 'ÁZSIA',               ar: 'آسيا'              },
-  'EUROPE':              { en: 'EUROPE',              fr: 'EUROPE',               de: 'EUROPA',                  es: 'EUROPA',                it: 'EUROPA',                sv: 'EUROPA',               hu: 'EURÓPA',              ar: 'أوروبا'            },
-  'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN',         hu: 'KÖZEL-KELET',         ar: 'الشرق الأوسط'     },
-  'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA',               hu: 'AFRIKA',              ar: 'أفريقيا'           },
-  'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER',         hu: 'JÓ HÍREK',            ar: 'أخبار سارة'        },
-  'WEATHER':             { en: 'WEATHER',             fr: 'MÉTÉO',                de: 'WETTER',                  es: 'TIEMPO',                it: 'METEO',                 sv: 'VÄDER',                hu: 'IDŐJÁRÁS',            ar: 'الطقس'             },
+  'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    pt: 'NOTÍCIAS MUNDIAIS',     it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER',        hu: 'VILÁGHÍREK',          ar: 'أخبار عالمية'      },
+  'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    pt: 'POLÍTICA BRITÂNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK',     hu: 'BRIT POLITIKA',       ar: 'السياسة البريطانية' },
+  'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              pt: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK',              hu: 'POLITIKA',            ar: 'السياسة'           },
+  'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              pt: 'ECONOMIA',              it: 'ECONOMIA',              sv: 'EKONOMI',              hu: 'GAZDASÁG',            ar: 'الاقتصاد'          },
+  'SCIENCE & TECHNOLOGY':{ en: 'SCIENCES & TECH',     fr: 'SCIENCES & TECH',      de: 'WISSENSCHAFT & TECHNIK',  es: 'CIENCIA & TECNOLOGÍA',  pt: 'CIÊNCIA & TECNOLOGIA',  it: 'SCIENZA & TECNICA',     sv: 'VETENSKAP & TEKNIK',   hu: 'TUDOMÁNY & TECH',     ar: 'العلوم والتكنولوجيا' },
+  'ARTS & CULTURE':      { en: 'ARTS & CULTURE',      fr: 'ARTS & CULTURE',       de: 'KUNST & KULTUR',          es: 'ARTES & CULTURA',       pt: 'ARTES & CULTURA',       it: 'ARTI & CULTURA',        sv: 'KULTUR',               hu: 'KULTÚRA',             ar: 'الفنون والثقافة'   },
+  'ASIA':                { en: 'ASIA',                fr: 'ASIE',                 de: 'ASIEN',                   es: 'ASIA',                  pt: 'ÁSIA',                  it: 'ASIA',                  sv: 'ASIEN',                hu: 'ÁZSIA',               ar: 'آسيا'              },
+  'EUROPE':              { en: 'EUROPE',              fr: 'EUROPE',               de: 'EUROPA',                  es: 'EUROPA',                pt: 'EUROPA',                it: 'EUROPA',                sv: 'EUROPA',               hu: 'EURÓPA',              ar: 'أوروبا'            },
+  'MIDDLE EAST':         { en: 'MIDDLE EAST',         fr: 'MOYEN-ORIENT',         de: 'NAHER OSTEN',             es: 'ORIENTE MEDIO',         pt: 'ORIENTE MÉDIO',         it: 'MEDIO ORIENTE',         sv: 'MELLANÖSTERN',         hu: 'KÖZEL-KELET',         ar: 'الشرق الأوسط'     },
+  'AFRICA':              { en: 'AFRICA',              fr: 'AFRIQUE',              de: 'AFRIKA',                  es: 'ÁFRICA',                pt: 'ÁFRICA',                it: 'AFRICA',                sv: 'AFRIKA',               hu: 'AFRIKA',              ar: 'أفريقيا'           },
+  'GOOD NEWS':           { en: 'GOOD NEWS',           fr: 'BONNES NOUVELLES',     de: 'GUTE NACHRICHTEN',        es: 'BUENAS NOTICIAS',       pt: 'BOAS NOTÍCIAS',         it: 'BUONE NOTIZIE',         sv: 'GODA NYHETER',         hu: 'JÓ HÍREK',            ar: 'أخبار سارة'        },
+  'WEATHER':             { en: 'WEATHER',             fr: 'MÉTÉO',                de: 'WETTER',                  es: 'TIEMPO',                pt: 'TEMPO',                 it: 'METEO',                 sv: 'VÄDER',                hu: 'IDŐJÁRÁS',            ar: 'الطقس'             },
 };
 
 // Reverse map: any translated label (any language) → canonical English key.
@@ -83,6 +83,7 @@ const GENRE_COLORS: Record<string, string> = {
   'AFRICA':              '#9B6B0C',
   'GOOD NEWS':           '#2E7D32',
   'WEATHER':             '#B45309',
+  'SPORT':               '#4A3B8F',
 };
 
 function genreColor(genre: string): string {
@@ -92,7 +93,7 @@ function genreColor(genre: string): string {
 // Localised word for "Native" — second half of the "B2 / Native" label.
 const NATIVE_WORD: Partial<Record<LanguageCode, string>> = {
   en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
-  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
+  es: 'Nativo', pt: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
   tr: 'Yerel', hu: 'Anyanyelvi', ar: 'متقدم',
 };
 
@@ -112,11 +113,12 @@ interface Props {
   hideEditionHeader?: boolean;
   bundleReceivedAt?: number | null;
   onRetry: () => void;
+  onVisibleWordCount?: (count: number) => void;
 }
 
 const LANG_LOCALE: Partial<Record<LanguageCode, string>> = {
   en: 'en-GB', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
-  es: 'es-ES', sv: 'sv-SE', tr: 'tr-TR', hu: 'hu-HU', ar: 'ar-SA',
+  es: 'es-ES', pt: 'pt-BR', sv: 'sv-SE', tr: 'tr-TR', hu: 'hu-HU', ar: 'ar-SA',
 };
 
 const BRIEF_PUBLISHED: Partial<Record<LanguageCode, string>> = {
@@ -125,6 +127,7 @@ const BRIEF_PUBLISHED: Partial<Record<LanguageCode, string>> = {
   de: 'Brief veröffentlicht',
   it: 'Brief pubblicato',
   es: 'Brief publicado',
+  pt: 'Brief publicado',
   sv: 'Brief publicerat',
   tr: 'Brief yayınlandı',
   hu: 'Brief közzétéve',
@@ -181,7 +184,7 @@ function groupByGenre(articles: Article[]): GenreGroup[] {
 
 const SHARE_WORD: Partial<Record<LanguageCode, string>> = {
   en: 'Share', fr: 'Partager', de: 'Teilen', es: 'Compartir',
-  it: 'Condividi', sv: 'Dela', tr: 'Paylaş', hu: 'Megosztás', ar: 'مشاركة',
+  pt: 'Compartilhar', it: 'Condividi', sv: 'Dela', tr: 'Paylaş', hu: 'Megosztás', ar: 'مشاركة',
 };
 
 const SHARE_INTRO: Partial<Record<LanguageCode, string>> = {
@@ -189,6 +192,7 @@ const SHARE_INTRO: Partial<Record<LanguageCode, string>> = {
   fr: 'Le Bilinguist Brief a rapporté :',
   de: 'Das Bilinguist Brief berichtete:',
   es: 'El Bilinguist Brief informó:',
+  pt: 'O Bilinguist Brief noticiou:',
   it: 'Il Bilinguist Brief ha riportato:',
   sv: 'Bilinguist Brief rapporterade:',
   tr: "Bilinguist Brief'te bildirildi:",
@@ -198,7 +202,7 @@ const SHARE_INTRO: Partial<Record<LanguageCode, string>> = {
 
 const LANG_NAME_EN: Partial<Record<LanguageCode, string>> = {
   en: 'English', fr: 'French', de: 'German', es: 'Spanish',
-  it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian', ar: 'Arabic',
+  pt: 'Brazilian Portuguese', it: 'Italian', sv: 'Swedish', tr: 'Turkish', hu: 'Hungarian', ar: 'Arabic',
 };
 
 const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
@@ -321,6 +325,7 @@ export function LanguageBriefingSection({
   hideEditionHeader = false,
   bundleReceivedAt,
   onRetry,
+  onVisibleWordCount,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const setDeveloperMode = useSettingsStore((s) => s.setDeveloperMode);
@@ -339,6 +344,15 @@ export function LanguageBriefingSection({
   }) ?? []), [briefing?.articles, topics]);
 
   const hasContent = visibleArticles.length > 0;
+
+  useEffect(() => {
+    if (!onVisibleWordCount) return;
+    const total = visibleArticles.reduce((sum, a) => {
+      const words = ((a.headline ?? '') + ' ' + (a.body ?? '')).match(/\p{L}+/gu)?.length ?? 0;
+      return sum + words;
+    }, 0);
+    onVisibleWordCount(total);
+  }, [visibleArticles, onVisibleWordCount]);
 
   // Build a unified sorted render list — weather and article genre groups ordered by topicOrder
   type RenderItem = { type: 'weather' } | { type: 'group'; group: GenreGroup };

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
   View, Text, Image, Dimensions, Modal, TouchableOpacity,
-  NativeScrollEvent, NativeSyntheticEvent, Animated,
+  NativeScrollEvent, NativeSyntheticEvent, Animated, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -23,6 +23,7 @@ import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
 import { FreezeWarningModal, FrozenLang } from '../components/FreezeWarningModal';
+import { NewLanguageAnnouncementModal, useNewLanguageAnnouncement } from '../components/NewLanguageAnnouncementModal';
 import { FLOAT_TAB_BOTTOM, FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
@@ -49,13 +50,18 @@ const SCREEN_WIDTH  = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const IS_TABLET = SCREEN_WIDTH >= 768;
 const LOCKUP_PADDING = 0;
+// Nav-pill collapse thresholds. Collapse once scrolled past PILL_COLLAPSE_Y;
+// only re-expand within PILL_TOP_EPS of the top, so the pill doesn't reopen
+// part-way through an upward scroll.
+const PILL_COLLAPSE_Y = 80;
+const PILL_TOP_EPS    = 4;
 const LOCKUP_W = Math.round(SCREEN_WIDTH * (IS_TABLET ? 0.55 : 1.18)); // oversize on phone to fill whitespace in PNG
 const LOCKUP_H = Math.round(LOCKUP_W / 6.21); // 4012×646 source ratio
 
 // "Native" word in each language (for level chip labels like "B2 / Natif")
 const NATIVE_WORD: Record<string, string> = {
   en: 'Native', fr: 'Natif', de: 'Mutterspr.',
-  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål', tr: 'Yerel', hu: 'Anyanyelvi',
+  es: 'Nativo', pt: 'Nativo', it: 'Madrelingua', sv: 'Modersmål', tr: 'Yerel', hu: 'Anyanyelvi',
 };
 
 // Localized short/long labels — must match SettingsScreen's LENGTH_LABELS
@@ -74,21 +80,22 @@ const LENGTH_LABELS: Record<string, readonly [string, string]> = {
 // City names in each language's native form (fallback)
 const LANG_CITY_NATIVE: Record<string, string> = {
   en: 'London', fr: 'Paris',  de: 'Berlin', es: 'Madrid',
-  it: 'Roma',   sv: 'Stockholm', tr: 'Ankara', hu: 'Budapest', ar: 'الرياض',
+  pt: 'Brasil', it: 'Roma', sv: 'Stockholm', tr: 'Ankara', hu: 'Budapest', ar: 'الرياض',
 };
 
 // Each language's capital city translated into every display language.
 // Row = the language whose city it is; column = the language to display it in.
 const CITY_IN_LANG: Record<string, Partial<Record<string, string>>> = {
-  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra',    hu: 'London',    ar: 'لندن'    },
-  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris',     hu: 'Párizs',    ar: 'باريس'   },
-  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin',    hu: 'Berlin',    ar: 'برلين'   },
-  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid',    hu: 'Madrid',    ar: 'مدريد'   },
-  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma',      hu: 'Róma',      ar: 'روما'    },
-  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm',  hu: 'Stockholm', ar: 'ستوكهولم'},
-  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara',    hu: 'Ankara',    ar: 'أنقرة'   },
-  hu: { en: 'Budapest',  fr: 'Budapest',  de: 'Budapest',  es: 'Budapest',  it: 'Budapest',  sv: 'Budapest',  tr: 'Budapeşte', hu: 'Budapest',  ar: 'بودابست' },
-  ar: { en: 'Riyadh',    fr: 'Riyad',     de: 'Riad',      es: 'Riad',      it: 'Riyad',     sv: 'Riyad',     tr: 'Riyad',     hu: 'Rijád',     ar: 'الرياض'  },
+  en: { en: 'London',    fr: 'Londres',   de: 'London',    es: 'Londres',   pt: 'Londres',   it: 'Londra',    sv: 'London',    tr: 'Londra',    hu: 'London',    ar: 'لندن'    },
+  fr: { en: 'Paris',     fr: 'Paris',     de: 'Paris',     es: 'París',     pt: 'Paris',     it: 'Parigi',    sv: 'Paris',     tr: 'Paris',     hu: 'Párizs',    ar: 'باريس'   },
+  de: { en: 'Berlin',    fr: 'Berlin',    de: 'Berlin',    es: 'Berlín',    pt: 'Berlim',    it: 'Berlino',   sv: 'Berlin',    tr: 'Berlin',    hu: 'Berlin',    ar: 'برلين'   },
+  es: { en: 'Madrid',    fr: 'Madrid',    de: 'Madrid',    es: 'Madrid',    pt: 'Madrid',    it: 'Madrid',    sv: 'Madrid',    tr: 'Madrid',    hu: 'Madrid',    ar: 'مدريد'   },
+  pt: { en: 'Brazil',    fr: 'Brésil',    de: 'Brasilien',  es: 'Brasil',    pt: 'Brasil',    it: 'Brasile',   sv: 'Brasilien',  tr: 'Brezilya',  hu: 'Brazília',  ar: 'البرازيل'  },
+  it: { en: 'Rome',      fr: 'Rome',      de: 'Rom',       es: 'Roma',      pt: 'Roma',      it: 'Roma',      sv: 'Rom',       tr: 'Roma',      hu: 'Róma',      ar: 'روما'    },
+  sv: { en: 'Stockholm', fr: 'Stockholm', de: 'Stockholm', es: 'Estocolmo', pt: 'Estocolmo', it: 'Stoccolma', sv: 'Stockholm', tr: 'Stokholm',  hu: 'Stockholm', ar: 'ستوكهولم'},
+  tr: { en: 'Ankara',    fr: 'Ankara',    de: 'Ankara',    es: 'Ankara',    pt: 'Ancara',    it: 'Ankara',    sv: 'Ankara',    tr: 'Ankara',    hu: 'Ankara',    ar: 'أنقرة'   },
+  hu: { en: 'Budapest',  fr: 'Budapest',  de: 'Budapest',  es: 'Budapest',  pt: 'Budapeste', it: 'Budapest',  sv: 'Budapest',  tr: 'Budapeşte', hu: 'Budapest',  ar: 'بودابست' },
+  ar: { en: 'Riyadh',    fr: 'Riyad',     de: 'Riad',      es: 'Riad',      pt: 'Riade',     it: 'Riyad',     sv: 'Riyad',     tr: 'Riyad',     hu: 'Rijád',     ar: 'الرياض'  },
 };
 
 // BCP-47 locale for date/time formatting on each page
@@ -97,6 +104,7 @@ const LANG_LOCALE: Record<string, string> = {
   fr: 'fr-FR',
   de: 'de-DE',
   es: 'es-ES',
+  pt: 'pt-BR',
   it: 'it-IT',
   sv: 'sv-SE',
   tr: 'tr-TR',
@@ -110,6 +118,7 @@ const PUBLISHED_PREFIX: Record<string, string> = {
   fr: 'Publié le',
   de: 'Veröffentlicht am',
   es: 'Publicado el',
+  pt: 'Publicado em',
   it: 'Pubblicato il',
   sv: 'Publicerad',
   tr: 'Yayınlandı',
@@ -188,6 +197,9 @@ export function BriefingScreen() {
   const isFocused = useIsFocused();
   const { colors, fontFamily, background, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const lockupW = Math.round(winW * (winW >= 768 ? 0.38 : 1.18));
+  const lockupH = Math.round(lockupW / 6.21);
   const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
     useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength }))
   );
@@ -214,7 +226,9 @@ export function BriefingScreen() {
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
 
-  const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday } = useStreakStore();
+  const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday, recordWordsRead, getWordsToday, getWordsLast7Days, wordsReadByDay, setConfettiActive } = useStreakStore();
+  // Word count per language for current visible articles (updated by LanguageBriefingSection callback)
+  const visibleWordCountRef = useRef<Record<string, number>>({});
   const [streakModalVisible, setStreakModalVisible] = useState(false);
   const [streakModalLang, setStreakModalLang] = useState<string>('all');
   const [calModalActiveLang, setCalModalActiveLang] = useState('all');
@@ -227,6 +241,7 @@ export function BriefingScreen() {
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
   const [freezeWarnVisible, setFreezeWarnVisible] = useState(false);
+  const { shouldShow: showPtAnnouncement, markSeen: markPtSeen } = useNewLanguageAnnouncement();
   const [frozenLangs, setFrozenLangs] = useState<FrozenLang[]>([]);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
   const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('longer');
@@ -384,6 +399,7 @@ export function BriefingScreen() {
       const current = store.readingStreaks[langCode] ?? 0;
       const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
       recordRead(langCode);
+      recordWordsRead(langCode, visibleWordCountRef.current[langCode] ?? 0);
       // Reschedule streak reminder — removes this language from the "unread" list,
       // or cancels the notification entirely if all languages are now read.
       const { lastReadDates: lrd } = useStreakStore.getState();
@@ -408,11 +424,12 @@ export function BriefingScreen() {
         setFullSweepVisible(true);
       } else {
         setCelebration({ langCode, streakCount: newCount });
+        setConfettiActive(true);
       }
       // Full-sweep check: if 2+ languages active and all are now read, queue it
       // (shown after individual streak modal is dismissed)
     }
-  }, [getReadingTimeToday, addReadingTime, recordRead]);
+  }, [getReadingTimeToday, addReadingTime, recordRead, recordWordsRead]);
 
   const flushCurrentLang = useCallback(() => {
     const lang = currentLangRef.current;
@@ -497,10 +514,12 @@ export function BriefingScreen() {
   useEffect(() => {
     const clamped = Math.min(briefPageIndex, Math.max(0, langCount - 1));
     programmaticScrollRef.current = true;
-    pagerRef.current?.scrollTo({ x: clamped * SCREEN_WIDTH, animated: true });
+    pagerRef.current?.scrollTo({ x: clamped * winW, animated: false });
     const t = setTimeout(() => { programmaticScrollRef.current = false; }, 700);
     return () => clearTimeout(t);
-  }, [briefPageIndex, langCount]);
+  // winW in deps so the pager re-snaps to the current page on orientation change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [briefPageIndex, langCount, winW]);
 
   // Clamp briefPageIndex when active languages are removed
   useEffect(() => {
@@ -563,9 +582,9 @@ export function BriefingScreen() {
 
   const handlePageScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (programmaticScrollRef.current) return;
-    const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const page = Math.round(e.nativeEvent.contentOffset.x / winW);
     if (page !== briefPageIndex) setBriefPageIndex(page);
-  }, [briefPageIndex, setBriefPageIndex]);
+  }, [briefPageIndex, setBriefPageIndex, winW]);
 
   const chrome   = chromeColor(background);
   const hairline = hairlineColor(background);
@@ -645,7 +664,7 @@ export function BriefingScreen() {
           const pillColor = SCROLL_PILL_COLORS[background] ?? '#222222';
           const PILL_H = 40;
           const PILL_TRACK_TOP    = insets.top + 20;
-          const PILL_TRACK_BOTTOM = SCREEN_HEIGHT - FLOAT_TAB_INSET - PILL_H - 20;
+          const PILL_TRACK_BOTTOM = winH - FLOAT_TAB_INSET - PILL_H - 20;
           const pillTranslateY = scrollProgress.interpolate({
             inputRange: [0, 1],
             outputRange: [0, PILL_TRACK_BOTTOM - PILL_TRACK_TOP],
@@ -653,7 +672,7 @@ export function BriefingScreen() {
           });
 
           return (
-            <View key={lang.code} style={styles.page}>
+            <View key={lang.code} style={[styles.page, { width: winW }]}>
             <ScrollView
               ref={(el) => { if (el) langScrollRefs.current.set(lang.code, el); else langScrollRefs.current.delete(lang.code); }}
               style={{ flex: 1, backgroundColor: colors.bg }}
@@ -668,7 +687,12 @@ export function BriefingScreen() {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
                 briefingScrollY.setValue(y);
-                const nowScrolled = y > 80;
+                // Asymmetric thresholds: collapse once the user leaves the top,
+                // but only re-expand when they're actually back at the top —
+                // otherwise the pill grows and shrinks while scrolling up.
+                const nowScrolled = scrolledFlagRef.current
+                  ? y > PILL_TOP_EPS
+                  : y > PILL_COLLAPSE_Y;
                 if (nowScrolled !== scrolledFlagRef.current) {
                   scrolledFlagRef.current = nowScrolled;
                   setBriefingScrolled(nowScrolled);
@@ -695,7 +719,7 @@ export function BriefingScreen() {
                 <Image
                   key={`masthead-${background}`}
                   source={MASTHEADS[background] ?? MASTHEADS.white}
-                  style={styles.lockup}
+                  style={[styles.lockup, { width: lockupW, height: lockupH }]}
                   resizeMode="contain"
                 />
               </View>
@@ -778,6 +802,27 @@ export function BriefingScreen() {
                 })()}
               </View>
 
+              {/* ── Word count row ──────────────────────────────────────── */}
+              {(() => {
+                const wordsToday = getWordsToday(lang.code);
+                const words7d    = getWordsLast7Days(lang.code);
+                if (wordsToday === 0 && words7d === 0) return null;
+                const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+                return (
+                  <View style={styles.wordCountRow}>
+                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      {fmt(wordsToday)} words today
+                    </Text>
+                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      ·
+                    </Text>
+                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      {fmt(words7d)} this week
+                    </Text>
+                  </View>
+                );
+              })()}
+
               {/* ── Language content ────────────────────────────────────── */}
               <LanguageBriefingSection
                 langCode={lang.code}
@@ -798,6 +843,15 @@ export function BriefingScreen() {
                   clearError(lang.code);
                   loadBriefing(lang.code, level, length, true);
                 }}
+                onVisibleWordCount={(count) => {
+                  visibleWordCountRef.current[lang.code] = count;
+                  // If streak already credited today, keep the stored count up-to-date
+                  // as topics/level/length change. recordWordsRead ignores lower values,
+                  // so removing topics never decreases the count.
+                  if (readTrackedRef.current[lang.code]) {
+                    recordWordsRead(lang.code, count);
+                  }
+                }}
               />
 
               {/* ── Page footer ─────────────────────────────────────────── */}
@@ -814,6 +868,7 @@ export function BriefingScreen() {
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       setCelebration({ langCode: lang.code, streakCount: readingStreaks[lang.code] ?? 1 });
+                      setConfettiActive(true);
                     }}
                     activeOpacity={0.75}
                     hitSlop={{ top: 14, bottom: 14, left: 20, right: 20 }}
@@ -1056,8 +1111,21 @@ export function BriefingScreen() {
         visible={celebration !== null}
         streakCount={celebration?.streakCount ?? 1}
         langCode={celebration?.langCode ?? 'en'}
+        wordsToday={celebration ? getWordsToday(celebration.langCode) : 0}
+        streakTotal={(() => {
+          if (!celebration) return 0;
+          const { langCode: lc, streakCount: sc } = celebration;
+          let total = 0;
+          for (let i = 0; i < sc; i++) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const key = `${lc}_${d.toISOString().split('T')[0]}`;
+            total += wordsReadByDay[key] ?? 0;
+          }
+          return total;
+        })()}
         onDismiss={() => {
           setCelebration(null);
+          setConfettiActive(false);
           // After individual modal closes, check if this was the last language
           const activeCodes = activeLanguages.map(l => l.code);
           if (
@@ -1081,6 +1149,10 @@ export function BriefingScreen() {
         langs={frozenLangs}
         onDismiss={() => setFreezeWarnVisible(false)}
       />
+      <NewLanguageAnnouncementModal
+        visible={showPtAnnouncement}
+        onDismiss={markPtSeen}
+      />
     </View>
   );
 }
@@ -1099,12 +1171,11 @@ const styles = StyleSheet.create({
   ruleOuterInset: { height: StyleSheet.hairlineWidth, marginHorizontal: 8, marginTop: 0, marginBottom: 12, borderRadius: 1 },
 
   citiesWrap: {
-    width: SCREEN_WIDTH,
-    position: 'relative',
+    alignSelf: 'stretch',
     alignItems: 'center',
   },
   cities: {
-    width: SCREEN_WIDTH,
+    width: '100%',
     textAlign: 'center',
     fontSize: 9,
     letterSpacing: 2.5,
@@ -1113,7 +1184,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   lockupWrap: {
-    width: SCREEN_WIDTH,
+    alignSelf: 'stretch',
     paddingHorizontal: LOCKUP_PADDING,
     paddingTop: 8,
     paddingBottom: 0,
@@ -1166,6 +1237,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: 'italic',
     paddingRight: 4,
+  },
+  wordCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingBottom: 6,
+  },
+  wordCountText: {
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
 
   fixedDots: {

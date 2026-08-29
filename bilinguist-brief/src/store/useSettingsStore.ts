@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
 
-export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr' | 'hu' | 'ar';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'pt' | 'tr' | 'hu' | 'ar';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export const LANGUAGE_LEVELS: LanguageLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
 
@@ -103,7 +103,8 @@ const ALL_LANGUAGES: LanguagePreference[] = [
   { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',   flag: '🇸🇪', level: 'B2',     readLength: 'short', active: false },
   { code: 'en', name: 'English (British)',nativeName: 'English',   flag: '🇬🇧', level: 'B2',     readLength: 'short', active: true  },
   { code: 'it', name: 'Italian',          nativeName: 'Italiano',  flag: '🇮🇹', level: 'A1',     readLength: 'short', active: false },
-  { code: 'es', name: 'Spanish',          nativeName: 'Español',   flag: '🇪🇸', level: 'A2',     readLength: 'short', active: false },
+  { code: 'es', name: 'Spanish',                nativeName: 'Español',   flag: '🇪🇸', level: 'A2',     readLength: 'short', active: false },
+  { code: 'pt', name: 'Portuguese (Brazilian)', nativeName: 'Português', flag: '🇧🇷', level: 'A2',     readLength: 'short', active: false },
   { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',    flag: '🇹🇷', level: 'A1',     readLength: 'short', active: false },
   { code: 'hu', name: 'Hungarian',        nativeName: 'Magyar',    flag: '🇭🇺', level: 'Native', readLength: 'short', active: false },
   { code: 'ar', name: 'Arabic',           nativeName: 'العربية',   flag: '🇸🇦', level: 'A1',     readLength: 'short', active: false },
@@ -280,7 +281,7 @@ export const useSettingsStore = create<SettingsStore>()(
           state.fontFamily = 'lora';
         }
         // Ensure all languages are present; preserve user's existing languages
-        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es', 'tr']);
+        const VALID_CODES = new Set<string>(['fr', 'de', 'sv', 'en', 'it', 'es', 'pt', 'tr']);
         const filtered = (state.languages ?? ALL_LANGUAGES).filter((l) => VALID_CODES.has(l.code));
         // Validate levels without resetting the user's custom drag order
         // Preserve user's saved order — migrate stale levels and backfill readLength

@@ -25,6 +25,7 @@ export interface BriefingArticle {
   slug?: string;
   headline: string;
   body: string;
+  wordCount?: number; // word count of headline + body, added by Python at generation time
   tokenMap?: TokenMapEntry[]; // P5 token analysis — undefined for older bundles
 }
 

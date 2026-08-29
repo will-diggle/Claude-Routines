@@ -153,9 +153,7 @@ export function TappableText({
             )}
             style={[
               styles.word,
-              isActive
-                ? { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 5, overflow: 'hidden', borderBottomColor: colors.accentGold, borderBottomWidth: 2 }
-                : { borderBottomColor: colors.accentGold + '66', borderBottomWidth: 1 },
+              isActive && { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 5, overflow: 'hidden', borderBottomColor: colors.accentGold, borderBottomWidth: 2 },
             ]}
           >
             {token.text}

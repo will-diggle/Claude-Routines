@@ -11,7 +11,7 @@ function getLevelBucket(level: LanguageLevel): LevelBucket {
 
 // ---------------------------------------------------------------------------
 // Mock articles — 5 languages × 3 level buckets × 5 articles
-// Topics cycle: World News → Good News → Sport → Politics → World News
+// Topics cycle: Global News → Good News → Sport → Politics → Global News
 // ---------------------------------------------------------------------------
 
 const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
@@ -20,7 +20,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   fr: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Les chefs du monde se réunissent pour le climat',
         body: 'Les dirigeants de nombreux pays se retrouvent à Paris. Ils parlent du changement climatique. Le climat change partout sur la planète. Ils veulent trouver des solutions pour aider la Terre.',
       },
@@ -40,7 +40,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Le premier ministre parle à la télévision aujourd\'hui. Il dit que les impôts vont changer l\'année prochaine. Il veut aider les familles avec peu d\'argent. Beaucoup de Français écoutent son discours.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Une grande tempête frappe le sud de l\'Europe',
         body: 'Il y a une grande tempête en Italie et en Espagne aujourd\'hui. Les vents sont très forts. Beaucoup de personnes doivent quitter leur maison. Les équipes de secours travaillent beaucoup pour aider.',
       },
@@ -48,7 +48,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Sommet climatique : les grandes puissances s\'engagent à agir',
         body: 'À Paris, les représentants de quarante pays ont signé hier un accord pour réduire les émissions de carbone d\'ici 2035. La conférence, qui a duré trois jours, a abouti à des engagements concrets sur les énergies renouvelables. Les pays en développement recevront une aide financière pour accélérer leur transition. Cependant, plusieurs ONG estiment que ces mesures restent insuffisantes face à l\'urgence climatique.',
       },
@@ -68,7 +68,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Les députés européens ont adopté hier une nouvelle directive sur la gestion des demandes d\'asile. Ce texte modifie les procédures aux frontières extérieures de l\'Union européenne. La France et l\'Allemagne ont voté en faveur du texte, tandis que la Hongrie s\'y est opposée. Les défenseurs des droits humains s\'inquiètent de l\'impact sur les personnes les plus vulnérables.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Les États-Unis annoncent de nouvelles sanctions contre la Chine',
         body: 'Washington a annoncé de nouvelles sanctions commerciales contre la Chine, ciblant principalement le secteur des semi-conducteurs. Pékin a immédiatement répondu en convoquant l\'ambassadeur américain au ministère des Affaires étrangères. Les marchés financiers mondiaux ont réagi nerveusement à cette nouvelle. Cette escalade intervient dans un contexte de compétition technologique croissante entre les deux grandes puissances.',
       },
@@ -76,7 +76,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'L\'accord de Paris revisité : entre ambition affichée et réalisme budgétaire',
         body: 'À l\'issue d\'un sommet marathon dont les négociations se sont prolongées jusqu\'au petit matin, les quarante nations représentées ont finalement paraphé une déclaration commune sur la neutralité carbone qui suscite autant d\'espoir que de scepticisme. Si les délégations occidentales saluent unanimement l\'ambition du texte, les économistes font valoir que les objectifs de réduction fixés impliqueraient une reconversion des filières énergétiques d\'une ampleur sans précédent dans l\'histoire industrielle moderne. Greenpeace dénonce quant à elle une « énième gesticulation diplomatique », faute de mécanismes de sanction contraignants capables de garantir le respect des engagements.',
       },
@@ -96,7 +96,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Adoptée à une majorité relative de 312 voix contre 274, la nouvelle directive sur les procédures d\'asile aux frontières extérieures de l\'Union représente une inflexion majeure de la politique migratoire européenne, dont les effets concrets restent pourtant difficiles à anticiper. Le texte instaure des zones de traitement accéléré que ses détracteurs assimilent à une forme de rétention déguisée, potentiellement contraire aux engagements de la Convention de Genève. À l\'opposé, les gouvernements d\'Europe centrale y voient le rétablissement d\'une maîtrise des frontières jugée indispensable à la cohésion politique de l\'Union.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Guerre économique sino-américaine : l\'ère du découplage technologique ?',
         body: 'L\'extension des restrictions américaines à l\'exportation de puces avancées à une vingtaine d\'entreprises chinoises supplémentaires marque une nouvelle étape dans la rivalité technologique entre les deux premières économies mondiales, dont l\'issue déterminera en grande partie la géographie industrielle du siècle. La réaction de Pékin, inhabituellement tranchante dans la forme, laisse entrevoir l\'adoption de contre-mesures ciblant les matières premières critiques — un domaine où la Chine conserve une position dominante. Plusieurs analystes de premier plan évoquent désormais ouvertement le scénario d\'un découplage technologique complet, aux répercussions que le FMI chiffre à plus d\'un point de PIB mondial sur la prochaine décennie.',
       },
@@ -107,7 +107,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   de: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Viele Länder treffen sich für das Klima',
         body: 'Die Chefs von vielen Ländern kommen nach Paris. Sie sprechen über das Klima. Das Klima auf der Erde wird wärmer. Die Menschen suchen Lösungen für dieses Problem.',
       },
@@ -127,7 +127,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Die Politiker im Bundestag haben heute eine wichtige Debatte. Sie sprechen über neue Steuergesetze. Viele Deutsche schauen die Diskussion im Fernsehen. Die Entscheidung kommt nächste Woche.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Ein Erdbeben trifft die Türkei',
         body: 'In der Türkei gibt es heute ein starkes Erdbeben. Viele Häuser sind kaputt. Die Menschen brauchen Hilfe und Wasser. Viele Länder schicken Hilfe in die Türkei.',
       },
@@ -135,7 +135,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Klimagipfel in Paris: Industriestaaten einigen sich auf ambitionierte Ziele',
         body: 'Beim internationalen Klimagipfel in Paris haben sich vierzig Staaten auf verbindliche CO₂-Reduktionsziele geeinigt. Die Vereinbarung sieht vor, die Emissionen bis 2035 um dreißig Prozent zu senken. Entwicklungsländer sollen finanzielle Unterstützung erhalten, um den Übergang zu erneuerbaren Energien zu beschleunigen. Umweltverbände begrüßen den Schritt, kritisieren jedoch das Fehlen verbindlicher Sanktionsmechanismen.',
       },
@@ -155,7 +155,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Das Kabinett hat gestern ein Entlastungspaket im Umfang von zwölf Milliarden Euro für Familien und Geringverdiener beschlossen. Das Paket umfasst Steuererleichterungen, eine Erhöhung des Kindergeldes und günstigere Kita-Beiträge. Die Maßnahmen sollen zum Jahresbeginn in Kraft treten. Die Opposition kritisiert die Finanzierung als nicht ausreichend durchdacht.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'USA verhängen neue Handelsschranken gegen China',
         body: 'Die Vereinigten Staaten haben neue Handelssanktionen gegen China angekündigt, die vor allem den Technologiesektor und die Halbleiterindustrie betreffen. Peking reagierte unverzüglich und bestellte den amerikanischen Botschafter ins Außenministerium ein. Analysten warnen vor negativen Auswirkungen auf die globalen Lieferketten. Die Spannungen zwischen den beiden größten Volkswirtschaften der Welt nehmen damit weiter zu.',
       },
@@ -163,7 +163,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Pariser Klimagipfel: Historischer Durchbruch oder diplomatische Formelkompromisse?',
         body: 'Nach zähen Verhandlungen, die sich bis in die frühen Morgenstunden hinzogen, unterzeichneten die Vertreter von vierzig Staaten eine gemeinsame Abschlusserklärung zur Klimaneutralität, die ihre Initiatoren als historischen Wendepunkt feiern. Kritischen Beobachtern entgeht indessen nicht, dass das Abkommen über keinerlei verbindliche Sanktionsmechanismen verfügt: Die angestrebten Emissionsreduktionen würden eine Umgestaltung des globalen Energiesystems erfordern, für die kein Unterzeichnerstaat bislang eine belastbare Finanzierungsplanung vorgelegt hat. Greenpeace sprach von einer „weiteren Runde performativer Klimadiplomatie".',
       },
@@ -183,7 +183,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Das vom Bundeskabinett verabschiedete Entlastungspaket im Umfang von zwölf Milliarden Euro stellt den bislang umfangreichsten haushaltspolitischen Eingriff der laufenden Legislaturperiode dar und spiegelt den Versuch wider, sozialen Ausgleich und fiskalische Glaubwürdigkeit in Einklang zu bringen. Während Sozialverbände die Anhebung des Kindergeldes und die Begrenzung der Kita-Gebühren als überfällige Korrekturen begrüßen, mahnen Wirtschaftsweise zur Vorsicht bei der Finanzierung über Haushaltsspielräume, die bei näherer Betrachtung äußerst begrenzt erscheinen. Verfassungsrechtler prüfen zudem die Vereinbarkeit einzelner Finanzierungsmodalitäten mit der grundgesetzlichen Schuldenbremse.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Technologischer Systemwettbewerb: Washington verschärft Chipexportrestriktionen gegen Peking',
         body: 'Die Ausweitung der amerikanischen Exportbeschränkungen auf zwanzig weitere chinesische Halbleiterunternehmen markiert eine qualitativ neue Eskalationsstufe im technologischen Systemwettbewerb zwischen Washington und Peking, dessen Ausgang die industriellen Kräfteverhältnisse des 21. Jahrhunderts maßgeblich mitbestimmen dürfte. Die chinesische Reaktion fiel ungewöhnlich scharf in Ton und Substanz aus: Außenminister Wang Yi warnte unverhohlen vor „entschlossenen und proportionalen Gegenmaßnahmen" — ein Wortlaut, den Analysten als Anspielung auf die chinesische Dominanz im Bereich der Seltenen Erden deuten. Ökonomen des Brookings Institution sehen die Gefahr eines vollständigen Entkopplungsprozesses, der nach FMI-Schätzungen das Welt-BIP um mehr als einen Prozentpunkt reduzieren würde.',
       },
@@ -194,7 +194,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   es: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Los líderes del mundo hablan sobre el clima',
         body: 'Muchos países se reúnen esta semana en París. Hablan del cambio climático. El planeta necesita ayuda ahora. Los líderes quieren encontrar soluciones para todos.',
       },
@@ -214,7 +214,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'El presidente habla hoy en la televisión. Habla de nuevos impuestos para el año próximo. Muchos españoles escuchan su discurso en casa. Los cambios empiezan en enero.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Un terremoto grande golpea Turquía',
         body: 'Hay un terremoto muy fuerte en Turquía hoy. Muchas casas están destruidas. Las personas necesitan agua y comida. Muchos países envían ayuda urgente a Turquía.',
       },
@@ -222,7 +222,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Cumbre climática: cuarenta países se comprometen a reducir emisiones',
         body: 'En París, los representantes de cuarenta naciones firmaron ayer un acuerdo para reducir las emisiones de carbono antes de 2035. Los debates, que duraron tres días, concluyeron con compromisos concretos sobre energías renovables. Los países en vías de desarrollo recibirán apoyo financiero para acelerar su transición energética. Sin embargo, varios grupos ecologistas afirman que las medidas siguen siendo insuficientes.',
       },
@@ -242,7 +242,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'El Parlamento español comenzó ayer un largo debate sobre la reforma del sistema de pensiones, que afectaría a más de diez millones de jubilados. El Gobierno propone vincular las pensiones al índice de precios al consumo para proteger el poder adquisitivo. Los sindicatos apoyan la medida, mientras que la patronal pide más diálogo antes de cualquier decisión.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Tensión creciente entre Estados Unidos y China por el comercio tecnológico',
         body: 'Washington ha anunciado nuevas sanciones comerciales contra Pekín que afectan principalmente al sector de los semiconductores y la inteligencia artificial. China respondió convocando al embajador estadounidense y advirtiendo de posibles contramedidas. Los analistas temen que la escalada perjudique a las cadenas de suministro mundiales. Los mercados financieros reaccionaron con caídas en Asia y Europa.',
       },
@@ -250,7 +250,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'La cumbre climática de París: ¿inflexión histórica o declaración de intenciones sin anclaje presupuestario?',
         body: 'Tras unas negociaciones que se extendieron hasta el alba, los cuarenta países signatarios del acuerdo de París sobre neutralidad carbónica presentaron el texto como un hito generacional en la gobernanza climática global. El escepticismo, no obstante, brota con igual fuerza: la ausencia de mecanismos de cumplimiento vinculantes pone en entredicho la solidez de los compromisos adquiridos, cuya implementación efectiva exigiría una reconversión del aparato energético mundial a un ritmo y escala sin precedentes en la historia industrial. Greenpeace calificó el acuerdo de «nueva ronda de diplomacia performativa carente de consecuencias».',
       },
@@ -270,7 +270,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'El inicio del debate parlamentario sobre la reforma del sistema de pensiones ha puesto al descubierto tensiones latentes en el seno de la coalición gobernante, cuyas facciones discrepan tanto sobre el ritmo como sobre el alcance de los cambios previstos. La propuesta de indexación plena al IPC, bien acogida por los sindicatos, choca con las reticencias de Bruselas, que advierte del riesgo que entraña para la sostenibilidad fiscal a largo plazo. El margen de maniobra del Ejecutivo se estrecha adicionalmente por la oposición frontal de los grupos parlamentarios de la derecha.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'La guerra de los chips: las nuevas restricciones estadounidenses reconfiguran el tablero tecnológico mundial',
         body: 'La decisión de Washington de ampliar las restricciones a la exportación de semiconductores avanzados a veinte empresas chinas adicionales eleva la rivalidad tecnológica entre las dos primeras potencias a un terreno de consecuencias difícilmente reversibles. Pekín respondió con una dureza inusitada, y el portavoz del Ministerio de Asuntos Exteriores advirtió de «represalias enérgicas y proporcionales» sin precisar su contenido, lo que los analistas interpretan como una alusión velada al control chino sobre las materias primas críticas. El FMI cifra el coste de un desacoplamiento tecnológico completo en más de un punto porcentual del PIB mundial en el horizonte de una década.',
       },
@@ -281,7 +281,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   it: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'I leader del mondo si incontrano per il clima',
         body: 'Molti capi di stato vanno a Parigi questa settimana. Parlano del cambiamento climatico. Il pianeta ha bisogno di aiuto adesso. I leader cercano soluzioni insieme.',
       },
@@ -301,7 +301,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'Il presidente del Consiglio parla in televisione oggi. Parla di nuove tasse per il prossimo anno. Molti italiani guardano il suo discorso in televisione. Le nuove regole iniziano a gennaio.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Un terremoto colpisce la Turchia',
         body: 'C\'è un forte terremoto in Turchia questa mattina. Molte case sono distrutte. Le persone hanno bisogno di acqua e cibo. L\'Italia e altri paesi mandano aiuti urgenti.',
       },
@@ -309,7 +309,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Vertice sul clima: quaranta nazioni firmano un accordo per ridurre le emissioni',
         body: 'A Parigi, i rappresentanti di quaranta paesi hanno firmato ieri un accordo per ridurre le emissioni di carbonio entro il 2035. I negoziati, durati tre giorni, si sono conclusi con impegni concreti sulle energie rinnovabili. I paesi in via di sviluppo riceveranno sostegno finanziario per accelerare la loro transizione. Tuttavia, diverse organizzazioni ambientaliste ritengono che le misure siano ancora insufficienti.',
       },
@@ -329,7 +329,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'La Camera dei deputati ha avviato ieri il dibattito sulla riforma fiscale proposta dal governo. Il provvedimento prevede una riduzione delle aliquote IRPEF per i redditi medio-bassi e nuove agevolazioni per le famiglie. Le opposizioni chiedono maggiori garanzie per i lavoratori autonomi e pensionati. Il voto finale è atteso entro la fine del mese.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Tensioni commerciali crescenti tra Stati Uniti e Cina',
         body: 'Washington ha annunciato nuove sanzioni commerciali nei confronti della Cina, che colpiscono principalmente il settore dei semiconduttori e della tecnologia avanzata. Pechino ha risposto convocando l\'ambasciatore americano al Ministero degli Esteri. Gli analisti temono un impatto negativo sulle catene di approvvigionamento globali. I mercati finanziari hanno reagito con cali generalizzati in Asia.',
       },
@@ -337,7 +337,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'L\'accordo di Parigi sul clima: svolta storica o illusione diplomatica priva di vincoli?',
         body: 'Dopo trattative estenuanti protrattesi fino all\'alba, i quaranta paesi partecipanti al vertice climatico di Parigi hanno siglato una dichiarazione congiunta sulla neutralità carbonica che i suoi promotori definiscono di portata storica. L\'assenza di meccanismi sanzionatori vincolanti alimenta tuttavia seri interrogativi sull\'effettiva implementazione degli impegni: raggiungere gli obiettivi di riduzione stabiliti imporrebbe una riconversione del sistema energetico mondiale a un ritmo e a un\'ampiezza senza precedenti nella storia industriale. Greenpeace ha definito il testo «l\'ennesima operazione di diplomazia performativa».',
       },
@@ -357,7 +357,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'L\'avvio del dibattito parlamentare sulla riforma dell\'IRPEF mette a nudo le contraddizioni di una maggioranza che stenta a trovare una sintesi coerente tra istanze redistributive e rigore di bilancio. Il taglio delle aliquote per i redditi medio-bassi, presentato dal governo come misura a favore dei ceti produttivi, è contestato dall\'opposizione che denuncia la mancata copertura degli oneri previsti. Il Senato dovrà esprimersi entro sessanta giorni, in un clima politico segnato dalla prossimità delle scadenze elettorali.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'La guerra dei chip: le restrizioni americane segnano una svolta nel confronto tecnologico con Pechino',
         body: 'L\'estensione delle restrizioni statunitensi all\'export di semiconduttori avanzati a venti nuove aziende cinesi sancisce un\'ulteriore e significativa escalation nella competizione tecnologica tra le due prime potenze mondiali, i cui esiti ridisegneranno la mappa industriale del XXI secolo. La risposta di Pechino, insolitamente dura nella forma e nella sostanza, prefigura l\'adozione di contromisure nel settore delle materie prime critiche, in cui la Cina mantiene una posizione dominante e difficilmente scalfibile. Il FMI avverte che un processo di disaccoppiamento tecnologico completo ridurrebbe il PIL mondiale di oltre un punto percentuale nel corso del prossimo decennio.',
       },
@@ -368,7 +368,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   en: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'World leaders meet in Paris to talk about the climate',
         body: 'Many countries come together in Paris this week. They talk about climate change. The planet needs help right now. The leaders want to find solutions for everyone.',
       },
@@ -388,7 +388,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'The Prime Minister speaks on television today. He talks about new taxes for next year. Many British people watch his speech at home. The changes will start in January.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'A big earthquake hits Turkey',
         body: 'There is a strong earthquake in Turkey today. Many houses are damaged or destroyed. People need water, food and shelter. Many countries are sending help to Turkey quickly.',
       },
@@ -396,7 +396,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'Climate summit: forty nations commit to cutting emissions by 2035',
         body: 'At the international climate summit in Paris, forty countries have signed a landmark agreement to reduce carbon emissions by thirty per cent before 2035. The three-day negotiations concluded with concrete commitments on renewable energy investment. Developing nations will receive financial support to speed up their energy transition. However, several environmental groups argue that the pledges still fall short of what the science demands.',
       },
@@ -416,7 +416,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'MPs began debating a major overhaul of England\'s planning rules yesterday, which would fast-track approval for thousands of new homes in areas of high demand. The government says the changes are essential to tackle the housing crisis affecting millions of young people. Critics argue that the reforms give property developers too much power at the expense of local communities and green spaces.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'US-China trade tensions escalate over semiconductor exports',
         body: 'The United States has announced new trade restrictions against China targeting the semiconductor and advanced technology sectors. Beijing responded swiftly, summoning the American ambassador and warning of retaliatory measures. Analysts fear the dispute could disrupt global supply chains and weigh on world economic growth. Stock markets in Asia and Europe fell sharply following the announcement.',
       },
@@ -424,7 +424,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'The Paris climate accord: a generational breakthrough or another exercise in diplomatic theatre?',
         body: 'After marathon negotiations that stretched into the early hours, forty nations signed a joint declaration on carbon neutrality that its architects are billing as a once-in-a-generation advance in global climate governance. The sceptics have a point, however: the accord lacks any binding enforcement mechanism, and the emissions reductions it envisions would require an energy transition of a scale and speed that no signatory government has yet backed with credible fiscal commitments. Environmental groups, predictably split on the outcome, range from cautious optimism to outright denunciation of what Greenpeace called "another round of performative diplomacy with no consequences".',
       },
@@ -444,7 +444,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'The planning reform bill that began its Commons passage yesterday has managed the unusual feat of uniting the house-building industry, certain Nimby-aligned backbenchers and a broad coalition of environmental groups — albeit in entirely contradictory positions. The government insists that stripping away layers of local discretionary power is the only credible response to a housing crisis that has rendered homeownership a statistical improbability for the under-forties. Its opponents contend, with some force, that the bill effectively transfers sovereign planning decisions from elected councils to a developer class whose interests are structurally misaligned with those of the communities they build in.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'The semiconductor war: Washington\'s latest export curbs reshape the global technology landscape',
         body: 'The administration\'s decision to extend export restrictions on advanced chips to a further twenty Chinese entities has pushed the technology cold war between Washington and Beijing into territory whose consequences may prove difficult to reverse. Beijing\'s response was notably sharper in register than previous protestations, with the foreign ministry for the first time explicitly linking potential counter-measures to Chinese dominance in critical rare earth minerals — a domain where the asymmetry of leverage is decidedly not in Washington\'s favour. Analysts at Brookings warn that sustained escalation risks triggering precisely the full technological decoupling that both sides have until now professed to wish to avoid, a scenario the IMF estimates could carve more than a percentage point from global GDP over the coming decade.',
       },
@@ -460,7 +460,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
   ar: {
     A1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'قادة العالم يجتمعون للحديث عن المناخ',
         body: 'اجتمع قادة من دول كثيرة في باريس. تحدثوا عن تغيّر المناخ. المناخ يتغيّر في كل مكان. يريدون إيجاد حلول لمساعدة الأرض.',
       },
@@ -480,7 +480,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'تحدث الرئيس عن الاقتصاد. قال إن الوضع جيد. الناس يعملون ويكسبون المال. يريد الرئيس مساعدة الجميع.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'سفينة كبيرة تصل إلى الميناء',
         body: 'وصلت سفينة كبيرة إلى الميناء. تحمل السفينة بضائع كثيرة. الناس ينتظرون هذه البضائع. هذا جيد للتجارة.',
       },
@@ -488,7 +488,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     B1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'قمة المناخ تنتهي باتفاقية لتقليص الانبعاثات',
         body: 'أسفرت قمة المناخ الدولية المنعقدة في باريس عن توقيع اتفاقية تلزم أربعين دولة بخفض انبعاثات ثاني أكسيد الكربون بنسبة ثلاثين بالمئة بحلول عام ألفين وخمسة وثلاثين. وصف المفاوضون الاتفاقية بأنها خطوة مهمة، وإن أشار بعض المراقبين إلى غياب آليات إلزامية للتطبيق. وأعلنت منظمات بيئية دولية تحفظها على الصياغة النهائية.',
       },
@@ -508,7 +508,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'بدأ البرلمان مناقشة مشروع قانون يهدف إلى إصلاح قطاع الإسكان وتبسيط إجراءات البناء. يرى المؤيدون أن المشروع يُعالج أزمة نقص المساكن، بينما يخشى المعارضون أنه يُضعف صلاحيات الحكومات المحلية. وتعهّد الوزير المعني بإجراء مشاورات موسّعة مع المجتمعات المحلية قبل التصويت النهائي.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'واشنطن تفرض قيوداً جديدة على تصدير الرقائق الإلكترونية إلى الصين',
         body: 'أعلنت الولايات المتحدة عن حزمة قيود جديدة تستهدف تصدير الرقائق الإلكترونية المتطورة إلى الصين، في خطوة يُرجَّح أن تزيد التوترات التجارية بين البلدين. ردّت بكين بسرعة، محذّرةً من إجراءات مضادة، في حين أعربت أسواق المال الآسيوية والأوروبية عن قلقها من تداعيات هذه الخطوة على سلاسل التوريد العالمية.',
       },
@@ -516,7 +516,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
 
     C1: [
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'اتفاقية باريس للمناخ: انجاز تاريخي أم دبلوماسية بلا أسنان؟',
         body: 'بعد مفاوضات مضنية امتدت حتى ساعات الفجر، وقّعت أربعون دولة على إعلان مشترك يستهدف تحييد الكربون، وصفه مهندسوه بأنه تحوّل جيلي في منظومة حوكمة المناخ الدولي. بيد أن المشككين يستندون إلى حجج وجيهة؛ إذ تخلو الاتفاقية من أي آلية إنفاذ ملزمة، وتقتضي خفوضات الانبعاثات المأمولة تحولاً في منظومة الطاقة لم تدعمه أيٌّ من الدول الموقِّعة بالتزامات مالية ذات مصداقية.',
       },
@@ -536,7 +536,7 @@ const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
         body: 'نجح مشروع قانون إصلاح التخطيط العمراني في تحقيق ما نادراً ما يتحقق في الحياة السياسية، وهو توحيد صفوف قطاع البناء وتكتلات المعارضة البيئية في الوقت ذاته، وإن جاء ذلك من منطلقات متناقضة تماماً. تؤكد الحكومة أن تجريد السلطات المحلية من صلاحياتها التقديرية هو الاستجابة الوحيدة الممكنة لأزمة الإسكان.',
       },
       {
-        genre: 'World News',
+        genre: 'Global News',
         headline: 'حرب الرقائق: القيود الأمريكية الجديدة تُعيد رسم خريطة التكنولوجيا العالمية',
         body: 'دفع قرار الإدارة الأمريكية بتوسيع نطاق قيود التصدير على الرقائق المتطورة ليطال عشرين كياناً صينياً إضافياً، الحرب التكنولوجية الباردة بين واشنطن وبكين إلى أعماق يصعب التنبؤ بتداعياتها. جاء رد الفعل الصيني أشد حدةً مما كان عليه في المواجهات السابقة، إذ ربطت وزارة الخارجية للمرة الأولى صراحةً بين الإجراءات المضادة المحتملة وهيمنة الصين على المعادن الأرضية النادرة.',
       },

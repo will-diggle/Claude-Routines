@@ -20,7 +20,7 @@ const LENGTH_LABELS: Record<string, readonly [string, string]> = {
 
 const NATIVE_WORD: Record<string, string> = {
   en: 'Native', fr: 'Natif', de: 'Muttersprachlich',
-  es: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
+  es: 'Nativo', pt: 'Nativo', it: 'Madrelingua', sv: 'Modersmål',
   tr: 'Yerel', hu: 'Anyanyelvi',
 };
 

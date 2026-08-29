@@ -74,6 +74,15 @@ interface Props {
   word: string | null;
   /** Lemma resolved from token map (e.g. "ansehen" for tapped "sehe"). Falls back to word. */
   lemma?: string;
+  /**
+   * Set when the token map linked this token to others as one lexical unit —
+   * a separable verb split across the clause ("lief … über" → "überlaufen").
+   * The surface form alone means something different ("lief" → "to run"), so the
+   * dictionary must be queried with the compound rather than the tapped word.
+   * Left undefined for ordinary words, where looking up the surface is correct
+   * (it lets the card explain "lief is the past tense of laufen").
+   */
+  compoundLemma?: string | null;
   sentence: string;
   language: LanguageCode;
   level: LanguageLevel;
@@ -85,8 +94,11 @@ interface Props {
   isNested?: boolean;
 }
 
-export function WordPopup({ word, lemma, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
+export function WordPopup({ word, lemma, compoundLemma, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
   const lookupLemma = lemma ?? word ?? '';
+  // What the dictionary is actually queried with — the compound when this token
+  // is half of a split lexical unit, otherwise the tapped surface form.
+  const lookupTarget = compoundLemma ?? word ?? '';
 
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -170,7 +182,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
     setDeclNumber('sg');
     setVerifiedTenses(null);
 
-    const currentWord = word;
+    const currentWord = lookupTarget;
     const currentLemma = lookupLemma;
     const currentLang = language;
 
@@ -220,7 +232,7 @@ export function WordPopup({ word, lemma, sentence, language, level, genre, onClo
       }).catch(() => { setIsLoading(false); });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [word, lookupLemma, language]);
+  }, [word, lookupLemma, lookupTarget, language]);
 
   // Build ordered tense list — verified > rich array > legacy two-field fallback
   const tenses = useMemo(() => {

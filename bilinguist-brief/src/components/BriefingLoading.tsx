@@ -1,14 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Dimensions } from 'react-native';
+import { View, Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-
 function SkeletonLine({ width, height = 16, delay = 0 }: { width: string | number; height?: number; delay?: number }) {
   const { isDark } = useTheme();
-  const translateX = useRef(new Animated.Value(-SCREEN_WIDTH)).current;
+  const { width: winW } = useWindowDimensions();
+  const translateX = useRef(new Animated.Value(-winW)).current;
 
   const baseColor = isDark ? '#2A2A2A' : '#E0DDD5';
   const shimmerLight = isDark ? '#3A3A3A' : '#F0EDE6';
@@ -19,12 +18,12 @@ function SkeletonLine({ width, height = 16, delay = 0 }: { width: string | numbe
       Animated.sequence([
         Animated.delay(delay),
         Animated.timing(translateX, {
-          toValue: SCREEN_WIDTH,
+          toValue: winW,
           duration: 1200,
           useNativeDriver: true,
         }),
         Animated.timing(translateX, {
-          toValue: -SCREEN_WIDTH,
+          toValue: -winW,
           duration: 0,
           useNativeDriver: true,
         }),
@@ -32,7 +31,7 @@ function SkeletonLine({ width, height = 16, delay = 0 }: { width: string | numbe
     );
     anim.start();
     return () => anim.stop();
-  }, [isDark]);
+  }, [isDark, winW]);
 
   return (
     <View style={[styles.line, { width: width as any, height, backgroundColor: baseColor, overflow: 'hidden' }]}>
@@ -83,9 +82,26 @@ function ArticleSkeleton({ baseDelay = 0, long = false }: { baseDelay?: number; 
 }
 
 export function BriefingLoading({ long = false }: { long?: boolean }) {
+  const { width: winW } = useWindowDimensions();
+  const isIPad = winW >= 768;
+
+  if (isIPad) {
+    // Two-column grid matching the actual brief layout on iPad
+    return (
+      <View style={[styles.container, { flexDirection: 'row', flexWrap: 'wrap' }]}>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={0}   long={long} /></View>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={100} long={long} /></View>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={200} long={long} /></View>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={300} long={long} /></View>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={400} long={long} /></View>
+        <View style={{ width: '50%' }}><ArticleSkeleton baseDelay={500} long={long} /></View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <ArticleSkeleton baseDelay={0} long={long} />
+      <ArticleSkeleton baseDelay={0}   long={long} />
       <ArticleSkeleton baseDelay={200} long={long} />
       <ArticleSkeleton baseDelay={400} long={long} />
     </View>
@@ -101,8 +117,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0DDD5',
   },
   line: { borderRadius: 4 },
-  gap2: { height: 2 },
-  gap4: { height: 4 },
-  gap6: { height: 6 },
+  gap2:  { height: 2 },
+  gap4:  { height: 4 },
+  gap6:  { height: 6 },
   gap12: { height: 12 },
 });

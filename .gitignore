@@ -13,6 +13,8 @@ dist/
 __pycache__/
 *.pyc
 .env
+# other .env variants (.env.rtf, .env.txt.rtf …) so they can't be staged by accident
+.env.*
 
 # Generated pipeline output (pushed to bilinguist-data repo separately)
 bilinguist-brief/scripts/output/
