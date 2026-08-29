@@ -42,7 +42,10 @@ export async function lookupWord(
   level: LanguageLevel,
   options?: { forceRefresh?: boolean; sentence?: string },
 ): Promise<WordEntry | null> {
-  const cacheKey = `${word.toLowerCase()}:${language}:${level}`;
+  // Include a short context fingerprint so the same word in different sentences
+  // gets a separate in-memory cache entry (handles homographs like Bank=bench vs bank).
+  const ctxKey = options?.sentence ? `:${options.sentence.slice(0, 60)}` : '';
+  const cacheKey = `${word.toLowerCase()}:${language}:${level}${ctxKey}`;
   if (!options?.forceRefresh) {
     const cached = lookupCache.get(cacheKey);
     if (cached) return cached;

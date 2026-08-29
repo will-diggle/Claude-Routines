@@ -14,6 +14,8 @@ interface StreakStore {
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
   // Cumulative time spent on each language brief per day (key: `${langCode}_${date}`)
   readingTimeSecs: Record<string, number>;
+  // Words read per language per day (key: `${langCode}_${date}`)
+  wordsReadByDay: Record<string, number>;
   // Freeze days consumed per language (ISO date strings)
   freezeDatesUsed: Record<string, string[]>;
   // Date of last "all active languages read" celebration, to avoid re-firing
@@ -24,6 +26,9 @@ interface StreakStore {
   getReadingStreak: (langCode: string) => number;
   addReadingTime: (langCode: string, seconds: number) => void;
   getReadingTimeToday: (langCode: string) => number;
+  recordWordsRead: (langCode: string, wordCount: number) => void;
+  getWordsToday: (langCode: string) => number;
+  getWordsLast7Days: (langCode: string) => number;
   // Returns true if a freeze was silently applied (streak preserved); false if streak broken
   checkAndConsumeFreeze: (langCode: string) => boolean;
   // Returns true if today is covered by a freeze (read yesterday via freeze, not yet read today)
@@ -36,6 +41,9 @@ interface StreakStore {
   fullSweepShownToday: () => boolean;
   // Apply a merged snapshot from Supabase reconciliation (does not trigger a write-behind push)
   applyMergedState: (merged: StreakSnapshot) => void;
+  // Transient UI state — not persisted
+  confettiActive: boolean;
+  setConfettiActive: (v: boolean) => void;
 }
 
 function todayString() {
@@ -60,6 +68,7 @@ export function getStreakSnapshot(): StreakSnapshot {
     lastReadDates: s.lastReadDates,
     readingHistory: s.readingHistory,
     readingTimeSecs: s.readingTimeSecs,
+    wordsReadByDay: s.wordsReadByDay,
     freezeDatesUsed: s.freezeDatesUsed,
     fullSweepDate: s.fullSweepDate,
   };
@@ -76,8 +85,11 @@ export const useStreakStore = create<StreakStore>()(
       lastReadDates: {},
       readingHistory: {},
       readingTimeSecs: {},
+      wordsReadByDay: {},
       freezeDatesUsed: {},
       fullSweepDate: null,
+      confettiActive: false,
+      setConfettiActive: (v) => set({ confettiActive: v }),
 
       recordSession: () => {
         const today = todayString();
@@ -160,6 +172,32 @@ export const useStreakStore = create<StreakStore>()(
         return get().readingTimeSecs[key] ?? 0;
       },
 
+      recordWordsRead: (langCode: string, wordCount: number) => {
+        if (wordCount <= 0) return;
+        const key = `${langCode}_${todayString()}`;
+        const { wordsReadByDay } = get();
+        // Only record once per day per language (take the max in case of re-trigger)
+        const existing = wordsReadByDay[key] ?? 0;
+        if (wordCount <= existing) return;
+        set({ wordsReadByDay: { ...wordsReadByDay, [key]: wordCount } });
+      },
+
+      getWordsToday: (langCode: string) => {
+        const key = `${langCode}_${todayString()}`;
+        return get().wordsReadByDay[key] ?? 0;
+      },
+
+      getWordsLast7Days: (langCode: string) => {
+        const { wordsReadByDay } = get();
+        const cutoff = (() => {
+          const d = new Date(); d.setDate(d.getDate() - 7);
+          return d.toISOString().split('T')[0];
+        })();
+        return Object.entries(wordsReadByDay)
+          .filter(([k]) => k.startsWith(`${langCode}_`) && k.split('_')[1] >= cutoff)
+          .reduce((sum, [, v]) => sum + v, 0);
+      },
+
       checkAndConsumeFreeze: (langCode: string) => {
         const today = todayString();
         const yesterday = yesterdayString();
@@ -225,6 +263,7 @@ export const useStreakStore = create<StreakStore>()(
           lastReadDates: merged.lastReadDates,
           readingHistory: merged.readingHistory,
           readingTimeSecs: merged.readingTimeSecs,
+          wordsReadByDay: merged.wordsReadByDay ?? {},
           freezeDatesUsed: merged.freezeDatesUsed,
           fullSweepDate: merged.fullSweepDate,
         });

@@ -14,7 +14,18 @@ public class LiquidGlassView: ExpoView {
   public override func layoutSubviews() {
     super.layoutSubviews()
     effectView?.frame = bounds
+    effectView?.contentView.subviews.forEach { $0.frame = bounds }
     updateCornerRadius()
+  }
+
+  // RN mounts children directly onto this view. UIGlassEffect's interactive
+  // response only fires for touches that land inside the effect view's own
+  // contentView, so re-parent anything RN adds into it.
+  public override func didAddSubview(_ subview: UIView) {
+    super.didAddSubview(subview)
+    guard let ev = effectView, subview !== ev else { return }
+    subview.frame = bounds
+    ev.contentView.addSubview(subview)
   }
 
   func setCornerRadius(_ radius: CGFloat) {

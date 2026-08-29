@@ -78,7 +78,8 @@
         {
           "ios": {
             "useHermes": false,
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.1",
+            "buildReactNativeFromSource": true
           }
         }
       ],

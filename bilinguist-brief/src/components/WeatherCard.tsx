@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
@@ -27,10 +28,7 @@ import { getWeatherRichPhrase, getWeatherHeadline, LAYER_LABELS } from '../servi
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const { width: SW } = Dimensions.get('window');
-const MAP_H = Math.round((SW - 56) * 0.88);
-// iPad inline panel: right column takes ~52% of screen width; map height proportional
-const IPAD_RIGHT_W = Math.round((SW - 36) * 0.52);
-const IPAD_MAP_H   = Math.round(IPAD_RIGHT_W * 0.80);
+const PHRASE_W = SW - 40;
 const OWM_KEY = (process.env.EXPO_PUBLIC_OWM_KEY ?? '').trim();
 
 type Layer = 'precipitation' | 'temperature' | 'wind' | 'clouds';
@@ -144,7 +142,7 @@ function localizedDate(lang: LanguageCode): string {
 
 // ── Weather-themed animated background for phrase card ───────────────────────
 
-const PHRASE_W = SW - 40;
+// PHRASE_W is now computed inside WeatherBg using useWindowDimensions()
 const PHRASE_H = 130;
 const RAIN_N   = 14;
 const SNOW_N   = 9;
@@ -827,6 +825,11 @@ interface WeatherCardProps {
 export interface WeatherCardHandle { openModal: () => void; }
 
 export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(function WeatherCard({ weather, language, level, modalY, iPadLayout = false }, ref) {
+  const { width: winW } = useWindowDimensions();
+  const MAP_H       = Math.round((winW - 56) * 0.88);
+  const IPAD_RIGHT_W = Math.round((winW - 36) * 0.40);
+  const IPAD_MAP_H   = Math.round(IPAD_RIGHT_W * 0.62);
+
   const { colors, fontFamily, fontSize, isDark } = useTheme();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -1059,7 +1062,6 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
               paddingVertical: 8,
               paddingHorizontal: 14,
               marginBottom: 6,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
             }]}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 11, lineHeight: 15 }}>
@@ -1094,8 +1096,8 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
               </View>
             </View>
 
-            {/* Map */}
-            <View style={[styles.mapOuter, cardStyle, { height: IPAD_MAP_H }]}>
+            {/* Map — flat on iPad (no shadow, no hover look) */}
+            <View style={[styles.mapOuter, { height: IPAD_MAP_H, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderLight }]}>
               <View style={[StyleSheet.absoluteFill, styles.mapClip, { backgroundColor: glassAvailable ? 'transparent' : colors.card }]}>
                 {glassAvailable && <GlassSurface cornerRadius={CARD_RADIUS} colorScheme={isDark ? 'dark' : 'light'} />}
                 <WebView

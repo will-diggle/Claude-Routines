@@ -12,6 +12,7 @@ export interface StreakSnapshot {
   lastReadDates: Record<string, string>;
   readingHistory: Record<string, string[]>;
   readingTimeSecs: Record<string, number>;
+  wordsReadByDay: Record<string, number>;
   freezeDatesUsed: Record<string, string[]>;
   fullSweepDate: string | null;
 }
@@ -117,6 +118,14 @@ export function mergeSnapshots(local: StreakSnapshot, remote: StreakSnapshot): S
     lastReadDates,
     readingHistory,
     readingTimeSecs: local.readingTimeSecs, // ephemeral 7-day window — local always wins
+    // Merge words: take the max per day-key so neither device's count gets lost
+    wordsReadByDay: (() => {
+      const merged: Record<string, number> = { ...local.wordsReadByDay };
+      for (const [k, v] of Object.entries(remote.wordsReadByDay ?? {})) {
+        merged[k] = Math.max(merged[k] ?? 0, v);
+      }
+      return merged;
+    })(),
     freezeDatesUsed,
     fullSweepDate,
   };
@@ -163,7 +172,7 @@ async function pushToSupabase(
   }
 
   const cutoff = fullHistory ? '1970-01-01' : recentCutoff();
-  const rows: Array<{ user_id: string; lang_code: string; read_date: string; time_secs: number }> =
+  const rows: Array<{ user_id: string; lang_code: string; read_date: string; time_secs: number; words_read: number }> =
     [];
 
   for (const [lang, dates] of Object.entries(snapshot.readingHistory)) {
@@ -174,6 +183,7 @@ async function pushToSupabase(
         lang_code: lang,
         read_date: date,
         time_secs: snapshot.readingTimeSecs[`${lang}_${date}`] ?? 0,
+        words_read: snapshot.wordsReadByDay[`${lang}_${date}`] ?? 0,
       });
     }
   }
@@ -210,6 +220,7 @@ async function pullFromSupabase(userId: string): Promise<StreakSnapshot | null> 
 
   const readingHistory: Record<string, string[]> = {};
   const readingTimeSecs: Record<string, number> = {};
+  const wordsReadByDay: Record<string, number> = {};
 
   for (const h of historyRows ?? []) {
     const lang = h.lang_code as string;
@@ -217,6 +228,7 @@ async function pullFromSupabase(userId: string): Promise<StreakSnapshot | null> 
     if (!readingHistory[lang]) readingHistory[lang] = [];
     readingHistory[lang].push(date);
     if (h.time_secs) readingTimeSecs[`${lang}_${date}`] = h.time_secs as number;
+    if ((h as any).words_read) wordsReadByDay[`${lang}_${date}`] = (h as any).words_read as number;
   }
 
   return {
@@ -230,6 +242,7 @@ async function pullFromSupabase(userId: string): Promise<StreakSnapshot | null> 
     fullSweepDate: (row.full_sweep_date as string | null) ?? null,
     readingHistory,
     readingTimeSecs,
+    wordsReadByDay,
   };
 }
 

@@ -21,6 +21,7 @@ import {
   Platform,
   Dimensions,
   Linking,
+  useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Animated,
@@ -38,7 +39,7 @@ import type { ArticleLength } from '../services/anthropic';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
-import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, PIPELINE_READY_TIME } from '../services/notifications';
+import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, PIPELINE_READY_TIME, getMinNotifTime } from '../services/notifications';
 import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
 import { getTodayFactbase } from '../services/factbase';
 import {
@@ -92,6 +93,21 @@ const SECTIONS: SettingsSection[] = ['languages', 'genres', 'display', 'profile'
 const SECTION_TO_INDEX: Record<SettingsSection, number> = {
   languages: 0, genres: 1, display: 2, profile: 3,
 };
+const SECTION_LABELS: Record<SettingsSection, string> = {
+  languages: 'Languages', genres: 'Genres', display: 'Display', profile: 'Profile',
+};
+const SECTION_ICONS_OUTLINE: Record<SettingsSection, string> = {
+  languages: 'globe-outline',
+  genres:    'pricetags-outline',
+  display:   'color-palette-outline',
+  profile:   'person-outline',
+};
+const SECTION_ICONS_FILLED: Record<SettingsSection, string> = {
+  languages: 'globe',
+  genres:    'pricetags',
+  display:   'color-palette',
+  profile:   'person',
+};
 
 
 // Canonical CEFR ordering — used to position 'Native' dynamically.
@@ -144,11 +160,27 @@ const COMING_SOON_LANGS = new Set(['tr', 'hu', 'ar']);
 export function SettingsScreen() {
   const onScrollTabBar = useScrollTabBar();
   const { colors, fontFamily, fontSize, isDark } = useTheme();
+  const { width: winW } = useWindowDimensions();
+  const isIPad = winW >= 768;
   const insets = useSafeAreaInsets();
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
   const { setDev, applyPromoCode, status } = useSubscriptionStore();
-  const { settingsSection: activeTab, setSettingsSection } = useNavPillStore();
+  const { settingsSection: activeTab, setSettingsSection, setSettingsScrolled } = useNavPillStore();
+
+  // Asymmetric thresholds: collapse once the user leaves the top, but only
+  // re-expand when they're actually back at the top — otherwise the pill grows
+  // and shrinks while scrolling up.
+  const settingsScrolledRef = useRef(false);
+  const onScrollSettings = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    onScrollTabBar(e);
+    const y = e.nativeEvent.contentOffset.y;
+    const nowScrolled = settingsScrolledRef.current ? y > 4 : y > 80;
+    if (nowScrolled !== settingsScrolledRef.current) {
+      settingsScrolledRef.current = nowScrolled;
+      setSettingsScrolled(nowScrolled);
+    }
+  }, [onScrollTabBar, setSettingsScrolled]);
   const [isDragging, setIsDragging] = useState(false);
   const [devModalVisible, setDevModalVisible] = useState(false);
   const [devCodeInput, setDevCodeInput] = useState('');
@@ -194,6 +226,7 @@ export function SettingsScreen() {
   const maxStreak = activeLanguages.length > 0
     ? Math.max(...activeLanguages.map((l) => readingStreaks[l.code] ?? 0))
     : 0;
+
 
   // Auth
   const { session, setSession, signOut } = useAuthStore();
@@ -417,7 +450,220 @@ export function SettingsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
       <TopBar />
-      {/* Horizontal pager */}
+      {isIPad ? (
+        /* ── iPad: active section content only (sidebar nav lives in FloatingTabBar) ── */
+        <ScrollView
+          style={{ flex: 1, backgroundColor: colors.bg }}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!isDragging}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onScrollSettings}
+        >
+            {activeTab === 'languages' && (
+              <>
+                <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
+                <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Toggle languages on to include them in your briefing.</Text>
+                <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginTop: -4 }]}>Drag to reorder your languages in the brief.</Text>
+                <DraggableList
+                  items={store.languages}
+                  keyExtractor={(lang) => lang.code}
+                  itemHeight={152}
+                  onReorder={store.reorderLanguages}
+                  onDragStateChange={setIsDragging}
+                  draggableCount={store.languages.filter((l) => l.active).length}
+                  renderItem={(lang, index, isAnyDragging) => (
+                    <LanguageCard
+                      lang={lang}
+                      isAnyDragging={isAnyDragging}
+                      isDark={isDark}
+                      colors={colors}
+                      fontFamily={fontFamily}
+                      fontSize={fontSize}
+                      nativeGradeByLang={nativeGradeByLang}
+                      isDraggable={lang.active && !COMING_SOON_LANGS.has(lang.code)}
+                      comingSoon={COMING_SOON_LANGS.has(lang.code)}
+                      onToggle={() => {
+                        const wasActive = lang.active;
+                        store.toggleLanguage(lang.code);
+                        if (wasActive) analytics.trackLanguageRemoved(lang.code);
+                        else analytics.trackLanguageSelected(lang.code);
+                        const { lastReadDates } = useStreakStore.getState();
+                        const activeLangs = useSettingsStore.getState().languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name }));
+                        scheduleStreakReminder(activeLangs, lastReadDates).catch(() => {});
+                      }}
+                      onSetLength={(val) => { store.setLanguageReadLength(lang.code, val); analytics.trackBriefLengthChanged(lang.code, val); }}
+                      onPressLevel={() => setLevelModalLang(lang.code)}
+                    />
+                  )}
+                />
+              </>
+            )}
+            {activeTab === 'genres' && (
+              <>
+                <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
+                <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginTop: 4, marginBottom: 4 }]}>Drag to reorder genres in your brief.</Text>
+                <DraggableList
+                  items={topicItems}
+                  keyExtractor={(item) => item.key}
+                  itemHeight={80}
+                  onReorder={store.reorderTopics}
+                  onDragStateChange={setIsDragging}
+                  draggableCount={topicItems.filter((t) => !t.comingSoon && store.topics[t.key]).length}
+                  renderItem={(item) => {
+                    const isOn = !item.comingSoon && store.topics[item.key];
+                    return (
+                      <View style={[cardStyles.card, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: item.comingSoon ? 0.45 : (isOn ? 1 : 0.45), shadowColor: '#000', shadowOffset: { width: 0, height: isOn ? 4 : 2 }, shadowOpacity: isOn ? 0.12 : 0.07, shadowRadius: isOn ? 8 : 5, elevation: isOn ? 5 : 3 }]}>
+                        <View style={cardStyles.mainRow}>
+                          <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4, opacity: isOn ? 1 : 0 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body, flex: 0 }]}>{item.label}</Text>
+                            {isOn && GENRE_SETTINGS_DISCLAIMER[item.key] && (
+                              <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 10, fontStyle: 'italic', marginTop: 3 }}>{GENRE_SETTINGS_DISCLAIMER[item.key]}</Text>
+                            )}
+                          </View>
+                          {item.comingSoon ? (
+                            <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
+                              <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Coming Soon</Text>
+                            </View>
+                          ) : (
+                            <Switch value={store.topics[item.key]} onValueChange={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); store.toggleTopic(item.key); }} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
+                          )}
+                        </View>
+                      </View>
+                    );
+                  }}
+                />
+              </>
+            )}
+            {activeTab === 'display' && (
+              <>
+                <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
+                <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Preview</Text>
+                <DisplayPreview colors={colors} fontFamily={fontFamily} fontSize={fontSize} />
+                <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Theme</Text>
+                <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                  <View style={styles.themeChipsRow}>
+                    {BACKGROUNDS.map((bg) => {
+                      const selected = store.background === bg.key;
+                      return (
+                        <TouchableOpacity key={bg.key} onPress={() => store.setBackground(bg.key)} activeOpacity={0.8} style={[styles.themeChip, { backgroundColor: bg.color, borderColor: selected ? bg.ink : bg.ink + '30', borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth }]}>
+                          <Text style={[styles.themeChipLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>{bg.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
+                      <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Switches to a dark theme at night with iOS</Text>
+                    </View>
+                    <Switch value={store.autoNightMode} onValueChange={store.setAutoNightMode} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
+                  </View>
+                </View>
+                <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Font</Text>
+                <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                  {(['lora', 'garamond', 'playfair', 'times'] as FontFamilyKey[]).map((key, i) => {
+                    const fam = FontFamilies[key];
+                    const selected = store.fontFamily === key;
+                    return (
+                      <TouchableOpacity key={key} style={[styles.displayTileRow, { borderTopColor: colors.borderLight }, i === 0 && { borderTopWidth: 0 }]} onPress={() => store.setFontFamily(key)}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>{fam.label}</Text>
+                          <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>The quick brown fox</Text>
+                        </View>
+                        {selected && <Ionicons name="checkmark-circle" size={22} color={colors.inkDark} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Text Size</Text>
+                <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                  <SegmentedControl
+                    options={[{ label: 'A', value: 'small', optionFontSize: 11 }, { label: 'A', value: 'medium', optionFontSize: 14 }, { label: 'A', value: 'large', optionFontSize: 17 }, { label: 'A', value: 'extraLarge', optionFontSize: 20 }]}
+                    value={store.fontSize}
+                    onChange={(v) => store.setFontSize(v as FontSizeKey)}
+                    colors={colors}
+                    fontFamily={fontFamily}
+                    containerStyle={{ marginHorizontal: 0, marginBottom: 0, borderWidth: 0, backgroundColor: colors.card }}
+                  />
+                </View>
+                <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>App Icon</Text>
+                <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                  <View style={styles.iconRow}>
+                    {APP_ICONS.map((icon) => {
+                      const active = store.appIcon === icon.name;
+                      return (
+                        <TouchableOpacity key={icon.name ?? 'default'} style={styles.iconTile} onPress={() => { store.setAppIcon(icon.name); applyNativeIcon(icon.name); }} activeOpacity={0.8}>
+                          <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
+                            <View style={styles.iconFrame}><Image source={icon.image} style={styles.iconThumb} /></View>
+                            <View style={[styles.iconRim, { borderColor: active ? colors.inkDark : 'rgba(255,255,255,0.42)' }]} pointerEvents="none" />
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
+            )}
+            {activeTab === 'profile' && (
+              <>
+                <View style={profileStyles.avatarSection}>
+                  <TouchableOpacity onPress={() => setSettingsSheetVisible(true)} activeOpacity={0.8} style={profileStyles.avatarWrap}>
+                    <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
+                      <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>{displayName ? displayName.charAt(0).toUpperCase() : 'G'}</Text>
+                    </View>
+                    <View style={[profileStyles.avatarCameraIcon, { backgroundColor: colors.accentRed }]}><Ionicons name="camera-outline" size={12} color="#FFF" /></View>
+                  </TouchableOpacity>
+                  {displayName ? (
+                    <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{displayName}</Text>
+                  ) : (
+                    <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>Guest</Text>
+                  )}
+                  <TouchableOpacity onPress={() => { if (isSignedIn) { setUsernameInput(username); setUsernameModalVisible(true); } }} disabled={!isSignedIn}>
+                    <Text style={[profileStyles.usernameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{username ? `@${username}` : isSignedIn ? 'Tap to set username' : '@guest'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={[styles.displayTileOuter, profileStyles.settingsButton, { backgroundColor: colors.card, borderColor: colors.borderLight, marginBottom: Spacing.md }]} onPress={() => setSettingsSheetVisible(true)}>
+                  <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Account Settings</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
+                {Object.keys(readingHistory).some(c => readingHistory[c].length > 0) && (
+                  <View style={[styles.displayTileOuter, profileStyles.langFilterTile, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.langFilterContent}>
+                      <TouchableOpacity style={[profileStyles.langFilterChip, filterLang === 'all' && { backgroundColor: colors.inkDark }]} onPress={() => setFilterLang('all')} activeOpacity={0.7}>
+                        <GlobeCircle size={18} />
+                        <Text style={[profileStyles.langFilterLabel, { color: filterLang === 'all' ? colors.bg : colors.inkFaint, fontFamily: filterLang === 'all' ? fontFamily.bold : fontFamily.regular }]}>All</Text>
+                      </TouchableOpacity>
+                      {Object.keys(readingHistory).filter(c => readingHistory[c].length > 0).map(code => (
+                        <TouchableOpacity key={code} style={[profileStyles.langFilterChip, filterLang === code && { backgroundColor: colors.inkDark }]} onPress={() => setFilterLang(code)} activeOpacity={0.7}>
+                          <FlagCircle code={code} size={18} />
+                          <Text style={[profileStyles.langFilterLabel, { color: filterLang === code ? colors.bg : colors.inkFaint, fontFamily: filterLang === code ? fontFamily.bold : fontFamily.regular }]}>{langDisplayCode(code)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                <View style={[styles.displayTileOuter, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+                  <View style={profileStyles.streakHeader}>
+                    <View style={profileStyles.streakLeft}>
+                      <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{maxStreak}</Text>
+                      <Text style={[profileStyles.streakDayLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{maxStreak === 1 ? 'day' : 'days'}</Text>
+                    </View>
+                    <Text style={[profileStyles.streakTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>Daily Streaks</Text>
+                    <View style={profileStyles.streakRight}>
+                      {filterLang === 'all' ? <GlobeCircle size={14} /> : <FlagCircle code={filterLang} size={14} />}
+                      {(() => { const n = filterLang === 'all' ? maxStreak : (readingStreaks[filterLang] ?? 0); return <Text style={[profileStyles.streakBadgeText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{n} day{n !== 1 ? 's' : ''}</Text>; })()}
+                    </View>
+                  </View>
+                  <FullStreakCalendar readingHistory={readingHistory} filterLang={filterLang} activeLang={filterLang} onLangChange={setFilterLang} readingStreaks={readingStreaks} hideTabs headerStyle="subtle" hideStreakLabel />
+                </View>
+              </>
+            )}
+          </ScrollView>
+      ) : (
+      /* ── Phone: horizontal pager ── */
       <ScrollView
         ref={pagerRef}
         horizontal
@@ -438,7 +684,7 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
-          onScroll={onScrollTabBar}
+          onScroll={onScrollSettings}
         >
           <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
@@ -499,7 +745,7 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
-          onScroll={onScrollTabBar}
+          onScroll={onScrollSettings}
         >
           <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
 
@@ -571,7 +817,7 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
-          onScroll={onScrollTabBar}
+          onScroll={onScrollSettings}
         >
           <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
 
@@ -694,7 +940,7 @@ export function SettingsScreen() {
           directionalLockEnabled
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
-          onScroll={onScrollTabBar}
+          onScroll={onScrollSettings}
         >
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>
@@ -821,6 +1067,7 @@ export function SettingsScreen() {
           </View>
         </ScrollView>
       </ScrollView>
+      )}
 
       {/* ── Settings bottom sheet ── */}
       <Modal
@@ -914,7 +1161,7 @@ export function SettingsScreen() {
                 <TimeInput
                   value={store.briefingNotificationTime}
                   onChange={store.setBriefingNotificationTime}
-                  minTime="07:30"
+                  minTime={getMinNotifTime()}
                   onCommit={() => {
                     const { languages, topicOrder, topics, briefingNotificationTime } = store;
                     const { lastReadDates } = useStreakStore.getState();
@@ -1602,6 +1849,49 @@ const modalStyles = StyleSheet.create({
 });
 
 const profileStyles = StyleSheet.create({
+  statsTile: {
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 3,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+  },
+  statsTileTitle: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: Spacing.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statValue: {
+    fontSize: 24,
+    letterSpacing: -0.5,
+  },
+  statLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 36,
+    marginHorizontal: Spacing.sm,
+  },
   avatarSection: {
     alignItems: 'center',
     paddingTop: Spacing.xl,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, memo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  Dimensions, Animated, Easing, Platform,
+  Dimensions, Animated, Easing, Platform, useWindowDimensions,
 } from 'react-native';
 
 export const isIOS26Plus =
@@ -16,7 +16,6 @@ import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore'
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle, GlobeCircle } from './FlagCircle';
-import { LinearGradient } from 'expo-linear-gradient';
 import { GlassSurface, glassAvailable } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
 
@@ -36,15 +35,26 @@ export const FLOAT_TAB_H_SMALL  = 52; // closed/mini circle size
 export const FLOAT_TAB_H_FLAG      = 68; // unified with LARGE
 export const FLOAT_TAB_H_FLAG_2ROW = 108; // 2-row flag chip layout (5+ languages)
 export const FLOAT_TAB_BOTTOM   = 16;
+// Side inset for the pills — kept equal to the article body's paddingHorizontal
+// (Spacing.md) so the pill edges align with the text column.
+export const PILL_EDGE_INSET    = 16;
+// Pill animation durations. Layout props (width/height) can't use the native
+// driver, so these run on the JS thread and anything heavy scheduled alongside
+// them will stall the motion.
+const DUR_OPEN       = 170;
+const DUR_CLOSE      = 130;
+const DUR_CLOSE_FAST = 80;
+// Small margin added to a route's animation length before the next screen is
+// mounted, so the pill has visibly settled first. The tapped tab's icon swaps on
+// touch, so this delay doesn't read as unresponsiveness.
+const NAV_DEFER_PAD = 10;
 // Pills float over content on all iOS versions — screens need this bottom padding.
 export const FLOAT_TAB_INSET = FLOAT_TAB_H_LARGE + FLOAT_TAB_BOTTOM + 8 + 48;
+// iPad replaces the bottom pill with a persistent left sidebar of this width.
+export const IPAD_SIDEBAR_W = 240;
 
-const SW           = Dimensions.get('window').width;
 const LEFT_MINI_W  = FLOAT_TAB_H_SMALL;
 const RIGHT_MINI_W = FLOAT_TAB_H_SMALL;
-// Both open states: opposite pill is a 68×68 circle — same formula each side.
-const LEFT_MAX_W   = SW - 32 - FLOAT_TAB_H_LARGE - 20;
-const RIGHT_MAX_W  = SW - 32 - FLOAT_TAB_H_LARGE - 20;
 
 // Icon scale targets — all 1 since icons are sized explicitly for each state
 const SCALE_DEFAULT = 1;
@@ -58,20 +68,20 @@ const ROW_PAD  = 20;
 // Per-label charW: uppercase labels (FR, DE) are wider relative to font size
 // than mixed-case (Français, Languages). Uses generous upper-bound estimates
 // so any selected font (Playfair, Garamond, Times, Georgia) never overflows.
-function pillContentW(labels: string[]): number {
+function pillContentW(labels: string[], maxW: number): number {
   const n = labels.length;
   if (n === 0) return LEFT_MINI_W;
   const textW = labels.reduce((sum, l) => {
     const charW = l === l.toUpperCase() ? 8.5 : 7.5;
     return sum + l.length * charW;
   }, 0);
-  return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+  return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, maxW);
 }
 
 // Width for a row of flag-circle-only chips (no text label)
-function pillFlagOnlyW(count: number): number {
+function pillFlagOnlyW(count: number, maxW: number): number {
   const chipW = 24 + 7 * 2; // flag size 24 + 7px padding each side
-  return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+  return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, maxW);
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -83,6 +93,12 @@ const SECTION_ICONS: Record<SettingsSection, React.ComponentProps<typeof Ionicon
   genres:    'pricetags-outline',
   display:   'color-palette-outline',
   profile:   'person-outline',
+};
+const SECTION_ICONS_FILLED: Record<SettingsSection, React.ComponentProps<typeof Ionicons>['name']> = {
+  languages: 'globe',
+  genres:    'pricetags',
+  display:   'color-palette',
+  profile:   'person',
 };
 
 // ── Left pill context — memoised so it doesn't re-render on every animation frame ──
@@ -155,10 +171,7 @@ const LeftContext = memo(function LeftContext({
               activeOpacity={1}
               delayPressIn={0}
             >
-              <Ionicons name={SECTION_ICONS[sec]} size={20} color={isActive ? activeColor : inactiveColor} />
-              <Text style={[styles.navLabel, { color: isActive ? activeColor : inactiveColor, fontFamily: fontFamily.regular }]}>
-                {SECTION_LABELS[sec]}
-              </Text>
+              <Ionicons name={SECTION_ICONS[sec]} size={24} color={isActive ? activeColor : inactiveColor} />
             </TouchableOpacity>
           );
         })}
@@ -199,11 +212,38 @@ const LeftContext = memo(function LeftContext({
   );
 });
 
+// ── Glass pill shell ──────────────────────────────────────────────────────────
+// Children render INSIDE the native glass view rather than layered above it.
+// UIGlassEffect.isInteractive only plays Apple's press response for touches that
+// land in the effect view's own contentView, and LiquidGlassView re-parents RN
+// children into it — so nesting here is what makes the pill respond to a finger.
+// Falls back to a plain tinted pill when the native module isn't available.
+
+function GlassPill({
+  glass, isDark, pillBg, children,
+}: { glass: boolean; isDark: boolean; pillBg: string; children: React.ReactNode }) {
+  if (!glass) {
+    return <View style={[styles.pill, { backgroundColor: pillBg }]}>{children}</View>;
+  }
+  return (
+    <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'}>
+      <View style={styles.pill}>{children}</View>
+    </GlassSurface>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors, fontFamily, isDark, background } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const isIPad = winW >= 768;
+  // On iPad centre the pill bar at a comfortable max width; on phone stretch edge-to-edge.
+  const PILL_BAR_W   = isIPad ? Math.min(winW - 120, 620) : undefined;
+  const PILL_BAR_LEFT = isIPad ? (winW - (PILL_BAR_W ?? 0)) / 2 : PILL_EDGE_INSET;
+  const LEFT_MAX_W = (PILL_BAR_W ?? winW) - PILL_EDGE_INSET * 2 - FLOAT_TAB_H_LARGE - 20;
+  const RIGHT_MAX_W = LEFT_MAX_W;
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
   const allLanguages    = useSettingsStore(useShallow((s) => s.languages));
   const savedWords = useWordBankStore(useShallow((s) => s.words));
@@ -213,6 +253,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     practiceLang, setPracticeLang,
     gameActive,
     briefingScrolled,
+    settingsScrolled,
     audioPillForcedUp, setAudioPillForcedUp,
   } = useNavPillStore(useShallow((s) => ({
     briefPageIndex: s.briefPageIndex,
@@ -223,6 +264,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setPracticeLang: s.setPracticeLang,
     gameActive: s.gameActive,
     briefingScrolled: s.briefingScrolled,
+    settingsScrolled: s.settingsScrolled,
     audioPillForcedUp: s.audioPillForcedUp,
     setAudioPillForcedUp: s.setAudioPillForcedUp,
   })));
@@ -243,6 +285,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const [rightOpen,      setRightOpen]      = useState(false);
   const [rightNavMounted, setRightNavMounted] = useState(false);
 
+  // Tab index the user just tapped, applied to the pill's own rendering before
+  // navigation commits. Without it the icon only swaps once the route change
+  // lands — after the pill has already finished collapsing — which reads as lag.
+  const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+  // Set when a tab press has already kicked off the animation, so the route
+  // effect doesn't restart the same animation mid-flight (which caused stutter).
+  const selfNavRef = useRef(false);
+  // Final width of the expanded left pill, applied to the context layer up front
+  // so its children don't re-layout every frame while the pill animates open.
+  const [leftContentW, setLeftContentW] = useState(LEFT_MINI_W);
+
   // Always-current refs — read in effects that omit these from deps to avoid stale closures
   const leftOpenRef  = useRef(false);
   leftOpenRef.current = leftOpen;
@@ -257,7 +310,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     // The animation target is driven exclusively by computeLeftExpandedW()
     // to prevent constrained mid-animation measurements from overriding the
     // opening animation (which caused the pill to stay stuck at mini size).
-    chipGroupMeasuredW.current = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W);
+    chipGroupMeasuredW.current = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W); // uses reactive LEFT_MAX_W
   }
 
   // JS-driver: layout properties (width, height) cannot use native driver
@@ -290,9 +343,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                    :           'rgba(0,0,0,0.06)',
   };
 
-  const currentRouteIndex = state.index;
-  const currentRoute      = state.routes[currentRouteIndex];
+  // Prefer the tapped index so the pill's icon and context update on touch,
+  // not after the navigator commits.
+  const currentRouteIndex = pendingIndex ?? state.index;
+  const currentRoute      = state.routes[currentRouteIndex] ?? state.routes[state.index];
   const currentTab        = TABS.find((t) => t.route === currentRoute.name) ?? TABS[0];
+
+  // Drop the optimistic index once navigation has caught up.
+  useEffect(() => {
+    if (pendingIndex !== null && state.index === pendingIndex) setPendingIndex(null);
+  }, [state.index, pendingIndex]);
 
   // ── Animation helpers ─────────────────────────────────────────────────────
   // borderRadius uses a static value of 100 (React Native clamps to height/2,
@@ -301,9 +361,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Layout props (width/height) can't use native driver — timing is smoother
   // than spring here because it avoids per-frame spring physics on the JS thread
   // while layout recalculates simultaneously. Cubic ease-out feels lush and snappy.
-  const TM_LAYOUT_OPEN       = { duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE      = { duration: 160, easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE_FAST = { duration: 90,  easing: Easing.in(Easing.cubic),  useNativeDriver: false } as const;
+  const TM_LAYOUT_OPEN       = { duration: DUR_OPEN,       easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE      = { duration: DUR_CLOSE,      easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
+  const TM_LAYOUT_CLOSE_FAST = { duration: DUR_CLOSE_FAST, easing: Easing.in(Easing.cubic),  useNativeDriver: false } as const;
   // Scale runs on UI thread via native driver — spring here is free (no layout cost).
   const SP_SCALE_OPEN  = { stiffness: 200, damping: 14, mass: 0.7, useNativeDriver: true } as const;
   const SP_SCALE_CLOSE = { stiffness: 320, damping: 28, mass: 0.8, useNativeDriver: true } as const;
@@ -331,9 +391,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightWidthAnim,  { toValue: RIGHT_MAX_W,        ...TM_LAYOUT_OPEN }),
+      Animated.timing(rightWidthAnim,  { toValue: Math.min(TABS.length * (26 + 28) + ROW_PAD, RIGHT_MAX_W), ...TM_LAYOUT_OPEN }),
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE,  ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 200, useNativeDriver: true }),
+      Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 165, useNativeDriver: true }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
     ]).start();
   }
@@ -370,6 +430,10 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(false);
     setRightNavMounted(false); // unmount full nav immediately
     setLeftOpen(true);
+    // Pin the context layer to its final width so its children lay out once
+    // instead of re-flowing on every frame as the pill widens. The pill clips
+    // the overhang via overflow:hidden, so the reveal still looks the same.
+    setLeftContentW(targetW);
     // Keep rightFullOp at 1 — mini nav interpolates to opacity 0 at this value,
     // so the right pill content is invisible while it closes. No single-icon flash.
     rightFullOp.setValue(1);
@@ -380,7 +444,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(leftWidthAnim,   { toValue: targetW,            ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftContextOp,   { toValue: 1, duration: 80, delay: 140, useNativeDriver: true }),
+      Animated.timing(leftContextOp,   { toValue: 1, duration: 70, delay: 95, useNativeDriver: true }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE_FAST }),
       Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE_FAST }),
     ]).start(() => {
@@ -394,14 +458,15 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   function computeLeftExpandedW(forIndex?: number): number {
     const idx = forIndex ?? currentRouteIndex;
     if (idx === 0) {
-      return pillFlagOnlyW(Math.min(activeLanguages.length, 5));
+      return pillFlagOnlyW(Math.min(activeLanguages.length, 5), LEFT_MAX_W);
     }
     if (idx === 2) {
-      return pillContentW((['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map(s => SECTION_LABELS[s]));
+      // 4 icon-only chips, same sizing formula as flag chips
+      return Math.min((24 + 16) * 4 + 3 * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
     }
     // Practice — flag-only chips (globe for All + one per language), same rules as Brief
     const plVisible = Math.min(savedLangCodes.length, 4);
-    return pillFlagOnlyW(plVisible + 1); // +1 for the globe "All" chip
+    return pillFlagOnlyW(plVisible + 1, LEFT_MAX_W); // +1 for the globe "All" chip
   }
 
   // ── Press feel — GlassButton style (compress on pressIn, spring back on pressOut) ──
@@ -445,19 +510,41 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }
 
-  useEffect(() => {
-    chipGroupMeasuredW.current = 0;
+  // Single source of truth for "what should the pills do on this route?" — used
+  // both by the tab press (immediately) and the route effect (as a fallback for
+  // route changes we didn't originate, e.g. swipes or programmatic navigation).
+  // Returns how long the chosen animation runs, so a caller deferring heavy work
+  // waits exactly that long and no longer.
+  function animateForRoute(idx: number): number {
     if (isAudioDocked) {
       animCloseRight();
-    } else if (currentRouteIndex === 0 && briefingScrolled) {
+      return DUR_CLOSE;
+    }
+    if (idx === 0 && briefingScrolled) {
       // Returning to the Brief tab while still scrolled — keep pill mini
       animCloseLeft();
-    } else if (currentRouteIndex === 1) {
+      return DUR_CLOSE;
+    }
+    if (idx === 2 && settingsScrolled) {
+      // Returning to Settings while still scrolled — keep pill mini
+      animCloseLeft();
+      return DUR_CLOSE;
+    }
+    if (idx === 1) {
       // Practice tab — start collapsed; user taps to open and select
       animCloseLeft();
-    } else {
-      animToLeftOpen(computeLeftExpandedW());
+      return DUR_CLOSE;
     }
+    animToLeftOpen(computeLeftExpandedW(idx));
+    return DUR_OPEN;
+  }
+
+  useEffect(() => {
+    chipGroupMeasuredW.current = 0;
+    // A tab press already started the correct animation — re-running it here
+    // would restart the same Animated.Values mid-flight and visibly stutter.
+    if (selfNavRef.current) { selfNavRef.current = false; return; }
+    animateForRoute(currentRouteIndex);
   }, [currentRouteIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-open the left pill when language content changes (cold-start hydration or
@@ -479,6 +566,21 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       animToLeftOpen(computeLeftExpandedW());
     }
   }, [briefingScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Settings scroll — same behaviour as Brief scroll
+  useEffect(() => {
+    if (currentRouteIndex !== 2) return; // Preferences tab only (index 2)
+    if (settingsScrolled) {
+      if (leftOpenRef.current) animCloseLeft();
+    } else if (!isAudioDocked) {
+      animToLeftOpen(computeLeftExpandedW());
+    }
+  }, [settingsScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Collapse pills on orientation change so they re-open at the correct new dimensions.
+  useEffect(() => {
+    animCloseBoth();
+  }, [winW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When audio pill docks, close nav pills. When it undocks, restore previous open state.
   useEffect(() => {
@@ -524,17 +626,26 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 Haptics.selectionAsync();
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!isFocused && !event.defaultPrevented) {
-                  // Start the same animation immediately (don't wait for the route effect)
-                  animToLeftOpen(computeLeftExpandedW(index));
-                  navigation.navigate(route.name);
+                  // Swap the pill's icon/context on touch, run the one correct
+                  // animation, and tell the route effect not to run it again.
+                  setPendingIndex(index);
+                  selfNavRef.current = true;
+                  // The pill's width/height animations run on the JS thread
+                  // (layout props can't use the native driver), so mounting the
+                  // next screen synchronously stalls them mid-flight. Defer the
+                  // mount by exactly this route's animation length — no longer,
+                  // or the tab switch itself starts to feel sluggish. Bounded
+                  // rather than runAfterInteractions, which would also wait on
+                  // unrelated animations elsewhere in the app.
+                  const settleMs = animateForRoute(index);
+                  setTimeout(() => navigation.navigate(route.name), settleMs + NAV_DEFER_PAD);
                 } else {
                   // Same tab tapped — full toggle (no route change, effect won't fire)
                   toggleRight();
                 }
               }}
             >
-              <Ionicons name={tab.iconOff} size={22} color={tint} />
-              <Text style={[styles.navLabel, { color: tint, fontFamily: fontFamily.regular }]} numberOfLines={1}>{tab.label}</Text>
+              <Ionicons name={tab.iconOff} size={26} color={tint} />
             </TouchableOpacity>
           );
         })}
@@ -573,33 +684,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   if (gameActive) return null;
 
-  return (
-    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM - 6 }]}>
-      {/* Bottom fade — mirrors the status-bar fade at top of BriefingScreen */}
-      <LinearGradient
-        pointerEvents="none"
-        colors={[colors.bg + '00', colors.bg + '55', colors.bg + 'CC'] as any}
-        locations={[0, 0.35, 1]}
-        style={{
-          position: 'absolute',
-          left: -16,
-          right: -16,
-          bottom: -(insets.bottom + FLOAT_TAB_BOTTOM),
-          height: FLOAT_TAB_BOTTOM + insets.bottom + 16,
-          pointerEvents: 'none',
-        }}
-      />
+  // Matches the article body's horizontal padding (Spacing.md) so the pill
+  // edges line up with the text column in both open and closed states.
+  const wrapperPos = { left: PILL_EDGE_INSET, right: PILL_EDGE_INSET };
 
+  return (
+    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM - 6 }, wrapperPos]}>
 {/* ── Left pill ──────────────────────────────────────────────────────── */}
       {/* Outer: scale only (native driver). Inner: layout only (non-native). Separating drivers prevents animation freeze. */}
       <Animated.View style={{ transform: [{ scale: leftPressScale }] }}>
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
-        {glassAvailable && (
-          <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-            <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} />
-          </View>
-        )}
-        <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
+        <GlassPill glass={glassAvailable} isDark={isDark} pillBg={pillBg}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: leftContextOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
             pointerEvents={leftOpen ? 'none' : 'auto'}
@@ -611,8 +706,11 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             </TouchableOpacity>
           </Animated.View>
 
-          <Animated.View style={[styles.absoluteFill, { opacity: leftContextOp }]} pointerEvents={leftOpen ? 'auto' : 'none'}>
-            <TouchableOpacity style={styles.absoluteFill} onPress={toggleLeft} activeOpacity={1}>
+          <Animated.View
+            style={[styles.absoluteFill, { right: undefined, width: leftContentW, opacity: leftContextOp }]}
+            pointerEvents={leftOpen ? 'auto' : 'none'}
+          >
+            <TouchableOpacity style={[styles.absoluteFill, { right: undefined, width: leftContentW }]} onPress={toggleLeft} activeOpacity={1}>
               <LeftContext
                 routeIndex={currentRouteIndex}
                 activeLanguages={activeLanguages}
@@ -634,7 +732,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               />
             </TouchableOpacity>
           </Animated.View>
-        </View>
+        </GlassPill>
       </Animated.View>
       </Animated.View>
 
@@ -644,12 +742,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={{ transform: [{ scale: rightPressScale }] }}>
       <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
-        {glassAvailable && (
-          <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-            <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} />
-          </View>
-        )}
-        <View style={[styles.pill, !glassAvailable && { backgroundColor: pillBg }]}>
+        <GlassPill glass={glassAvailable} isDark={isDark} pillBg={pillBg}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: rightFullOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
             pointerEvents={rightOpen ? 'none' : 'auto'}
@@ -662,7 +755,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               {renderFullNav()}
             </Animated.View>
           )}
-        </View>
+        </GlassPill>
       </Animated.View>
       </Animated.View>
     </View>
@@ -674,8 +767,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    left: 22,
-    right: 22,
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
@@ -767,7 +858,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
     paddingVertical: 8,
   },
   navActiveChip: {
