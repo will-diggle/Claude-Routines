@@ -1,0 +1,9 @@
+{
+  "name": "FloatingPills",
+  "platforms": ["ios"],
+  "ios": {
+    "modules": ["FloatingPillsModule"],
+    "podspecPath": "FloatingPills.podspec",
+    "swiftModuleName": "FloatingPills"
+  }
+}
