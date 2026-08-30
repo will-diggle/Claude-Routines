@@ -1,0 +1,9 @@
+{
+  "name": "floating-pills",
+  "version": "1.0.0",
+  "description": "Native liquid glass floating pills for Bilinguist Brief",
+  "main": "index.js",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}
