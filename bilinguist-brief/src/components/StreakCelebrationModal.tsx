@@ -195,12 +195,14 @@ export function StreakCelebrationModal({ visible, streakCount, langCode, wordsTo
 
   let copy: string;
   if (wordsToday > 0) {
-    if (streakCount <= 1) {
+    // The streak total only earns its clause when it actually exceeds today —
+    // otherwise the sentence prints the same number twice ("839 today — 839
+    // since your streak began"), which reads as a bug rather than a total.
+    if (streakCount <= 1 || streakTotal <= wordsToday) {
       copy = (WORDS_TODAY_COPY[langCode] ?? WORDS_TODAY_COPY.en)(fmt(wordsToday), langName);
     } else {
-      const totalFmt  = fmt(streakTotal > 0 ? streakTotal : wordsToday);
       copy = (WORDS_STREAK_COPY[langCode] ?? WORDS_STREAK_COPY.en)(
-        fmt(wordsToday), totalFmt, langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount), langName
+        fmt(wordsToday), fmt(streakTotal), langCode === 'ar' ? toArabicNumerals(streakCount) : String(streakCount), langName
       );
     }
   } else {
@@ -280,6 +282,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   flameIcon: { marginBottom: 16 },
-  headline:  { fontSize: 28, textAlign: 'center', marginBottom: 10 },
-  subtext:   { fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  headline:  { fontSize: 28, textAlign: 'center', marginBottom: 12 },
+  // Held short of the card's full width so the italic wraps to balanced lines
+  // rather than one long line and a two-word orphan.
+  subtext:   { fontSize: 15, textAlign: 'center', lineHeight: 23, maxWidth: '90%' },
 });
