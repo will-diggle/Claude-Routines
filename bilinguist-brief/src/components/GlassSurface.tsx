@@ -11,6 +11,27 @@ const isExpoGo = Constants.appOwnership === 'expo';
 let NativeGlassView: React.ComponentType<any> | null = null;
 export let glassAvailable = false;
 
+// Why glass fell back, when it does. Every failure here is caught so the app
+// never crashes, which also means a silent downgrade to blur is indistinguishable
+// from success on screen — this records enough to tell them apart.
+export const glassDiag: {
+  expoGo: boolean;
+  viewLoaded: boolean;
+  loadError: string | null;
+  boundaryError: string | null;
+  glassBranch: boolean | null;
+  osVersion: string | null;
+  moduleError: string | null;
+} = {
+  expoGo: isExpoGo,
+  viewLoaded: false,
+  loadError: null,
+  boundaryError: null,
+  glassBranch: null,
+  osVersion: null,
+  moduleError: null,
+};
+
 if (!isExpoGo) {
   try {
     // requireNativeView is the Expo Modules SDK way to get a native view by module name.
@@ -18,9 +39,37 @@ if (!isExpoGo) {
     const { requireNativeView } = require('expo');
     NativeGlassView = requireNativeView('LiquidGlass');
     glassAvailable = true;
-  } catch {
+    glassDiag.viewLoaded = true;
+  } catch (e: any) {
     NativeGlassView = null;
+    glassDiag.loadError = String(e?.message ?? e);
   }
+
+  // Ask the native module which branch setupGlass() takes. Separate from the
+  // view lookup above: the module can answer even if the view fails to mount.
+  try {
+    const { requireNativeModule } = require('expo');
+    const d = requireNativeModule('LiquidGlass').diagnostics();
+    glassDiag.glassBranch = !!d.glassBranch;
+    glassDiag.osVersion   = String(d.osVersion);
+  } catch (e: any) {
+    glassDiag.moduleError = String(e?.message ?? e);
+  }
+}
+
+// One line, short enough to read off a phone screen and repeat back.
+export function glassDiagSummary(): string {
+  if (glassDiag.expoGo) return 'glass: expo-go (never available)';
+  const parts: string[] = [];
+  parts.push(glassDiag.viewLoaded ? 'view:ok' : `view:FAIL(${glassDiag.loadError ?? '?'})`);
+  parts.push(
+    glassDiag.glassBranch === null
+      ? `module:FAIL(${glassDiag.moduleError ?? '?'})`
+      : glassDiag.glassBranch ? 'branch:glass' : 'branch:blur',
+  );
+  if (glassDiag.osVersion) parts.push(`iOS ${glassDiag.osVersion}`);
+  if (glassDiag.boundaryError) parts.push(`boundary:CRASH(${glassDiag.boundaryError})`);
+  return `glass: ${parts.join(' · ')}`;
 }
 
 // Error boundary: if the native view crashes mid-render, fall back to blur silently.
@@ -31,6 +80,7 @@ class GlassBoundary extends React.Component<
 > {
   state: BoundaryState = { crashed: false };
   static getDerivedStateFromError() { return { crashed: true }; }
+  componentDidCatch(e: Error) { glassDiag.boundaryError = String(e?.message ?? e); }
   render() { return this.state.crashed ? this.props.fallback : this.props.children; }
 }
 
