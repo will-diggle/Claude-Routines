@@ -67,6 +67,7 @@ try {
   setNativeAppIcon = require('expo-alternate-app-icons').setAlternateAppIcon;
 } catch { /* not available in Expo Go */ }
 import Constants from 'expo-constants';
+import { glassDiagSummary } from '../components/GlassSurface';
 import * as analytics from '../services/analytics';
 import { LegalDocModal, type LegalDoc } from './LegalDocModal';
 import { GlassButton } from '../components/GlassButton';
@@ -1240,6 +1241,14 @@ export function SettingsScreen() {
               </TouchableOpacity>
               <Text style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 Bilinguist Brief · Version {APP_VERSION}
+              </Text>
+              {/* TEMPORARY — diagnosing why the pills fall back to blur instead of
+                  UIGlassEffect. Remove once that's settled. */}
+              <Text
+                selectable
+                style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}
+              >
+                {glassDiagSummary()}
               </Text>
               {/* Developer */}
               <View style={styles.devSection}>
