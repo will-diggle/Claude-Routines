@@ -54,6 +54,9 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   // verb) — the popup must then look up the compound, since the surface form on
   // its own means something else ("lief" = to run, "lief … über" = to overflow).
   const [activeCompound, setActiveCompound] = useState<string | null>(null);
+  // The detached prefix's own surface form (e.g. "ab", "über") — used to split
+  // the popup title as "ab·sperren" regardless of which half was tapped.
+  const [activeSeparablePrefix, setActiveSeparablePrefix] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
 
   const articleTappedRef = React.useRef(false);
@@ -81,6 +84,18 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActiveLemma(lemma);
     setActiveCompound(linked.length > 0 ? lemma : null);
     setActiveSentence(sentence);
+
+    // The linked pair's PART entry (if any) is the detached prefix — used to
+    // split the popup title as "ab·sperren". Article-noun links never carry a
+    // PART tag, so this naturally stays null for those.
+    if (linked.length > 0) {
+      const partEntry = [wordPosition, ...linked]
+        .map((p) => tokenByPosition.get(p))
+        .find((e) => e?.pos === 'PART');
+      setActiveSeparablePrefix(partEntry?.surface ?? null);
+    } else {
+      setActiveSeparablePrefix(null);
+    }
 
     // Separable verb detection — de and sv only, fails silently.
     // Skipped when the token map already linked this token: the pipeline's parse
@@ -150,6 +165,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         if (compoundLemma) {
           setActiveLemma(compoundLemma);
           setActiveCompound(compoundLemma);
+          setActiveSeparablePrefix(separablePrefix);
         }
       })().catch(() => {});
     }
@@ -160,6 +176,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActiveWord(null);
     setActiveLemma(null);
     setActiveCompound(null);
+    setActiveSeparablePrefix(null);
   }, []);
 
   const isRTL = language === 'ar';
@@ -215,6 +232,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           word={activeWord}
           lemma={activeLemma ?? activeWord}
           compoundLemma={activeCompound}
+          separablePrefix={activeSeparablePrefix}
           sentence={activeSentence}
           language={language}
           level={level}

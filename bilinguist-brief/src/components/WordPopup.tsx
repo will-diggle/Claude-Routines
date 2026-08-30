@@ -83,6 +83,13 @@ interface Props {
    * (it lets the card explain "lief is the past tense of laufen").
    */
   compoundLemma?: string | null;
+  /**
+   * Surface form of the detached prefix (e.g. "ab", "über") when compoundLemma
+   * is a separable verb. Splits the title into the dictionary convention
+   * "ab·sperren" so it reads correctly whichever half was tapped — the surface
+   * alone ("ab") doesn't tell the learner what verb it belongs to.
+   */
+  separablePrefix?: string | null;
   sentence: string;
   language: LanguageCode;
   level: LanguageLevel;
@@ -94,7 +101,7 @@ interface Props {
   isNested?: boolean;
 }
 
-export function WordPopup({ word, lemma, compoundLemma, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
+export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
   const lookupLemma = lemma ?? word ?? '';
   // What the dictionary is actually queried with — the compound when this token
   // is half of a split lexical unit, otherwise the tapped surface form.
@@ -279,6 +286,22 @@ export function WordPopup({ word, lemma, compoundLemma, sentence, language, leve
   const displayTranslation = entry?.translation ?? quickTranslation;
   const activeTense = tenses[activeTenseIdx] ?? null;
 
+  // Title as the dictionary convention "ab·sperren" when this is a separable
+  // verb, so it reads the same whichever half of the pair was tapped. Falls
+  // back to the plain tapped word for everything else, including the
+  // article-noun link (which never carries a separablePrefix).
+  const splitTitle = (() => {
+    if (!separablePrefix || !compoundLemma) return null;
+    const prefixLower = separablePrefix.toLowerCase();
+    if (!compoundLemma.toLowerCase().startsWith(prefixLower)) return null;
+    const stem = compoundLemma.slice(separablePrefix.length);
+    if (!stem) return null;
+    return `${separablePrefix}·${stem}`; // U+00B7 MIDDLE DOT
+  })();
+  const displayWord = splitTitle ?? word;
+  // Pronounce the whole verb, not just the tapped half — "ab" alone mispronounces.
+  const audioWord = compoundLemma ?? word;
+
   // Subtitle: lemma part (article+lemma for nouns, lemma/infinitive for all others)
   const subtitleLemma = (() => {
     if (!entry) return lookupLemma && lookupLemma.toLowerCase() !== word.toLowerCase() ? lookupLemma : null;
@@ -339,9 +362,9 @@ export function WordPopup({ word, lemma, compoundLemma, sentence, language, leve
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
-                {word}
+                {displayWord}
               </Text>
-              <WordAudioButton word={word} language={language} size="md" />
+              <WordAudioButton word={audioWord} language={language} size="md" />
             </View>
             <GlassButton onPress={dismissSheet} size={36} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={20} color={isDark ? colors.bg : colors.inkMid} />

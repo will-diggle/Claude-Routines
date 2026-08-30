@@ -13,7 +13,7 @@
 // ── Language data ─────────────────────────────────────────────────────────────
 
 const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English', fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
+  en: 'English', fr: 'French', de: 'German', es: 'Spanish', pt: 'Portuguese (Brazilian)', it: 'Italian', sv: 'Swedish', tr: 'Turkish',
 };
 
 const VERB_TENSES: Record<string, Array<{ label: string; pronouns: string[] }>> = {
@@ -479,6 +479,48 @@ async function backfillDeclensions(
   }
 }
 
+// ── Contextual explanation overlay (used when word is cached but ctx is provided) ──
+
+async function getContextualExplanation(
+  word: string,
+  lang: string,
+  level: string,
+  ctx: string,
+  apiKey: string,
+): Promise<Pick<WordRow, 'translation' | 'explanation' | 'word_type'> | null> {
+  const langName = LANGUAGE_NAMES[lang] ?? lang;
+  const prompt = `A ${langName} language learner tapped the word "${word}" in this sentence:
+"${ctx}"
+
+Reply ONLY with a JSON object — no markdown, no preamble:
+{
+  "translation": "the correct English translation of '${word}' AS USED IN THIS SENTENCE, 1-5 words",
+  "explanation": "what '${word}' means in this specific context, 1-2 sentences at ${level} level",
+  "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other"
+}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { content: { text: string }[] };
+    const raw  = data.content?.[0]?.text ?? '';
+    const start = raw.indexOf('{'); const end = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { translation?: string; explanation?: string; wordType?: string };
+    return {
+      translation: parsed.translation ?? null,
+      explanation: parsed.explanation ?? null,
+      word_type:   parsed.wordType   ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Route: GET /word ──────────────────────────────────────────────────────────
 
 async function handleWordGet(url: URL, env: Env): Promise<Response> {
@@ -502,6 +544,31 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
       .prepare('UPDATE words SET lookup_count = lookup_count + 1 WHERE word = ?1 AND language = ?2')
       .bind(word, lang)
       .run();
+
+    // When sentence context is provided, get a contextual explanation overlay so
+    // homographs (e.g. Bank=bench vs Bank=financial) resolve correctly even from cache.
+    // Grammar tables (tenses, declensions) are always context-independent — keep from cache.
+    if (ctx) {
+      const contextualOverlay = await getContextualExplanation(word, lang, level, ctx, env.ANTHROPIC_API_KEY);
+      if (contextualOverlay) {
+        const overlaidHit = { ...hit, ...contextualOverlay };
+        // Backfill grammar if needed (reuse existing logic below via modified hit)
+        const parsedMeta  = overlaidHit.meta ? JSON.parse(overlaidHit.meta) as Record<string, unknown> : null;
+        const hasTenses   = Array.isArray(parsedMeta?.tenses) && (parsedMeta.tenses as unknown[]).length > 0;
+        const isVerb      = overlaidHit.word_type === 'verb' || overlaidHit.verb_present !== null;
+        const needsDecl   = !isVerb && ['noun', 'adjective', 'adverb'].includes(overlaidHit.word_type ?? '');
+        const hasDeclensions = Array.isArray(parsedMeta?.declensions) && (parsedMeta.declensions as unknown[]).length > 0;
+        let finalHit = overlaidHit;
+        if (isVerb && !hasTenses) {
+          const newTenses = await backfillVerbTenses(hit, lang, env.ANTHROPIC_API_KEY, env.WORDS_DB);
+          if (newTenses) { const m = JSON.stringify({ ...(parsedMeta ?? {}), tenses: newTenses }); finalHit = { ...overlaidHit, meta: m }; }
+        } else if (needsDecl && !hasDeclensions) {
+          const newDecl = await backfillDeclensions(hit, lang, env.ANTHROPIC_API_KEY, env.WORDS_DB);
+          if (newDecl) { const m = JSON.stringify({ ...(parsedMeta ?? {}), declensions: newDecl }); finalHit = { ...overlaidHit, meta: m }; }
+        }
+        return json(rowToWordData(finalHit, true));
+      }
+    }
 
     // Backfill tenses for verbs cached before the full-tenses feature was added
     const parsedMeta  = hit.meta ? JSON.parse(hit.meta) as Record<string, unknown> : null;
