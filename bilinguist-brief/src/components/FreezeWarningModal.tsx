@@ -51,7 +51,7 @@ export function FreezeWarningModal({ visible, langs, onDismiss }: Props) {
           style={[styles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}
           onStartShouldSetResponder={() => true}
         >
-          <Text style={[styles.freezeIcon, { fontSize: 48 }]}>🧊</Text>
+          <Text style={[styles.freezeIcon, { fontSize: 48 }]}>❄️</Text>
 
           <Text style={[styles.headline, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
             Don't lose your streak!

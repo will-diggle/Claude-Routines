@@ -783,7 +783,7 @@ export function BriefingScreen() {
                         </>
                       ) : isFrozen ? (
                         <>
-                          <Text style={{ fontSize: 15 }}>🧊</Text>
+                          <Text style={{ fontSize: 15 }}>❄️</Text>
                           <Text style={[styles.editionLabel, { color: streakColor, fontFamily: fontFamily.regular, fontSize: 15 }]}>
                             {streak}
                           </Text>
