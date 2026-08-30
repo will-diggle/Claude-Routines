@@ -37,6 +37,33 @@ const SEPARABLE_DE_BY_PREFIX: Record<string, { compound: string; stem: string; s
 const stripDE = (w: string) => w.toLowerCase().replace(/[^a-zäöüß]/g, '');
 
 
+// The pipeline already lemmatises every token, so when a token map exists there
+// is no need to infer the verb from spelling: read "brachte" → "bringen" off the
+// parse and test the compound directly. This is what catches irregulars that
+// change consonants as well as vowels, which no stem or skeleton match can reach.
+function resolveParticleViaTokenMap(
+  particle: string,
+  particlePos: number,
+  tokens: Map<number, TokenMapEntry>,
+): { compound: string; verbPos: number } | null {
+  // Positions are article-global, so bound the search near the tapped particle —
+  // a separable pair is only ever a clause apart.
+  const WINDOW = 15;
+  let best: { compound: string; verbPos: number; distance: number } | null = null;
+
+  for (let d = 1; d <= WINDOW; d++) {
+    for (const pos of [particlePos - d, particlePos + d]) {
+      const t = tokens.get(pos);
+      if (!t?.lemma) continue;
+      const compound = particle + t.lemma.toLowerCase();
+      if (!(compound in (SEPARABLE_DE as Record<string, string>))) continue;
+      if (!best || d < best.distance) best = { compound, verbPos: pos, distance: d };
+    }
+    if (best) break; // nearest wins; no closer match can appear at a larger d
+  }
+  return best ? { compound: best.compound, verbPos: best.verbPos } : null;
+}
+
 // Given a tapped particle, find the verb in the same sentence it belongs to.
 // Returns the longest stem match, so "an" + "aufsteigen" never wins over
 // "an" + "ansteigen" when both stems appear.
@@ -156,6 +183,18 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     // stop, otherwise the popup defines the bare preposition.
     if (linked.length === 0 && language === 'de') {
       const particle = stripDE(word);
+
+      // Exact route first: the pipeline's own lemmas.
+      const viaMap = resolveParticleViaTokenMap(particle, wordPosition, tokenByPosition);
+      if (viaMap) {
+        setActiveLemma(viaMap.compound);
+        setActiveCompound(viaMap.compound);
+        setActiveSeparablePrefix(particle);
+        setActivePositions((prev) => new Set([...prev, viaMap.verbPos]));
+        return;
+      }
+
+      // No token map (older articles) — fall back to inferring from spelling.
       const resolved = resolveParticleToVerb(particle, sentence);
       if (resolved) {
         setActiveLemma(resolved.compound);
