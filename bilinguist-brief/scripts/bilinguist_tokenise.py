@@ -126,6 +126,24 @@ SPACY_MODELS = {
 # Dependency label marking a detached verb particle, per language scheme.
 _PARTICLE_DEP = {"de": "svp", "sv": "compound:prt"}
 
+# Dependency label attaching an article to its noun. Verified empirically per model
+# on 2026-08-30, because the schemes differ and guessing "det" would silently miss
+# German entirely: de_core_news_sm is TIGER and uses "nk" (tag ART); every other
+# model is UD and uses "det".
+_ARTICLE_DEP = {"de": "nk"}
+_ARTICLE_DEP_DEFAULT = "det"
+
+# Articles only -- NOT demonstratives, possessives or quantifiers. spaCy's DET covers
+# all of them, and morph PronType separates them cleanly in every model tested:
+# der/die/das/ein and their equivalents are PronType=Art, while dieser/ce/este are
+# Dem, mein/mi are Prs, and jeder/cada are Ind/Tot. Starting with articles alone so
+# the effect can be judged before widening.
+#
+# Expected coverage gaps, not misses: fused forms carry no separate article token
+# (German im/am/zum, French du/au/des, Italian del/nel, Portuguese do/na, Spanish
+# al/del), and the Swedish definite article is a noun suffix -- "natten" has nothing
+# to link, while indefinite "ett hus" does.
+
 _NLP_CACHE: dict = {}
 
 
@@ -159,7 +177,7 @@ def _compound_lemma(lang: str, particle: str, stem: str) -> str:
 _GENDER = {"Masc": "m", "Fem": "f", "Neut": "n"}
 
 
-def analyse_article(text: str, lang: str) -> Optional[list]:
+def analyse_article(text: str, lang: str, stats: Optional[dict] = None) -> Optional[list]:
     """Build the tokenMap for one article. Returns None if the language has no model.
 
     Positions follow the app's contract exactly: zero-indexed over _WORD_RE matches
@@ -211,6 +229,33 @@ def analyse_article(text: str, lang: str) -> Optional[list]:
 
     # Reunite separated particle verbs: same compound lemma on BOTH positions,
     # linked symmetrically so the app highlights the pair.
+    # Link each article to its head noun, so tapping either highlights both and the
+    # learner sees the gender bound to its noun. Kept as a separate link TYPE from
+    # separable verbs so the two can be counted independently; unlike separable
+    # verbs this does NOT rewrite either lemma -- the noun keeps its own, and the
+    # app renders "article + lemma" as the popup subtitle.
+    art_dep = _ARTICLE_DEP.get(lang, _ARTICLE_DEP_DEFAULT)
+    pos_of_all = {t.i: i for i, t in tok_at.items()}
+    art_pairs = 0
+    for t in doc:
+        if t.pos_ != "DET" or t.dep_ != art_dep:
+            continue
+        if "Art" not in t.morph.get("PronType"):
+            continue
+        # The head must actually be a noun. Swedish in particular sometimes attaches
+        # a stray article to the verb ("En lång natt slutade" -> head=slutade).
+        if t.head.pos_ not in ("NOUN", "PROPN"):
+            continue
+        d_pos, n_pos = pos_of_all.get(t.i), pos_of_all.get(t.head.i)
+        if d_pos is None or n_pos is None or d_pos == n_pos:
+            continue
+        for x, y in ((d_pos, n_pos), (n_pos, d_pos)):
+            if y not in tokens[x]["linked_positions"]:
+                tokens[x]["linked_positions"].append(y)
+        art_pairs += 1
+    if stats is not None:
+        stats["article_noun"] = stats.get("article_noun", 0) + art_pairs
+
     dep = _PARTICLE_DEP.get(lang)
     if dep:
         # Key on spaCy's own token index, NOT id(): spaCy builds a fresh Token
@@ -229,6 +274,8 @@ def analyse_article(text: str, lang: str) -> Optional[list]:
                 if y not in tokens[x]["linked_positions"]:
                     tokens[x]["linked_positions"].append(y)
             tokens[p_pos]["pos"] = "PART"
+            if stats is not None:
+                stats["separable_verb"] = stats.get("separable_verb", 0) + 1
 
     return tokens
 
@@ -511,12 +558,13 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
           + (f" | no model, shipping without tokenMap: {', '.join(skip)}" if skip else ""))
 
     enriched = linked = 0
-    by_lang: dict[str, list] = {l: [0, 0, 0] for l in langs}   # enriched, total, linked-pairs
+    by_lang: dict[str, list] = {l: [0, 0, 0, 0] for l in langs}  # enriched, total, svp, art
     for article, lang, label in tasks:
         by_lang[lang][1] += 1
         text = _p5_article_text(article)
+        st: dict = {}
         try:
-            tokens = analyse_article(text, lang)
+            tokens = analyse_article(text, lang, st)
         except Exception as e:                                    # noqa: BLE001
             print(f"[tokenise] {label}: analysis failed ({e}) — shipping without "
                   f"tokenMap", file=sys.stderr)
@@ -529,20 +577,24 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
         article["tokenMap"] = tokens
         enriched += 1
         by_lang[lang][0] += 1
-        by_lang[lang][2] += sum(1 for t in tokens if t["linked_positions"]) // 2
+        by_lang[lang][2] += st.get("separable_verb", 0)
+        by_lang[lang][3] += st.get("article_noun", 0)
         linked += sum(1 for t in tokens if t["linked_positions"])
 
     # Report per language, and shout if a language with a model enriched nothing --
     # that is what a silent failure looks like from the outside.
     for lang in sorted(by_lang):
-        got, want, pairs = by_lang[lang]
+        got, want, svp_n, art_n = by_lang[lang]
         note = "" if _load_nlp(lang) is None else (
             "  ← ZERO ENRICHED, model loaded: something is wrong" if got == 0 else "")
         # Linked pairs per language make separable-verb recall measurable run over
         # run, instead of something eyeballed from a sample.
-        print(f"[tokenise]   {lang}: {got}/{want} enriched, {pairs} multi-word "
-              f"unit(s){note}" + ("" if _load_nlp(lang) is not None else "  (no model)"))
-    for lang, (got, want, _pairs) in by_lang.items():
+        # Two link types counted separately so a regression in one stays visible
+        # even while the other is healthy.
+        print(f"[tokenise]   {lang}: {got}/{want} enriched, {svp_n} separable-verb "
+              f"pair(s), {art_n} article-noun pair(s){note}"
+              + ("" if _load_nlp(lang) is not None else "  (no model)"))
+    for lang, (got, want, _s, _a) in by_lang.items():
         if want and got == 0 and _load_nlp(lang) is not None:
             print(f"[WARN] tokenise: {lang} has a spaCy model but produced no tokenMaps "
                   f"across {want} articles", file=sys.stderr)
