@@ -13,6 +13,59 @@ import SEPARABLE_DE from '../data/separable_de.json';
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
 
+// The table is keyed by compound ("andauern" → "an"), which only answers
+// "given the verb, what's its prefix?". Tapping the detached particle asks the
+// reverse, so index it that way too: prefix → the verbs that take it, each
+// reduced to the stem shared by its inflected forms ("dauern" → "dauer", which
+// still matches "dauert", "dauerte", "dauern").
+// Strong verbs change their vowel when inflected ("steigen" → "stieg", "schlagen"
+// → "schlug"), so the stem no longer prefixes the surface form. The consonants
+// survive the ablaut, so comparing those instead still pairs them up.
+const consonantSkeleton = (w: string) => w.replace(/[aeiouäöüy]/g, '');
+
+const SEPARABLE_DE_BY_PREFIX: Record<string, { compound: string; stem: string; skel: string }[]> = (() => {
+  const out: Record<string, { compound: string; stem: string; skel: string }[]> = {};
+  for (const [compound, prefix] of Object.entries(SEPARABLE_DE as Record<string, string>)) {
+    const stem = compound.slice(prefix.length).replace(/e?n$/, '');
+    // Stems of 1-2 letters ("tun" → "tu") match far too much to be safe.
+    if (stem.length < 3) continue;
+    (out[prefix] ??= []).push({ compound, stem, skel: consonantSkeleton(stem) });
+  }
+  return out;
+})();
+
+const stripDE = (w: string) => w.toLowerCase().replace(/[^a-zäöüß]/g, '');
+
+
+// Given a tapped particle, find the verb in the same sentence it belongs to.
+// Returns the longest stem match, so "an" + "aufsteigen" never wins over
+// "an" + "ansteigen" when both stems appear.
+function resolveParticleToVerb(particle: string, sentence: string):
+  { compound: string; verbSurface: string } | null {
+  const candidates = SEPARABLE_DE_BY_PREFIX[particle];
+  if (!candidates) return null;
+
+  let best: { compound: string; verbSurface: string; score: number } | null = null;
+  for (const raw of sentence.split(/\s+/)) {
+    const w = stripDE(raw);
+    if (!w || w === particle) continue;
+    const ws = consonantSkeleton(w);
+    for (const c of candidates) {
+      const exact = w.startsWith(c.stem);
+      // Skeletons under 3 consonants ("zieh" → "zh") match too loosely to trust.
+      const fuzzy = c.skel.length >= 3 && ws.startsWith(c.skel);
+      if (!exact && !fuzzy) continue;
+      // An intact stem is stronger evidence than a matching skeleton, so it
+      // outranks a longer fuzzy match rather than merely tying with it.
+      const score = exact ? c.stem.length * 2 : c.stem.length;
+      if (!best || score > best.score) {
+        best = { compound: c.compound, verbSurface: raw, score };
+      }
+    }
+  }
+  return best ? { compound: best.compound, verbSurface: best.verbSurface } : null;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -95,6 +148,29 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       setActiveSeparablePrefix(partEntry?.surface ?? null);
     } else {
       setActiveSeparablePrefix(null);
+    }
+
+    // Tapped the detached particle rather than the verb. The lookup below runs
+    // verb-first (lemma "dauern" → find "an"), so it can't answer this: the lemma
+    // is "an" and no compound is built from it. Resolve the other direction and
+    // stop, otherwise the popup defines the bare preposition.
+    if (linked.length === 0 && language === 'de') {
+      const particle = stripDE(word);
+      const resolved = resolveParticleToVerb(particle, sentence);
+      if (resolved) {
+        setActiveLemma(resolved.compound);
+        setActiveCompound(resolved.compound);
+        setActiveSeparablePrefix(particle);
+        const verbPos = findWordPositionNear(
+          article.headline,
+          article.body,
+          resolved.verbSurface,
+          headlineWordCount,
+          wordPosition,
+        );
+        if (verbPos !== null) setActivePositions((prev) => new Set([...prev, verbPos]));
+        return;
+      }
     }
 
     // Separable verb detection — de and sv only, fails silently.
