@@ -22,7 +22,6 @@ import { FullStreakCalendar } from '../components/StreakCalendar';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
-import { FreezeWarningModal, FrozenLang } from '../components/FreezeWarningModal';
 import { NewLanguageAnnouncementModal, useNewLanguageAnnouncement } from '../components/NewLanguageAnnouncementModal';
 import { FLOAT_TAB_BOTTOM, FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
@@ -240,9 +239,7 @@ export function BriefingScreen() {
   const editionRowRef = useRef<View>(null);
   const [celebration, setCelebration] = useState<{ langCode: string; streakCount: number } | null>(null);
   const [fullSweepVisible, setFullSweepVisible] = useState(false);
-  const [freezeWarnVisible, setFreezeWarnVisible] = useState(false);
   const { shouldShow: showPtAnnouncement, markSeen: markPtSeen } = useNewLanguageAnnouncement();
-  const [frozenLangs, setFrozenLangs] = useState<FrozenLang[]>([]);
   const [levelPickerLang, setLevelPickerLang] = useState<string | null>(null);
   const [pickerLength, setPickerLength] = useState<'short' | 'longer'>('longer');
   // Per-language flags — reset from store on mount so app restarts don't double-credit
@@ -317,17 +314,10 @@ export function BriefingScreen() {
   }, [activeLanguages, checkAndConsumeFreeze]);
 
   useEffect(() => {
-    // Delay until after the splash screen finishes (3400 ms) so the modal
-    // doesn't appear on top of the loading animation.
+    // Delay until after the splash screen finishes (3400 ms), by which point
+    // the persisted language list has hydrated.
     const t = setTimeout(() => {
       checkFreezes();
-      const frozen = activeLanguages
-        .filter(l => isFrozenToday(l.code))
-        .map(l => ({ code: l.code, nativeName: l.nativeName, streak: readingStreaks[l.code] ?? 0 }));
-      if (frozen.length > 0) {
-        setFrozenLangs(frozen);
-        setFreezeWarnVisible(true);
-      }
     }, 4000);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1143,11 +1133,6 @@ export function BriefingScreen() {
         visible={fullSweepVisible}
         langCodes={activeLanguages.map(l => l.code)}
         onDismiss={() => setFullSweepVisible(false)}
-      />
-      <FreezeWarningModal
-        visible={freezeWarnVisible}
-        langs={frozenLangs}
-        onDismiss={() => setFreezeWarnVisible(false)}
       />
       <NewLanguageAnnouncementModal
         visible={showPtAnnouncement}
