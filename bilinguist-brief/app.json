@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
-      "buildNumber": "139",
+      "buildNumber": "140",
       "usesAppleSignIn": true,
       "icon": {
         "light": "./assets/icon-white.png",

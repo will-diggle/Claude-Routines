@@ -299,6 +299,14 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
     return `${separablePrefix}·${stem}`; // U+00B7 MIDDLE DOT
   })();
   const displayWord = splitTitle ?? word;
+  // "andauern" tells you the compound, but not what the verb means on its own.
+  // Offer the bare verb alongside it so "dauern" stays reachable.
+  const baseVerb = (() => {
+    if (!separablePrefix || !compoundLemma) return null;
+    if (!compoundLemma.toLowerCase().startsWith(separablePrefix.toLowerCase())) return null;
+    const stem = compoundLemma.slice(separablePrefix.length);
+    return stem.length >= 3 ? stem : null;
+  })();
   // Pronounce the whole verb, not just the tapped half — "ab" alone mispronounces.
   const audioWord = compoundLemma ?? word;
 
@@ -409,6 +417,23 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
                 </Text>
                 <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
               </TouchableOpacity>
+              {baseVerb && baseVerb.toLowerCase() !== subtitleLemma.toLowerCase() && (
+                <>
+                  <Text style={[styles.infinitivePillLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                    without {separablePrefix}-:
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setNestedWord(baseVerb)}
+                    activeOpacity={0.8}
+                    style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
+                  >
+                    <Text style={[styles.infinitivePillText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                      {baseVerb}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={11} color={colors.inkMid} />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
           {/* Nested context: show lemma plain (no tap) */}
@@ -784,6 +809,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    // Two pills (compound + bare verb) don't always fit one line on narrow phones.
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 6,
     marginBottom: 8,
