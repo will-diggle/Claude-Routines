@@ -13,29 +13,7 @@ import SEPARABLE_DE from '../data/separable_de.json';
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
 
-// The table is keyed by compound ("andauern" → "an"), which only answers
-// "given the verb, what's its prefix?". Tapping the detached particle asks the
-// reverse, so index it that way too: prefix → the verbs that take it, each
-// reduced to the stem shared by its inflected forms ("dauern" → "dauer", which
-// still matches "dauert", "dauerte", "dauern").
-// Strong verbs change their vowel when inflected ("steigen" → "stieg", "schlagen"
-// → "schlug"), so the stem no longer prefixes the surface form. The consonants
-// survive the ablaut, so comparing those instead still pairs them up.
-const consonantSkeleton = (w: string) => w.replace(/[aeiouäöüy]/g, '');
-
-const SEPARABLE_DE_BY_PREFIX: Record<string, { compound: string; stem: string; skel: string }[]> = (() => {
-  const out: Record<string, { compound: string; stem: string; skel: string }[]> = {};
-  for (const [compound, prefix] of Object.entries(SEPARABLE_DE as Record<string, string>)) {
-    const stem = compound.slice(prefix.length).replace(/e?n$/, '');
-    // Stems of 1-2 letters ("tun" → "tu") match far too much to be safe.
-    if (stem.length < 3) continue;
-    (out[prefix] ??= []).push({ compound, stem, skel: consonantSkeleton(stem) });
-  }
-  return out;
-})();
-
 const stripDE = (w: string) => w.toLowerCase().replace(/[^a-zäöüß]/g, '');
-
 
 // The pipeline already lemmatises every token, so when a token map exists there
 // is no need to infer the verb from spelling: read "brachte" → "bringen" off the
@@ -46,6 +24,11 @@ function resolveParticleViaTokenMap(
   particlePos: number,
   tokens: Map<number, TokenMapEntry>,
 ): { compound: string; verbPos: number } | null {
+  // Every separable prefix is also an ordinary preposition — "an der Grenze" is
+  // not half of a verb. Without this the search happily pairs a preposition with
+  // any nearby verb that could form a compound, and invents one that isn't there.
+  if (tokens.get(particlePos)?.pos !== 'PART') return null;
+
   // Positions are article-global, so bound the search near the tapped particle —
   // a separable pair is only ever a clause apart.
   const WINDOW = 15;
@@ -62,35 +45,6 @@ function resolveParticleViaTokenMap(
     if (best) break; // nearest wins; no closer match can appear at a larger d
   }
   return best ? { compound: best.compound, verbPos: best.verbPos } : null;
-}
-
-// Given a tapped particle, find the verb in the same sentence it belongs to.
-// Returns the longest stem match, so "an" + "aufsteigen" never wins over
-// "an" + "ansteigen" when both stems appear.
-function resolveParticleToVerb(particle: string, sentence: string):
-  { compound: string; verbSurface: string } | null {
-  const candidates = SEPARABLE_DE_BY_PREFIX[particle];
-  if (!candidates) return null;
-
-  let best: { compound: string; verbSurface: string; score: number } | null = null;
-  for (const raw of sentence.split(/\s+/)) {
-    const w = stripDE(raw);
-    if (!w || w === particle) continue;
-    const ws = consonantSkeleton(w);
-    for (const c of candidates) {
-      const exact = w.startsWith(c.stem);
-      // Skeletons under 3 consonants ("zieh" → "zh") match too loosely to trust.
-      const fuzzy = c.skel.length >= 3 && ws.startsWith(c.skel);
-      if (!exact && !fuzzy) continue;
-      // An intact stem is stronger evidence than a matching skeleton, so it
-      // outranks a longer fuzzy match rather than merely tying with it.
-      const score = exact ? c.stem.length * 2 : c.stem.length;
-      if (!best || score > best.score) {
-        best = { compound: c.compound, verbSurface: raw, score };
-      }
-    }
-  }
-  return best ? { compound: best.compound, verbSurface: best.verbSurface } : null;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -194,22 +148,11 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         return;
       }
 
-      // No token map (older articles) — fall back to inferring from spelling.
-      const resolved = resolveParticleToVerb(particle, sentence);
-      if (resolved) {
-        setActiveLemma(resolved.compound);
-        setActiveCompound(resolved.compound);
-        setActiveSeparablePrefix(particle);
-        const verbPos = findWordPositionNear(
-          article.headline,
-          article.body,
-          resolved.verbSurface,
-          headlineWordCount,
-          wordPosition,
-        );
-        if (verbPos !== null) setActivePositions((prev) => new Set([...prev, verbPos]));
-        return;
-      }
+      // Deliberately no spelling fallback here. The verb-first direction can lean
+      // on the tapped word already being a verb; this direction cannot tell a
+      // particle from the identical preposition, and guessing wrong doesn't
+      // degrade to a plain lookup — it teaches a verb the sentence never used.
+      // Without a parse saying PART, the plain word is the honest answer.
     }
 
     // Separable verb detection — de and sv only, fails silently.
