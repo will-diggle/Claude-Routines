@@ -2,6 +2,14 @@ name = "bilinguist-brief"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
+# ── Cron ──────────────────────────────────────────────────────────────────────
+# Every 5 minutes: users pick their own delivery time, and each is matched
+# against their own timezone's clock, so the sweep has to be finer than the
+# spread of times people choose.
+[triggers]
+crons = ["*/5 * * * *"]
+
+
 # ── D1 word dictionary ────────────────────────────────────────────────────────
 [[d1_databases]]
 binding       = "WORDS_DB"
