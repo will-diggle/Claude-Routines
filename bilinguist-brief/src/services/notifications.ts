@@ -1,6 +1,4 @@
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { fetchTodayBundle } from './briefingSync';
 import type { DailyBundle } from './briefingSync';
 
@@ -91,22 +89,6 @@ function parseTime(hhmm: string): { hour: number; minute: number } | null {
   return { hour, minute };
 }
 
-// Builds from before the current identifiers existed scheduled their own daily
-// notifications, which nothing since has cancelled — they keep firing with text
-// frozen at whatever was current then. Clearing everything before rescheduling
-// is the only way to reach them, since we can't know what they were called.
-async function clearOrphanedSchedules(): Promise<void> {
-  try {
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    const known = new Set([MORNING_NOTIFICATION_ID, STREAK_NOTIFICATION_ID]);
-    for (const n of scheduled) {
-      if (!known.has(n.identifier)) {
-        await Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {});
-      }
-    }
-  } catch {}
-}
-
 async function scheduleDaily(
   identifier: string,
   title: string,
@@ -156,63 +138,6 @@ function buildStreakBody(langNames: string[]): string {
     return `Don't lose your ${langNames[0]} and ${langNames[1]} streak 🔥 Today's brief is waiting.`;
   const head = langNames.slice(0, -1).join(', ');
   return `Don't lose your ${head} and ${langNames[langNames.length - 1]} streak 🔥 Today's brief is waiting.`;
-}
-
-
-// ─── Remote push registration ─────────────────────────────────────────────────
-// The morning brief can't be delivered locally: it's scheduled in advance, and
-// the bundle publishes after the delivery slot, so a local notification always
-// carries the previous day's copy. Registering here hands that one over to the
-// worker, which sends it once the bundle actually exists — and lets the wording
-// change server-side without an app update.
-
-const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? 'https://bilinguist-brief.williamdiggz.workers.dev';
-
-export async function registerPushToken(
-  deliveryTime: string,
-  languageCodes: string[],
-): Promise<boolean> {
-  try {
-    const granted = await requestNotificationPermission();
-    if (!granted) return false;
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) return false;
-
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    if (!token) return false;
-
-    const res = await fetch(`${WORKER_URL}/push/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token,
-        deliveryTime,
-        // Sent so the worker can fire at the reader's own morning rather than UTC.
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        languages: languageCodes,
-        platform: Platform.OS,
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Called when the user turns notifications off, so the row goes away rather
-// than lingering until Expo reports the install as gone.
-export async function unregisterPushToken(): Promise<void> {
-  try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId) return;
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    if (!token) return;
-    await fetch(`${WORKER_URL}/push/unregister`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-  } catch {}
 }
 
 // ─── Morning brief notification ───────────────────────────────────────────────
@@ -289,24 +214,12 @@ export async function scheduleAllNotifications(params: {
   lastReadDates: Record<string, string>;
 }): Promise<void> {
   const { briefingTime, topicOrder, topics, activeLanguages, lastReadDates } = params;
-  await clearOrphanedSchedules();
-
-  // Hand the morning brief to the server when push is available. Scheduling it
-  // locally as well would deliver the same slot twice — once with yesterday's
-  // copy — so the local one is only kept as the fallback.
-  const pushed = await registerPushToken(briefingTime, activeLanguages.map((l) => l.code));
-  if (pushed) {
-    await Notifications.cancelScheduledNotificationAsync(MORNING_NOTIFICATION_ID).catch(() => {});
-  }
-
   await Promise.all([
-    pushed
-      ? Promise.resolve()
-      : scheduleMorningBriefNotification(briefingTime, {
-          topicOrder,
-          topics,
-          activeLanguageCodes: activeLanguages.map((l) => l.code),
-        }),
+    scheduleMorningBriefNotification(briefingTime, {
+      topicOrder,
+      topics,
+      activeLanguageCodes: activeLanguages.map((l) => l.code),
+    }),
     scheduleStreakReminder(activeLanguages, lastReadDates),
   ]);
 }

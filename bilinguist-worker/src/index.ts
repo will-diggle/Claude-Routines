@@ -123,7 +123,6 @@ function buildTensesInstruction(lang: string): string {
 interface Env {
   GITHUB_TOKEN: string;
   ANTHROPIC_API_KEY: string;
-  EXPO_ACCESS_TOKEN?: string;
   ELEVENLABS_API_KEY: string;
   WORKER_ADMIN_KEY: string;
   NTFY_TOPIC?: string;
@@ -1041,182 +1040,11 @@ async function warmDb(env: Env): Promise<void> {
   });
 }
 
-
-// ── Push notifications ────────────────────────────────────────────────────────
-// Local notifications can't carry today's brief: the app schedules them ahead of
-// time, and the bundle publishes after the morning delivery slot. So the send has
-// to happen here, once the bundle exists.
-//
-// The table deliberately holds no account reference. Delivery needs a token, a
-// time and a zone — not an identity — so keeping it standalone means a leak
-// exposes device handles rather than "who reads what".
-
-const PUSH_TABLE = `
-  CREATE TABLE IF NOT EXISTS push_tokens (
-    token         TEXT PRIMARY KEY,
-    delivery_time TEXT NOT NULL,
-    timezone      TEXT NOT NULL,
-    languages     TEXT,
-    platform      TEXT,
-    created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL,
-    last_sent_on  TEXT
-  )`;
-
-async function ensurePushTable(env: Env): Promise<void> {
-  await env.WORDS_DB.prepare(PUSH_TABLE).run();
-}
-
-// Local wall-clock date and time for a given IANA zone.
-function localNow(timezone: string): { date: string; hhmm: string } | null {
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
-    }).formatToParts(new Date());
-    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-    const date = `${get('year')}-${get('month')}-${get('day')}`;
-    const hhmm = `${get('hour')}:${get('minute')}`;
-    return date.includes('undefined') ? null : { date, hhmm };
-  } catch {
-    return null; // unknown zone — skip rather than deliver at the wrong hour
-  }
-}
-
-const toMinutes = (hhmm: string) => {
-  const [h, m] = hhmm.split(':').map(Number);
-  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
-};
-
-async function handlePushRegister(request: Request, env: Env): Promise<Response> {
-  let body: { token?: string; deliveryTime?: string; timezone?: string; languages?: string[]; platform?: string };
-  try { body = await request.json(); } catch { return json({ error: 'bad_json' }, 400); }
-
-  const token = body.token?.trim();
-  // Expo's own format — refuse anything else so the table can't be used as
-  // general-purpose storage by anyone who finds the endpoint.
-  if (!token || !/^ExponentPushToken\[[^\]]+\]$/.test(token)) return json({ error: 'bad_token' }, 400);
-
-  const deliveryTime = body.deliveryTime?.trim() ?? '07:30';
-  if (toMinutes(deliveryTime) === null) return json({ error: 'bad_time' }, 400);
-  const timezone = body.timezone?.trim() || 'UTC';
-  if (!localNow(timezone)) return json({ error: 'bad_timezone' }, 400);
-
-  await ensurePushTable(env);
-  const now = new Date().toISOString();
-  await env.WORDS_DB.prepare(`
-    INSERT INTO push_tokens (token, delivery_time, timezone, languages, platform, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(token) DO UPDATE SET
-      delivery_time = excluded.delivery_time,
-      timezone      = excluded.timezone,
-      languages     = excluded.languages,
-      platform      = excluded.platform,
-      updated_at    = excluded.updated_at
-  `).bind(token, deliveryTime, timezone, (body.languages ?? []).join(','), body.platform ?? null, now, now).run();
-
-  return json({ ok: true });
-}
-
-async function handlePushUnregister(request: Request, env: Env): Promise<Response> {
-  let body: { token?: string };
-  try { body = await request.json(); } catch { return json({ error: 'bad_json' }, 400); }
-  if (!body.token) return json({ error: 'bad_token' }, 400);
-  await ensurePushTable(env);
-  await env.WORDS_DB.prepare('DELETE FROM push_tokens WHERE token = ?').bind(body.token).run();
-  return json({ ok: true });
-}
-
-interface PushRow {
-  token: string; delivery_time: string; timezone: string; last_sent_on: string | null;
-}
-
-// Sends in batches of 100 (Expo's limit) and deletes tokens Expo reports as
-// unregistered — an uninstall is the user's deletion request, so honour it.
-async function sendExpoPush(
-  messages: Array<{ to: string; title: string; body: string }>,
-  env: Env,
-): Promise<void> {
-  for (let i = 0; i < messages.length; i += 100) {
-    const chunk = messages.slice(i, i + 100);
-    try {
-      const res = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...(env.EXPO_ACCESS_TOKEN ? { Authorization: `Bearer ${env.EXPO_ACCESS_TOKEN}` } : {}),
-        },
-        body: JSON.stringify(chunk.map((m) => ({ ...m, sound: 'default', data: { screen: 'Briefing' } }))),
-      });
-      if (!res.ok) continue;
-      const out = await res.json() as { data?: Array<{ status: string; details?: { error?: string } }> };
-      const dead = (out.data ?? [])
-        .map((t, idx) => (t.details?.error === 'DeviceNotRegistered' ? chunk[idx].to : null))
-        .filter((t): t is string => t !== null);
-      for (const token of dead) {
-        await env.WORDS_DB.prepare('DELETE FROM push_tokens WHERE token = ?').bind(token).run().catch(() => {});
-      }
-    } catch { /* a failed batch retries on the next tick */ }
-  }
-}
-
-// Runs on the cron. Each token fires once per local day, when its own local
-// clock has reached its delivery time.
-async function sendDueBriefPushes(env: Env): Promise<void> {
-  await ensurePushTable(env);
-
-  const rows = await env.WORDS_DB
-    .prepare('SELECT token, delivery_time, timezone, last_sent_on FROM push_tokens')
-    .all<PushRow>();
-  if (!rows.results?.length) return;
-
-  const briefRes = await handleBriefing('latest.json', env);
-  if (!briefRes.ok) return;
-  const bundle = await briefRes.json() as { date?: string; daily_notification?: string };
-  const copy = bundle.daily_notification?.trim();
-  // No copy means nothing worth waking a phone for.
-  if (!copy || !bundle.date) return;
-
-  const due: Array<{ to: string; title: string; body: string }> = [];
-  const sent: string[] = [];
-
-  for (const row of rows.results) {
-    const now = localNow(row.timezone);
-    if (!now) continue;
-    if (row.last_sent_on === now.date) continue;      // already had today's
-    if (now.date !== bundle.date) continue;           // bundle isn't for their today
-
-    const target = toMinutes(row.delivery_time);
-    const current = toMinutes(now.hhmm);
-    if (target === null || current === null) continue;
-    // Fire at or after their time, but not so late it arrives as a surprise
-    // in the evening — a phone off overnight shouldn't buzz at 23:00.
-    if (current < target || current - target > 180) continue;
-
-    due.push({ to: row.token, title: 'Morning Bilingual Briefing ☀️', body: copy });
-    sent.push(row.token);
-  }
-
-  if (!due.length) return;
-  await sendExpoPush(due, env);
-
-  // Marked per local date, so a user whose zone rolls over later still gets theirs.
-  for (const token of sent) {
-    const now = localNow(rows.results.find((r) => r.token === token)!.timezone);
-    if (!now) continue;
-    await env.WORDS_DB.prepare('UPDATE push_tokens SET last_sent_on = ? WHERE token = ?')
-      .bind(now.date, token).run().catch(() => {});
-  }
-}
-
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(warmDb(env));
-    ctx.waitUntil(sendDueBriefPushes(env));
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -1238,8 +1066,6 @@ export default {
     if (pathname === '/word'        && request.method === 'GET') return handleWordGet(url, env);
     if (pathname === '/word'        && request.method === 'POST') return handleWordPost(request, env);
     if (pathname === '/audio'      && request.method === 'POST') return handleAudioPost(request, env);
-    if (pathname === '/push/register'   && request.method === 'POST') return handlePushRegister(request, env);
-    if (pathname === '/push/unregister' && request.method === 'POST') return handlePushUnregister(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
