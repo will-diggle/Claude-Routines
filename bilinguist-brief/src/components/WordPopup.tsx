@@ -290,11 +290,20 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
   // verb, so it reads the same whichever half of the pair was tapped. Falls
   // back to the plain tapped word for everything else, including the
   // article-noun link (which never carries a separablePrefix).
+  // The compound we asked about is a guess made from the article; the lemma that
+  // comes back is what the dictionary actually resolved, with the sentence in
+  // hand. When they disagree the server is right — it corrected "anreden" to
+  // "angeben" off the context — so the header must follow it rather than keep
+  // asserting the guess over the top of the body's own answer.
+  const resolvedCompound = entry?.lemma ?? compoundLemma;
+
   const splitTitle = (() => {
-    if (!separablePrefix || !compoundLemma) return null;
+    if (!separablePrefix || !resolvedCompound) return null;
     const prefixLower = separablePrefix.toLowerCase();
-    if (!compoundLemma.toLowerCase().startsWith(prefixLower)) return null;
-    const stem = compoundLemma.slice(separablePrefix.length);
+    // A resolved lemma that doesn't start with the prefix means this wasn't the
+    // separable verb we assumed. Show the plain word rather than force a split.
+    if (!resolvedCompound.toLowerCase().startsWith(prefixLower)) return null;
+    const stem = resolvedCompound.slice(separablePrefix.length);
     if (!stem) return null;
     return `${separablePrefix}·${stem}`; // U+00B7 MIDDLE DOT
   })();
@@ -302,13 +311,13 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
   // "andauern" tells you the compound, but not what the verb means on its own.
   // Offer the bare verb alongside it so "dauern" stays reachable.
   const baseVerb = (() => {
-    if (!separablePrefix || !compoundLemma) return null;
-    if (!compoundLemma.toLowerCase().startsWith(separablePrefix.toLowerCase())) return null;
-    const stem = compoundLemma.slice(separablePrefix.length);
+    if (!separablePrefix || !resolvedCompound) return null;
+    if (!resolvedCompound.toLowerCase().startsWith(separablePrefix.toLowerCase())) return null;
+    const stem = resolvedCompound.slice(separablePrefix.length);
     return stem.length >= 3 ? stem : null;
   })();
   // Pronounce the whole verb, not just the tapped half — "ab" alone mispronounces.
-  const audioWord = compoundLemma ?? word;
+  const audioWord = resolvedCompound ?? word;
 
   // Subtitle: lemma part (article+lemma for nouns, lemma/infinitive for all others)
   const subtitleLemma = (() => {
