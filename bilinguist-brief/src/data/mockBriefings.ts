@@ -14,7 +14,10 @@ function getLevelBucket(level: LanguageLevel): LevelBucket {
 // Topics cycle: Global News → Good News → Sport → Politics → Global News
 // ---------------------------------------------------------------------------
 
-const ARTICLES: Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>> = {
+// Partial: not every language has demo copy, and the lookup below already
+// falls back when one is missing. Typing it as complete only forced a stub
+// entry per new language to keep the compiler quiet.
+const ARTICLES: Partial<Record<LanguageCode, Record<LevelBucket, BriefingArticle[]>>> = {
 
   // ── FRENCH ──────────────────────────────────────────────────────────────
   fr: {
@@ -554,13 +557,19 @@ export function getMockBriefing(
   length: ArticleLength,
 ): GeneratedBriefing {
   const bucket = getLevelBucket(level);
-  const allArticles = ARTICLES[language]?.[bucket] ?? ARTICLES.en.B1;
+  const allArticles = ARTICLES[language]?.[bucket] ?? ARTICLES.en?.B1 ?? [];
+
+  // Labelled so demo content can't be mistaken for a real brief. It only
+  // appears when the pipeline produced nothing for this language/level/length,
+  // which reads exactly like a broken connection unless it says otherwise —
+  // and demo articles carry no token map, so word tapping behaves differently.
+  const labelled = allArticles.map((a) => ({ ...a, headline: `DEMO · ${a.headline}` }));
 
   return {
     language,
     level,
     length,
-    articles: allArticles,
+    articles: labelled,
     date: new Date().toISOString().split('T')[0],
     generatedAt: Date.now(),
   };
