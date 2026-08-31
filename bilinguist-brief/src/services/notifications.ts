@@ -28,7 +28,8 @@ export const PIPELINE_READY_TIME = '07:30';
 
 /**
  * Returns the earliest allowed notification time in the device's local timezone.
- * Reference: 06:30 UK local (BST or GMT), which equals 07:30 for EU users (CEST/CET).
+ * Reference: PIPELINE_READY_TIME UK local (BST or GMT). Anything earlier is a slot
+ * the brief doesn't exist yet for, which can only ever deliver the previous day.
  * Uses Intl to detect whether UK is currently in BST (+1) or GMT (+0).
  */
 export function getMinNotifTime(): string {
@@ -40,8 +41,9 @@ export function getMinNotifTime(): string {
       10,
     );
     const ukOffsetHours = ((londonHour - now.getUTCHours() + 24) % 24);
-    // 06:30 UK local expressed as minutes since midnight UTC
-    const refUtcMinutes = 6 * 60 + 30 - ukOffsetHours * 60;
+    // PIPELINE_READY_TIME UK local, expressed as minutes since midnight UTC
+    const [readyH, readyM] = PIPELINE_READY_TIME.split(':').map(Number);
+    const refUtcMinutes = readyH * 60 + readyM - ukOffsetHours * 60;
     // Shift to device local time
     const deviceOffsetMinutes = -now.getTimezoneOffset();
     const localMinutes = refUtcMinutes + deviceOffsetMinutes;
@@ -49,7 +51,7 @@ export function getMinNotifTime(): string {
     const m = localMinutes % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   } catch {
-    return '06:30';
+    return PIPELINE_READY_TIME;
   }
 }
 
@@ -87,6 +89,22 @@ function parseTime(hhmm: string): { hour: number; minute: number } | null {
   if (isNaN(hour) || isNaN(minute)) return null;
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   return { hour, minute };
+}
+
+// Earlier builds scheduled daily notifications under identifiers this code no
+// longer knows, so nothing cancels them and they keep firing with headlines
+// frozen at whatever was current then. Clearing anything unrecognised is the
+// only way to reach them.
+async function clearOrphanedSchedules(): Promise<void> {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const known = new Set([MORNING_NOTIFICATION_ID, STREAK_NOTIFICATION_ID]);
+    for (const n of scheduled) {
+      if (!known.has(n.identifier)) {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier).catch(() => {});
+      }
+    }
+  } catch {}
 }
 
 async function scheduleDaily(
@@ -154,28 +172,47 @@ export async function scheduleMorningBriefNotification(
     const granted = await requestNotificationPermission();
     if (!granted) return;
 
-    let body = "Today's brief is ready.";
+    // Clear first, unconditionally. Everything below can decide not to schedule,
+    // and leaving a previous run's notification in place would deliver exactly
+    // the stale copy this is meant to prevent.
+    await Notifications.cancelScheduledNotificationAsync(MORNING_NOTIFICATION_ID).catch(() => {});
 
-    try {
-      const result = await fetchTodayBundle();
-      if (result.ok) {
-        if (result.bundle.daily_notification) {
-          body = result.bundle.daily_notification;
-        } else {
-          const { topicOrder = [], topics = {}, activeLanguageCodes = [] } = options;
-          const topGenreKey = topicOrder.find((k) => topics[k]);
-          if (topGenreKey) {
-            const genreLabel = TOPIC_LABELS[topGenreKey];
-            if (genreLabel) {
-              const headline = findHeadlineForGenre(result.bundle, activeLanguageCodes, genreLabel);
-              if (headline) body = headline;
-            }
-          }
-        }
-      }
-    } catch {}
+    const target = parseTime(time);
+    if (!target) return;
 
-    await scheduleDaily(MORNING_NOTIFICATION_ID, 'Morning Bilingual Briefing ☀️', body, time);
+    // A daily repeat would re-deliver today's copy every morning from now on, so
+    // this is scheduled as a single fire and re-armed each time the app opens.
+    const fireAt = new Date();
+    fireAt.setHours(target.hour, target.minute, 0, 0);
+    // The slot has already passed today, so the earliest this could fire is
+    // tomorrow — by which point today's headlines are yesterday's. Send nothing:
+    // no notification beats one reporting news the reader has already had.
+    if (fireAt.getTime() <= Date.now()) return;
+
+    const result = await fetchTodayBundle();
+    if (!result.ok) return;
+
+    // Compared in local time, since that's the day the reader is living in.
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (result.bundle.date !== todayLocal) return;
+
+    let body: string | null = result.bundle.daily_notification ?? null;
+    if (!body) {
+      const { topicOrder = [], topics = {}, activeLanguageCodes = [] } = options;
+      const topGenreKey = topicOrder.find((k) => topics[k]);
+      const genreLabel = topGenreKey ? TOPIC_LABELS[topGenreKey] : null;
+      if (genreLabel) body = findHeadlineForGenre(result.bundle, activeLanguageCodes, genreLabel);
+    }
+    // No copy for today means nothing worth sending — the old generic fallback
+    // would have fired daily forever regardless of whether a brief existed.
+    if (!body) return;
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: MORNING_NOTIFICATION_ID,
+      content: { title: 'Morning Bilingual Briefing ☀️', body, data: { screen: 'Briefing' } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
+    });
   } catch {}
 }
 
@@ -214,6 +251,7 @@ export async function scheduleAllNotifications(params: {
   lastReadDates: Record<string, string>;
 }): Promise<void> {
   const { briefingTime, topicOrder, topics, activeLanguages, lastReadDates } = params;
+  await clearOrphanedSchedules();
   await Promise.all([
     scheduleMorningBriefNotification(briefingTime, {
       topicOrder,
