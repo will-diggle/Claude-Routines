@@ -493,21 +493,56 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
           {/* Example sentence + translation */}
           {entry?.example && (() => {
             const sentence = entry.example;
-            const target = word ?? '';
-            const idx = sentence.toLowerCase().indexOf(target.toLowerCase());
+            // Mark every part of the unit the card is about, not just the tapped
+            // half — for a separable verb the reader needs to see both pieces and
+            // how far apart they sit. Matched whole-word so "an" doesn't light up
+            // inside "dann".
+            const marks = [word, separablePrefix, resolvedCompound, baseVerb]
+              .filter((t): t is string => !!t && t.length > 1)
+              .map((t) => t.toLowerCase());
+            const targets = new Set(marks);
+            // The verb appears inflected in the example ("sperrte", not
+            // "sperren"), so an exact match misses the half that matters most.
+            // Marking anything built on its stem catches the regular forms.
+            // Deliberately kept to stems of 4+ characters: unlike the lookup
+            // guessing this replaced, a loose match here only over-emphasises a
+            // word — it can never change what the card teaches.
+            const verbStem = baseVerb && baseVerb.length >= 6
+              ? baseVerb.toLowerCase().replace(/e?n$/, '')
+              : null;
+            const stem = verbStem && verbStem.length >= 4 ? verbStem : null;
+            // Leading/trailing punctuation is kept out of the mark so the
+            // underline doesn't run under a comma.
+            const splitAffixes = (chunk: string) => {
+              const m = chunk.match(/^([^\p{L}]*)(.*?)([^\p{L}]*)$/u);
+              return m ? { pre: m[1], core: m[2], post: m[3] } : { pre: '', core: chunk, post: '' };
+            };
             return (
               <View style={[styles.blockquote, { borderLeftColor: colors.accentRed }]}>
                 <Text style={[styles.blockquoteText, { color: colors.inkMid, fontFamily: fontFamily.italic, fontSize: 13 }]}>
                   {'„'}
-                  {idx === -1 ? sentence : (
-                    <>
-                      {sentence.slice(0, idx)}
-                      <Text style={{ textDecorationLine: 'underline' }}>
-                        {sentence.slice(idx, idx + target.length)}
+                  {sentence.split(/(\s+)/).map((chunk, i) => {
+                    const { pre, core, post } = splitAffixes(chunk);
+                    const lower = core.toLowerCase();
+                    const isMark = targets.has(lower) || (stem !== null && lower.startsWith(stem));
+                    if (!core || !isMark) return chunk;
+                    return (
+                      <Text key={i}>
+                        {pre}
+                        <Text style={{
+                          // No bold-italic face in the set, so the mark goes
+                          // upright bold — which reads as deliberate next to the
+                          // italic rather than as a rendering slip.
+                          fontFamily: fontFamily.bold,
+                          textDecorationLine: 'underline',
+                          color: colors.inkDark,
+                        }}>
+                          {core}
+                        </Text>
+                        {post}
                       </Text>
-                      {sentence.slice(idx + target.length)}
-                    </>
-                  )}
+                    );
+                  })}
                   {'"'}
                 </Text>
                 {exampleTranslation && (() => {
