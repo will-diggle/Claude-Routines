@@ -100,6 +100,26 @@
   const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector('.form-status');
 
+  // The German pages carry lang="de" on <html>; everything else gets English.
+  const COPY = {
+    en: {
+      invalid: 'Please add your name, a valid email address, and a message.',
+      sending: 'Sending…',
+      sent: "Thank's for reaching out",
+      failed: 'Something went wrong. Please try again.',
+      offline: 'Could not reach the server. Please check your connection.',
+    },
+    de: {
+      invalid: 'Bitte geben Sie Ihren Namen, eine gültige E-Mail-Adresse und eine Nachricht an.',
+      sending: 'Wird gesendet…',
+      sent: 'Vielen Dank für Ihre Nachricht',
+      failed: 'Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.',
+      offline: 'Der Server ist nicht erreichbar. Bitte prüfen Sie Ihre Verbindung.',
+    },
+  };
+
+  const t = COPY[document.documentElement.lang === 'de' ? 'de' : 'en'];
+
   function say(text, kind) {
     status.textContent = text;
     status.className = 'form-status' + (kind ? ' ' + kind : '');
@@ -109,12 +129,12 @@
     event.preventDefault();
 
     if (!form.checkValidity()) {
-      say('Please add your name, a valid email address, and a message.', 'error');
+      say(t.invalid, 'error');
       return;
     }
 
     button.disabled = true;
-    say('Sending…');
+    say(t.sending);
 
     try {
       const response = await fetch('/api/contact', {
@@ -126,12 +146,16 @@
 
       if (response.ok && result.ok) {
         form.reset();
-        say("Thank's for reaching out", 'ok');
+        say(t.sent, 'ok');
       } else {
-        say(result.error || 'Something went wrong. Please try again.', 'error');
+        // The Worker's own errors are English; fall back to our own wording
+        // on the German pages rather than mixing the two.
+        say(document.documentElement.lang === 'de'
+          ? t.failed
+          : (result.error || t.failed), 'error');
       }
     } catch {
-      say('Could not reach the server. Please check your connection.', 'error');
+      say(t.offline, 'error');
     } finally {
       button.disabled = false;
     }

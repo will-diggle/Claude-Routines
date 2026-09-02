@@ -12,7 +12,10 @@ import { handleContact } from "./contact.js";
 
    These are 302s on purpose: a 301 would be cached by browsers and would
    keep redirecting visitors long after the page is switched back on. */
-const HIDDEN = new Set(["/diary", "/diary.html", "/items"]);
+const HIDDEN = new Set([
+  "/diary", "/diary.html", "/items",
+  "/de/diary", "/de/diary.html", "/de/items",
+]);
 
 export default {
   async fetch(request, env) {
@@ -31,7 +34,9 @@ export default {
     // Trailing slashes so /diary/ lands here too.
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (HIDDEN.has(path)) {
-      return Response.redirect(new URL("/", url).toString(), 302);
+      // Keep German visitors on the German side of the site.
+      const home = path.startsWith("/de/") ? "/de/" : "/";
+      return Response.redirect(new URL(home, url).toString(), 302);
     }
 
     return env.ASSETS.fetch(request);

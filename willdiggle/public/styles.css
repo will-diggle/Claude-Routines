@@ -105,6 +105,26 @@ a { color: inherit; }
 .head-social { display: none; }
 .brand img { width: 35px; height: 44px; object-fit: contain; }
 
+/* ── Language switch ──────────────────────────────────────────────────────
+   EN | DE, set in the nav's own face so it reads as part of the menu rather
+   than as a control bolted on beside it.                                   */
+
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  flex: none;
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+}
+
+.lang a { text-decoration: none; color: var(--nav-dim); }
+.lang a:hover { color: var(--ink); }
+.lang-current { color: var(--ink); }
+.lang-sep { color: var(--hairline); }
+
 .nav ul {
   display: flex;
   margin: 0;
@@ -944,6 +964,15 @@ a { color: inherit; }
 
   .head-social { display: block; line-height: 0; }
   .head-social img { width: calc(26 * var(--s)); height: calc(26 * var(--s)); }
+
+  /* Sits to the left of the Instagram icon; the centred mark stays centred
+     because it is absolutely positioned. */
+  .lang {
+    font-size: calc(13 * var(--s));
+    gap: calc(4 * var(--s));
+    margin-left: auto;
+    margin-right: calc(12 * var(--s));
+  }
 
   .nav { display: none; position: absolute; top: 100%; left: 0; right: 0;
          background: var(--paper); padding: calc(8 * var(--s)) 0 calc(16 * var(--s)); }
