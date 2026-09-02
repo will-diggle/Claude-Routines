@@ -43,6 +43,18 @@ RETRYABLE_CODES = {503, 429}
 
 # Attempt plan — tried in order until one succeeds.
 # Each entry: (model_id, service_tier_or_None, display_label, max_retries, retry_delays_secs)
+#
+# Two separate plans, not one shared list: SELECT_ATTEMPT_PLAN is Stage 2 grouping only
+# -- no Google Search grounding, no facts, so a shed Flex request just retries a moment
+# later against pure text classification. ATTEMPT_PLAN stays Standard tier for every
+# grounded, fact-finding call (gather_facts_for_genre and gather_story), deliberately not
+# moved to Flex yet: production fact-finding (gather_story, --per-story) has no retry
+# ladder at all -- one failed attempt keeps the story with no facts, so it has the least
+# room to absorb a shed request. Move it only after one clean run on the grouping side.
+SELECT_ATTEMPT_PLAN = [
+    ("gemini-2.5-flash", "flex", "Flex",     4, [15, 30,  60, 120]),
+    ("gemini-2.5-pro",   "flex", "Flex",     4, [15, 30,  60, 120]),
+]
 ATTEMPT_PLAN = [
     ("gemini-2.5-flash", None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
     ("gemini-2.5-pro",   None, "Standard", 4, [15, 30,  60, 120]),   # ~3.7 min
@@ -785,15 +797,14 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str,
     )
     print(f"[gather] Gemini client initialised (timeout: {TIMEOUT_SECONDS}s / {TIMEOUT_MS}ms)")
 
-    plan_labels = " → ".join(f"{m}({t or 'Standard'})" for m, t, *_ in ATTEMPT_PLAN)
+    plan_labels = " → ".join(f"{m}({t or 'Standard'})" for m, t, *_ in SELECT_ATTEMPT_PLAN)
     print(f"[gather] Attempt plan: {plan_labels}")
 
     # 3. Fire the request — walk the attempt plan until one succeeds.
-    #    Flex tier is cheapest; Standard tier is the fallback when Flex is saturated.
-    #    NOTE: do NOT set response_mime_type='application/json' — disables search grounding.
+    #    Grouping only, no facts, no grounding -- Flex tier throughout.
     response = None
-    model    = ATTEMPT_PLAN[0][0]   # updated on each successful attempt entry
-    for model, tier, label, max_retries, delays in ATTEMPT_PLAN:
+    model    = SELECT_ATTEMPT_PLAN[0][0]   # updated on each successful attempt entry
+    for model, tier, label, max_retries, delays in SELECT_ATTEMPT_PLAN:
         config = types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())],
             temperature=0.1,
