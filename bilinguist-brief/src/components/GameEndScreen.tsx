@@ -205,7 +205,7 @@ export function GameEndScreen({
                 styles.congratsLine,
                 // Theme's secondary text colour rather than the game's tint, so
                 // it tracks whatever colour scheme the reader has set.
-                { color: colors.inkMid, fontFamily: fontFamily.bold, opacity: phraseFade },
+                { color: colors.inkMid, fontFamily: fontFamily.italic, opacity: phraseFade },
               ]}
             >
               {phrase}
