@@ -386,6 +386,21 @@ export function LanguageBriefingSection({
         </View>
       )}
 
+      {/* An older brief stays up when today's hasn't published. Say so plainly:
+          the reader is looking at news they may have already read, and the
+          published date alone is easy to miss. */}
+      {briefing && briefing.date !== new Date().toISOString().split('T')[0] && (
+        <View style={{ marginHorizontal: Spacing.md, marginBottom: Spacing.sm }}>
+          <Text style={[styles.emptyNote, {
+            color: colors.inkFaint,
+            fontFamily: fontFamily.italic,
+            textAlign: 'center',
+          }]}>
+            {`Today's brief isn't ready yet — showing the last one published.`}
+          </Text>
+        </View>
+      )}
+
       {/* Weather and article genre groups — rendered in topicOrder sequence */}
 
       {(isTransitioning || isGenerating || (!error && !briefing)) && <BriefingLoading long={length === 'longer'} />}

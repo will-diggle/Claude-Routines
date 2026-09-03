@@ -21,6 +21,28 @@ function cacheKey(date: string, language: LanguageCode, level: LanguageLevel, le
   return `briefing_${date}_${language}_${level}_${length}`;
 }
 
+// Newest cached brief for a combination, whatever day it is from. Used when
+// today's hasn't published: a reader opening the app should find the last brief
+// that did, not an empty screen — it is only ever replaced by a newer one.
+async function loadNewestCached(
+  language: LanguageCode,
+  level: LanguageLevel,
+  length: ArticleLength,
+): Promise<GeneratedBriefing | null> {
+  try {
+    const suffix = `_${language}_${level}_${length}`;
+    const keys = (await AsyncStorage.getAllKeys())
+      .filter((k) => k.startsWith('briefing_') && k.endsWith(suffix));
+    if (keys.length === 0) return null;
+    // Dates are ISO, so lexical order is chronological.
+    const newest = keys.sort().at(-1)!;
+    const stored = await AsyncStorage.getItem(newest);
+    return stored ? JSON.parse(stored) as GeneratedBriefing : null;
+  } catch {
+    return null;
+  }
+}
+
 function todayString(): string {
   return new Date().toISOString().split('T')[0];
 }
@@ -393,6 +415,22 @@ export const useBriefingStore = create<BriefingStore>()(
           const fresh = get().briefings[language];
           if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
             set((s) => ({ generatingFor: s.generatingFor.filter((l) => l !== language) }));
+            return;
+          }
+        }
+
+        // ── 2.6. Nothing for today — keep the last brief that did publish ───
+        // The pipeline can be late, can fail, or can produce a bundle that
+        // doesn't cover this combination. None of those are worth blanking the
+        // screen for: the previous brief stays until a new one replaces it.
+        {
+          const previous = await loadNewestCached(language, level, length);
+          if (previous) {
+            set((s) => ({
+              briefings: { ...s.briefings, [language]: previous },
+              errorsFor: { ...s.errorsFor, [language]: undefined },
+              generatingFor: s.generatingFor.filter((l) => l !== language),
+            }));
             return;
           }
         }

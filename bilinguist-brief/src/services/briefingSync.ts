@@ -153,12 +153,35 @@ export async function applyBundleToCache(bundle: DailyBundle): Promise<void> {
 
 // ─── Cleanup ─────────────────────────────────────────────────────────────────
 
+// Retention is per language/level/length, not per day. A bundle can publish
+// without covering every combination — a language configured Native-only has no
+// CEFR levels at all — so binning everything that isn't today's would empty the
+// screen for those readers on a day the pipeline succeeded. Each combination
+// keeps its newest brief until a newer one actually replaces it.
 export async function clearPreviousDaysBriefings(today: string): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const old = allKeys.filter(
-      (k) => k.startsWith('briefing_') && !k.startsWith(`briefing_${today}_`),
-    );
+
+    const briefKeys = allKeys.filter((k) => k.startsWith('briefing_'));
+    const newestByCombo = new Map<string, string>();   // combo → newest date seen
+    const parsed: Array<{ key: string; combo: string; date: string }> = [];
+
+    for (const key of briefKeys) {
+      // briefing_<date>_<language>_<level>_<length>
+      const rest = key.slice('briefing_'.length);
+      const sep = rest.indexOf('_');
+      if (sep === -1) continue;
+      const date = rest.slice(0, sep);
+      const combo = rest.slice(sep + 1);
+      parsed.push({ key, combo, date });
+      const seen = newestByCombo.get(combo);
+      if (!seen || date > seen) newestByCombo.set(combo, date);
+    }
+
+    // Drop everything except each combination's newest brief.
+    const old = parsed
+      .filter(({ combo, date }) => date !== newestByCombo.get(combo))
+      .map(({ key }) => key);
     if (old.length > 0) await AsyncStorage.multiRemove(old);
 
     const oldFactbases = allKeys.filter(
