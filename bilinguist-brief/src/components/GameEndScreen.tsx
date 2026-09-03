@@ -80,6 +80,19 @@ export function GameEndScreen({
 
   // Cycles a single phrase so the praise keeps changing while the reader sits
   // here, landing in a different one of their languages each time.
+  // The two pills are sized equal to whichever label is wider, rather than
+  // stretched to fill the row — flex:1/flex:1 already gives equal width, but a
+  // 50/50 split of the row is wider than either label needs. Yoga can't equalise
+  // siblings to their widest content on its own, so both are measured on their
+  // first layout at their natural (flex:1, content-hugging-via-padding) width,
+  // and once both numbers are in, the wider one is applied to both explicitly.
+  const [pillWidths, setPillWidths] = React.useState<number[]>([]);
+  const pillWidth = pillWidths.length === 2 ? Math.max(...pillWidths) : null;
+  const measurePill = React.useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    setPillWidths((prev) => (prev.length >= 2 ? prev : [...prev, w]));
+  }, []);
+
   const [phrase, setPhrase] = React.useState(pickPhrase);
   const phraseFade = React.useRef(new Animated.Value(1)).current;
 
@@ -148,8 +161,11 @@ export function GameEndScreen({
             is already top-left, so "back" stays consistently on that side);
             Play again sits right, carrying the game's own tint so the primary
             action still reads as the primary one despite matching material. */}
-        <View style={styles.pillRow}>
-          <View style={styles.pillShadow}>
+        <View style={[styles.pillRow, { justifyContent: 'center' }]}>
+          <View
+            style={[styles.pillShadow, pillWidth != null && { flex: undefined, width: pillWidth }]}
+            onLayout={measurePill}
+          >
             <GameEndPill
               label="Back to practise"
               icon="chevron-back"
@@ -159,7 +175,10 @@ export function GameEndScreen({
               onPress={onBack}
             />
           </View>
-          <View style={styles.pillShadow}>
+          <View
+            style={[styles.pillShadow, pillWidth != null && { flex: undefined, width: pillWidth }]}
+            onLayout={measurePill}
+          >
             <GameEndPill
               label="Play again"
               icon="refresh"
@@ -240,7 +259,7 @@ const styles = StyleSheet.create({
     // between "Score" and the stats tile. Centring made that first gap a
     // function of content height, so the two could never match.
     justifyContent: 'flex-start',
-    paddingTop: Spacing.xxl * 1.5,
+    paddingTop: 95,
     paddingHorizontal: Spacing.lg,
     gap: Spacing.xxl * 1.5,
   },
