@@ -183,9 +183,12 @@ SHORT = [
 
 
 def switch(page, lang):
-    """The EN | DE control. Each side links to its twin of the current page."""
-    en_href = "/" if page == "index" else "/%s" % page
-    de_href = "/de/" if page == "index" else "/de/%s" % page
+    """The EN | DE control. Each side links to its twin of the current page.
+
+    The ?lang= parameter tells the Worker to remember the choice, so a manual
+    pick always beats the country guess. The Worker strips it again."""
+    en_href = ("/" if page == "index" else "/%s" % page) + "?lang=en"
+    de_href = ("/de/" if page == "index" else "/de/%s" % page) + "?lang=de"
     def part(code, href, active, label):
         if active:
             return ('<span class="lang-current" aria-current="true">%s</span>' % code)
