@@ -88,8 +88,20 @@ export function GlassButton({
           { transform: [{ scale }] },
         ]}
       >
-        {/* Glass clip — overflow:hidden here to keep glass within the circle */}
-        <View style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]}>
+        {/* Glass clip — overflow:hidden here to keep glass within the circle.
+            The translucent backing matters: UIGlassEffect refracts whatever is
+            behind it, and these buttons sit on GameHeader's solid flat
+            background, so with nothing behind them the glass rendered as
+            literally nothing. Same backing the Save-word pill in WordPopup
+            uses, which is why that one reads correctly. */}
+        <View style={[
+          StyleSheet.absoluteFill,
+          {
+            borderRadius: radius,
+            overflow: 'hidden',
+            backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)',
+          },
+        ]}>
           {glassAvailable && LiquidGlassView ? (
             <LiquidGlassView cornerRadius={radius} style={StyleSheet.absoluteFill} />
           ) : (
