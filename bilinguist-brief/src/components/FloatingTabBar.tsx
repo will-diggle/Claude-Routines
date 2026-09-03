@@ -62,7 +62,20 @@ const SCALE_SMALL   = 1;
 const SCALE_LARGE   = 1;
 
 const CHIP_PAD = 12;
-const CHIP_GAP = 4;
+// Chip metrics. The pill's width is animated to a number computed up here while
+// the chips themselves are laid out by the stylesheet below, so both must read
+// the same constants — they had already drifted (the formula assumed a 24pt flag
+// and a 4pt gap while the styles rendered 22 and 5), leaving the pill sized for
+// content it wasn't showing.
+const FLAG_ICON        = 24;
+const FLAG_CHIP_PAD    = 8;
+const FLAG_CHIP_W      = FLAG_ICON + FLAG_CHIP_PAD * 2;        // 40
+const SECTION_ICON     = 28;
+const SECTION_CHIP_PAD = 10;
+const SECTION_CHIP_W   = SECTION_ICON + SECTION_CHIP_PAD * 2;  // 48
+const NAV_ICON         = 28;
+
+const CHIP_GAP = 6;
 const ROW_PAD  = 20;
 
 // Per-label charW: uppercase labels (FR, DE) are wider relative to font size
@@ -80,8 +93,7 @@ function pillContentW(labels: string[], maxW: number): number {
 
 // Width for a row of flag-circle-only chips (no text label)
 function pillFlagOnlyW(count: number, maxW: number): number {
-  const chipW = 24 + 7 * 2; // flag size 24 + 7px padding each side
-  return Math.min(chipW * count + (count - 1) * CHIP_GAP + ROW_PAD, maxW);
+  return Math.min(FLAG_CHIP_W * count + (count - 1) * CHIP_GAP + ROW_PAD, maxW);
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -148,7 +160,7 @@ const LeftContext = memo(function LeftContext({
               activeOpacity={1}
               delayPressIn={0}
             >
-              <FlagCircle code={lang.code} size={24} />
+              <FlagCircle code={lang.code} size={FLAG_ICON} />
             </TouchableOpacity>
           ))}
         </View>
@@ -171,7 +183,7 @@ const LeftContext = memo(function LeftContext({
               activeOpacity={1}
               delayPressIn={0}
             >
-              <Ionicons name={SECTION_ICONS[sec]} size={28} color={isActive ? activeColor : inactiveColor} />
+              <Ionicons name={SECTION_ICONS[sec]} size={SECTION_ICON} color={isActive ? activeColor : inactiveColor} />
             </TouchableOpacity>
           );
         })}
@@ -190,7 +202,7 @@ const LeftContext = memo(function LeftContext({
           onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }}
           onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}
         >
-          <GlobeCircle size={24} />
+          <GlobeCircle size={FLAG_ICON} />
         </TouchableOpacity>
         {visibleLangs.map((code) => (
           <TouchableOpacity
@@ -199,7 +211,7 @@ const LeftContext = memo(function LeftContext({
             onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }}
             onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}
           >
-            <FlagCircle code={code} size={24} />
+            <FlagCircle code={code} size={FLAG_ICON} />
           </TouchableOpacity>
         ))}
         {overflow > 0 && (
@@ -461,8 +473,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       return pillFlagOnlyW(Math.min(activeLanguages.length, 5), LEFT_MAX_W);
     }
     if (idx === 2) {
-      // 4 icon-only chips, same sizing formula as flag chips
-      return Math.min((24 + 16) * 4 + 3 * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+      // 4 icon-only section chips, same formula as the flag chips
+      return Math.min(SECTION_CHIP_W * 4 + 3 * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
     }
     // Practice — flag-only chips (globe for All + one per language), same rules as Brief
     const plVisible = Math.min(savedLangCodes.length, 4);
@@ -645,7 +657,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 }
               }}
             >
-              <Ionicons name={tab.iconOff} size={28} color={tint} />
+              <Ionicons name={tab.iconOff} size={NAV_ICON} color={tint} />
             </TouchableOpacity>
           );
         })}
@@ -803,7 +815,7 @@ const styles = StyleSheet.create({
   chipGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: CHIP_GAP,
     flexShrink: 0,
   },
   contextItem: {
@@ -822,10 +834,10 @@ const styles = StyleSheet.create({
   // Flag-circle-only chip (no text): used when 5+ languages to fit in one row
   contextItemFlagOnly: {
     flexDirection: 'column',
-    // 8 + 24 + 8 = 40pt. Short of the 44pt tap-target minimum, but six of these
-    // plus gaps is already 290pt and a 375pt phone leaves 259 — the row cannot
-    // reach 44 without showing fewer flags. Widened as far as the layout allows.
-    paddingHorizontal: 8,
+    // Short of the 44pt tap-target minimum: six of these plus gaps is already
+    // 290pt and a 375pt phone leaves 259, so the row cannot reach 44 without
+    // showing fewer flags. Widened as far as the layout allows.
+    paddingHorizontal: FLAG_CHIP_PAD,
     paddingTop: 4,
     paddingBottom: 6,
     borderRadius: 22,
@@ -867,7 +879,7 @@ const styles = StyleSheet.create({
   // the glyph itself — 24pt against a 44pt minimum, the narrowest in the app.
   sectionTabItem: {
     flex: 0,
-    paddingHorizontal: 10,
+    paddingHorizontal: SECTION_CHIP_PAD,
   },
 
   navActiveChip: {
