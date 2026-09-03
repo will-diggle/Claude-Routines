@@ -162,7 +162,17 @@ export const useBriefingStore = create<BriefingStore>()(
               serverTs != null && ourTs != null && serverTs <= ourTs && meta?.date === today;
             const noMetaFallback = meta == null && get().lastBundleDate === today;
 
-            if (alreadyCurrent || noMetaFallback) {
+            // The shortcut skips applying the bundle, which is also where the
+            // available levels are worked out. A language with none recorded —
+            // one added since the bundle was applied, or applied by a build that
+            // couldn't see it — would stay unknown forever, leaving its reader
+            // on a level with no content and no way to reach one. Take the slow
+            // path once; it self-heals and the shortcut resumes next time.
+            const availabilityKnown = useSettingsStore.getState().languages
+              .filter((l) => l.active)
+              .every((l) => (get().availableLevelsByLang[l.code as LanguageCode]?.length ?? 0) > 0);
+
+            if ((alreadyCurrent || noMetaFallback) && availabilityKnown) {
               set({ syncMessage: 'Loading from cache…' });
               const settings = useSettingsStore.getState();
               const updates: Partial<Record<LanguageCode, GeneratedBriefing>> = {};
