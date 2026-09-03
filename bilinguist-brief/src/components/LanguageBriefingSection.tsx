@@ -328,7 +328,6 @@ export function LanguageBriefingSection({
   onVisibleWordCount,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
-  const setDeveloperMode = useSettingsStore((s) => s.setDeveloperMode);
   const nativeGradeByLang = useBriefingStore((s) => s.nativeGradeByLang);
   const topicOrder = useSettingsStore((s) => s.topicOrder);
 
@@ -396,13 +395,17 @@ export function LanguageBriefingSection({
           <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             {error}
           </Text>
+          {/* Was "Load demo content", which turned developer mode on from the
+              one screen a paying reader sees when something has gone wrong —
+              offering fabricated news as the only thing to tap. Demo content
+              now lives behind the developer toggle in Settings. */}
           <TouchableOpacity
             style={[styles.demoBtn, { borderColor: colors.borderMid }]}
-            onPress={() => { setDeveloperMode(true); onRetry(); }}
+            onPress={onRetry}
             activeOpacity={0.7}
           >
             <Text style={[styles.demoBtnText, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-              Load demo content
+              Try again
             </Text>
           </TouchableOpacity>
         </View>

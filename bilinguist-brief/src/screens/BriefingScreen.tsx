@@ -388,8 +388,12 @@ export function BriefingScreen() {
       const lastRead = store.lastReadDates[langCode];
       const current = store.readingStreaks[langCode] ?? 0;
       const newCount = lastRead === today ? current : lastRead === yesterday ? current + 1 : 1;
-      recordRead(langCode);
-      recordWordsRead(langCode, visibleWordCountRef.current[langCode] ?? 0);
+      // Credit the brief that's actually on screen. When today's hasn't
+      // published, an earlier one is still up, and it must not earn a second
+      // day's streak just for being displayed again.
+      const shownDate = useBriefingStore.getState().briefings[langCode as LanguageCode]?.date;
+      recordRead(langCode, shownDate);
+      recordWordsRead(langCode, visibleWordCountRef.current[langCode] ?? 0, shownDate);
       // Reschedule streak reminder — removes this language from the "unread" list,
       // or cancels the notification entirely if all languages are now read.
       const { lastReadDates: lrd } = useStreakStore.getState();

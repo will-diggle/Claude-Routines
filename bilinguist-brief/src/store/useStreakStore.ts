@@ -12,6 +12,12 @@ interface StreakStore {
   readingStreaks: Record<string, number>;
   lastReadDates: Record<string, string>;
   readingHistory: Record<string, string[]>; // langCode → ['YYYY-MM-DD', ...]
+  // Brief dates already credited, per language. A brief kept on screen because
+  // today's isn't ready would otherwise be counted again every day it's shown —
+  // the streak surviving on content the reader finished days ago.
+  // Deliberately outside the synced snapshot: it guards double-counting on this
+  // device, and isn't worth widening the sync schema (or a migration) for.
+  countedBriefDates: Record<string, string[]>;
   // Cumulative time spent on each language brief per day (key: `${langCode}_${date}`)
   readingTimeSecs: Record<string, number>;
   // Words read per language per day (key: `${langCode}_${date}`)
@@ -22,11 +28,13 @@ interface StreakStore {
   fullSweepDate: string | null;
   recordSession: () => void;
   setSpeedSnapHighScore: (score: number) => void;
-  recordRead: (langCode: string) => void;
+  /** briefDate is the date of the brief actually on screen, which is not always
+   *  today: an older one stays up until the pipeline publishes a new one. */
+  recordRead: (langCode: string, briefDate?: string) => void;
   getReadingStreak: (langCode: string) => number;
   addReadingTime: (langCode: string, seconds: number) => void;
   getReadingTimeToday: (langCode: string) => number;
-  recordWordsRead: (langCode: string, wordCount: number) => void;
+  recordWordsRead: (langCode: string, wordCount: number, briefDate?: string) => void;
   getWordsToday: (langCode: string) => number;
   getWordsLast7Days: (langCode: string) => number;
   // Returns true if a freeze was silently applied (streak preserved); false if streak broken
@@ -84,6 +92,7 @@ export const useStreakStore = create<StreakStore>()(
       readingStreaks: {},
       lastReadDates: {},
       readingHistory: {},
+      countedBriefDates: {},
       readingTimeSecs: {},
       wordsReadByDay: {},
       freezeDatesUsed: {},
@@ -113,10 +122,19 @@ export const useStreakStore = create<StreakStore>()(
         scheduleStreakSync(get());
       },
 
-      recordRead: (langCode: string) => {
+      recordRead: (langCode: string, briefDate?: string) => {
         const today = todayString();
-        const { lastReadDates, readingStreaks, readingHistory } = get();
+        const { lastReadDates, readingStreaks, readingHistory, countedBriefDates } = get();
         const lastRead = lastReadDates[langCode];
+
+        // A brief only earns credit once. Reading one for the first time counts
+        // even if it was published earlier — they hadn't read it before — but
+        // the same brief shown again on a later day earns nothing.
+        const counted = countedBriefDates[langCode] ?? [];
+        if (briefDate) {
+          if (counted.includes(briefDate)) return;
+          set({ countedBriefDates: { ...countedBriefDates, [langCode]: [...counted, briefDate] } });
+        }
 
         const currentStreak = readingStreaks[langCode] ?? 0;
         const newStreak = lastRead === today
