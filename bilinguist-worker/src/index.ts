@@ -161,6 +161,8 @@ interface WordData {
   wordType: string | null;
   explanation: string | null;
   example: string | null;
+  /** Same sentence as `example` with the entry's own words wrapped in **. */
+  exampleMarked: string | null;
   pronunciation: string | null;
   tenses: TenseTable[] | null;
   declensions: TenseTable[] | null;
@@ -189,12 +191,14 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
   const parsedMeta = row.meta ? JSON.parse(row.meta) as Record<string, unknown> : null;
   const tenses      = Array.isArray(parsedMeta?.tenses)      ? parsedMeta.tenses      as TenseTable[] : null;
   const declensions = Array.isArray(parsedMeta?.declensions) ? parsedMeta.declensions as TenseTable[] : null;
+  const exampleMarked = typeof parsedMeta?.exampleMarked === 'string' ? parsedMeta.exampleMarked : null;
 
   let metaForClient: Record<string, unknown> | null = null;
   if (parsedMeta) {
     const copy = { ...parsedMeta };
     delete copy['tenses'];
     delete copy['declensions'];
+    delete copy['exampleMarked'];
     metaForClient = Object.keys(copy).length > 0 ? copy : null;
   }
 
@@ -206,6 +210,7 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     wordType:      row.word_type,
     explanation:   row.explanation,
     example:       row.example,
+    exampleMarked,
     pronunciation: row.pronunciation,
     tenses,
     declensions,
@@ -289,6 +294,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other",
   "explanation": "Meaning in English, 1-2 sentences, suited to ${level} level",
   "example": "A ${langName} example sentence using this word naturally",
+  "exampleMarked": "the SAME sentence as \"example\", character for character, with every word belonging to this entry wrapped in double asterisks. For a separable verb mark BOTH pieces where they sit — e.g. 'Die Behörde **gab** **an**, dass ...'. Mark the inflected form actually used, not the dictionary form. If only one word belongs, mark only that one.",
   "pronunciation": "IPA pronunciation of the lemma form",
   ${buildTensesInstruction(lang)},
   ${buildDeclensionsInstruction(lang)},
@@ -326,6 +332,7 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       wordType?: string;
       explanation?: string;
       example?: string;
+      exampleMarked?: string;
       pronunciation?: string;
       tenses?: TenseTable[] | null;
       declensions?: TenseTable[] | null;
@@ -345,6 +352,10 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
       ...(parsed.meta ?? {}),
       ...(tenses      ? { tenses }      : {}),
       ...(declensions ? { declensions } : {}),
+      // The model wrote the sentence, so it knows which words it meant — the app
+      // can't recover that from spelling once a verb is inflected ("gab" from
+      // "geben"). Rides in meta for the same reason tenses do: no schema change.
+      ...(parsed.exampleMarked ? { exampleMarked: parsed.exampleMarked } : {}),
     };
     const metaStr = Object.keys(metaObj).length > 0 ? JSON.stringify(metaObj) : null;
 

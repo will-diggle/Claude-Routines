@@ -16,6 +16,10 @@ export interface WordEntry {
   wordType: WordType | null;
   explanation: string | null;
   example: string | null;
+  /** Same sentence as `example`, with this entry's own words wrapped in **.
+   *  Written by the model that composed the sentence, so it marks the inflected
+   *  form actually used — which spelling alone can't recover ("gab" ← "geben"). */
+  exampleMarked?: string | null;
   pronunciation: string | null;
   /** All tenses in display order. If present, overrides verbTable/verbTablePast. */
   tenses: TenseTable[] | null;

@@ -492,6 +492,24 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
 
           {/* Example sentence + translation */}
           {entry?.example && (() => {
+            // The model that wrote the sentence marked its own words in it, so
+            // prefer that over inferring them here — it's the only thing that
+            // catches an inflected form like "gab" belonging to "angeben".
+            const marked = entry.exampleMarked ?? null;
+            const markedSpans = (() => {
+              if (!marked) return null;
+              const stripped = marked.replace(/\*\*/g, '');
+              // Only trust it if it really is the same sentence; a model that
+              // rewrote the line would otherwise mark the wrong words.
+              if (stripped.replace(/\s+/g, ' ').trim() !== entry.example!.replace(/\s+/g, ' ').trim()) return null;
+              const words = new Set<string>();
+              for (const m of marked.matchAll(/\*\*(.+?)\*\*/g)) {
+                const w = m[1].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '').toLowerCase();
+                if (w) words.add(w);
+              }
+              return words.size > 0 ? words : null;
+            })();
+
             const sentence = entry.example;
             // Mark every part of the unit the card is about, not just the tapped
             // half — for a separable verb the reader needs to see both pieces and
@@ -524,7 +542,9 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
                   {sentence.split(/(\s+)/).map((chunk, i) => {
                     const { pre, core, post } = splitAffixes(chunk);
                     const lower = core.toLowerCase();
-                    const isMark = targets.has(lower) || (stem !== null && lower.startsWith(stem));
+                    const isMark = markedSpans
+                      ? markedSpans.has(lower)
+                      : targets.has(lower) || (stem !== null && lower.startsWith(stem));
                     if (!core || !isMark) return chunk;
                     return (
                       <Text key={i}>
