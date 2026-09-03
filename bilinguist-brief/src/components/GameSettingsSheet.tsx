@@ -137,7 +137,9 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange, showDi
             segment (Text Size stays neutral chrome) and taller, since this is
             a five-way choice you return to mid-game, not a one-off preference. */}
         <SegmentedControl
-          options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n) }))}
+          // Default label size (13pt) read thin against a segment this tall —
+          // sized up so the number itself carries the same weight as the pill.
+          options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n), optionFontSize: 22 }))}
           value={String(settings.roundSize)}
           onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
           colors={colors}
