@@ -490,19 +490,27 @@ NATIVE_INTERMEDIATE = [l for l in ACTIVE_LANGUAGES if "Native" not in LANGUAGE_L
 # language keeps its native edition and the workflow shape stays intact.
 #
 # TO RESTORE FULL OUTPUT: set this back to [] (empty list). Nothing else to change.
-TEST_MATRIX: list[tuple[str, str, str]] = [
-    ("de", "A2", "longer"),
-    ("fr", "A2", "longer"),
-    ("fr", "B1", "longer"),
-    ("it", "A1", "longer"),
-    ("it", "A1", "short"),
-    # Brazilian Portuguese CEFR levels are OFF for now — the native edition still
-    # ships (Stage 5 reads LANGUAGE_LEVELS, which is untouched). Uncomment to put the
-    # full level range back on trial; it graded 7/7 at A1 short+long, A2 short and
-    # B1 short on 2026-08-23, and 0/7 at B2 both lengths.
-    # *[("pt", lvl, ln) for lvl in ("A1", "A2", "B1", "B2", "C1", "C2")
-    #                   for ln in ("longer", "short")],
-]
+# TEMPORARILY EMPTIED 2026-09-03 for one full-matrix test run of bilinguist_numwords
+# across every level, length and language (54 combos, ~378 write calls -- the same
+# scale that caused the 2026-08 hang; the write-timeout fix from that investigation
+# is still in place, so a stalled call retries within 5 minutes instead of hanging).
+# The previous reduced matrix is preserved below -- restore it by uncommenting and
+# deleting this comment block once the test run is reviewed.
+#
+# TEST_MATRIX: list[tuple[str, str, str]] = [
+#     ("de", "A2", "longer"),
+#     ("fr", "A2", "longer"),
+#     ("fr", "B1", "longer"),
+#     ("it", "A1", "longer"),
+#     ("it", "A1", "short"),
+#     # Brazilian Portuguese CEFR levels are OFF for now — the native edition still
+#     # ships (Stage 5 reads LANGUAGE_LEVELS, which is untouched). Uncomment to put the
+#     # full level range back on trial; it graded 7/7 at A1 short+long, A2 short and
+#     # B1 short on 2026-08-23, and 0/7 at B2 both lengths.
+#     # *[("pt", lvl, ln) for lvl in ("A1", "A2", "B1", "B2", "C1", "C2")
+#     #                   for ln in ("longer", "short")],
+# ]
+TEST_MATRIX: list[tuple[str, str, str]] = []
 
 
 # ── Combination matrix ────────────────────────────────────────────────────────
