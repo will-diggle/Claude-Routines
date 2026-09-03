@@ -8,6 +8,7 @@ import { getMockBriefing } from '../data/mockBriefings';
 import { fetchTodayBundle, fetchBundleMeta, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
+import { PIPELINE_READY_TIME } from '../services/notifications';
 
 // Cached user GPS coords for the session — undefined = not yet fetched, null = denied/failed
 let _userCoords: { latitude: number; longitude: number; cityName?: string } | null | undefined = undefined;
@@ -44,9 +45,9 @@ function modalCefr(assessments: Array<{ level: string }>, lang?: string): Langua
 
 const NOT_READY_STRINGS: Partial<Record<LanguageCode, { notReady: string; network: string; notPublished: string; serverError: string; httpError: (s: number) => string }>> = {
   ar: {
-    notReady:    'النشرة اليومية غير جاهزة بعد — تحقق مرة أخرى بعد الساعة 06:30.',
+    notReady:    `النشرة اليومية غير جاهزة بعد — تحقق مرة أخرى بعد الساعة ${PIPELINE_READY_TIME}.`,
     network:     'تعذّر الوصول إلى الخادم — تحقق من اتصالك واسحب للتحديث.',
-    notPublished:'لم تُنشر النشرة اليومية بعد — تحقق مرة أخرى بعد الساعة 06:30.',
+    notPublished:`لم تُنشر النشرة اليومية بعد — تحقق مرة أخرى بعد الساعة ${PIPELINE_READY_TIME}.`,
     serverError: 'خطأ في الخادم — حاول مرة أخرى قريباً أو اسحب للتحديث.',
     httpError:   (s) => `تعذّر جلب النشرة (HTTP ${s}) — اسحب للتحديث أو حاول لاحقاً.`,
   },
@@ -54,15 +55,15 @@ const NOT_READY_STRINGS: Partial<Record<LanguageCode, { notReady: string; networ
 
 function notReadyMessage(result?: BundleFetchResult, lang?: LanguageCode): string {
   const t = lang ? NOT_READY_STRINGS[lang] : undefined;
-  if (!result || result.ok) return t?.notReady ?? "Today's briefing isn't ready yet — check back shortly after 06:30.";
+  if (!result || result.ok) return t?.notReady ?? `Today's briefing isn't ready yet — check back shortly after ${PIPELINE_READY_TIME}.`;
   if (result.reason === 'network') return t?.network ?? "Can't reach the server — check your connection and pull to refresh.";
   if (result.reason === 'http') {
     const s = result.status;
-    if (s === 404) return t?.notPublished ?? "Today's briefing hasn't been published yet — check back shortly after 06:30.";
+    if (s === 404) return t?.notPublished ?? `Today's briefing hasn't been published yet — check back shortly after ${PIPELINE_READY_TIME}.`;
     if (s === 502 || s === 503) return t?.serverError ?? "Server error fetching today's brief — check back soon or pull to refresh.";
     return (s !== undefined && t?.httpError ? t.httpError(s) : null) ?? `Can't fetch today's brief (HTTP ${s}) — pull to refresh or check back later.`;
   }
-  return t?.notReady ?? "Today's briefing isn't ready yet — check back shortly after 06:30.";
+  return t?.notReady ?? `Today's briefing isn't ready yet — check back shortly after ${PIPELINE_READY_TIME}.`;
 }
 
 interface BriefingStore {
