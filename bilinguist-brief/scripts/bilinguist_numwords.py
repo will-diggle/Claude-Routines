@@ -118,14 +118,36 @@ def spell_number(raw: str, lang: str, is_year: bool) -> Optional[str]:
         return None
     try:
         if is_year and lang in _YEAR_SUPPORTED:
-            return num2words(int(value), lang=lang, to="year")
-        if value == int(value):
-            return num2words(int(value), lang=lang)
-        return num2words(value, lang=lang)
+            words = num2words(int(value), lang=lang, to="year")
+        elif value == int(value):
+            words = num2words(int(value), lang=lang)
+        else:
+            words = num2words(value, lang=lang)
     except (NotImplementedError, OverflowError, ValueError) as e:
         print(f"[10 spaCy — numwords] {lang}: could not spell {raw!r} ({e}) — skipping",
               file=sys.stderr)
         return None
+    return _fix_library_spelling(lang, words)
+
+
+def _fix_library_spelling(lang: str, words: str) -> str:
+    """Correct known num2words output bugs -- library defects, not ours, but they
+    ship real spelling errors to real readers if left uncorrected.
+
+    sv: num2words renders 1000 (and any number containing it, e.g. every four-digit
+    year) as "etttusen" -- three t's. Swedish orthography never allows three
+    consonants in a row; correct is "ettusen" (one 't') or "ett tusen" (two words).
+    Confirmed 2026-09-04 against multiple Swedish-language sources, not assumed:
+    https://seo-texter.se/ettusen-eller-etttusen/ ,
+    https://www.ordkollen.se/ihop-eller-i-sar/ett-tusen-eller-ettusen/
+    Found by auditing real 2026-09-03 production output: 17 of 134 Swedish A1/A2
+    bracketed numbers carried this, essentially every four-digit year -- i.e. nearly
+    every article, not an edge case. "etttusen" is never correct, so this replace is
+    unconditional -- no ambiguity, nothing legitimate to preserve.
+    """
+    if lang == "sv":
+        words = words.replace("etttusen", "ettusen")
+    return words
 
 
 def add_number_words(text: str, lang: str) -> tuple[str, int]:
