@@ -1,8 +1,13 @@
 import React, { useRef, useCallback } from 'react';
 import { Animated, Pressable, StyleSheet, View, ViewStyle, GestureResponderEvent } from 'react-native';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../hooks/useTheme';
-import { GlassSurface } from './GlassSurface';
+import { glassAvailable } from './GlassSurface';
+let LiquidGlassView: React.ComponentType<any> | null = null;
+if (glassAvailable) {
+  try { LiquidGlassView = require('../../modules/liquid-glass/src').LiquidGlassView; } catch { /* no-op */ }
+}
 
 interface Props {
   onPress: () => void;
@@ -83,19 +88,17 @@ export function GlassButton({
           { transform: [{ scale }] },
         ]}
       >
-        {/* GlassSurface — the same path the tab bar and the Save-word pill use,
-            self-closing (no children). GlassButton previously called
-            requireNativeView itself via modules/liquid-glass/src, a second,
-            independent binding to the same native view — mounted correctly
-            (confirmed live) but rendered nothing. Converging on the one
-            binding used everywhere else in the app rather than maintaining two
-            separate paths to the same native effect. */}
+        {/* Glass clip — overflow:hidden here to keep glass within the circle */}
         <View style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]}>
-          <GlassSurface
-            cornerRadius={radius}
-            colorScheme={isDark ? 'dark' : 'light'}
-            style={StyleSheet.absoluteFillObject}
-          />
+          {glassAvailable && LiquidGlassView ? (
+            <LiquidGlassView cornerRadius={radius} style={StyleSheet.absoluteFill} />
+          ) : (
+            <BlurView
+              intensity={isDark ? 60 : 70}
+              tint={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
         </View>
         <Animated.View style={styles.iconWrapper}>
           {children}
