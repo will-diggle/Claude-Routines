@@ -148,7 +148,7 @@ const LeftContext = memo(function LeftContext({
               activeOpacity={1}
               delayPressIn={0}
             >
-              <FlagCircle code={lang.code} size={22} />
+              <FlagCircle code={lang.code} size={24} />
             </TouchableOpacity>
           ))}
         </View>
@@ -164,14 +164,14 @@ const LeftContext = memo(function LeftContext({
           return (
             <TouchableOpacity
               key={sec}
-              style={[styles.navTabItem, { flex: 0 }]}
+              style={[styles.navTabItem, styles.sectionTabItem]}
               onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
               onPressIn={onPressIn}
               onPressOut={onPressOut}
               activeOpacity={1}
               delayPressIn={0}
             >
-              <Ionicons name={SECTION_ICONS[sec]} size={24} color={isActive ? activeColor : inactiveColor} />
+              <Ionicons name={SECTION_ICONS[sec]} size={28} color={isActive ? activeColor : inactiveColor} />
             </TouchableOpacity>
           );
         })}
@@ -190,7 +190,7 @@ const LeftContext = memo(function LeftContext({
           onPress={() => { Haptics.selectionAsync(); onPracticeLang('all'); }}
           onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}
         >
-          <GlobeCircle size={22} />
+          <GlobeCircle size={24} />
         </TouchableOpacity>
         {visibleLangs.map((code) => (
           <TouchableOpacity
@@ -199,7 +199,7 @@ const LeftContext = memo(function LeftContext({
             onPress={() => { Haptics.selectionAsync(); onPracticeLang(code); }}
             onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={1} delayPressIn={0}
           >
-            <FlagCircle code={code} size={22} />
+            <FlagCircle code={code} size={24} />
           </TouchableOpacity>
         ))}
         {overflow > 0 && (
@@ -645,7 +645,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 }
               }}
             >
-              <Ionicons name={tab.iconOff} size={26} color={tint} />
+              <Ionicons name={tab.iconOff} size={28} color={tint} />
             </TouchableOpacity>
           );
         })}
@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
   chipGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     flexShrink: 0,
   },
   contextItem: {
@@ -822,7 +822,10 @@ const styles = StyleSheet.create({
   // Flag-circle-only chip (no text): used when 5+ languages to fit in one row
   contextItemFlagOnly: {
     flexDirection: 'column',
-    paddingHorizontal: 7,
+    // 8 + 24 + 8 = 40pt. Short of the 44pt tap-target minimum, but six of these
+    // plus gaps is already 290pt and a 375pt phone leaves 259 — the row cannot
+    // reach 44 without showing fewer flags. Widened as far as the layout allows.
+    paddingHorizontal: 8,
     paddingTop: 4,
     paddingBottom: 6,
     borderRadius: 22,
@@ -860,6 +863,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
   },
+  // Section icons had flex: 0 and no horizontal padding, making the tap target
+  // the glyph itself — 24pt against a 44pt minimum, the narrowest in the app.
+  sectionTabItem: {
+    flex: 0,
+    paddingHorizontal: 10,
+  },
+
   navActiveChip: {
     position: 'absolute',
     top: 4,
