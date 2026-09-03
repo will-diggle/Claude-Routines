@@ -17,6 +17,7 @@ import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
 import { TopBar } from '../components/TopBar';
 import { WordDetailSheet } from '../components/WordDetailSheet';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
+import { GAMES } from '../data/gameMeta';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type PracticeNav = NativeStackNavigationProp<PracticeStackParamList, 'PracticeHome'>;
@@ -28,19 +29,7 @@ const PILE_META: Array<{ key: Pile; label: string; icon: any; description: strin
   { key: 'revisit', label: 'Revisit', icon: 'time-outline', description: 'Due for a refresher', tint: 'rgba(200,95,95,0.14)', iconColor: '#C85F5F' },
 ];
 
-const GAMES: Array<{
-  key: keyof PracticeStackParamList;
-  label: string;
-  icon: any;
-  description: string;
-  tint: string;
-}> = [
-  { key: 'Flashcards',    label: 'Flashcards',           icon: 'layers-outline',          description: 'Flip cards with spaced repetition',   tint: '#4A6FA5' },
-  { key: 'Matching',      label: 'Speed Snap',           icon: 'grid-outline',            description: 'Match words to translations against the clock', tint: '#B5510A' },
-  { key: 'MultipleChoice',label: 'Multiple Choice',      icon: 'list-outline',            description: 'Which word means…? Four options',      tint: '#1E6B3A' },
-  { key: 'FillBlank',     label: 'Fill in the Blank',    icon: 'pencil-outline',          description: 'Complete the original news sentence',  tint: '#6A1B9A' },
-  { key: 'Translation',   label: 'Translation Challenge',icon: 'swap-horizontal-outline', description: 'Translate between languages',           tint: '#8B1A1A' },
-];
+
 
 const LANG_NATIVE: Record<LanguageCode, string> = {
   fr: 'Français',

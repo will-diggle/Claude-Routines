@@ -1,27 +1,24 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Animated, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { SpringButton } from '../components/SpringButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConfettiCannon from 'react-native-confetti-cannon';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GameEndScreen } from '../components/GameEndScreen';
 import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
-import { getCongratsLines } from '../utils/congrats';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
-
-const SCREEN_W = Dimensions.get('window').width;
 
 const MIN_WORDS = 4;
 const MAX_QUESTIONS = 10;
@@ -81,18 +78,19 @@ export function MultipleChoiceScreen() {
   }, [langFilter]));
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
-  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
 
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
-  const questions = useMemo(() => {
+  // A callable builder rather than a frozen memo — buildQuestions is already
+  // pure and pulls fresh wrong-answer options each time, so Play Again gets a
+  // genuinely new round rather than replaying the same questions.
+  const buildRound = useCallback((direction: GameSettings['direction']) => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
-    return buildQuestions(pool, gameSettings.direction);
+    return buildQuestions(pool, direction);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameSettings.direction]);
+  }, [words, langFilter]);
+  const [questions, setQuestions] = useState<Question[]>(() => buildRound(gameSettings.direction));
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [correct, setCorrect] = useState(0);
@@ -114,19 +112,25 @@ export function MultipleChoiceScreen() {
     flipAnim.setValue(0);
   }, [index, flipAnim]);
 
+  function startRound(direction: GameSettings['direction']) {
+    setQuestions(buildRound(direction));
+    setIndex(0);
+    setSelected(null);
+    setCorrect(0);
+    setSkipped(0);
+    setDone(null);
+    setResults([]);
+    flipAnim.setValue(0);
+  }
+
   const prevDirection = useRef(gameSettings.direction);
   useEffect(() => {
     if (gameSettings.direction !== prevDirection.current) {
       prevDirection.current = gameSettings.direction;
-      setIndex(0);
-      setSelected(null);
-      setCorrect(0);
-      setSkipped(0);
-      setDone(null);
-      setResults([]);
-      flipAnim.setValue(0);
+      startRound(gameSettings.direction);
     }
-  }, [gameSettings.direction, flipAnim]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings.direction]);
 
   const eligibleCount = (langFilter && langFilter !== 'all'
     ? words.filter((w) => w.language === langFilter && w.translation)
@@ -149,41 +153,22 @@ export function MultipleChoiceScreen() {
   const q = questions[index];
 
   if (done) {
-    const isPerfect = done.correct === questions.length && questions.length > 0;
     return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Multiple Choice" current={questions.length} total={questions.length} results={results} />
-        {isPerfect && (
-          <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
-        )}
-        <View style={styles.center}>
-          <Ionicons name="checkmark-done-outline" size={48} color={colors.accentRed} />
-          {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
-              {line}
-            </Text>
-          ))}
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            Results
-          </Text>
-          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
-              <DoneStatRow icon="checkmark-circle-outline" tint="#43A047" label="Correct" value={done.correct} colors={colors} fontFamily={fontFamily} />
-              <DoneStatRow icon="arrow-forward-circle-outline" tint={colors.inkFaint} label="Skipped" value={done.skipped} colors={colors} fontFamily={fontFamily} />
-              <DoneStatRow icon="close-circle-outline" tint="#E53935" label="Wrong" value={done.wrong} colors={colors} fontFamily={fontFamily} />
-            </View>
-          </View>
-          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
-            {streak} day streak
-          </Text>
-          <SpringButton
-            style={[styles.doneButton, { backgroundColor: colors.accentRed }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </SpringButton>
-        </View>
-      </View>
+      <GameEndScreen
+        gameKey="MultipleChoice"
+        headerCurrent={questions.length}
+        headerTotal={questions.length}
+        headerResults={results}
+        celebrate={done.correct === questions.length && questions.length > 0}
+        stats={[
+          { icon: 'checkmark-circle-outline',      tint: '#43A047',        label: 'Correct', value: done.correct },
+          { icon: 'arrow-forward-circle-outline',  tint: colors.inkFaint,  label: 'Skipped', value: done.skipped },
+          { icon: 'close-circle-outline',          tint: '#E53935',        label: 'Wrong',   value: done.wrong },
+        ]}
+        streak={streak}
+        onPlayAgain={() => startRound(gameSettings.direction)}
+        onBack={() => navigation.goBack()}
+      />
     );
   }
 
@@ -526,12 +511,3 @@ const styles = StyleSheet.create({
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },
 });
 
-function DoneStatRow({ icon, tint, label, value, colors, fontFamily }: any) {
-  return (
-    <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-      <Ionicons name={icon} size={20} color={tint} style={{ width: 28 }} />
-      <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
-    </View>
-  );
-}

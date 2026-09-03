@@ -2,28 +2,23 @@ import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, TextInput, ScrollView,
-  Keyboard, StyleSheet, Dimensions, Modal,
+  Keyboard, StyleSheet, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
-import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GameEndScreen } from '../components/GameEndScreen';
 import { GlassButton } from '../components/GlassButton';
 import { GlassSurface } from '../components/GlassSurface';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
-import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
-
-const SCREEN_W = Dimensions.get('window').width;
 
 type Mode = 'target-to-en' | 'en-to-target';
 
@@ -65,9 +60,6 @@ export function TranslationScreen() {
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
-  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
   useGameActive();
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('translation', langFilter ?? 'all');
@@ -146,31 +138,36 @@ export function TranslationScreen() {
   const answerLabel = mode === 'target-to-en' ? 'EN' : card.language.toUpperCase();
 
   // ── Done screen ───────────────────────────────────────────────────────────
+  function playAgain() {
+    const newEligible = shuffle(buildPool(words, localLang)).slice(0, count);
+    setEligible(newEligible);
+    setIndex(0);
+    setInput('');
+    setChecked(false);
+    setCorrect(0);
+    setDone(false);
+    setResults([]);
+  }
+
   if (done) {
-    const isPerfect = correct === eligible.length && eligible.length > 0;
     return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Translation Challenge" current={eligible.length} total={eligible.length} results={results} onSettingsPress={openSettings} />
-        {isPerfect && (
-          <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
-        )}
-        <View style={styles.center}>
-          <Ionicons name="repeat-outline" size={48} color={colors.accentRed} />
-          {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
-              {line}
-            </Text>
-          ))}
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            {correct}/{eligible.length} correct
-          </Text>
-          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <SpringButton style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </SpringButton>
-        </View>
+      <>
+        <GameEndScreen
+          gameKey="Translation"
+          headerCurrent={eligible.length}
+          headerTotal={eligible.length}
+          headerResults={results}
+          celebrate={correct === eligible.length && eligible.length > 0}
+          stats={[
+            { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Correct', value: correct },
+            { icon: 'close-circle-outline',     tint: '#E53935', label: 'Wrong',   value: eligible.length - correct },
+          ]}
+          streak={streak}
+          onPlayAgain={playAgain}
+          onBack={() => navigation.goBack()}
+        />
         {renderSettingsModal()}
-      </View>
+      </>
     );
   }
 

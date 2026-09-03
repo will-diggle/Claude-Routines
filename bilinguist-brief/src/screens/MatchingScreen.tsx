@@ -7,8 +7,6 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import WebView from 'react-native-webview';
-import { makeConfettiHtml } from '../utils/confettiHtml';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
@@ -16,13 +14,11 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
-import { ALL_CONGRATS_POOL } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
 import { GlassButton } from '../components/GlassButton';
+import { GameEndScreen } from '../components/GameEndScreen';
 
-const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
-const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
 
 const TIME_LIMIT       = 60;
 const PAIRS_PER_SCREEN = 6;
@@ -68,9 +64,6 @@ export function MatchingScreen() {
   useGameActive();
   const scoreRef = useRef(0);
   const [isNewBest, setIsNewBest] = useState(false);
-  const [congratsPhrase, setCongratsPhrase] = useState(
-    () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)],
-  );
 
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('matching', langFilter ?? 'all');
@@ -112,8 +105,6 @@ export function MatchingScreen() {
   const timerAnim        = useRef(new Animated.Value(TIME_LIMIT)).current;
   const shakeAnim        = useRef(new Animated.Value(0)).current;
   const shakeLoopRef     = useRef<Animated.CompositeAnimation | null>(null);
-  const congratsFadeAnim = useRef(new Animated.Value(1)).current;
-  const congratsCycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopShake = useCallback(() => {
     if (shakeLoopRef.current) { shakeLoopRef.current.stop(); shakeLoopRef.current = null; }
@@ -166,33 +157,6 @@ export function MatchingScreen() {
     if (eligibleWords.length >= 2) initGame(eligibleWords);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── Congrats cycling ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'done' || !isNewBest) return;
-    let cancelled = false;
-    const pick = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
-    setCongratsPhrase(pick());
-    congratsFadeAnim.setValue(1);
-    function cycle() {
-      if (cancelled) return;
-      congratsCycleRef.current = setTimeout(() => {
-        if (cancelled) return;
-        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
-          if (cancelled) return;
-          setCongratsPhrase(pick());
-          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(() => cycle());
-        });
-      }, 2500);
-    }
-    cycle();
-    return () => {
-      cancelled = true;
-      if (congratsCycleRef.current) clearTimeout(congratsCycleRef.current);
-      congratsFadeAnim.stopAnimation();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, isNewBest]);
 
   // ── Countdown timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -394,77 +358,26 @@ export function MatchingScreen() {
 
   // ── Done screen ─────────────────────────────────────────────────────────────
   if (phase === 'done') {
-    const accentColor = isNewBest ? colors.accentGold : colors.accentRed;
+    const stats: React.ComponentProps<typeof GameEndScreen>['stats'] = [
+      { icon: 'flash-outline', tint: isNewBest ? colors.accentGold : colors.accentRed, label: 'Score', value: score },
+    ];
+    if (speedSnapHighScore > 0) {
+      stats.push({ icon: 'trophy-outline', tint: colors.accentGold, label: 'Best', value: speedSnapHighScore });
+    }
     return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        {isNewBest && (
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            <WebView
-              source={{ html: CONFETTI_HTML }}
-              style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
-              scrollEnabled={false}
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              showsHorizontalScrollIndicator={false}
-            />
-          </View>
-        )}
-        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-          <GlassButton size={40} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-          </GlassButton>
-          <View style={styles.titleBlock}>
-            <Text style={[styles.titleText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              SPEED SNAP
-            </Text>
-          </View>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={styles.center}>
-          <Ionicons name="trophy-outline" size={48} color={accentColor} />
-          {isNewBest && (
-            <>
-              <Animated.Text style={[styles.congratsLine, { color: colors.accentGold, fontFamily: fontFamily.italic, opacity: congratsFadeAnim }]}>
-                {congratsPhrase}
-              </Animated.Text>
-              <Text style={[styles.newBestBadge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-                NEW BEST!
-              </Text>
-            </>
-          )}
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-            Session complete
-          </Text>
-          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
-              <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-                <Ionicons name="flash-outline" size={20} color={accentColor} style={{ width: 28 }} />
-                <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Score</Text>
-                <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{score}</Text>
-              </View>
-              {speedSnapHighScore > 0 && (
-                <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-                  <Ionicons name="trophy-outline" size={20} color={colors.accentGold} style={{ width: 28 }} />
-                  <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>Best</Text>
-                  <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{speedSnapHighScore}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
-            {streak} day streak
-          </Text>
-          <SpringButton
-            style={[styles.doneBtn, { backgroundColor: colors.accentRed }]}
-            onPress={() => initGame(shuffle([...eligibleWords]))}
-          >
-            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Play again</Text>
-          </SpringButton>
-          <SpringButton onPress={() => navigation.goBack()}>
-            <Text style={[styles.backLink, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </SpringButton>
-        </View>
-      </View>
+      <GameEndScreen
+        gameKey="Matching"
+        // No fixed round count — Speed Snap is timed, not round-based — so
+        // total=0 gets GameHeader's title text instead of progress pills.
+        headerCurrent={0}
+        headerTotal={0}
+        celebrate={isNewBest}
+        celebrateBadge={isNewBest ? 'NEW BEST!' : undefined}
+        stats={stats}
+        streak={streak}
+        onPlayAgain={() => initGame(shuffle([...eligibleWords]))}
+        onBack={() => navigation.goBack()}
+      />
     );
   }
 

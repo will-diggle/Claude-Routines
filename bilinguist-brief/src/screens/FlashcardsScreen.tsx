@@ -8,16 +8,14 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import WebView from 'react-native-webview';
-import { makeConfettiHtml } from '../utils/confettiHtml';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { lookupWord } from '../services/wordService';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { ALL_CONGRATS_POOL } from '../utils/congrats';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GameEndScreen } from '../components/GameEndScreen';
 import { WordAudioButton } from '../components/WordAudioButton';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
@@ -29,8 +27,6 @@ import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
 
 const { width: SW, height: SH } = Dimensions.get('window');
-const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
-const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
 const MAX_CARDS = 15;
 const CARD_W = SW - 48;
 const CARD_H = Math.min(Math.round(CARD_W * 1.75), Math.round(SH * 0.78));
@@ -117,7 +113,11 @@ export function FlashcardsScreen() {
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const activeCodes = new Set(activeLanguages);
 
-  const sessionWords = useMemo(() => {
+  // A callable builder rather than a frozen memo, so Play Again can pull a
+  // fresh set from the current word bank instead of replaying the exact same
+  // session — mirrors Speed Snap's initGame(shuffle(...)) pattern, the one
+  // game of the five that already supported a real restart.
+  const buildSession = useCallback(() => {
     const pool = words.filter((w) =>
       langFilter && langFilter !== 'all'
         ? w.language === langFilter
@@ -125,7 +125,8 @@ export function FlashcardsScreen() {
     );
     return getSessionWords(pool);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [words, langFilter]);
+  const [sessionWords, setSessionWords] = useState<SavedWord[]>(buildSession);
 
   // Refreshed tenses keyed by word id — backfill updates the store but sessionWords is frozen,
   // so we keep a local map that the render path can read immediately.
@@ -163,38 +164,6 @@ export function FlashcardsScreen() {
   const pan         = useRef(new Animated.ValueXY()).current;
   const flippedRef  = useRef(false);
   const lockRef     = useRef(false); // prevents double-triggers during animation
-  const [congratsPhrase, setCongratsPhrase] = useState(
-    () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)],
-  );
-  const congratsFadeAnim = useRef(new Animated.Value(1)).current;
-  const congratsCycleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const isPerfect = done !== null && done.missed === 0 && sessionWords.length > 0;
-    if (!isPerfect) return;
-    let cancelled = false;
-    const pick = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
-    setCongratsPhrase(pick());
-    congratsFadeAnim.setValue(1);
-    function cycle() {
-      if (cancelled) return;
-      congratsCycleRef.current = setTimeout(() => {
-        if (cancelled) return;
-        Animated.timing(congratsFadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
-          if (cancelled) return;
-          setCongratsPhrase(pick());
-          Animated.timing(congratsFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(() => cycle());
-        });
-      }, 2500);
-    }
-    cycle();
-    return () => {
-      cancelled = true;
-      if (congratsCycleRef.current) clearTimeout(congratsCycleRef.current);
-      congratsFadeAnim.stopAnimation();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done]);
 
   function resetCard() {
     flipAnim.setValue(0);
@@ -313,47 +282,31 @@ export function FlashcardsScreen() {
 
   // ── Done screen ───────────────────────────────────────────────────────────────
 
+  function playAgain() {
+    setSessionWords(buildSession());
+    setIndex(0);
+    setTally({ correct: 0, missed: 0 });
+    setResults([]);
+    setDone(null);
+    resetCard();
+  }
+
   if (done) {
-    const isPerfect = done.missed === 0 && sessionWords.length > 0;
     return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        {isPerfect && (
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            <WebView
-              source={{ html: CONFETTI_HTML }}
-              style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
-              scrollEnabled={false}
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              showsHorizontalScrollIndicator={false}
-            />
-          </View>
-        )}
-        <GameHeader title="Flashcards" current={sessionWords.length} total={sessionWords.length} results={results} />
-        <View style={styles.center}>
-          <Ionicons name="trophy-outline" size={48} color={colors.accentRed} />
-          {isPerfect && (
-            <Animated.Text style={[styles.congratsLine, { color: colors.accentRed, fontFamily: fontFamily.italic, opacity: congratsFadeAnim }]}>
-              {congratsPhrase}
-            </Animated.Text>
-          )}
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            Session complete
-          </Text>
-          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
-            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
-              <StatRow label="Got it"  icon="checkmark-circle-outline" tint="#43A047" value={done.correct} colors={colors} fontFamily={fontFamily} />
-              <StatRow label="No idea" icon="close-circle-outline"     tint="#E53935" value={done.missed}  colors={colors} fontFamily={fontFamily} />
-            </View>
-          </View>
-          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
-            {streak} day streak
-          </Text>
-          <SpringButton style={[styles.doneBtn, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </SpringButton>
-        </View>
-      </View>
+      <GameEndScreen
+        gameKey="Flashcards"
+        headerCurrent={sessionWords.length}
+        headerTotal={sessionWords.length}
+        headerResults={results}
+        celebrate={done.missed === 0 && sessionWords.length > 0}
+        stats={[
+          { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Got it',  value: done.correct },
+          { icon: 'close-circle-outline',     tint: '#E53935', label: 'No idea', value: done.missed },
+        ]}
+        streak={streak}
+        onPlayAgain={playAgain}
+        onBack={() => navigation.goBack()}
+      />
     );
   }
 
@@ -785,16 +738,6 @@ export function FlashcardsScreen() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatRow({ label, icon, tint, value, colors, fontFamily }: any) {
-  return (
-    <View style={[styles.statRow, { borderBottomColor: colors.borderLight }]}>
-      <Ionicons name={icon} size={20} color={tint} style={{ width: 28 }} />
-      <Text style={[styles.statLabel, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
-    </View>
-  );
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

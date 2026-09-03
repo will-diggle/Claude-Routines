@@ -1,24 +1,19 @@
 import { SpringButton } from '../components/SpringButton';
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { View, Text, TextInput, ScrollView, Keyboard, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TextInput, ScrollView, Keyboard, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { useStreakStore } from '../store/useStreakStore';
-import { useSettingsStore } from '../store/useSettingsStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
+import { GameEndScreen } from '../components/GameEndScreen';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
-import { getCongratsLines } from '../utils/congrats';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
-
-const SCREEN_W = Dimensions.get('window').width;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -59,19 +54,19 @@ export function FillBlankScreen() {
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
   const { recordSession, streak } = useStreakStore();
-  const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const congratsLines = useMemo(() => getCongratsLines(activeLanguages), []);
   useGameActive();
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('fill_blank', langFilter ?? 'all');
   }, [langFilter]));
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const eligible = useMemo(() => {
+  // A callable builder rather than a frozen memo, so Play Again reshuffles a
+  // fresh set instead of replaying the exact sentences just seen.
+  const buildEligible = useCallback(() => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
     return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase()))).slice(0, 10);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [words, langFilter]);
+  const [eligible, setEligible] = useState<SavedWord[]>(buildEligible);
 
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState('');
@@ -98,30 +93,34 @@ export function FillBlankScreen() {
   const card: SavedWord = eligible[index];
   const blanked = blankSentence(card.originalSentence, card.word);
 
+  function playAgain() {
+    setEligible(buildEligible());
+    setIndex(0);
+    setInput('');
+    setChecked(false);
+    setIsCorrect(false);
+    setCorrect(0);
+    setDone(false);
+    setHintVisible(false);
+    setResults([]);
+  }
+
   if (done) {
-    const isPerfect = correct === eligible.length && eligible.length > 0;
     return (
-      <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
-        <GameHeader title="Fill in the Blank" current={eligible.length} total={eligible.length} results={results} />
-        {isPerfect && (
-          <ConfettiCannon count={180} origin={{ x: SCREEN_W / 2, y: -20 }} autoStart fadeOut fallSpeed={2800} />
-        )}
-        <View style={styles.center}>
-          <Ionicons name="pencil-outline" size={48} color={colors.accentRed} />
-          {isPerfect && congratsLines.map((line, i) => (
-            <Text key={i} style={[styles.congratsLine, { color: colors.accentRed, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}>
-              {line}
-            </Text>
-          ))}
-          <Text style={[styles.doneTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-            {correct}/{eligible.length} correct
-          </Text>
-          <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{streak} day streak</Text>
-          <SpringButton style={[styles.doneButton, { backgroundColor: colors.accentRed }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.doneButtonText, { fontFamily: fontFamily.regular }]}>Back to practise</Text>
-          </SpringButton>
-        </View>
-      </View>
+      <GameEndScreen
+        gameKey="FillBlank"
+        headerCurrent={eligible.length}
+        headerTotal={eligible.length}
+        headerResults={results}
+        celebrate={correct === eligible.length && eligible.length > 0}
+        stats={[
+          { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Correct', value: correct },
+          { icon: 'close-circle-outline',     tint: '#E53935', label: 'Wrong',   value: eligible.length - correct },
+        ]}
+        streak={streak}
+        onPlayAgain={playAgain}
+        onBack={() => navigation.goBack()}
+      />
     );
   }
 
