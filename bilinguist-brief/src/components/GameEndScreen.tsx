@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import WebView from 'react-native-webview';
-import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { GameHeader } from './GameHeader';
@@ -12,8 +11,7 @@ import { GlassSurface } from './GlassSurface';
 import { SpringButton } from './SpringButton';
 import { GAME_META, type GameKey } from '../data/gameMeta';
 import { makeConfettiHtml } from '../utils/confettiHtml';
-import { getCongratsLines } from '../utils/congrats';
-import { useSettingsStore } from '../store/useSettingsStore';
+import { ALL_CONGRATS_POOL } from '../utils/congrats';
 
 // One end-of-game screen for all five practice games. It used to be five
 // separate implementations that had drifted on nearly every axis — title
@@ -25,6 +23,10 @@ import { useSettingsStore } from '../store/useSettingsStore';
 
 const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
 const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
+
+// Flat pool across every language, so consecutive phrases are usually in
+// different languages.
+const pickPhrase = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
 
 export interface GameEndStat {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -59,17 +61,36 @@ export function GameEndScreen({
   const insets = useSafeAreaInsets();
   const meta = GAME_META[gameKey];
 
-  const activeLanguages = useSettingsStore(
-    useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
-  );
-  // One line per active language — celebrating in every language being
-  // learned reads better for a multi-language app than a single random phrase
-  // drawn from all nine languages regardless of which ones the reader uses.
-  const congratsLines = React.useMemo(
-    () => (celebrate ? getCongratsLines(activeLanguages) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [celebrate],
-  );
+  // Cycles a single phrase drawn from every language's pool, rather than showing
+  // one fixed line per active language — so the praise keeps changing and
+  // arrives in a different language each time while the reader sits here.
+  const [phrase, setPhrase] = React.useState(pickPhrase);
+  const phraseFade = React.useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    if (!celebrate) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const cycle = () => {
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        Animated.timing(phraseFade, { toValue: 0, duration: 320, useNativeDriver: true }).start(() => {
+          if (cancelled) return;
+          setPhrase(pickPhrase());
+          Animated.timing(phraseFade, { toValue: 1, duration: 320, useNativeDriver: true }).start(cycle);
+        });
+      }, 1900);
+    };
+    cycle();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      phraseFade.stopAnimation();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [celebrate]);
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg, paddingBottom: insets.bottom + Spacing.lg }]}>
@@ -89,27 +110,13 @@ export function GameEndScreen({
       )}
 
       <View style={styles.center}>
-        {celebrate && congratsLines.map((line, i) => (
-          <Text
-            key={i}
-            style={[styles.congratsLine, { color: meta.tint, fontFamily: i === 0 ? fontFamily.bold : fontFamily.italic }]}
-          >
-            {line}
-          </Text>
-        ))}
-        {celebrateBadge && (
-          <Text style={[styles.badge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
-            {celebrateBadge}
-          </Text>
-        )}
-
         <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
           Results
         </Text>
 
         {stats.length > 0 && (
           <View style={[styles.statsBox, { backgroundColor: colors.card }]}>
-            <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+            <View style={{ borderRadius: 16, overflow: 'hidden' }}>
               {stats.map((s, i) => <DoneStatRow key={i} {...s} />)}
             </View>
           </View>
@@ -145,6 +152,27 @@ export function GameEndScreen({
             />
           </View>
         </View>
+
+        {/* Praise sits below the buttons: the score and the two actions are what
+            the reader came for, and this keeps changing underneath rather than
+            pushing them down the screen. */}
+        {celebrate && (
+          <View style={styles.celebrateBlock}>
+            {celebrateBadge && (
+              <Text style={[styles.badge, { color: colors.accentGold, fontFamily: fontFamily.bold }]}>
+                {celebrateBadge}
+              </Text>
+            )}
+            <Animated.Text
+              style={[
+                styles.congratsLine,
+                { color: meta.tint, fontFamily: fontFamily.bold, opacity: phraseFade },
+              ]}
+            >
+              {phrase}
+            </Animated.Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -184,19 +212,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: Spacing.xxl * 1.4,
+    paddingTop: Spacing.xl,
     paddingHorizontal: Spacing.lg,
-    gap: 16,
+    gap: 28,
   },
-  congratsLine: { fontSize: 18, textAlign: 'center' },
-  badge: { fontSize: 13, letterSpacing: 1 },
+  congratsLine: { fontSize: 22, textAlign: 'center' },
+  badge: { fontSize: 14, letterSpacing: 1.2 },
   title: { textAlign: 'center' },
+  celebrateBlock: { alignItems: 'center', gap: 8, marginTop: 8 },
   // A floating tile, not a bordered box — shadow instead of a border, matching
   // the card treatment used elsewhere in the app (word tiles, flashcards).
   statsBox: {
     width: '100%',
-    borderRadius: 14,
-    marginTop: 6,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.11,
@@ -206,7 +234,6 @@ const styles = StyleSheet.create({
   pillRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 6,
     width: '100%',
   },
   pillShadow: {

@@ -20,7 +20,7 @@ export function DoneStatRow({ icon, tint, label, value }: Props) {
   const { colors, fontFamily } = useTheme();
   return (
     <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-      <Ionicons name={icon} size={20} color={tint} style={styles.icon} />
+      <Ionicons name={icon} size={24} color={tint} style={styles.icon} />
       <Text style={[styles.label, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>{label}</Text>
       <Text style={[styles.value, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{value}</Text>
     </View>
@@ -31,12 +31,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 8,
+    gap: 12,
   },
-  icon: { width: 28 },
-  label: { flex: 1, fontSize: 15 },
-  value: { fontSize: 15 },
+  icon: { width: 30 },
+  label: { flex: 1, fontSize: 19 },
+  value: { fontSize: 19 },
 });

@@ -124,7 +124,7 @@ function resetRainInitial(p) {
   p.flipPhase = Math.random() * Math.PI * 2;
   p.swayPhase = Math.random() * Math.PI * 2;
   p.twirlTimer = 0.5 + Math.random() * 3.0;
-  p.delay = Math.random() * 7.0;
+  p.delay = Math.random() * 2.2;   // was 7.0 — the fill-in read as a lag
 }
 
 function resetRainLive(p) {
@@ -413,9 +413,10 @@ function startDrainMode() {
   prevTs = 0;
 }
 
-window.onload = function() {
-  handleReset(colors, flagEmoji);
-};
+// Start immediately rather than on window.onload — this script sits at the end
+// of <body> so the DOM is already parsed, and onload additionally waits for the
+// whole page to finish loading, which showed up as the confetti arriving late.
+handleReset(colors, flagEmoji);
 </script>
 </body>
 </html>`;
