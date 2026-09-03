@@ -1432,7 +1432,7 @@ def write_costs_report(date: str, script_dir: str) -> dict:
 
 # Deterministic, Python-only number check (bilinguist_numcheck.py) -- no LLM call.
 # Populated by run_native_journalism as each native/translated article is produced;
-# written to output/numcheck_<date>.json in main() for Stage 9 to report.
+# written to output/numcheck_<date>.json in main() for Stage 9 (Check & Publish) to report.
 _NUMCHECK_FINDINGS: list[dict] = []
 
 

@@ -22,7 +22,7 @@ from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band, word_band_for_le
 # Every active language now writes every CEFR level below its own native grade
 # (bilinguist_write.py --all-levels, production default since 2026-08-11), not just a
 # fixed per-language subset. This module deliberately does NOT import bilinguist_write
-# (which pulls in google.genai — Stage 9 makes no API calls and should stay lightweight),
+# (which pulls in google.genai — Stage 9 (Check & Publish) makes no API calls and should stay lightweight),
 # so this list is kept in sync by hand: every active language gets the full ladder: which
 # levels actually got written is still decided per-bundle by native_grades (skip_from_idx
 # below), same as the write side. Before this fix, fr/de/it only checked A2, sv/en checked

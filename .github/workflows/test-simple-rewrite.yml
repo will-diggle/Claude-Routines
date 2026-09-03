@@ -104,7 +104,7 @@ jobs:
         # 16 workers, levels-from native, all-levels) is identical to generate-briefings.yml.
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels --simple-rewrite
 
-      - name: Stage 9 - Check completeness
+      - name: Stage 9 - Check & Publish
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 
