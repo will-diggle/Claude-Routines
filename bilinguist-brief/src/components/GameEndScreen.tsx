@@ -212,14 +212,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.xxl,
     paddingHorizontal: Spacing.lg,
-    gap: 28,
+    gap: Spacing.xxl,
   },
   congratsLine: { fontSize: 22, textAlign: 'center' },
   badge: { fontSize: 14, letterSpacing: 1.2 },
   title: { textAlign: 'center' },
-  celebrateBlock: { alignItems: 'center', gap: 8, marginTop: 8 },
+  celebrateBlock: { alignItems: 'center', gap: 10, marginTop: Spacing.md },
   // A floating tile, not a bordered box — shadow instead of a border, matching
   // the card treatment used elsewhere in the app (word tiles, flashcards).
   statsBox: {
