@@ -133,6 +133,32 @@ SERVICE_TIER_BY_STAGE: dict[str, str] = {
 # 1024 matches the value gather.py already uses successfully for its own Pro fallback.
 THINKING_BUDGET_BY_STAGE: dict[str, int] = {"3": 1024}
 
+# ── Display labels, separate from the internal stage keys above ─────────────
+# The internal keys ("3", "4a", "4b", "5b", "2S"/"2B"/"2M") are UNCHANGED and must stay
+# that way -- they are dict keys for cost tracking (SERVICE_TIER_BY_STAGE,
+# THINKING_BUDGET_BY_STAGE, _stage_usage) and get written into costs.csv in the data
+# repo; renaming them would break that history (see commit 33a8238, 2026-08-10).
+#
+# What that commit's rename never reached was what actually prints to the screen: every
+# print() below still shows the raw internal key, e.g. "[3]" for native writing, "[5b]"
+# for the post-write verify step -- numbers that mean something different from the
+# outer pipeline's own "Stage 3" (Gather facts) and don't exist at all in "Stage 5-8".
+# STAGE_LABELS is the fix: a display-only lookup, used ONLY inside print(), that maps
+# each internal key to the name agreed with Will on 2026-09-03. Nothing that decides
+# behaviour reads this dict -- only text destined for the terminal does.
+STAGE_LABELS: dict[str, str] = {
+    "3":  "5 Write Native",
+    "4a": "6 Grade Native",
+    "2S": "7 Write Levels", "2B": "7 Write Levels", "2M": "7 Write Levels",
+    "4b": "8 Grade Levels",
+    "5b": "5 Write Native — Verify",   # a sub-step of Stage 5, not its own numbered stage
+}
+
+
+def _lbl(stage_key: str) -> str:
+    """Display label for a print() line -- see STAGE_LABELS above."""
+    return STAGE_LABELS.get(stage_key, stage_key)
+
 # LEVELS_FROM: "factbase" writes each level article from the fact-base (today's
 # behaviour, arm A). "native" rewrites the graded native article of the same language,
 # length and story down to the target level (arm B). Set via --levels-from.
@@ -1441,7 +1467,7 @@ def run_native_journalism(
     native_langs = NATIVE_PUBLISHED + NATIVE_INTERMEDIATE
     other_langs = [lang for lang in native_langs if lang != "en"]
     if NATIVE_INTERMEDIATE:
-        print(f"[3] Native for {NATIVE_PUBLISHED} (published) + "
+        print(f"[{_lbl("3")}] Native for {NATIVE_PUBLISHED} (published) + "
               f"{NATIVE_INTERMEDIATE} (intermediate, rewritten from but not shipped)")
     if "en" not in native_langs:
         print("[3] ERROR: English is not active — the translation architecture requires "
@@ -1449,7 +1475,7 @@ def run_native_journalism(
               file=sys.stderr)
         return {}
 
-    print(f"[3] Writing English native, then translating to {other_langs} "
+    print(f"[{_lbl("3")}] Writing English native, then translating to {other_langs} "
           f"({len(factbase)} stories × 2 lengths)...")
 
     def _write_en(story: dict, length: str) -> Optional[dict]:
@@ -1552,15 +1578,15 @@ def run_native_journalism(
         for length in ("short", "longer"):
             n = len(native_journalism[lang][length])
             if n:
-                print(f"[3] {lang}/{length}: {n} articles ✓")
+                print(f"[{_lbl("3")}] {lang}/{length}: {n} articles ✓")
             else:
-                print(f"[3] {lang}/{length}: ❌ no articles", file=sys.stderr)
+                print(f"[{_lbl("3")}] {lang}/{length}: ❌ no articles", file=sys.stderr)
 
     fixed_count = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "AUTO_FIXED")
     flagged_numbers = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_NUMBER")
     flagged_entities = sum(1 for f in _NUMCHECK_FINDINGS if f["type"] == "UNVERIFIED_ENTITY")
     if _NUMCHECK_FINDINGS:
-        print(f"[3] Number/entity check: {fixed_count} magnitude mismatch(es) auto-fixed, "
+        print(f"[{_lbl("3")}] Number/entity check: {fixed_count} magnitude mismatch(es) auto-fixed, "
               f"{flagged_numbers} number(s) and {flagged_entities} name(s)/entit(ies) "
               f"flagged as unverified")
 
@@ -1589,7 +1615,7 @@ def run_grade_native(
         print("[4a] No native articles to grade — skipping", file=sys.stderr)
         return {}
 
-    print(f"[4a] Grading native journalism level for {len(langs_with_articles)} languages...")
+    print(f"[{_lbl("4a")}] Grading native journalism level for {len(langs_with_articles)} languages...")
     native_grades: dict = {}
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
@@ -1618,7 +1644,7 @@ def run_grade_native(
                 continue
             reasoning = (parsed.get("reasoning") or "")[:120]
             native_grades[lang] = cefr
-            print(f"[4a] {lang}: {cefr} — {reasoning}")
+            print(f"[{_lbl("4a")}] {lang}: {cefr} — {reasoning}")
 
     return native_grades
 
@@ -1707,7 +1733,7 @@ def run_writing_concurrent(
                 "length": length,
                 "generatedAt": generated_at,
             }
-            print(f"[{stage}] {lang}-{level}-{length}: {len(articles)} articles ✓")
+            print(f"[{_lbl(stage)}] {lang}-{level}-{length}: {len(articles)} articles ✓")
 
     return briefings
 
@@ -1743,7 +1769,7 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
     if not jobs:
         return {"summary": "", "findings": [], "articles_checked": 0}
 
-    print(f"[5b] Verifying {len(jobs)} native articles against the factbase...")
+    print(f"[{_lbl("5b")}] Verifying {len(jobs)} native articles against the factbase...")
 
     def verify(job):
         lang, length, art, story = job
@@ -1804,10 +1830,10 @@ def run_verify_native(client: genai.Client, factbase: list, native_journalism: d
                    + ", ".join(f"{k} {v}" for k, v in sorted(by_type.items())))
     else:
         summary = f"🔎 Native fact-check: all {len(jobs)} articles match the factbase ✓"
-    print(f"[5b] {summary}")
+    print(f"[{_lbl("5b")}] {summary}")
     for f in findings:
         tag = "FIXED" if f.get("applied") else f["type"]
-        print(f"[5b]   {tag} {f['lang']}/{f['length']}/{f['slug']}: "
+        print(f"[{_lbl("5b")}]   {tag} {f['lang']}/{f['length']}/{f['slug']}: "
               f"\"{(f.get('quote') or '')[:90]}\" — {f.get('why')}", file=sys.stderr)
 
     return {"summary": summary, "findings": findings, "articles_checked": len(jobs)}
@@ -1845,7 +1871,7 @@ def run_grade_cefr(
         print("[4b] No CEFR articles to grade — skipping", file=sys.stderr)
         return {}
 
-    print(f"[4b] Grading {sum(len(c[3]) for c in combos)} articles across "
+    print(f"[{_lbl("4b")}] Grading {sum(len(c[3]) for c in combos)} articles across "
           f"{len(combos)} level/length combos...")
     grading: dict = {}
     lock = threading.Lock()
@@ -1871,7 +1897,7 @@ def run_grade_cefr(
             a["written_level"] = level
             a["written_length"] = length
         hit = sum(1 for a in assessments if a.get("level") == level)
-        print(f"[4b] {lang}-{level}-{length}: {hit}/{len(assessments)} graded as {level}")
+        print(f"[{_lbl("4b")}] {lang}-{level}-{length}: {hit}/{len(assessments)} graded as {level}")
         return lang, assessments
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
