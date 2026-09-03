@@ -1225,11 +1225,21 @@ NOW, the only four things to report:
 - INVENTED: a claim, figure, name or quote in the article that has NO basis anywhere in the fact-base. Not "stated differently" — absent.
 - CHANGED: a number whose VALUE differs, or a name or title that refers to a DIFFERENT thing. 69th written as 70th. £3m written as £5m. A minister given the wrong office.
 - CONTRADICTED: the fact-base records something as unverified, disputed, or claimed by one party, and the article states it flatly as fact.
-- WRONG: a fact that IS in the fact-base, but your own search shows is false. Search the main figures, names and titles.
+
+This call has no live search and no access to anything beyond the fact-base below —
+compare the article ONLY against it. Do not flag anything as wrong because it conflicts
+with what you already believe to be true; your own knowledge has a training cutoff and
+this fact-base is more current than you are. A once-real "WRONG" finding type asked for
+exactly this kind of outside judgement and was removed 2026-09-03 after it overwrote two
+separate CORRECT facts with stale ones in shipped articles: it called the sitting Prime
+Minister "the Mayor of Greater Manchester" and the actual Leader of the Opposition
+"a former Prime Minister" — both wrong, both confidently stated, because the story had
+simply moved on since this model's training data was collected. If the fact-base says it,
+treat it as true for this check, however unfamiliar it seems.
 
 For each finding, quote the exact phrase from the article, give what the fact-base says instead, and say in one sentence why the VALUE or CLAIM differs. If your explanation would contain the words "translate", "omits", "format", "wording" or "correctly", it is not a finding — drop it.
 
-For CHANGED, CONTRADICTED and WRONG findings only: also give "corrected" — the exact replacement phrase, in {LANGUAGE}, that would make the sentence accurate if it substituted for "quote" word-for-word in the article. It must fit grammatically in place of "quote" with no other change to the sentence. If no single substring can fix it without rewriting the whole sentence, leave "corrected" empty — do not force one.
+For CHANGED and CONTRADICTED findings only: also give "corrected" — the exact replacement phrase, in {LANGUAGE}, that would make the sentence accurate if it substituted for "quote" word-for-word in the article. It must fit grammatically in place of "quote" with no other change to the sentence. If no single substring can fix it without rewriting the whole sentence, leave "corrected" empty — do not force one.
 For INVENTED findings: never give "corrected" (leave it empty). An invented claim needs the sentence rewritten or removed, not a word swapped — a substring replacement here would produce a grammatically broken sentence.
 
 OUTPUT FORMAT:
