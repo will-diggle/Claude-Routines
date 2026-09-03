@@ -233,12 +233,19 @@ const LeftContext = memo(function LeftContext({
 });
 
 // ── Glass pill shell ──────────────────────────────────────────────────────────
-// Children render INSIDE the native glass view rather than layered above it.
-// UIGlassEffect.isInteractive only plays Apple's press response for touches that
-// land in the effect view's own contentView, and LiquidGlassView re-parents RN
-// children into it — so nesting here is what makes the pill respond to a finger.
-// Falls back to a plain tinted pill when the native module isn't available.
-
+// GlassSurface renders as a plain background sibling, never as a wrapper around
+// real content — it used to wrap {children} directly, which handed React
+// children to Fabric as LiquidGlassView's own mounted children. LiquidGlassView
+// also owns a native-only UIVisualEffectView subview that Fabric's mount/unmount
+// bookkeeping has no idea exists, so as soon as any of those wrapped children
+// unmounted (switching tabs, in practice every time you navigate into a game),
+// Fabric's expected child index and the view's actual subview index disagreed
+// and the app hard-crashed: "Attempt to unmount a view which has a different
+// index." GlassSurface must stay a leaf with zero React children — the Save-word
+// pill and the game-end pills already use it that way safely. Costs the
+// interactive UIGlassEffect press response (it only fires for touches landing
+// inside the effect's own contentView, which nothing is nested inside of now);
+// worth it against a hard crash.
 function GlassPill({
   glass, isDark, pillBg, children,
 }: { glass: boolean; isDark: boolean; pillBg: string; children: React.ReactNode }) {
@@ -246,9 +253,14 @@ function GlassPill({
     return <View style={[styles.pill, { backgroundColor: pillBg }]}>{children}</View>;
   }
   return (
-    <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'}>
-      <View style={styles.pill}>{children}</View>
-    </GlassSurface>
+    <View style={styles.pill}>
+      <GlassSurface
+        style={StyleSheet.absoluteFillObject}
+        cornerRadius={100}
+        colorScheme={isDark ? 'dark' : 'light'}
+      />
+      {children}
+    </View>
   );
 }
 
