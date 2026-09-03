@@ -272,8 +272,14 @@ _SCHEMA_VERIFY = {
             "items": {
                 "type": "object",
                 "properties": {
+                    # "WRONG" removed 2026-09-03 -- see PROMPT_5B_VERIFY. This call has
+                    # no search grounding (JSON schema mode and grounding are mutually
+                    # exclusive in this API), so a "your search shows this is false"
+                    # finding was never a real search -- it was the model's frozen
+                    # training knowledge asserted with search-level confidence, and it
+                    # overwrote two correct facts with stale ones in shipped articles.
                     "type":      {"type": "string",
-                                  "enum": ["INVENTED", "CHANGED", "CONTRADICTED", "WRONG"]},
+                                  "enum": ["INVENTED", "CHANGED", "CONTRADICTED"]},
                     "quote":     {"type": "string"},
                     "factbase":  {"type": "string"},
                     "why":       {"type": "string"},
