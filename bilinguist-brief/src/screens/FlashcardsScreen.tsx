@@ -86,16 +86,16 @@ function levelColor(level?: string | null): string {
   return '#6A1B9A';
 }
 
-function getSessionWords(words: SavedWord[]): SavedWord[] {
+function getSessionWords(words: SavedWord[], limit: number = MAX_CARDS): SavedWord[] {
   const revisit  = words.filter((w) => w.pile === 'revisit');
   const newW     = words.filter((w) => w.pile === 'new');
   const learning = words.filter((w) => w.pile === 'learning');
   const active   = [...revisit, ...newW, ...learning];
   // Fall back to mastered words if nothing else is left to practise
   if (active.length === 0) {
-    return words.filter((w) => w.pile === 'mastered').slice(0, MAX_CARDS);
+    return words.filter((w) => w.pile === 'mastered').slice(0, limit);
   }
-  return active.slice(0, MAX_CARDS);
+  return active.slice(0, limit);
 }
 
 export function FlashcardsScreen() {
@@ -112,6 +112,7 @@ export function FlashcardsScreen() {
   const { recordSession } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const activeCodes = new Set(activeLanguages);
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
 
   // A callable builder rather than a frozen memo, so Play Again can pull a
   // fresh set from the current word bank instead of replaying the exact same
@@ -123,10 +124,23 @@ export function FlashcardsScreen() {
         ? w.language === langFilter
         : activeCodes.has(w.language),
     );
-    return getSessionWords(pool);
+    return getSessionWords(pool, gameSettings.roundSize);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words, langFilter]);
+  }, [words, langFilter, gameSettings.roundSize]);
   const [sessionWords, setSessionWords] = useState<SavedWord[]>(buildSession);
+
+  // Rebuild the round whenever roundSize changes in Settings, same as
+  // MultipleChoice's direction-change effect. playAgain() (defined below —
+  // hoisted, since it's a function declaration) already does exactly the
+  // reset a size change needs: a fresh pull at the new size plus a clean slate.
+  const prevRoundSize = useRef(gameSettings.roundSize);
+  useEffect(() => {
+    if (gameSettings.roundSize !== prevRoundSize.current) {
+      prevRoundSize.current = gameSettings.roundSize;
+      playAgain();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings.roundSize]);
 
   // Refreshed tenses keyed by word id — backfill updates the store but sessionWords is frozen,
   // so we keep a local map that the render path can read immediately.
@@ -157,7 +171,6 @@ export function FlashcardsScreen() {
   const [activeTenseIdx, setActiveTenseIdx] = useState(0);
   const [activeDeclIdx, setActiveDeclIdx] = useState(0);
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
-  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   const flipAnim    = useRef(new Animated.Value(0)).current;

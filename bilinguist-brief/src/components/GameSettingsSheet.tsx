@@ -5,14 +5,21 @@ import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { GlassButton } from './GlassButton';
 
+export const ROUND_SIZES = [10, 15, 20, 30] as const;
+export type RoundSize = typeof ROUND_SIZES[number];
+
 export interface GameSettings {
   direction: 'word-to-translation' | 'translation-to-word';
   errorChecking: boolean;
+  /** Words/questions per round. Standard across every game except Speed Snap,
+   *  which is timed rather than round-based and has no equivalent. */
+  roundSize: RoundSize;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   direction: 'word-to-translation',
   errorChecking: false,
+  roundSize: 10,
 };
 
 interface Props {
@@ -20,9 +27,12 @@ interface Props {
   settings: GameSettings;
   onClose: () => void;
   onChange: (s: GameSettings) => void;
+  /** Fill in the Blank has no word/translation direction to pick — hide that
+   *  section rather than show a choice that doesn't apply to the game. */
+  showDirection?: boolean;
 }
 
-export function GameSettingsSheet({ visible, settings, onClose, onChange }: Props) {
+export function GameSettingsSheet({ visible, settings, onClose, onChange, showDirection = true }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
 
   const dragY = useRef(new Animated.Value(0)).current;
@@ -81,34 +91,68 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange }: Prop
           </GlassButton>
         </View>
 
+        {showDirection && (
+          <>
+            <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              STUDY DIRECTION
+            </Text>
+            <View style={[styles.optionGroup, { borderColor: colors.borderLight }]}>
+              {DIRECTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.optionRow,
+                    { borderBottomColor: colors.borderLight },
+                    settings.direction === opt.value && { backgroundColor: colors.accentRed + '10' },
+                  ]}
+                  onPress={() => toggle('direction', opt.value)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.optionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      {opt.label}
+                    </Text>
+                    <Text style={[styles.optionSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                      {opt.sub}
+                    </Text>
+                  </View>
+                  {settings.direction === opt.value && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.accentRed} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
         <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-          STUDY DIRECTION
+          ROUND SIZE
         </Text>
-        <View style={[styles.optionGroup, { borderColor: colors.borderLight }]}>
-          {DIRECTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[
-                styles.optionRow,
-                { borderBottomColor: colors.borderLight },
-                settings.direction === opt.value && { backgroundColor: colors.accentRed + '10' },
-              ]}
-              onPress={() => toggle('direction', opt.value)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  {opt.label}
+        <View style={styles.roundSizeRow}>
+          {ROUND_SIZES.map((n) => {
+            const active = settings.roundSize === n;
+            return (
+              <TouchableOpacity
+                key={n}
+                style={[
+                  styles.roundSizeChip,
+                  { borderColor: active ? colors.accentRed : colors.borderLight },
+                  active && { backgroundColor: colors.accentRed + '10' },
+                ]}
+                onPress={() => toggle('roundSize', n)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.roundSizeText,
+                    { color: active ? colors.accentRed : colors.inkDark, fontFamily: fontFamily.regular },
+                  ]}
+                >
+                  {n}
                 </Text>
-                <Text style={[styles.optionSub, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  {opt.sub}
-                </Text>
-              </View>
-              {settings.direction === opt.value && (
-                <Ionicons name="checkmark-circle" size={20} color={colors.accentRed} />
-              )}
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </Animated.View>
     </Modal>
@@ -171,5 +215,19 @@ const styles = StyleSheet.create({
   optionSub: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  roundSizeRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  roundSizeChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  roundSizeText: {
+    fontSize: 16,
   },
 });

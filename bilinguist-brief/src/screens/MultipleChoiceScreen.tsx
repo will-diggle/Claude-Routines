@@ -38,11 +38,15 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function buildQuestions(words: SavedWord[], direction: 'word-to-translation' | 'translation-to-word'): Question[] {
+function buildQuestions(
+  words: SavedWord[],
+  direction: 'word-to-translation' | 'translation-to-word',
+  limit: number = MAX_QUESTIONS,
+): Question[] {
   const practiceable = words.filter((w) => w.translation);
   if (practiceable.length < MIN_WORDS) return [];
 
-  const picked = shuffle(practiceable).slice(0, MAX_QUESTIONS);
+  const picked = shuffle(practiceable).slice(0, limit);
 
   return picked.map((word) => {
     if (direction === 'translation-to-word') {
@@ -87,9 +91,9 @@ export function MultipleChoiceScreen() {
   // genuinely new round rather than replaying the same questions.
   const buildRound = useCallback((direction: GameSettings['direction']) => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
-    return buildQuestions(pool, direction);
+    return buildQuestions(pool, direction, gameSettings.roundSize);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words, langFilter]);
+  }, [words, langFilter, gameSettings.roundSize]);
   const [questions, setQuestions] = useState<Question[]>(() => buildRound(gameSettings.direction));
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -134,13 +138,15 @@ export function MultipleChoiceScreen() {
   }
 
   const prevDirection = useRef(gameSettings.direction);
+  const prevRoundSize = useRef(gameSettings.roundSize);
   useEffect(() => {
-    if (gameSettings.direction !== prevDirection.current) {
+    if (gameSettings.direction !== prevDirection.current || gameSettings.roundSize !== prevRoundSize.current) {
       prevDirection.current = gameSettings.direction;
+      prevRoundSize.current = gameSettings.roundSize;
       startRound(gameSettings.direction);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameSettings.direction]);
+  }, [gameSettings.direction, gameSettings.roundSize]);
 
   const eligibleCount = (langFilter && langFilter !== 'all'
     ? words.filter((w) => w.language === langFilter && w.translation)

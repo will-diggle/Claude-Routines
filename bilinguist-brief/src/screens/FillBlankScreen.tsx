@@ -1,5 +1,5 @@
 import { SpringButton } from '../components/SpringButton';
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { View, Text, TextInput, ScrollView, Keyboard, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import { useStreakStore } from '../store/useStreakStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { GameEndScreen } from '../components/GameEndScreen';
+import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -59,13 +60,16 @@ export function FillBlankScreen() {
     analytics.trackGameOpened('fill_blank', langFilter ?? 'all');
   }, [langFilter]));
 
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+
   // A callable builder rather than a frozen memo, so Play Again reshuffles a
   // fresh set instead of replaying the exact sentences just seen.
   const buildEligible = useCallback(() => {
     const pool = langFilter && langFilter !== 'all' ? words.filter((w) => w.language === langFilter) : words;
-    return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase()))).slice(0, 10);
+    return shuffle(pool.filter((w) => w.originalSentence && w.originalSentence.toLowerCase().includes(w.word.toLowerCase()))).slice(0, gameSettings.roundSize);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words, langFilter]);
+  }, [words, langFilter, gameSettings.roundSize]);
   const [eligible, setEligible] = useState<SavedWord[]>(buildEligible);
 
   const [index, setIndex] = useState(0);
@@ -76,6 +80,18 @@ export function FillBlankScreen() {
   const [done, setDone] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
   const [results, setResults] = useState<Array<'correct' | 'wrong'>>([]);
+
+  // Rebuild whenever roundSize changes in Settings — playAgain() (defined
+  // below, hoisted as a function declaration) already does exactly the reset
+  // a size change needs.
+  const prevRoundSize = useRef(gameSettings.roundSize);
+  useEffect(() => {
+    if (gameSettings.roundSize !== prevRoundSize.current) {
+      prevRoundSize.current = gameSettings.roundSize;
+      playAgain();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings.roundSize]);
 
   if (eligible.length === 0) {
     return (
@@ -148,7 +164,13 @@ export function FillBlankScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.bg }]}>
-      <GameHeader title="Fill in the Blank" current={index + 1} total={eligible.length} results={results} />
+      <GameHeader
+        title="Fill in the Blank"
+        current={index + 1}
+        total={eligible.length}
+        results={results}
+        onSettingsPress={() => setSettingsVisible(true)}
+      />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
@@ -245,6 +267,14 @@ export function FillBlankScreen() {
           </Text>
         </SpringButton>
       </ScrollView>
+
+      <GameSettingsSheet
+        visible={settingsVisible}
+        settings={gameSettings}
+        onClose={() => setSettingsVisible(false)}
+        onChange={setGameSettings}
+        showDirection={false}
+      />
     </View>
   );
 }

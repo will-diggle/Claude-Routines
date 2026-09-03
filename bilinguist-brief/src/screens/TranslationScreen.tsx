@@ -22,7 +22,7 @@ import * as analytics from '../services/analytics';
 
 type Mode = 'target-to-en' | 'en-to-target';
 
-const COUNTS = [5, 10, 15, 20] as const;
+const COUNTS = [10, 15, 20, 30] as const;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
