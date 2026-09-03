@@ -168,7 +168,7 @@ jobs:
         # to adjust which stages are on Flex, not this workflow file.
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels
 
-      - name: Stage 9 - Check completeness
+      - name: Stage 9 - Check & Publish
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 
@@ -191,7 +191,7 @@ jobs:
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
 
           # Structured report for the companion iOS app — written by
-          # bilinguist_check.py (Stage 9, above). Not required: an older
+          # bilinguist_check.py (Stage 9 - Check & Publish, above). Not required: an older
           # bilinguist_check.py or a run where it failed to write its report
           # shouldn't block the actual briefing from publishing.
           REPORT_JSON="bilinguist-brief/scripts/output/report_${DATE}.json"

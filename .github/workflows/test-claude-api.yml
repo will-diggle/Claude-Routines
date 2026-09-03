@@ -113,7 +113,7 @@ jobs:
         # so --tier flex applies to those and gets the real Flex discount on this run.
         run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels --api claude --tier flex
 
-      - name: Stage 9 - Check completeness
+      - name: Stage 9 - Check & Publish
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 

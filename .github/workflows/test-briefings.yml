@@ -154,7 +154,7 @@ jobs:
             --tier ${{ inputs.tier }}
           echo "WRITE_SECS=$(($(date +%s) - START))" >> $GITHUB_ENV
 
-      - name: Check completeness
+      - name: Stage 9 - Check & Publish
         working-directory: bilinguist-brief/scripts
         run: python bilinguist_check.py
 
