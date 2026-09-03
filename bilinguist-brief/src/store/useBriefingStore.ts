@@ -258,7 +258,17 @@ export const useBriefingStore = create<BriefingStore>()(
           const levelUpdates: Partial<Record<LanguageCode, LanguageLevel>> = {};
           const availableUpdates: Partial<Record<LanguageCode, LanguageLevel[]>> = {};
           const availableByLengthUpdates: Partial<Record<LanguageCode, Partial<Record<ArticleLength, LanguageLevel[]>>>> = {};
-          for (const [lang, levels] of Object.entries(bundle.briefings ?? {})) {
+          // Walk both maps, not just briefings: a language can have native
+          // journalism and no CEFR levels at all (en is configured Native-only),
+          // and keying off briefings alone left it with no selectable level —
+          // so the picker came up empty and the reader was stranded on whatever
+          // level was last set, with nothing to show for it.
+          const langsInBundle = new Set([
+            ...Object.keys(bundle.briefings ?? {}),
+            ...Object.keys(bundle.nativeJournalism ?? {}),
+          ]);
+          for (const lang of langsInBundle) {
+            const levels = (bundle.briefings ?? {})[lang] ?? {};
             const cefrLevels = (Object.keys(levels) as LanguageLevel[])
               .filter((l) => CEFR_ORDER.includes(l as CefrLevel))
               .sort((a, b) => CEFR_ORDER.indexOf(a as CefrLevel) - CEFR_ORDER.indexOf(b as CefrLevel));
