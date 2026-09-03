@@ -50,6 +50,7 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import time
 import threading
@@ -230,6 +231,54 @@ RETRY_DELAYS  = [5, 15, 30, 60]   # base seconds; actual sleep = delay × (0.5�
 # If a single-call task returns fewer articles than this, retry (model gave lazy response).
 _MIN_ARTICLES_EXPECTED = 5
 _THIN_RETRY_LIMIT      = 2
+
+# ── A1 reported-speech check (English, proven violation 2026-09-03) ─────────────
+# GRAMMAR_RULE_A1_BY_LANG already bans this explicitly, by name, with a near-identical
+# worked example -- "'reports say that X is happening' is exactly as banned as 'said
+# that X happened'" -- and the writer still produced "Reports say there were worms in
+# food and bad water." Prompt wording was already as clear as it gets; the fix is the
+# same one used elsewhere in this pipeline for a constraint self-policing can't be
+# trusted to hold: check deterministically, retry with the exact violation named.
+#
+# spaCy, not a regex: a plain "verb + that" match misses English's elided-that form,
+# which is exactly what the flagship violation actually was -- "Reports say there were
+# worms..." has no literal "that" anywhere in it. A dependency parse catches both forms
+# the same way, by checking for a clausal complement (ccomp) attached to a verb of
+# saying, regardless of whether "that" is spelled out. Verified 2026-09-03 against both
+# real violations, the elided one included, plus three harmless "that" sentences that
+# a naive word-match would have to be carefully excluded and this doesn't even need to.
+#
+# English only for now -- this is the one language the violation was actually proven
+# in. A2 explicitly ALLOWS reported speech (it's a REQUIRED feature there), so this
+# check must never run outside level == "A1".
+_A1_SAYING_VERBS_EN = {"say", "state", "report", "claim", "announce", "confirm", "add", "tell"}
+_A1_CHECK_NLP_CACHE: dict = {}
+
+
+def _a1_check_nlp():
+    if "en" not in _A1_CHECK_NLP_CACHE:
+        try:
+            import spacy
+            _A1_CHECK_NLP_CACHE["en"] = spacy.load("en_core_web_sm", disable=["ner"])
+        except Exception as e:                                     # noqa: BLE001
+            print(f"[write] A1 reported-speech check unavailable ({e}) — skipping",
+                  file=sys.stderr)
+            _A1_CHECK_NLP_CACHE["en"] = None
+    return _A1_CHECK_NLP_CACHE["en"]
+
+
+def _find_a1_reported_speech(lang: str, level: str, text: str) -> Optional[str]:
+    """Return the first violating sentence, or None. Only ever checks English A1."""
+    if lang != "en" or level != "A1" or not text:
+        return None
+    nlp = _a1_check_nlp()
+    if nlp is None:
+        return None
+    doc = nlp(text)
+    for tok in doc:
+        if tok.dep_ == "ccomp" and tok.head.lemma_.lower() in _A1_SAYING_VERBS_EN:
+            return tok.sent.text.strip()
+    return None
 
 # ── Response schemas ──────────────────────────────────────────────────────────
 # Passed as response_schema to GenerateContentConfig on write stages so the API
@@ -1101,10 +1150,11 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
         # _MIN_ARTICLES_EXPECTED or every single call would retry to its limit.
         expected = min(_MIN_ARTICLES_EXPECTED, len(task.factbase or [])) or 1
         best_articles: list[dict] = []
+        current_prompt = task.prompt
         for attempt in range(_THIN_RETRY_LIMIT + 1):
             attempt_label = f"{label}-r{attempt + 1}" if attempt > 0 else label
             raw, finish_reason = call_llm(
-                client, task.model, task.prompt, attempt_label,
+                client, task.model, current_prompt, attempt_label,
                 task.stage, task.schema, task.max_output_tokens,
             )
             if not raw:
@@ -1127,6 +1177,31 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
             articles = parsed.get("articles")
             if not isinstance(articles, list):
                 articles = [parsed] if parsed.get("body") else []
+
+            # Deterministic A1 reported-speech check -- see _find_a1_reported_speech.
+            # Only ever active for lang=="en", level=="A1"; a no-op call for every
+            # other combo. A hit is treated like a thin response: don't accept these
+            # articles, retry with the exact violating sentence named so the model
+            # has something concrete to fix rather than a blind repeat.
+            violation = None
+            if attempt < _THIN_RETRY_LIMIT:
+                for art in articles:
+                    violation = _find_a1_reported_speech(task.lang, task.level, art.get("body", ""))
+                    if violation:
+                        break
+            if violation:
+                print(f"[WARN] [{attempt_label}] A1 reported-speech violation — retrying: "
+                      f"{violation!r}", file=sys.stderr)
+                current_prompt = (
+                    task.prompt
+                    + "\n\nCORRECTION REQUIRED: your previous attempt broke the A1 "
+                      f"reported-speech ban with this sentence: \"{violation}\". Rewrite "
+                      "it as two short, separate sentences with no reported-speech clause, "
+                      "and re-check the rest of the article for the same pattern before "
+                      "responding again."
+                )
+                continue
+
             if len(articles) > len(best_articles):
                 best_articles = articles
             if len(best_articles) >= expected:
@@ -1178,10 +1253,11 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
         # A skipped part loses every story in its slice, which is how combos were
         # shipping 4 of 7 articles with nothing flagged as critical.
         part_articles: list[dict] = []
+        current_sub_prompt = sub_prompt
         for attempt in range(_THIN_RETRY_LIMIT + 1):
             attempt_label = f"{sub_label}-r{attempt + 1}" if attempt > 0 else sub_label
             text, reason = call_llm(
-                client, task.model, sub_prompt, attempt_label,
+                client, task.model, current_sub_prompt, attempt_label,
                 task.stage, task.schema, task.max_output_tokens,
             )
             if reason == "MAX_TOKENS":
@@ -1197,7 +1273,31 @@ def _execute_task(client: genai.Client, task: _WriteTask) -> list[dict]:
                 print(f"[WARN] [{attempt_label}] JSON parse failed on split part — retrying",
                       file=sys.stderr)
                 continue
-            part_articles = parsed.get("articles", [])
+            candidate_articles = parsed.get("articles", [])
+
+            # Same deterministic A1 check as the single-call path -- this is the branch
+            # en-A1-longer actually goes through (English longer uses n_splits=2), which
+            # is where the proven 2026-09-03 violation was found.
+            violation = None
+            if attempt < _THIN_RETRY_LIMIT:
+                for art in candidate_articles:
+                    violation = _find_a1_reported_speech(task.lang, task.level, art.get("body", ""))
+                    if violation:
+                        break
+            if violation:
+                print(f"[WARN] [{attempt_label}] A1 reported-speech violation on split part "
+                      f"— retrying: {violation!r}", file=sys.stderr)
+                current_sub_prompt = (
+                    sub_prompt
+                    + "\n\nCORRECTION REQUIRED: your previous attempt broke the A1 "
+                      f"reported-speech ban with this sentence: \"{violation}\". Rewrite "
+                      "it as two short, separate sentences with no reported-speech clause, "
+                      "and re-check the rest of this part for the same pattern before "
+                      "responding again."
+                )
+                continue
+
+            part_articles = candidate_articles
             break
         if not part_articles:
             print(f"[ERROR] [{sub_label}] split part failed after retries — "
