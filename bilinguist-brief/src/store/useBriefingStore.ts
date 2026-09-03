@@ -315,6 +315,31 @@ export const useBriefingStore = create<BriefingStore>()(
             }
           }
 
+          // A reader can sit on a level the pipeline never produces — English is
+          // configured Native-only, so a saved B2 has no content and never will.
+          // Move them to the nearest level that does exist rather than leaving
+          // them on an empty screen; the header then reflects what they're
+          // actually reading.
+          for (const lang of useSettingsStore.getState().languages.filter((l) => l.active)) {
+            const available = availableUpdates[lang.code as LanguageCode];
+            if (!available || available.length === 0) continue;
+            const current = lang.level ?? 'B1';
+            if (available.includes(current as LanguageLevel)) continue;
+
+            const rank = (l: LanguageLevel) => {
+              const i = CEFR_ORDER.indexOf(l as CefrLevel);
+              // Native sits above every CEFR level rather than nowhere.
+              return i === -1 ? CEFR_ORDER.length : i;
+            };
+            const target = [...available].sort(
+              (a, b) => Math.abs(rank(a) - rank(current as LanguageLevel))
+                      - Math.abs(rank(b) - rank(current as LanguageLevel)),
+            )[0];
+            if (target) {
+              useSettingsStore.getState().setLanguageLevel(lang.code as LanguageCode, target);
+            }
+          }
+
           // Volume comes from the bundle (consistent across all devices). Fall back
           // to local increment for bundles published before the field was added.
           const nextVolume = bundle.volume != null
