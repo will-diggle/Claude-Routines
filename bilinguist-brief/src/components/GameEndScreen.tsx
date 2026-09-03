@@ -126,8 +126,10 @@ export function GameEndScreen({
       )}
 
       <View style={styles.center}>
-        <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.heading }]}>
-          Results
+        {/* Scaled off the reader's heading size so it still tracks their text
+            size setting, just larger — this is the headline of the screen. */}
+        <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: Math.round(fontSize.heading * 1.5) }]}>
+          Score
         </Text>
 
         {stats.length > 0 && (
@@ -233,8 +235,13 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 2,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: Spacing.xxl,
+    // Centred vertically — pinned to the top with a fixed padding it sat high
+    // on the screen. There's enough content now (taller rows, wider gaps) that
+    // centring reads composed rather than sparse.
+    justifyContent: 'center',
+    // Padding at the foot only, so the block centres in the space above it and
+    // lands a little higher than true centre — dead centre sat too low.
+    paddingBottom: Spacing.xxl * 2,
     paddingHorizontal: Spacing.lg,
     gap: Spacing.xxl,
   },
@@ -253,16 +260,17 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  // Centred and sized to content rather than stretched across the full width:
-  // equal flex:1 halves left "Play again" (10 characters) floating in the same
-  // space as "Back to practise" (16), and made both pills squat — 190x46, a
-  // 4:1 ratio. Hugging the labels lets each be snug and the pair sit centred.
+  // Equal halves, for symmetry. Content-hugging read better proportionally but
+  // left the two pills visibly different widths; matching them matters more.
+  // The long "Back to practise" label sets the floor here — equal pills that
+  // fit it come out at roughly full width, so they stay a little wide.
   pillRow: {
     flexDirection: 'row',
     gap: 12,
-    justifyContent: 'center',
+    width: '100%',
   },
   pillShadow: {
+    flex: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
