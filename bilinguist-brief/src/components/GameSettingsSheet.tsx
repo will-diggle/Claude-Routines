@@ -126,18 +126,24 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange, showDi
           </>
         )}
 
-        <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+        {/* Pulled up closer to the section above — Spacing.md read as too
+            much air once this became its own visually distinct control. */}
+        <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.sm }]}>
           ROUND SIZE
         </Text>
-        {/* Same SegmentedControl used for Text Size in Preferences — reads as
-            the same kind of choice, joined into one control rather than
-            separate chips. */}
+        {/* Same SegmentedControl used for Text Size in Preferences, so it reads
+            as the same kind of choice — joined into one control rather than
+            separate chips — but tinted with the app's own red for its active
+            segment (Text Size stays neutral chrome) and taller, since this is
+            a five-way choice you return to mid-game, not a one-off preference. */}
         <SegmentedControl
           options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n) }))}
           value={String(settings.roundSize)}
           onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
           colors={colors}
           fontFamily={fontFamily}
+          activeColor={colors.accentRed}
+          optionPaddingVertical={16}
           containerStyle={{ marginHorizontal: 0 }}
         />
       </Animated.View>

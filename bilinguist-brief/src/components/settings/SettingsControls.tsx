@@ -19,6 +19,12 @@ export function SegmentedControl({
   colors,
   fontFamily,
   containerStyle,
+  // Both default to the Text Size control's own look (chrome fill, standard
+  // height) — callers that want a different accent or a taller touch target,
+  // like the round-size picker, pass these instead of forking the component.
+  activeColor,
+  activeTextColor,
+  optionPaddingVertical,
 }: {
   options: { label: string; value: string; optionFontSize?: number }[];
   value: string;
@@ -26,6 +32,9 @@ export function SegmentedControl({
   colors: any;
   fontFamily: any;
   containerStyle?: object;
+  activeColor?: string;
+  activeTextColor?: string;
+  optionPaddingVertical?: number;
 }) {
   return (
     <View style={[segStyles.container, { borderColor: colors.borderMid, backgroundColor: colors.bg }, containerStyle]}>
@@ -36,7 +45,8 @@ export function SegmentedControl({
             key={opt.value}
             style={[
               segStyles.option,
-              selected && { backgroundColor: colors.chrome },
+              optionPaddingVertical != null && { paddingVertical: optionPaddingVertical },
+              selected && { backgroundColor: activeColor ?? colors.chrome },
               i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderMid },
             ]}
             onPress={() => onChange(opt.value)}
@@ -46,7 +56,7 @@ export function SegmentedControl({
                 segStyles.label,
                 {
                   fontFamily: selected ? fontFamily.bold : fontFamily.regular,
-                  color: selected ? colors.bg : colors.inkMid,
+                  color: selected ? (activeTextColor ?? colors.bg) : colors.inkMid,
                   fontSize: opt.optionFontSize ?? 13,
                   lineHeight: (opt.optionFontSize ?? 13) * 1.2,
                 },
