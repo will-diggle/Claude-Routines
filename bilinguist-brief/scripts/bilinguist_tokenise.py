@@ -162,7 +162,7 @@ def _load_nlp(lang: str):
             import spacy
             nlp = spacy.load(name, disable=["ner"])
         except Exception as e:                                    # noqa: BLE001
-            print(f"[tokenise] no spaCy model for {lang} ({name}): {e}", file=sys.stderr)
+            print(f"[10 spaCy — tokenise] no spaCy model for {lang} ({name}): {e}", file=sys.stderr)
     _NLP_CACHE[lang] = nlp
     return nlp
 
@@ -289,7 +289,7 @@ def validate_token_map(tokens: list, text: str, label: str) -> list:
         p = t["position"]
         # 1. surface must equal the app's Nth \p{L} match -- assert, don't trust
         if not (0 <= p < n) or t["surface"] != words[p]:
-            print(f"[tokenise] {label}: position {p} does not match the app's "
+            print(f"[10 spaCy — tokenise] {label}: position {p} does not match the app's "
                   f"tokenisation — dropping tokenMap", file=sys.stderr)
             return []
         # in-bounds, no self-links
@@ -537,7 +537,7 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
     for key in ("nativeJournalism", "nativeIntermediate"):
         for lang, length_data in (bundle.get(key) or {}).items():
             if not isinstance(length_data, dict):
-                print(f"[tokenise] {key}.{lang}: expected {{length: [...]}}, got "
+                print(f"[10 spaCy — tokenise] {key}.{lang}: expected {{length: [...]}}, got "
                       f"{type(length_data).__name__} — skipped", file=sys.stderr)
                 continue
             for length, articles in length_data.items():
@@ -554,7 +554,7 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
     langs = sorted({l for _, l, _ in tasks})
     have  = [l for l in langs if _load_nlp(l) is not None]
     skip  = [l for l in langs if l not in have]
-    print(f"[tokenise] {len(tasks)} article variants | models: {', '.join(have) or 'none'}"
+    print(f"[10 spaCy — tokenise] {len(tasks)} article variants | models: {', '.join(have) or 'none'}"
           + (f" | no model, shipping without tokenMap: {', '.join(skip)}" if skip else ""))
 
     enriched = linked = 0
@@ -566,7 +566,7 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
         try:
             tokens = analyse_article(text, lang, st)
         except Exception as e:                                    # noqa: BLE001
-            print(f"[tokenise] {label}: analysis failed ({e}) — shipping without "
+            print(f"[10 spaCy — tokenise] {label}: analysis failed ({e}) — shipping without "
                   f"tokenMap", file=sys.stderr)
             continue
         if tokens is None:
@@ -591,7 +591,7 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
         # run, instead of something eyeballed from a sample.
         # Two link types counted separately so a regression in one stays visible
         # even while the other is healthy.
-        print(f"[tokenise]   {lang}: {got}/{want} enriched, {svp_n} separable-verb "
+        print(f"[10 spaCy — tokenise]   {lang}: {got}/{want} enriched, {svp_n} separable-verb "
               f"pair(s), {art_n} article-noun pair(s){note}"
               + ("" if _load_nlp(lang) is not None else "  (no model)"))
     for lang, (got, want, _s, _a) in by_lang.items():
@@ -599,7 +599,7 @@ def enrich_bundle_with_token_maps(bundle: dict) -> int:
             print(f"[WARN] tokenise: {lang} has a spaCy model but produced no tokenMaps "
                   f"across {want} articles", file=sys.stderr)
 
-    print(f"[tokenise] Done — {enriched}/{len(tasks)} articles carry a tokenMap, "
+    print(f"[10 spaCy — tokenise] Done — {enriched}/{len(tasks)} articles carry a tokenMap, "
           f"{linked} tokens in multi-word units")
     return enriched
 

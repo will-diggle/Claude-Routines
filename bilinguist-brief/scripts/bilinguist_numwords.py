@@ -93,7 +93,7 @@ def _load_nlp(lang: str):
             import spacy
             nlp = spacy.load(name, disable=["ner", "parser"])
         except Exception as e:                                    # noqa: BLE001
-            print(f"[numwords] no spaCy model for {lang} ({name}): {e}",
+            print(f"[10 spaCy — numwords] no spaCy model for {lang} ({name}): {e}",
                   file=sys.stderr)
     _NLP_CACHE[lang] = nlp
     return nlp
@@ -123,7 +123,7 @@ def spell_number(raw: str, lang: str, is_year: bool) -> Optional[str]:
             return num2words(int(value), lang=lang)
         return num2words(value, lang=lang)
     except (NotImplementedError, OverflowError, ValueError) as e:
-        print(f"[numwords] {lang}: could not spell {raw!r} ({e}) — skipping",
+        print(f"[10 spaCy — numwords] {lang}: could not spell {raw!r} ({e}) — skipping",
               file=sys.stderr)
         return None
 
@@ -190,6 +190,6 @@ def enrich_bundle_with_number_words(bundle: dict) -> int:
                     if changed:
                         touched += 1
 
-    print(f"[numwords] {touched} A1/A2 article(s) enriched, "
+    print(f"[10 spaCy — numwords] {touched} A1/A2 article(s) enriched, "
           f"{total_numbers} number(s) spelled out")
     return touched
