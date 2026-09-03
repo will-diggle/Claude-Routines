@@ -1,0 +1,156 @@
+name: "TEST: Native + Checker only"
+
+# Isolated testing ground for the native-write + post-write-verify (the "checker") loop,
+# so that stage can be iterated on without ever touching Generate Daily Briefings or
+# publishing anything live. Runs the REAL early pipeline (real scrape, real Scoring, real
+# Fact Gathering) rather than a fixture, on purpose -- Will wants to test the checker
+# against genuinely fresh data each time, not a frozen sample.
+#
+# Stops after Stage 5's native write + grade + verify, via --stop-after-native (already
+# built into bilinguist_write.py "for A/B runs" -- nothing new needed there). CEFR levels
+# (Stage 7-8), spaCy tokenise/numwords (Stage 10), and Check & Publish (Stage 9) never run
+# -- Stage 9 in particular expects a full bundle with every CEFR combo and would just
+# report everything "missing", so it's correctly left out rather than run against a
+# native-only bundle.
+#
+# Never pushes to the data repo, never touches the live app. Output reaches an artifact
+# and a clearly [TEST]-tagged ntfy message only.
+#
+# Rough cost per run: scrape (free) + select + fact-gather (~£0.10-0.15, real Search
+# grounding) + native write/grade/verify (~£0.28-0.30, same Pro-tier composition +
+# 7-language translate + Flash-tier verify as production) -- roughly half what a full
+# daily run costs, since CEFR write/grade/tokenise (the other half) never runs.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Same reasoning as generate-briefings.yml: Actions gives Python a pipe, not a TTY,
+      # so stdout is block-buffered and a cancelled/hung step would show nothing at all.
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Notify started
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Native + Checker - Generating" \
+            -H "Tags: test_tube" \
+            -d "Native + checker test run generating. Not pushed to the app." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+
+      - name: Prompt checks (no API calls)
+        working-directory: bilinguist-brief/scripts
+        run: python test_prompts.py
+
+      - name: Stage 1 - Scrape headlines
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_scrape.py
+
+      - name: Stage 2 - Scoring (group headlines, score in Python)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: |
+          python bilinguist_gather.py --select-only
+          cp factbase_${{ env.BRIEF_DATE }}.json selection.json
+
+      - name: Stage 3 - Fact Gathering for the ranked winners
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_gather.py --from selection.json --per-story
+
+      - name: Guard - the factbase must have facts, a notification and a search log
+        working-directory: bilinguist-brief/scripts
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          d = json.load(open(f"factbase_{os.environ['BRIEF_DATE']}.json", encoding="utf-8"))
+          bad = []
+          empty = [s.get("slug") for s in d.get("factbase", []) if not (s.get("what_happened") or [])]
+          if empty:
+              bad.append(f"stories with no facts: {empty}")
+          if not (d.get("daily_notification") or "").strip():
+              bad.append("daily_notification is empty")
+          if not d.get("global_news_search_log"):
+              bad.append("global_news_search_log is empty")
+          print(f"{len(d.get('factbase', []))} stories | notification: "
+                f"{(d.get('daily_notification') or '')[:120]}")
+          if bad:
+              sys.exit("GUARD FAILED — " + "; ".join(bad))
+          print("guard passed")
+          PY
+
+      - name: Stage 4 - Verify Facts
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_factcheck.py
+
+      - name: Stage 5 - Write Native, Grade Native, Verify (checker) -- stop here
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # --stop-after-native: runs native write + grade + the post-write verify step
+        # (the "checker" being iterated on here), writes output/native_{date}.json, and
+        # returns before Stage 7 (CEFR levels), Stage 9 (Check & Publish, which expects a
+        # full bundle) or Stage 10 (tokenise) ever run.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --stop-after-native
+
+      - name: Upload native bundle as artifact (test only — not pushed to data repo)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-native-checker-${{ env.BRIEF_DATE }}
+          path: |
+            bilinguist-brief/scripts/output/native_${{ env.BRIEF_DATE }}.json
+            bilinguist-brief/scripts/output/costs_${{ env.BRIEF_DATE }}.json
+            bilinguist-brief/scripts/factbase_${{ env.BRIEF_DATE }}.json
+          retention-days: 14
+
+      - name: Notify success
+        if: success()
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Native + Checker - Done" \
+            -H "Tags: test_tube" \
+            -d "Native + checker test run finished for ${{ env.BRIEF_DATE }}. Not pushed to the app — download the GitHub Actions artifact to inspect native_${{ env.BRIEF_DATE }}.json." \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          curl -s -X POST \
+            -H "Title: [TEST] Native + Checker - Failed" \
+            -H "Priority: default" \
+            -H "Tags: test_tube" \
+            -d "Native + checker test run failed. Check GitHub Actions for details: https://github.com/will-diggle/Claude-Routines/actions" \
+            https://ntfy.sh/${{ secrets.NTFY_TOPIC }} || true
