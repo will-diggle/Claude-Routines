@@ -14,18 +14,23 @@ public class LiquidGlassView: ExpoView {
   public override func layoutSubviews() {
     super.layoutSubviews()
     effectView?.frame = bounds
-    effectView?.contentView.subviews.forEach { $0.frame = bounds }
+    // Children are React's to lay out now that they are no longer re-parented.
     updateCornerRadius()
   }
 
-  // RN mounts children directly onto this view. UIGlassEffect's interactive
-  // response only fires for touches that land inside the effect view's own
-  // contentView, so re-parent anything RN adds into it.
+  // React mounts children directly onto this view, and under the New
+  // Architecture it requires them to stay there: unmountChildComponentView
+  // asserts the child is still a direct subview, so moving one into the effect
+  // view's contentView aborts the app the moment that child unmounts.
+  //
+  // Keep the effect as a backdrop behind React's children instead. The cost is
+  // UIGlassEffect's interactive press response, which only fires for touches
+  // landing inside contentView — the glass still renders, it just no longer
+  // reacts to a finger on its own.
   public override func didAddSubview(_ subview: UIView) {
     super.didAddSubview(subview)
     guard let ev = effectView, subview !== ev else { return }
-    subview.frame = bounds
-    ev.contentView.addSubview(subview)
+    sendSubviewToBack(ev)
   }
 
   func setCornerRadius(_ radius: CGFloat) {
