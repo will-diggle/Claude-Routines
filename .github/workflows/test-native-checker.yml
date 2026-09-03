@@ -13,13 +13,19 @@ name: "TEST: Native + Checker only"
 # report everything "missing", so it's correctly left out rather than run against a
 # native-only bundle.
 #
+# Also restricted to English only, via --only-langs en (new, additive flag -- production's
+# own call never passes it and is unaffected). English is the mother article every other
+# language translates from, and what's being fixed here is specifically the English write
+# + checker loop -- the other six languages would just be cost with nothing to test.
+#
 # Never pushes to the data repo, never touches the live app. Output reaches an artifact
 # and a clearly [TEST]-tagged ntfy message only.
 #
 # Rough cost per run: scrape (free) + select + fact-gather (~£0.10-0.15, real Search
-# grounding) + native write/grade/verify (~£0.28-0.30, same Pro-tier composition +
-# 7-language translate + Flash-tier verify as production) -- roughly half what a full
-# daily run costs, since CEFR write/grade/tokenise (the other half) never runs.
+# grounding, still all 7 stories) + native write/grade/verify, English only
+# (~£0.04-0.05 -- 14 of the 98 calls a full run makes) -- a small fraction of a full
+# daily run, since six of seven native languages and all of CEFR write/grade/tokenise
+# never run.
 
 on:
   workflow_dispatch:
@@ -115,16 +121,20 @@ jobs:
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
         run: python bilinguist_factcheck.py
 
-      - name: Stage 5 - Write Native, Grade Native, Verify (checker) -- stop here
+      - name: Stage 5 - Write Native (English only), Grade, Verify (checker) -- stop here
         working-directory: bilinguist-brief/scripts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # --only-langs en: English is the mother article every other language translates
+        # from -- the fix being tested here is specifically the English write + checker
+        # loop, so the other six languages are skipped entirely, not written and not paid
+        # for. Production's own call never passes this flag and is unaffected.
         # --stop-after-native: runs native write + grade + the post-write verify step
         # (the "checker" being iterated on here), writes output/native_{date}.json, and
         # returns before Stage 7 (CEFR levels), Stage 9 (Check & Publish, which expects a
         # full bundle) or Stage 10 (tokenise) ever run.
-        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --stop-after-native
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --stop-after-native --only-langs en
 
       - name: Upload native bundle as artifact (test only — not pushed to data repo)
         uses: actions/upload-artifact@v4

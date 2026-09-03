@@ -170,6 +170,15 @@ LEVELS_FROM: str = "factbase"
 # (A1/longer is 250→110, B1/longer is 250→160). Set via --all-levels.
 ALL_LEVELS: bool = False
 
+# NATIVE_LANGS_OVERRIDE: test-pipeline only. When set, run_native_journalism() writes
+# (and, downstream, verifies) ONLY these languages instead of NATIVE_PUBLISHED +
+# NATIVE_INTERMEDIATE. None (the default) is every production language, unchanged — this
+# is additive and opt-in via --only-langs, never touched by the production workflow.
+# Built for test-native-checker.yml: isolating English lets the checker be iterated on
+# against just the mother article, without writing (and paying for) six translations that
+# aren't part of what's being tested.
+NATIVE_LANGS_OVERRIDE: Optional[list] = None
+
 # SIMPLE_REWRITE: test-pipeline only. When True and LEVELS_FROM == "native", Stage 7 uses
 # PROMPT_LEVEL_REWRITE_SIMPLE instead of the real rewrite prompt — no KEEP list, no
 # CUT_RULE/GLOSS_RULE/ATTRIBUTION_RULE, just level+word-count. Set via --simple-rewrite.
@@ -1564,7 +1573,8 @@ def run_native_journalism(
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
     # so disabled languages (empty level lists) and levels-only languages still had
     # native articles generated, graded, and shipped in the bundle.
-    native_langs = NATIVE_PUBLISHED + NATIVE_INTERMEDIATE
+    native_langs = NATIVE_LANGS_OVERRIDE if NATIVE_LANGS_OVERRIDE is not None else (
+        NATIVE_PUBLISHED + NATIVE_INTERMEDIATE)
     other_langs = [lang for lang in native_langs if lang != "en"]
     if NATIVE_INTERMEDIATE:
         print(f"[{_lbl("3")}] Native for {NATIVE_PUBLISHED} (published) + "
@@ -2031,6 +2041,13 @@ def main():
     parser.add_argument("--native-from", dest="native_from", metavar="PATH",
                         help="Skip stages 5-6 and load nativeJournalism/nativeGrades from "
                              "this bundle, so both arms share one native pass.")
+    parser.add_argument("--only-langs", dest="only_langs", metavar="LANG,LANG,...",
+                        help="Test-pipeline only. Restrict Stage 5 (native write, grade, "
+                             "verify) to this comma-separated language list -- e.g. "
+                             "'en' to test the mother article and its checker in "
+                             "isolation, without writing/paying for the other six "
+                             "translations. Unset (default) writes every production "
+                             "language, unchanged.")
     parser.add_argument("--all-levels", action="store_true", dest="all_levels",
                         help="Write every CEFR level below the native grade for every "
                              "active language, not just those listed in LANGUAGE_LEVELS. "
@@ -2060,12 +2077,21 @@ def main():
                              "Requires ANTHROPIC_API_KEY. Never use in production.")
     args = parser.parse_args()
 
-    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE, RELAX_TITLES_A1, WRITER_BACKEND
+    global PER_ARTICLE, SERVICE_TIER, LEVELS_FROM, _NATIVE_INDEX, ALL_LEVELS, _NATIVE_GRADES, SIMPLE_REWRITE, RELAX_TITLES_A1, WRITER_BACKEND, NATIVE_LANGS_OVERRIDE
     PER_ARTICLE = args.per_article
     SERVICE_TIER = "flex" if args.tier == "flex" else None
     LEVELS_FROM = args.levels_from
     ALL_LEVELS = args.all_levels
     SIMPLE_REWRITE = args.simple_rewrite
+    if args.only_langs:
+        NATIVE_LANGS_OVERRIDE = [l.strip() for l in args.only_langs.split(",") if l.strip()]
+        if "en" not in NATIVE_LANGS_OVERRIDE:
+            # English is the mother article every other language translates from --
+            # restricting to a set that excludes it would leave nothing to translate FROM.
+            print(f"[write] --only-langs {args.only_langs!r} must include 'en' — refusing",
+                  file=sys.stderr)
+            sys.exit(1)
+        print(f"[write] --only-langs active: Stage 5 restricted to {NATIVE_LANGS_OVERRIDE}")
     RELAX_TITLES_A1 = args.relax_titles_a1
     WRITER_BACKEND = args.api
     _set_workers(args.workers)
