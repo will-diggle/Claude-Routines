@@ -18,9 +18,9 @@ import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
 import * as analytics from '../services/analytics';
 import { GlassButton } from '../components/GlassButton';
 import { GameEndScreen } from '../components/GameEndScreen';
+import { GameSettingsSheet, DEFAULT_GAME_SETTINGS, type GameSettings } from '../components/GameSettingsSheet';
 
 
-const TIME_LIMIT       = 60;
 const PAIRS_PER_SCREEN = 6;
 const MIN_WORDS        = PAIRS_PER_SCREEN;
 const FADE_DURATION    = 500;
@@ -64,6 +64,8 @@ export function MatchingScreen() {
   useGameActive();
   const scoreRef = useRef(0);
   const [isNewBest, setIsNewBest] = useState(false);
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('matching', langFilter ?? 'all');
@@ -95,14 +97,14 @@ export function MatchingScreen() {
   const [selected, setSelected] = useState<SlotSel | null>(null);
   const [wrong,    setWrong]    = useState<[SlotSel, SlotSel] | null>(null);
 
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [timeLeft, setTimeLeft] = useState<number>(gameSettings.timeLimit);
   const [score,    setScore]    = useState(0);
   const [phase,    setPhase]    = useState<'playing' | 'done'>('playing');
 
-  const timeLeftRef      = useRef(TIME_LIMIT);
+  const timeLeftRef      = useRef(gameSettings.timeLimit);
   const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
   const wrongAnim        = useRef(new Animated.Value(0)).current;
-  const timerAnim        = useRef(new Animated.Value(TIME_LIMIT)).current;
+  const timerAnim        = useRef(new Animated.Value(gameSettings.timeLimit)).current;
   const shakeAnim        = useRef(new Animated.Value(0)).current;
   const shakeLoopRef     = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -146,17 +148,30 @@ export function MatchingScreen() {
     scoreRef.current = 0;
     setScore(0);
     setIsNewBest(false);
-    timeLeftRef.current = TIME_LIMIT;
-    timerAnim.setValue(TIME_LIMIT);
-    setTimeLeft(TIME_LIMIT);
+    timeLeftRef.current = gameSettings.timeLimit;
+    timerAnim.setValue(gameSettings.timeLimit);
+    setTimeLeft(gameSettings.timeLimit);
     setPhase('playing');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopShake, timerAnim]);
+  }, [stopShake, timerAnim, gameSettings.timeLimit]);
 
   useEffect(() => {
     if (eligibleWords.length >= 2) initGame(eligibleWords);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Rebuild whenever timeLimit changes in Settings — same reset the direction/
+  // roundSize effects use in the other four games, applied to Speed Snap's own
+  // setting. A fresh shuffle, not the exact words just played, matching what
+  // Play Again already does.
+  const prevTimeLimit = useRef(gameSettings.timeLimit);
+  useEffect(() => {
+    if (gameSettings.timeLimit !== prevTimeLimit.current) {
+      prevTimeLimit.current = gameSettings.timeLimit;
+      initGame(shuffle([...eligibleWords]));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings.timeLimit]);
 
   // ── Countdown timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -286,16 +301,16 @@ export function MatchingScreen() {
 
   // ── Timer bar interpolations ────────────────────────────────────────────────
   const barColor = timerAnim.interpolate({
-    inputRange: [0, TIME_LIMIT * 0.25, TIME_LIMIT * 0.5, TIME_LIMIT],
+    inputRange: [0, gameSettings.timeLimit * 0.25, gameSettings.timeLimit * 0.5, gameSettings.timeLimit],
     outputRange: ['#E53935', '#E53935', '#E65100', '#43A047'],
     extrapolate: 'clamp',
   });
   const barWidth = timerAnim.interpolate({
-    inputRange: [0, TIME_LIMIT],
+    inputRange: [0, gameSettings.timeLimit],
     outputRange: ['0%', '100%'],
     extrapolate: 'clamp',
   });
-  const timerFrac = timeLeft / TIME_LIMIT;
+  const timerFrac = timeLeft / gameSettings.timeLimit;
   const timerTextColor = timerFrac > 0.5 ? '#43A047' : timerFrac > 0.25 ? '#E65100' : '#E53935';
 
   // ── Slot tile renderer ──────────────────────────────────────────────────────
@@ -398,7 +413,12 @@ export function MatchingScreen() {
             SPEED SNAP
           </Text>
         </View>
-        <View style={{ width: 40 }} />
+        {/* Was a blank spacer balancing the back button — now a real settings
+            gear, matching every other game's GameHeader, for the one setting
+            Speed Snap actually has (time limit). */}
+        <GlassButton size={40} onPress={() => setSettingsVisible(true)}>
+          <Ionicons name="settings-outline" size={20} color={colors.inkDark} />
+        </GlassButton>
       </View>
 
       <View style={styles.timerTrack}>
@@ -428,6 +448,15 @@ export function MatchingScreen() {
         ))}
       </View>
 
+      <GameSettingsSheet
+        visible={settingsVisible}
+        settings={gameSettings}
+        onClose={() => setSettingsVisible(false)}
+        onChange={setGameSettings}
+        showDirection={false}
+        showRoundSize={false}
+        showTimeLimit
+      />
     </View>
   );
 }

@@ -9,18 +9,29 @@ import { SegmentedControl } from './settings/SettingsControls';
 export const ROUND_SIZES = [10, 15, 20, 30] as const;
 export type RoundSize = typeof ROUND_SIZES[number];
 
+// Speed Snap is timed rather than round-based, so it has no round-size
+// equivalent — it gets this instead. 60s matches the game's own previous
+// fixed duration, kept as the default so nobody's experience changes unless
+// they touch the setting.
+export const TIME_LIMITS = [30, 60, 90, 120] as const;
+export type TimeLimit = typeof TIME_LIMITS[number];
+const TIME_LIMIT_LABEL: Record<TimeLimit, string> = { 30: '30s', 60: '60s', 90: '90s', 120: '2m' };
+
 export interface GameSettings {
   direction: 'word-to-translation' | 'translation-to-word';
   errorChecking: boolean;
   /** Words/questions per round. Standard across every game except Speed Snap,
    *  which is timed rather than round-based and has no equivalent. */
   roundSize: RoundSize;
+  /** Speed Snap only — see TIME_LIMITS above. */
+  timeLimit: TimeLimit;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   direction: 'word-to-translation',
   errorChecking: false,
   roundSize: 10,
+  timeLimit: 60,
 };
 
 interface Props {
@@ -31,9 +42,17 @@ interface Props {
   /** Fill in the Blank has no word/translation direction to pick — hide that
    *  section rather than show a choice that doesn't apply to the game. */
   showDirection?: boolean;
+  /** Speed Snap has no round size — hide it there instead of showing a
+   *  setting that does nothing. */
+  showRoundSize?: boolean;
+  /** Only Speed Snap uses this — hidden everywhere else. */
+  showTimeLimit?: boolean;
 }
 
-export function GameSettingsSheet({ visible, settings, onClose, onChange, showDirection = true }: Props) {
+export function GameSettingsSheet({
+  visible, settings, onClose, onChange,
+  showDirection = true, showRoundSize = true, showTimeLimit = false,
+}: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
 
   const dragY = useRef(new Animated.Value(0)).current;
@@ -126,33 +145,60 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange, showDi
           </>
         )}
 
-        {/* Pulled up closer to the section above — Spacing.md read as too
-            much air once this became its own visually distinct control. */}
-        <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.sm }]}>
-          ROUND SIZE
-        </Text>
-        {/* Same SegmentedControl used for Text Size in Preferences, so it reads
-            as the same kind of choice — joined into one control rather than
-            separate chips — but tinted with the app's own red for its active
-            segment (Text Size stays neutral chrome) and taller, since this is
-            a five-way choice you return to mid-game, not a one-off preference. */}
-        <SegmentedControl
-          // Default label size (13pt) read thin against a segment this tall —
-          // sized up so the number itself carries the same weight as the pill.
-          // 22 ran too big; settled between that and the 13pt default.
-          options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n), optionFontSize: 17 }))}
-          value={String(settings.roundSize)}
-          onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
-          colors={colors}
-          fontFamily={fontFamily}
-          // A faded tint, matching Study Direction's own selected-row treatment
-          // above (accentRed + '10') — solid accentRed read as near-black at
-          // full opacity, since it's a dark brick red rather than a bright one.
-          activeColor={colors.accentRed + '15'}
-          activeTextColor={colors.accentRed}
-          optionPaddingVertical={16}
-          containerStyle={{ marginHorizontal: 0 }}
-        />
+        {showRoundSize && (
+          <>
+            {/* Pulled up closer to the section above — Spacing.md read as too
+                much air once this became its own visually distinct control. */}
+            <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.sm }]}>
+              ROUND SIZE
+            </Text>
+            {/* Same SegmentedControl used for Text Size in Preferences, so it
+                reads as the same kind of choice — joined into one control
+                rather than separate chips — but tinted with the app's own red
+                for its active segment (Text Size stays neutral chrome) and
+                taller, since this is a choice you return to mid-game, not a
+                one-off preference. */}
+            <SegmentedControl
+              // Default label size (13pt) read thin against a segment this
+              // tall — sized up so the number carries the same weight as the
+              // pill. 22 ran too big; settled between that and the default.
+              options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n), optionFontSize: 17 }))}
+              value={String(settings.roundSize)}
+              onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
+              colors={colors}
+              fontFamily={fontFamily}
+              // A faded tint, matching Study Direction's selected-row treatment
+              // above (accentRed + '10') — solid accentRed read as near-black
+              // at full opacity, since it's a dark brick red, not a bright one.
+              activeColor={colors.accentRed + '15'}
+              activeTextColor={colors.accentRed}
+              optionPaddingVertical={16}
+              containerStyle={{ marginHorizontal: 0 }}
+            />
+          </>
+        )}
+
+        {showTimeLimit && (
+          <>
+            <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginTop: Spacing.sm }]}>
+              TIME LIMIT
+            </Text>
+            {/* Same control and styling as Round Size in every other game —
+                Speed Snap is timed rather than round-based, so this is its
+                equivalent rather than an addition on top. */}
+            <SegmentedControl
+              options={TIME_LIMITS.map((n) => ({ label: TIME_LIMIT_LABEL[n], value: String(n), optionFontSize: 17 }))}
+              value={String(settings.timeLimit)}
+              onChange={(v) => toggle('timeLimit', Number(v) as TimeLimit)}
+              colors={colors}
+              fontFamily={fontFamily}
+              activeColor={colors.accentRed + '15'}
+              activeTextColor={colors.accentRed}
+              optionPaddingVertical={16}
+              containerStyle={{ marginHorizontal: 0 }}
+            />
+          </>
+        )}
       </Animated.View>
     </Modal>
   );

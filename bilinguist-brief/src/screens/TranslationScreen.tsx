@@ -15,6 +15,7 @@ import { GameHeader } from '../components/GameHeader';
 import { GameEndScreen } from '../components/GameEndScreen';
 import { GlassButton } from '../components/GlassButton';
 import { GlassSurface } from '../components/GlassSurface';
+import { SegmentedControl } from '../components/settings/SettingsControls';
 import { Spacing } from '../theme';
 import { useGameActive } from '../hooks/useGameActive';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -255,30 +256,22 @@ export function TranslationScreen() {
             <Text style={[styles.settingsLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
               Cards
             </Text>
-            <View style={styles.pillRow}>
-              {COUNTS.map((n) => {
-                const active = draftCount === n;
-                return (
-                  <SpringButton
-                    key={n}
-                    style={[styles.pill, { flex: 1, overflow: 'hidden' }]}
-                    onPress={() => setDraftCount(n)}
-                   
-                  >
-                    {active
-                      ? <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.accentRed, borderRadius: 10 }]} />
-                      : <GlassSurface cornerRadius={10} colorScheme={isDark ? 'dark' : 'light'} />
-                    }
-                    <Text style={[styles.pillText, {
-                      color: active ? '#fff' : colors.inkMid,
-                      fontFamily: active ? fontFamily.bold : fontFamily.regular,
-                    }]}>
-                      {n}
-                    </Text>
-                  </SpringButton>
-                );
-              })}
-            </View>
+            {/* Was its own bespoke pill row (solid accentRed fill, glass on the
+                unselected pills) — replaced with the same SegmentedControl and
+                styling Round Size uses in every other game, so this reads as
+                the identical setting rather than a differently-designed one
+                that happens to do the same job. */}
+            <SegmentedControl
+              options={COUNTS.map((n) => ({ label: String(n), value: String(n), optionFontSize: 17 }))}
+              value={String(draftCount)}
+              onChange={(v) => setDraftCount(Number(v))}
+              colors={colors}
+              fontFamily={fontFamily}
+              activeColor={colors.accentRed + '15'}
+              activeTextColor={colors.accentRed}
+              optionPaddingVertical={16}
+              containerStyle={{ marginHorizontal: 0 }}
+            />
 
             {/* Language */}
             {langsWithWords.length > 1 && (
