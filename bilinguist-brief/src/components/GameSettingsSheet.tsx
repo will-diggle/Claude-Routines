@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { GlassButton } from './GlassButton';
+import { SegmentedControl } from './settings/SettingsControls';
 
 export const ROUND_SIZES = [10, 15, 20, 30] as const;
 export type RoundSize = typeof ROUND_SIZES[number];
@@ -128,32 +129,17 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange, showDi
         <Text style={[styles.sectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           ROUND SIZE
         </Text>
-        <View style={styles.roundSizeRow}>
-          {ROUND_SIZES.map((n) => {
-            const active = settings.roundSize === n;
-            return (
-              <TouchableOpacity
-                key={n}
-                style={[
-                  styles.roundSizeChip,
-                  { borderColor: active ? colors.accentRed : colors.borderLight },
-                  active && { backgroundColor: colors.accentRed + '10' },
-                ]}
-                onPress={() => toggle('roundSize', n)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.roundSizeText,
-                    { color: active ? colors.accentRed : colors.inkDark, fontFamily: fontFamily.regular },
-                  ]}
-                >
-                  {n}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* Same SegmentedControl used for Text Size in Preferences — reads as
+            the same kind of choice, joined into one control rather than
+            separate chips. */}
+        <SegmentedControl
+          options={ROUND_SIZES.map((n) => ({ label: String(n), value: String(n) }))}
+          value={String(settings.roundSize)}
+          onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
+          colors={colors}
+          fontFamily={fontFamily}
+          containerStyle={{ marginHorizontal: 0 }}
+        />
       </Animated.View>
     </Modal>
   );
@@ -215,19 +201,5 @@ const styles = StyleSheet.create({
   optionSub: {
     fontSize: 12,
     lineHeight: 16,
-  },
-  roundSizeRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  roundSizeChip: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  roundSizeText: {
-    fontSize: 16,
   },
 });
