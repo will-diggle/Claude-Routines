@@ -2124,6 +2124,25 @@ def main():
     # looked up "lehnen" (to lean) instead of "ablehnen" (to reject). Pure spaCy,
     # local, no API call, milliseconds per article -- no risk to the 07:30 deadline.
     # A language with no model ships without a tokenMap and the app falls back.
+    #
+    # bilinguist_numwords runs FIRST, not after: it inserts new words into the
+    # article text ("25" -> "25 (twenty-five)"), and the tokeniser's positions are
+    # only valid against the FINAL text. Running it after tokenise would mean
+    # hand-shifting every already-computed position past each insertion point --
+    # exactly the fragile offset arithmetic that caused bilinguist_numwords' own
+    # fusion bug during testing (2026-08-30). Running it first means the tokeniser
+    # sees the bracketed words as ordinary text and tags them normally -- a
+    # spelled-out number is tappable like any other word, for free, no special
+    # case needed.
+    try:
+        import bilinguist_numwords
+        _t0 = time.time()
+        bilinguist_numwords.enrich_bundle_with_number_words(bundle)
+        print(f"[timing]   numwords: {time.time() - _t0:.1f}s")
+    except Exception as e:                                        # noqa: BLE001
+        print(f"[WARN] numwords skipped ({e}) — A1/A2 articles ship without "
+              f"spelled-out numbers", file=sys.stderr)
+
     try:
         import bilinguist_tokenise
         _t0 = time.time()
