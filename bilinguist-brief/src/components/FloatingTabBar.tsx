@@ -70,10 +70,16 @@ const CHIP_PAD = 12;
 const FLAG_ICON        = 24;
 const FLAG_CHIP_PAD    = 8;
 const FLAG_CHIP_W      = FLAG_ICON + FLAG_CHIP_PAD * 2;        // 40
-const SECTION_ICON     = 28;
-const SECTION_CHIP_PAD = 10;
-const SECTION_CHIP_W   = SECTION_ICON + SECTION_CHIP_PAD * 2;  // 48
-const NAV_ICON         = 28;
+
+// One shared "large chip" size for every icon-only row that isn't a flag:
+// Preferences' section chips and the right pill's route tabs. They used two
+// unrelated layout mechanisms (space-evenly + flex vs a hand-rolled width
+// formula with stale literals) that happened to look similar at one size and
+// diverged the moment either changed. Same constants, same chipGroup +
+// fixed-gap mechanism as the flags, so all four rows are laid out identically.
+const NAV_ICON     = 28;
+const NAV_CHIP_PAD = 10;
+const NAV_CHIP_W   = NAV_ICON + NAV_CHIP_PAD * 2;  // 48
 
 const CHIP_GAP = 6;
 const ROW_PAD  = 20;
@@ -170,23 +176,25 @@ const LeftContext = memo(function LeftContext({
 
   if (routeIndex === 2) {
     return (
-      <View style={[styles.fullNavRow, { justifyContent: 'space-evenly' }]}>
-        {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec) => {
-          const isActive = settingsSection === sec;
-          return (
-            <TouchableOpacity
-              key={sec}
-              style={[styles.navTabItem, styles.sectionTabItem]}
-              onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
-              onPressIn={onPressIn}
-              onPressOut={onPressOut}
-              activeOpacity={1}
-              delayPressIn={0}
-            >
-              <Ionicons name={SECTION_ICONS[sec]} size={SECTION_ICON} color={isActive ? activeColor : inactiveColor} />
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.contextRow}>
+        <View style={styles.chipGroup} onLayout={e => onChipGroupLayout(e.nativeEvent.layout.width)}>
+          {(['languages', 'genres', 'display', 'profile'] as SettingsSection[]).map((sec) => {
+            const isActive = settingsSection === sec;
+            return (
+              <TouchableOpacity
+                key={sec}
+                style={styles.contextItemNav}
+                onPress={() => { Haptics.selectionAsync(); onSettingsSection(sec); }}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                activeOpacity={1}
+                delayPressIn={0}
+              >
+                <Ionicons name={SECTION_ICONS[sec]} size={NAV_ICON} color={isActive ? activeColor : inactiveColor} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     );
   }
@@ -403,7 +411,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     Animated.parallel([
       Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
       Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightWidthAnim,  { toValue: Math.min(TABS.length * (26 + 28) + ROW_PAD, RIGHT_MAX_W), ...TM_LAYOUT_OPEN }),
+      Animated.timing(rightWidthAnim,  { toValue: Math.min(
+        NAV_CHIP_W * TABS.length + (TABS.length - 1) * CHIP_GAP + ROW_PAD, RIGHT_MAX_W,
+      ), ...TM_LAYOUT_OPEN }),
       Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE,  ...TM_LAYOUT_OPEN }),
       Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 165, useNativeDriver: true }),
       Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
@@ -474,7 +484,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
     if (idx === 2) {
       // 4 icon-only section chips, same formula as the flag chips
-      return Math.min(SECTION_CHIP_W * 4 + 3 * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
+      return Math.min(NAV_CHIP_W * 4 + 3 * CHIP_GAP + ROW_PAD, LEFT_MAX_W);
     }
     // Practice — flag-only chips (globe for All + one per language), same rules as Brief
     const plVisible = Math.min(savedLangCodes.length, 4);
@@ -611,7 +621,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     return (
       <TouchableOpacity style={styles.miniNavButton} onPress={toggleRight} onPressIn={pressInRight} onPressOut={pressOutRight} activeOpacity={1}>
         <Animated.View style={{ transform: [{ scale: iconScaleAnim }] }}>
-          <Ionicons name={currentTab.iconOff} size={28} color={activeColor} />
+          <Ionicons name={currentTab.iconOff} size={NAV_ICON} color={activeColor} />
         </Animated.View>
       </TouchableOpacity>
     );
@@ -619,7 +629,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
   function renderFullNav() {
     return (
-      <View style={styles.fullNavRow}>
+      <View style={styles.contextRow}>
+        <View style={styles.chipGroup}>
         {TABS.map((tab) => {
           const route = state.routes.find((r) => r.name === tab.route);
           if (!route) return null;
@@ -629,7 +640,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
           return (
             <TouchableOpacity
               key={route.key}
-              style={styles.navTabItem}
+              style={styles.contextItemNav}
               activeOpacity={1}
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
               onPressIn={pressInRight}
@@ -661,6 +672,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             </TouchableOpacity>
           );
         })}
+        </View>
       </View>
     );
   }
@@ -863,23 +875,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  fullNavRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  navTabItem: {
-    flex: 1,
+  // Shared by Preferences' section chips and the right pill's route tabs —
+  // same fixed-size, non-flex chip as contextItemFlagOnly, so a chipGroup row
+  // of these produces the identical true CHIP_GAP spacing the flag rows use.
+  // Section icons previously had flex: 0 and no horizontal padding at all,
+  // making the tap target the bare glyph — 24pt against a 44pt minimum, the
+  // narrowest in the app; the right pill's tabs used flex: 1 space-filling
+  // instead, whose gap depended on the pill's width rather than a set value.
+  contextItemNav: {
+    paddingHorizontal: NAV_CHIP_PAD,
+    paddingVertical: 8,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-  },
-  // Section icons had flex: 0 and no horizontal padding, making the tap target
-  // the glyph itself — 24pt against a 44pt minimum, the narrowest in the app.
-  sectionTabItem: {
-    flex: 0,
-    paddingHorizontal: SECTION_CHIP_PAD,
   },
 
   navActiveChip: {
