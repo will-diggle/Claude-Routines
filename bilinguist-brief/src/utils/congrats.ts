@@ -6,6 +6,7 @@ const PHRASES: Record<LanguageCode, string[]> = {
   de: ['Gut gemacht!', 'Perfekt!', 'Großartig!', 'Ausgezeichnet!', 'Hervorragend!', 'Unglaublich!', 'Wunderbar!', 'Klasse!', 'Spitze!', 'Phänomenal!'],
   sv: ['Bra jobbat!', 'Perfekt!', 'Lysande!', 'Utmärkt!', 'Superb!', 'Otroligt!', 'Fantastiskt!', 'Briljant!', 'Suveränt!', 'Enastående!'],
   it: ['Ben fatto!', 'Perfetto!', 'Brillante!', 'Eccellente!', 'Superbo!', 'Incredibile!', 'Fantastico!', 'Magnifico!', 'Spettacolare!', 'Straordinario!'],
+  pt: ['Muito bem!', 'Perfeito!', 'Brilhante!', 'Excelente!', 'Ótimo!', 'Incrível!', 'Fantástico!', 'Maravilhoso!', 'Sensacional!', 'Arrasou!'],
   es: ['¡Bien hecho!', '¡Perfecto!', '¡Brillante!', '¡Sobresaliente!', '¡Estupendo!', '¡Increíble!', '¡Fantástico!', '¡Maravilloso!', '¡Genial!', '¡Espectacular!'],
   tr: ['Çok iyi!', 'Mükemmel!', 'Muhteşem!', 'Olağanüstü!', 'Harika!', 'İnanılmaz!', 'Fantastik!', 'Fevkalade!', 'Bravo!', 'Süper!'],
   hu: ['Szép munka!', 'Tökéletes!', 'Brilliáns!', 'Kiváló!', 'Nagyszerű!', 'Hihetetlen!', 'Fantasztikus!', 'Csodálatos!', 'Zseniális!', 'Remek!'],
@@ -14,6 +15,18 @@ const PHRASES: Record<LanguageCode, string[]> = {
 
 /** Flat pool of all phrases across all languages — used for continuous random cycling. */
 export const ALL_CONGRATS_POOL: string[] = Object.values(PHRASES).flat();
+
+/**
+ * Flat pool of phrases for just the languages given — used for the cycling
+ * praise on the end-of-game screen, so it only ever congratulates the reader in
+ * languages they actually use (their active brief languages plus any language
+ * they've saved words in), never in one they've never touched.
+ * Falls back to English if none of the given languages have phrases.
+ */
+export function buildCongratsPool(languages: LanguageCode[]): string[] {
+  const pool = languages.flatMap((lang) => PHRASES[lang] ?? []);
+  return pool.length > 0 ? pool : PHRASES.en;
+}
 
 /** Returns one congratulations phrase per active language, all at the same random intensity. */
 export function getCongratsLines(languages: LanguageCode[]): string[] {

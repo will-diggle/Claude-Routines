@@ -11,7 +11,10 @@ import { GlassSurface } from './GlassSurface';
 import { SpringButton } from './SpringButton';
 import { GAME_META, type GameKey } from '../data/gameMeta';
 import { makeConfettiHtml } from '../utils/confettiHtml';
-import { ALL_CONGRATS_POOL } from '../utils/congrats';
+import { buildCongratsPool } from '../utils/congrats';
+import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
+import { useWordBankStore } from '../store/useWordBankStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // One end-of-game screen for all five practice games. It used to be five
 // separate implementations that had drifted on nearly every axis — title
@@ -23,10 +26,6 @@ import { ALL_CONGRATS_POOL } from '../utils/congrats';
 
 const RAINBOW = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF', '#AF52DE', '#FF2D55', '#FFFFFF'];
 const CONFETTI_HTML = makeConfettiHtml(RAINBOW, '');
-
-// Flat pool across every language, so consecutive phrases are usually in
-// different languages.
-const pickPhrase = () => ALL_CONGRATS_POOL[Math.floor(Math.random() * ALL_CONGRATS_POOL.length)];
 
 export interface GameEndStat {
   icon: React.ComponentProps<typeof Ionicons>['name'];
@@ -61,9 +60,26 @@ export function GameEndScreen({
   const insets = useSafeAreaInsets();
   const meta = GAME_META[gameKey];
 
-  // Cycles a single phrase drawn from every language's pool, rather than showing
-  // one fixed line per active language — so the praise keeps changing and
-  // arrives in a different language each time while the reader sits here.
+  // Only ever congratulate in languages the reader actually uses: their active
+  // brief languages plus any language they've saved words in. The pool used to
+  // span all nine, so a French-and-German reader could be praised in Turkish.
+  const activeLanguages = useSettingsStore(
+    useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)),
+  );
+  const savedLanguages = useWordBankStore(
+    useShallow((s) => [...new Set(s.words.map((w) => w.language))]),
+  );
+  const pool = React.useMemo(
+    () => buildCongratsPool([...new Set([...activeLanguages, ...savedLanguages])] as LanguageCode[]),
+    [activeLanguages, savedLanguages],
+  );
+  const pickPhrase = React.useCallback(
+    () => pool[Math.floor(Math.random() * pool.length)],
+    [pool],
+  );
+
+  // Cycles a single phrase so the praise keeps changing while the reader sits
+  // here, landing in a different one of their languages each time.
   const [phrase, setPhrase] = React.useState(pickPhrase);
   const phraseFade = React.useRef(new Animated.Value(1)).current;
 
@@ -97,7 +113,7 @@ export function GameEndScreen({
       <GameHeader title={meta.label} current={headerCurrent} total={headerTotal} results={headerResults} />
 
       {celebrate && (
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.confettiLayer]}>
           <WebView
             source={{ html: CONFETTI_HTML }}
             style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
@@ -166,7 +182,9 @@ export function GameEndScreen({
             <Animated.Text
               style={[
                 styles.congratsLine,
-                { color: meta.tint, fontFamily: fontFamily.bold, opacity: phraseFade },
+                // Theme's secondary text colour rather than the game's tint, so
+                // it tracks whatever colour scheme the reader has set.
+                { color: colors.inkMid, fontFamily: fontFamily.bold, opacity: phraseFade },
               ]}
             >
               {phrase}
@@ -208,8 +226,12 @@ const styles = StyleSheet.create({
   // Top-aligned with generous top padding rather than vertically centered —
   // centering a short column (no icon, no streak line now) left it floating
   // in the middle of the screen looking sparse rather than composed.
+  // Explicit z-order: a native WebView doesn't reliably sit behind later
+  // siblings just from JSX order, so the confetti was painting over the text.
+  confettiLayer: { zIndex: 1 },
   center: {
     flex: 1,
+    zIndex: 2,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: Spacing.xxl,
