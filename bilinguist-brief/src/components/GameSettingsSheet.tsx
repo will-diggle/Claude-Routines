@@ -142,7 +142,11 @@ export function GameSettingsSheet({ visible, settings, onClose, onChange, showDi
           onChange={(v) => toggle('roundSize', Number(v) as RoundSize)}
           colors={colors}
           fontFamily={fontFamily}
-          activeColor={colors.accentRed}
+          // A faded tint, matching Study Direction's own selected-row treatment
+          // above (accentRed + '10') — solid accentRed read as near-black at
+          // full opacity, since it's a dark brick red rather than a bright one.
+          activeColor={colors.accentRed + '15'}
+          activeTextColor={colors.accentRed}
           optionPaddingVertical={16}
           containerStyle={{ marginHorizontal: 0 }}
         />
