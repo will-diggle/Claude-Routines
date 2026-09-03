@@ -240,9 +240,9 @@ const styles = StyleSheet.create({
     // between "Score" and the stats tile. Centring made that first gap a
     // function of content height, so the two could never match.
     justifyContent: 'flex-start',
-    paddingTop: Spacing.xxl,
+    paddingTop: Spacing.xxl * 1.5,
     paddingHorizontal: Spacing.lg,
-    gap: Spacing.xxl,
+    gap: Spacing.xxl * 1.5,
   },
   congratsLine: { fontSize: 22, textAlign: 'center' },
   badge: { fontSize: 14, letterSpacing: 1.2 },
