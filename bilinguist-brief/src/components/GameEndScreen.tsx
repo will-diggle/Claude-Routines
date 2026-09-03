@@ -253,13 +253,16 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
+  // Centred and sized to content rather than stretched across the full width:
+  // equal flex:1 halves left "Play again" (10 characters) floating in the same
+  // space as "Back to practise" (16), and made both pills squat — 190x46, a
+  // 4:1 ratio. Hugging the labels lets each be snug and the pair sit centred.
   pillRow: {
     flexDirection: 'row',
     gap: 12,
-    width: '100%',
+    justifyContent: 'center',
   },
   pillShadow: {
-    flex: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
@@ -273,8 +276,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderRadius: 99,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 22,
     overflow: 'hidden',
   },
   pillText: { fontSize: 15 },
