@@ -235,13 +235,12 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 2,
     alignItems: 'center',
-    // Centred vertically — pinned to the top with a fixed padding it sat high
-    // on the screen. There's enough content now (taller rows, wider gaps) that
-    // centring reads composed rather than sparse.
-    justifyContent: 'center',
-    // Padding at the foot only, so the block centres in the space above it and
-    // lands a little higher than true centre — dead centre sat too low.
-    paddingBottom: Spacing.xxl * 2,
+    // Top-aligned with the top padding set to the same value as the inter-element
+    // gap, so the space between the header rule and "Score" matches the space
+    // between "Score" and the stats tile. Centring made that first gap a
+    // function of content height, so the two could never match.
+    justifyContent: 'flex-start',
+    paddingTop: Spacing.xxl,
     paddingHorizontal: Spacing.lg,
     gap: Spacing.xxl,
   },

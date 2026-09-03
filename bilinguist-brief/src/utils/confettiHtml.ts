@@ -15,17 +15,32 @@ canvas { position:fixed; top:0; left:0; }
 <body>
 <canvas id="c"></canvas>
 <script>
-var SW = (window.innerWidth  > 10 ? window.innerWidth  : ${SW});
-var SH = (window.innerHeight > 10 ? window.innerHeight : ${SH});
-
+var SW = 0, SH = 0;
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
 var dpr = window.devicePixelRatio || 1;
-canvas.width  = Math.round(SW * dpr);
-canvas.height = Math.round(SH * dpr);
-canvas.style.width  = SW + 'px';
-canvas.style.height = SH + 'px';
-ctx.scale(dpr, dpr);
+
+// Sizing is re-derived rather than captured once at parse time. Inside a
+// WebView, window.innerWidth/innerHeight aren't reliable until the viewport
+// has settled, and the particle field is laid out from SW/SH — so reading
+// them too early produced a field a fraction of the screen, drawn into the
+// top-left corner. Called again on load and resize, and the field is rebuilt
+// if the dimensions actually changed.
+function sizeCanvas() {
+  var w = (window.innerWidth  > 10 ? window.innerWidth  : ${SW});
+  var h = (window.innerHeight > 10 ? window.innerHeight : ${SH});
+  if (w === SW && h === SH) return false;
+  SW = w; SH = h;
+  dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.round(SW * dpr);
+  canvas.height = Math.round(SH * dpr);
+  canvas.style.width  = SW + 'px';
+  canvas.style.height = SH + 'px';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  return true;
+}
+sizeCanvas();
 
 // ── Physics constants ─────────────────────────────────────────────────────────
 var BURST_COUNT     = 260;
@@ -413,10 +428,20 @@ function startDrainMode() {
   prevTs = 0;
 }
 
-// Start immediately rather than on window.onload — this script sits at the end
-// of <body> so the DOM is already parsed, and onload additionally waits for the
-// whole page to finish loading, which showed up as the confetti arriving late.
+// Start immediately — this script sits at the end of <body>, so waiting on
+// window.onload (which blocks until every subresource has loaded) is what made
+// the confetti arrive late. Geometry is corrected separately below if the
+// viewport wasn't settled yet.
 handleReset(colors, flagEmoji);
+
+// If the viewport reported different dimensions once it settled, re-size and
+// rebuild so the field covers the real screen rather than the early guess.
+function resyncGeometry() {
+  if (sizeCanvas()) handleReset(colors, flagEmoji);
+}
+window.addEventListener('load', resyncGeometry);
+window.addEventListener('resize', resyncGeometry);
+window.addEventListener('orientationchange', resyncGeometry);
 </script>
 </body>
 </html>`;
