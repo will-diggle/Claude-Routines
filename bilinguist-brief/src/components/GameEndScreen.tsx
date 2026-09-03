@@ -47,14 +47,13 @@ interface Props {
   /** Speed Snap's "NEW BEST!" badge. Nothing else uses this. */
   celebrateBadge?: string;
   stats: GameEndStat[];
-  streak: number;
   onPlayAgain: () => void;
   onBack: () => void;
 }
 
 export function GameEndScreen({
   gameKey, headerCurrent, headerTotal, headerResults,
-  celebrate, celebrateBadge, stats, streak, onPlayAgain, onBack,
+  celebrate, celebrateBadge, stats, onPlayAgain, onBack,
 }: Props) {
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -90,8 +89,6 @@ export function GameEndScreen({
       )}
 
       <View style={styles.center}>
-        <Ionicons name={meta.icon} size={48} color={meta.tint} />
-
         {celebrate && congratsLines.map((line, i) => (
           <Text
             key={i}
@@ -111,16 +108,12 @@ export function GameEndScreen({
         </Text>
 
         {stats.length > 0 && (
-          <View style={[styles.statsBox, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+          <View style={[styles.statsBox, { backgroundColor: colors.card }]}>
             <View style={{ borderRadius: 12, overflow: 'hidden' }}>
               {stats.map((s, i) => <DoneStatRow key={i} {...s} />)}
             </View>
           </View>
         )}
-
-        <Text style={[styles.streakText, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>
-          {streak} day streak
-        </Text>
 
         {/* Two glass pills, matching the Save-word pill's material: a
             GlassSurface laid down as a background with the label/icon as
@@ -184,21 +177,36 @@ function GameEndPill({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.lg, gap: 10 },
+  // Top-aligned with generous top padding rather than vertically centered —
+  // centering a short column (no icon, no streak line now) left it floating
+  // in the middle of the screen looking sparse rather than composed.
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: Spacing.xxl * 1.4,
+    paddingHorizontal: Spacing.lg,
+    gap: 16,
+  },
   congratsLine: { fontSize: 18, textAlign: 'center' },
   badge: { fontSize: 13, letterSpacing: 1 },
-  title: { textAlign: 'center', marginTop: 4 },
+  title: { textAlign: 'center' },
+  // A floating tile, not a bordered box — shadow instead of a border, matching
+  // the card treatment used elsewhere in the app (word tiles, flashcards).
   statsBox: {
     width: '100%',
     borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: 4,
+    marginTop: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.11,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  streakText: { fontSize: 15, marginTop: 2 },
   pillRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 14,
+    marginTop: 6,
     width: '100%',
   },
   pillShadow: {

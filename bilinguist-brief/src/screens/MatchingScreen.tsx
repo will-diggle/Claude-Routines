@@ -59,7 +59,7 @@ export function MatchingScreen() {
   const route = useRoute<RouteProp<PracticeStackParamList, 'Matching'>>();
   const langFilter = route.params?.language;
   const { words } = useWordBankStore();
-  const { recordSession, streak, speedSnapHighScore, setSpeedSnapHighScore } = useStreakStore();
+  const { recordSession, speedSnapHighScore, setSpeedSnapHighScore } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   useGameActive();
   const scoreRef = useRef(0);
@@ -374,7 +374,6 @@ export function MatchingScreen() {
         celebrate={isNewBest}
         celebrateBadge={isNewBest ? 'NEW BEST!' : undefined}
         stats={stats}
-        streak={streak}
         onPlayAgain={() => initGame(shuffle([...eligibleWords]))}
         onBack={() => navigation.goBack()}
       />
@@ -504,7 +503,6 @@ const styles = StyleSheet.create({
   },
   statLabel:  { flex: 1, fontSize: 15 },
   statValue:  { fontSize: 20 },
-  streakText: { fontSize: 20 },
   doneBtn: {
     borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },

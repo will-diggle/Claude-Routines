@@ -53,7 +53,7 @@ export function FillBlankScreen() {
   const route = useRoute<RouteProp<PracticeStackParamList, 'FillBlank'>>();
   const langFilter = route.params?.language;
   const { words, recordPractice } = useWordBankStore();
-  const { recordSession, streak } = useStreakStore();
+  const { recordSession } = useStreakStore();
   useGameActive();
   useFocusEffect(useCallback(() => {
     analytics.trackGameOpened('fill_blank', langFilter ?? 'all');
@@ -117,7 +117,6 @@ export function FillBlankScreen() {
           { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Correct', value: correct },
           { icon: 'close-circle-outline',     tint: '#E53935', label: 'Wrong',   value: eligible.length - correct },
         ]}
-        streak={streak}
         onPlayAgain={playAgain}
         onBack={() => navigation.goBack()}
       />
@@ -319,7 +318,6 @@ const styles = StyleSheet.create({
   actionButtonText: { color: '#FFF', fontSize: 16 },
 
   doneTitle: { textAlign: 'center' },
-  streakText: { fontSize: 20 },
   doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },

@@ -77,7 +77,7 @@ export function MultipleChoiceScreen() {
     analytics.trackGameOpened('multiple_choice', langFilter ?? 'all');
   }, [langFilter]));
   const { words, recordPractice } = useWordBankStore();
-  const { recordSession, streak } = useStreakStore();
+  const { recordSession } = useStreakStore();
 
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -112,7 +112,17 @@ export function MultipleChoiceScreen() {
     flipAnim.setValue(0);
   }, [index, flipAnim]);
 
+  // Guards handleNext against firing twice for the same question — a fast
+  // double-tap dispatches both calls before React commits a re-render, so
+  // state alone can't tell the second call the round already finished. Ref
+  // updates synchronously, so it can. Without this, a double-tap on the last
+  // question can set `done` twice, the second time reading a `correct` that
+  // handleSelect had already bumped again — one extra correct answer than
+  // questions actually asked, and `wrong` computed negative.
+  const doneLockRef = useRef(false);
+
   function startRound(direction: GameSettings['direction']) {
+    doneLockRef.current = false;
     setQuestions(buildRound(direction));
     setIndex(0);
     setSelected(null);
@@ -165,7 +175,6 @@ export function MultipleChoiceScreen() {
           { icon: 'arrow-forward-circle-outline',  tint: colors.inkFaint,  label: 'Skipped', value: done.skipped },
           { icon: 'close-circle-outline',          tint: '#E53935',        label: 'Wrong',   value: done.wrong },
         ]}
-        streak={streak}
         onPlayAgain={() => startRound(gameSettings.direction)}
         onBack={() => navigation.goBack()}
       />
@@ -182,6 +191,10 @@ export function MultipleChoiceScreen() {
 
   function handleNext() {
     const isLast = index + 1 >= questions.length;
+    if (isLast) {
+      if (doneLockRef.current) return;
+      doneLockRef.current = true;
+    }
     if (selected === null) {
       // Skip — don't record practice, just advance
       const newSkipped = skipped + 1;
@@ -505,7 +518,6 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
   statLabel: { flex: 1, fontSize: 15 },
   statValue: { fontSize: 20 },
-  streakText: { fontSize: 20 },
   doneButton: { borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14 },
   doneButtonText: { color: '#FFF', fontSize: 16 },
   congratsLine: { fontSize: 18, letterSpacing: 0.5 },

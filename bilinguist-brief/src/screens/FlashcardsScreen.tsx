@@ -109,7 +109,7 @@ export function FlashcardsScreen() {
     analytics.trackGameOpened('flashcards', langFilter ?? 'all');
   }, [langFilter]));
   const { words, recordPractice, backfillWord } = useWordBankStore();
-  const { recordSession, streak } = useStreakStore();
+  const { recordSession } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const activeCodes = new Set(activeLanguages);
 
@@ -303,7 +303,6 @@ export function FlashcardsScreen() {
           { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Got it',  value: done.correct },
           { icon: 'close-circle-outline',     tint: '#E53935', label: 'No idea', value: done.missed },
         ]}
-        streak={streak}
         onPlayAgain={playAgain}
         onBack={() => navigation.goBack()}
       />
@@ -918,7 +917,6 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.md },
   statLabel: { flex: 1, fontSize: 15 },
   statValue: { fontSize: 20 },
-  streakText: { fontSize: 20 },
   doneBtn: {
     borderRadius: 12, paddingHorizontal: Spacing.xxl, paddingVertical: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
