@@ -2435,7 +2435,17 @@ def main():
                              if k not in NATIVE_INTERMEDIATE},
         "nativeIntermediate": {k: v for k, v in native_journalism.items()
                                if k in NATIVE_INTERMEDIATE},
-                       "nativeGrades": native_grades}, f, ensure_ascii=False, indent=2)
+                       "nativeGrades": native_grades,
+                       # Previously omitted here (only ever visible in the console log,
+                       # had to be pasted by hand) -- flagged as worth fixing 2026-09-03,
+                       # done now 2026-09-04 specifically so a test run of the new
+                       # pre-translation English check has something inspectable to look
+                       # at beyond scrolling the log.
+                       "nativeFactCheck": native_check,
+                       "nativeFactCheckPreTranslation": {
+                           "findings": _EN_PRECHECK_FINDINGS,
+                           "applied": sum(1 for f in _EN_PRECHECK_FINDINGS if f.get("applied")),
+                       }}, f, ensure_ascii=False, indent=2)
         print(f"[write] --stop-after-native: wrote {_p}. Stages 7-8 skipped.")
         write_costs_report(date, script_dir)
         return
