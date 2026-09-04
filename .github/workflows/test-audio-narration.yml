@@ -1,0 +1,98 @@
+name: "TEST: Audio Narration only"
+
+# Isolated testing ground for the new audio-narration stage (bilinguist_audio.py),
+# so it can be checked end-to-end -- real Google Cloud TTS calls, real Cloudflare R2
+# uploads -- without regenerating an entire day's articles (~£0.67, 5-6 minutes of
+# Gemini calls across every other stage) just to find out whether audio works.
+#
+# Reuses a REAL, already-published bundle (today's actual latest.json from the data
+# repo) as input. Nothing about the article text is touched or regenerated -- this
+# workflow calls bilinguist_audio.py directly against real, already-written GLOBAL
+# NEWS articles, which is all the audio stage itself ever reads. Never pushes
+# anything back to the data repo; the resulting bundle (with real audioKey fields
+# set) is uploaded as a workflow artifact only, so it can be inspected without
+# affecting production.
+#
+# Running this twice in a row is a genuine extra test, not wasted effort: the
+# second run should find every audioKey's R2 object already exists (the stage's own
+# idempotency check, _r2_object_exists) and skip re-synthesising/re-uploading, which
+# confirms that behaviour works too.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Fetch today's real, already-published bundle to test against
+        env:
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          git clone --depth 1 https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
+          mkdir -p bilinguist-brief/scripts/output
+          cp /tmp/bilinguist-data/latest.json bilinguist-brief/scripts/output/latest.json
+          echo "Bundle date: $(python3 -c "import json; print(json.load(open('bilinguist-brief/scripts/output/latest.json'))['date'])")"
+
+      - name: Run the audio narration stage
+        working-directory: bilinguist-brief/scripts
+        env:
+          GOOGLE_TTS_CREDENTIALS_B64: ${{ secrets.GOOGLE_TTS_CREDENTIALS_B64 }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python bilinguist_audio.py
+
+      - name: Summarise audioKey coverage (no secrets, safe to read in the log)
+        working-directory: bilinguist-brief/scripts
+        run: |
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          bundle = json.load(open("output/latest.json", encoding="utf-8"))
+          briefings = bundle.get("briefings") or {}
+          total = 0
+          by_status = Counter()
+          by_lang = Counter()
+          for lang, by_level in briefings.items():
+              for level, by_length in by_level.items():
+                  for length, briefing in by_length.items():
+                      for a in briefing.get("articles", []):
+                          if (a.get("genre") or "").upper() != "GLOBAL NEWS":
+                              continue
+                          total += 1
+                          key = a.get("audioKey")
+                          by_status["has_key" if key else "null"] += 1
+                          if key:
+                              by_lang[lang] += 1
+          print(f"{total} GLOBAL NEWS article(s) in scope")
+          print(f"  audioKey set: {by_status['has_key']}")
+          print(f"  audioKey null (failed or skipped): {by_status['null']}")
+          print(f"  by language (successful only): {dict(by_lang)}")
+          PY
+
+      - name: Upload result bundle as an artifact (audioKey fields included, never pushed anywhere)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-audio-narration-result
+          path: bilinguist-brief/scripts/output/latest.json
+          retention-days: 7
