@@ -90,6 +90,65 @@ jobs:
           print(f"  by language (successful only): {dict(by_lang)}")
           PY
 
+      - name: Verify R2 state directly (independent of the audio stage's own success claim)
+        working-directory: bilinguist-brief/scripts
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          import boto3
+
+          account_id = os.environ["R2_ACCOUNT_ID"].strip()
+          access_key_id = os.environ["R2_ACCESS_KEY_ID"].strip()
+          secret_key = os.environ["R2_SECRET_ACCESS_KEY"].strip()
+          endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+
+          # Fingerprints only -- never the real values. GitHub will mask the
+          # account_id substring in `endpoint` below since it's the literal
+          # secret; these hashes let Will independently confirm a match by
+          # hashing his own real Cloudflare account ID / R2 access key ID the
+          # same way, without either value ever appearing in this log.
+          print(f"endpoint (account_id auto-masked by GitHub if it appears): {endpoint}")
+          print(f"account_id fingerprint  (sha256, first 12 hex): {hashlib.sha256(account_id.encode()).hexdigest()[:12]}")
+          print(f"access_key_id fingerprint (sha256, first 12 hex): {hashlib.sha256(access_key_id.encode()).hexdigest()[:12]}")
+
+          bundle = json.load(open("output/latest.json", encoding="utf-8"))
+          date = bundle["date"]
+
+          client = boto3.client(
+              "s3",
+              endpoint_url=endpoint,
+              aws_access_key_id=access_key_id,
+              aws_secret_access_key=secret_key,
+              region_name="auto",
+          )
+
+          bucket = "bilinguist-audio"
+          paginator = client.get_paginator("list_objects_v2")
+          objects = []
+          for page in paginator.paginate(Bucket=bucket, Prefix=f"{date}/"):
+              objects.extend(page.get("Contents", []))
+
+          total_bytes = sum(o["Size"] for o in objects)
+          by_lang = {}
+          for o in objects:
+              lang = o["Key"].split("/")[1] if "/" in o["Key"] else "?"
+              by_lang[lang] = by_lang.get(lang, 0) + 1
+
+          print(f"\nREAL objects in r2://{bucket}/{date}/*: {len(objects)}")
+          print(f"total bytes: {total_bytes}")
+          print(f"by language: {by_lang}")
+          print("sample keys (up to 5):")
+          for o in sorted(objects, key=lambda o: o["Key"])[:5]:
+              print(f"  {o['Key']}  ({o['Size']} bytes, modified {o['LastModified']})")
+          PY
+
       - name: Upload result bundle as an artifact (audioKey fields included, never pushed anywhere)
         uses: actions/upload-artifact@v4
         with:
