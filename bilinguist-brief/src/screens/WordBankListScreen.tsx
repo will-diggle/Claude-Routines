@@ -3,7 +3,7 @@ import { GlassButton } from '../components/GlassButton';
 import { BlurView } from 'expo-blur';
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, Animated, Modal, Pressable,
+  View, Text, FlatList, StyleSheet, Animated, Modal, Pressable, useWindowDimensions,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,7 @@ import { WordDetailSheet } from '../components/WordDetailSheet';
 import { Spacing } from '../theme';
 import type { LanguageCode } from '../store/useSettingsStore';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { FLOAT_TAB_INSET, IPAD_SIDEBAR_W } from '../components/FloatingTabBar';
 
 type WordBankNav = NativeStackNavigationProp<PracticeStackParamList>;
 
@@ -51,6 +51,8 @@ const PILE_LABEL: Record<Pile | 'all', string> = {
 
 export function WordBankListScreen() {
   const { colors, fontFamily, fontSize, isDark } = useTheme();
+  const { width: winW } = useWindowDimensions();
+  const isIPad = winW >= 768;
   const navigation = useNavigation<WordBankNav>();
   const route = useRoute<RouteProp<PracticeStackParamList, 'WordBankList'>>();
 
@@ -77,7 +79,7 @@ export function WordBankListScreen() {
   const sorted = [...filtered].sort((a, b) => a.word.localeCompare(b.word));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, paddingLeft: isIPad ? IPAD_SIDEBAR_W : 0 }} edges={['top']}>
       {/* Nav header */}
       <View style={[styles.navHeader, { borderBottomColor: colors.borderLight }]}>
         <GlassButton onPress={() => navigation.goBack()} size={44}>
@@ -157,7 +159,7 @@ export function WordBankListScreen() {
         <FlatList
           data={sorted}
           keyExtractor={(w) => w.id}
-          contentContainerStyle={{ paddingBottom: FLOAT_TAB_INSET }}
+          contentContainerStyle={{ paddingBottom: isIPad ? 40 : FLOAT_TAB_INSET }}
           renderItem={({ item }) => (
             <Swipeable
               ref={(ref) => {

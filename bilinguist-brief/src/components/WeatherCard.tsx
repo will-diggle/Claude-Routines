@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import WebView from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassSurface, glassAvailable } from './GlassSurface';
+import { IPAD_SIDEBAR_W } from './FloatingTabBar';
 import { WordPopup } from './WordPopup';
 import { useTheme } from '../hooks/useTheme';
 import type { WeatherData, RainviewerFrame, CityTemp, WindGrid } from '../services/weather';
@@ -827,7 +828,10 @@ export interface WeatherCardHandle { openModal: () => void; }
 export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(function WeatherCard({ weather, language, level, modalY, iPadLayout = false }, ref) {
   const { width: winW } = useWindowDimensions();
   const MAP_H       = Math.round((winW - 56) * 0.88);
-  const IPAD_RIGHT_W = Math.round((winW - 36) * 0.40);
+  // This card renders inside content already inset by the sidebar's width on
+  // iPad, so the right-hand map column should size off the space actually
+  // available to it rather than the full device width.
+  const IPAD_RIGHT_W = Math.round(((iPadLayout ? winW - IPAD_SIDEBAR_W : winW) - 36) * 0.40);
   const IPAD_MAP_H   = Math.round(IPAD_RIGHT_W * 0.62);
 
   const { colors, fontFamily, fontSize, isDark } = useTheme();

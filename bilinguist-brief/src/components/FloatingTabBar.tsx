@@ -18,6 +18,7 @@ import { useAudioStore } from '../store/useAudioStore';
 import { FlagCircle, GlobeCircle } from './FlagCircle';
 import { GlassSurface, glassAvailable } from './GlassSurface';
 import * as Haptics from 'expo-haptics';
+import { IPadSidebar } from './IPadSidebar';
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
@@ -731,6 +732,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     : <GlobeCircle size={30} />;
 
   if (gameActive) return null;
+
+  // iPad gets a persistent left sidebar instead of the bottom floating pill —
+  // a proper full-height nav column rather than a phone-reach idiom. Routed
+  // here (rather than earlier) so it still respects gameActive above, and
+  // rendered by a wholly separate component so nothing below this line
+  // (the phone pill bar and all its animation state) is affected by it.
+  if (isIPad) return <IPadSidebar state={state} navigation={navigation} />;
 
   // Matches the article body's horizontal padding (Spacing.md) so the pill
   // edges line up with the text column in both open and closed states.

@@ -5,7 +5,7 @@ import { useScrollTabBar } from '../hooks/useScrollTabBar';
 import { View, Text, ScrollView, Modal, StyleSheet, Pressable, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type Pile, type SavedWord } from '../store/useWordBankStore';
@@ -13,7 +13,7 @@ import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { FLOAT_TAB_INSET, IPAD_SIDEBAR_W } from '../components/FloatingTabBar';
 import { TopBar } from '../components/TopBar';
 import { WordDetailSheet } from '../components/WordDetailSheet';
 import type { PracticeStackParamList } from '../navigation/PracticeNavigator';
@@ -48,6 +48,7 @@ export function PracticeScreen() {
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const { width: winW } = useWindowDimensions();
   const isIPad = winW >= 768;
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<PracticeNav>();
   const words = useWordBankStore(useShallow((s) => s.words));
   const { streak, freezeDatesUsed } = useStreakStore(useShallow((s) => ({ streak: s.streak, freezeDatesUsed: s.freezeDatesUsed })));
@@ -101,7 +102,13 @@ export function PracticeScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        // iPad: sidebar lives on the left instead of a floating bottom bar —
+        // reserve its width instead of Spacing.md, and drop the now-unneeded
+        // FLOAT_TAB_INSET bottom reservation.
+        isIPad && { paddingLeft: IPAD_SIDEBAR_W + Spacing.md, paddingBottom: insets.bottom + Spacing.xl },
+      ]}
       scrollEventThrottle={16}
       onScroll={onScrollPractice}
     >
@@ -158,7 +165,7 @@ export function PracticeScreen() {
                 key={pile.key}
                 onPress={() => !isEmpty && navigation.navigate('WordBankList', { pile: pile.key, language: selectedLang })}
                 activeOpacity={isEmpty ? 1 : 0.7}
-                containerStyle={{ width: '47.5%' }}
+                containerStyle={{ width: isIPad ? '23%' : '47.5%' }}
                 style={[
                   styles.pileCard,
                   {

@@ -6,7 +6,7 @@ import { LanguageCard, nativeLabel, cardStyles, type LangCardProps } from '../co
 
 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { FLOAT_TAB_INSET, IPAD_SIDEBAR_W } from '../components/FloatingTabBar';
 import {
   View,
   Text,
@@ -417,7 +417,12 @@ export function SettingsScreen() {
         /* ── iPad: active section content only (sidebar nav lives in FloatingTabBar) ── */
         <ScrollView
           style={{ flex: 1, backgroundColor: colors.bg }}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            // No floating bottom bar on iPad (sidebar lives on the left instead) —
+            // don't reserve FLOAT_TAB_INSET's worth of empty scroll space for it.
+            { paddingLeft: IPAD_SIDEBAR_W, paddingBottom: insets.bottom + Spacing.xl },
+          ]}
           keyboardShouldPersistTaps="handled"
           scrollEnabled={!isDragging}
           showsVerticalScrollIndicator={false}

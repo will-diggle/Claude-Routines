@@ -23,7 +23,7 @@ import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { StreakCelebrationModal } from '../components/StreakCelebrationModal';
 import { FullSweepModal } from '../components/FullSweepModal';
 import { NewLanguageAnnouncementModal, useNewLanguageAnnouncement } from '../components/NewLanguageAnnouncementModal';
-import { FLOAT_TAB_BOTTOM, FLOAT_TAB_INSET } from '../components/FloatingTabBar';
+import { FLOAT_TAB_BOTTOM, FLOAT_TAB_INSET, IPAD_SIDEBAR_W } from '../components/FloatingTabBar';
 import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
@@ -197,7 +197,10 @@ export function BriefingScreen() {
   const { colors, fontFamily, background, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
-  const lockupW = Math.round(winW * (winW >= 768 ? 0.38 : 1.18));
+  const isIPad = winW >= 768;
+  // iPad: content sits to the right of the persistent sidebar, so the masthead
+  // should size off the space actually available for it, not the full device width.
+  const lockupW = Math.round(winW >= 768 ? (winW - IPAD_SIDEBAR_W) * 0.5 : winW * 1.18);
   const lockupH = Math.round(lockupW / 6.21);
   const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
     useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength }))
@@ -592,6 +595,8 @@ export function BriefingScreen() {
           style={[
             styles.fixedDots,
             { top: insets.top + 2 },
+            // Centre within the visible (non-sidebar) content column on iPad.
+            { left: isIPad ? IPAD_SIDEBAR_W : 0 },
             {
               opacity: briefingScrollY.interpolate({
                 inputRange: [0, 60],
@@ -658,7 +663,9 @@ export function BriefingScreen() {
           const pillColor = SCROLL_PILL_COLORS[background] ?? '#222222';
           const PILL_H = 40;
           const PILL_TRACK_TOP    = insets.top + 20;
-          const PILL_TRACK_BOTTOM = winH - FLOAT_TAB_INSET - PILL_H - 20;
+          // No floating bottom bar on iPad (sidebar lives on the left instead) —
+          // don't reserve FLOAT_TAB_INSET's worth of track for it.
+          const PILL_TRACK_BOTTOM = winH - (isIPad ? insets.bottom + 24 : FLOAT_TAB_INSET) - PILL_H - 20;
           const pillTranslateY = scrollProgress.interpolate({
             inputRange: [0, 1],
             outputRange: [0, PILL_TRACK_BOTTOM - PILL_TRACK_TOP],
@@ -673,6 +680,10 @@ export function BriefingScreen() {
               contentContainerStyle={[
                 styles.pageContent,
                 { paddingTop: insets.top + 12, paddingBottom: 0 },
+                // Inset reading content past the sidebar on iPad. The page itself
+                // stays full window width (untouched) so horizontal paging math
+                // keeps working exactly as before — only the content inside is padded.
+                isIPad && { paddingLeft: IPAD_SIDEBAR_W },
               ]}
               showsVerticalScrollIndicator={false}
               directionalLockEnabled

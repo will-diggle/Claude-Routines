@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, useWindowDimensions } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../hooks/useTheme';
+import { IPAD_SIDEBAR_W } from './FloatingTabBar';
 import type { BackgroundKey } from '../theme';
 
 const LOGOMARK = require('../../assets/logomark.png');
@@ -40,6 +41,10 @@ export function TopBar({ routeName, onLogoPress }: Props) {
   const isBriefing = routeName === 'Briefing';
   const dateStr = new Date().toLocaleDateString('en-GB', DATE_OPTIONS).toUpperCase();
   const imageStyle = isNight ? { opacity: 0.85 } : undefined;
+  // iPad: the compact header below is only ever shown inside Settings/Practice
+  // content that's already inset by the persistent sidebar's width — size the
+  // lockup off the space actually available to it, not the full device width.
+  const compactAvailW = winW >= 768 ? winW - IPAD_SIDEBAR_W : winW;
 
   if (isBriefing) {
     return (
@@ -98,7 +103,7 @@ export function TopBar({ routeName, onLogoPress }: Props) {
         <Image
           key={bg}
           source={MASTHEADS[bg]}
-          style={[styles.compactLockup, { width: winW - 48, height: Math.round((winW - 48) / 6.21) }, imageStyle]}
+          style={[styles.compactLockup, { width: compactAvailW - 48, height: Math.round((compactAvailW - 48) / 6.21) }, imageStyle]}
           resizeMode="contain"
         />
       </TouchableOpacity>
