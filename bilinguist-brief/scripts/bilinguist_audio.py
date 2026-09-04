@@ -207,10 +207,19 @@ def _build_voice_assignments(bundle: dict, date: str) -> None:
                 language_code, pool[(i + start) % len(pool)])
 
 
+def _r2_env(name: str) -> str:
+    """Read an R2 credential env var with whitespace stripped -- GitHub's
+    secret paste box has repeatedly captured a trailing newline from clipboard
+    round-trips this session (same failure mode we hit with the Google
+    credential earlier), and a stray '\\n' inside an AWS SigV4 Credential
+    scope breaks the Authorization header outright."""
+    return (os.environ.get(name) or "").strip()
+
+
 def _r2_credentials_present() -> bool:
-    return bool(os.environ.get("R2_ACCOUNT_ID")
-                and os.environ.get("R2_ACCESS_KEY_ID")
-                and os.environ.get("R2_SECRET_ACCESS_KEY"))
+    return bool(_r2_env("R2_ACCOUNT_ID")
+                and _r2_env("R2_ACCESS_KEY_ID")
+                and _r2_env("R2_SECRET_ACCESS_KEY"))
 
 
 def _google_credentials_present() -> bool:
@@ -247,12 +256,12 @@ def _r2_client():
     """boto3 client against R2's S3-compatible endpoint. Only ever called
     once credentials are confirmed present -- see _r2_credentials_present."""
     import boto3
-    account_id = os.environ["R2_ACCOUNT_ID"]
+    account_id = _r2_env("R2_ACCOUNT_ID")
     return boto3.client(
         "s3",
         endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+        aws_access_key_id=_r2_env("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=_r2_env("R2_SECRET_ACCESS_KEY"),
         region_name="auto",
     )
 
