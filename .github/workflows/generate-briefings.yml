@@ -176,6 +176,27 @@ jobs:
       # - name: Stage 11 - Dictionary (disabled -- app reads word meanings from a
       #   separate Cloudflare Worker + D1, not this Supabase table)
 
+      - name: Stage - Audio Narration (Global News, purely additive)
+        # New 2026-09-04, Will's request. Runs after every existing stage (specifically
+        # after Stage 9 - Check & Publish, above) has already finished, and reads the same
+        # output/latest.json bundle those stages produced -- adds an "audioKey" field to
+        # GLOBAL NEWS articles in the leveled `briefings` structure, nothing else. See
+        # bilinguist_audio.py's module docstring for the full design and for exactly what
+        # a human still needs to provision (a Google Cloud service account + a Cloudflare
+        # R2 bucket and API token) before this does anything beyond logging that it's
+        # skipping itself. continue-on-error here is a second, belt-and-braces safety net
+        # on top of the script's own internal try/except -- this stage must never fail
+        # the daily pipeline, the same guarantee every other optional enhancement here has.
+        working-directory: bilinguist-brief/scripts
+        continue-on-error: true
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+          GOOGLE_TTS_CREDENTIALS_B64: ${{ secrets.GOOGLE_TTS_CREDENTIALS_B64 }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python bilinguist_audio.py
+
       - name: Push bundle to data repo
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
