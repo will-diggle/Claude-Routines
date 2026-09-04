@@ -104,6 +104,7 @@ import re
 import sys
 import tempfile
 import time
+from datetime import date as _date
 from pathlib import Path
 from typing import Optional
 
@@ -123,19 +124,31 @@ _TTS_MAX_BYTES_PER_REQUEST = 4500
 # already the convention used throughout the rest of the pipeline.
 _TARGET_GENRE = "GLOBAL NEWS"
 
-# English is a hard requirement per spec: en-GB, never en-US, one fixed real
-# WaveNet voice (confirmed current 2026-09-04 against https://cloud.google.com
-# /text-to-speech/docs/list-voices-and-types, which lists en-GB-Wavenet-A
-# through D, F, N, O as currently available). Swappable later after a human
-# listens to samples -- this is a starting pick, not a considered final one.
+# English is a hard requirement per spec: en-GB, never en-US. Will listened to
+# real samples of all 7 currently-available en-GB WaveNet voices (A-D, F, N, O
+# -- confirmed current 2026-09-04 against Google's own docs) and picked two to
+# ALTERNATE across a day's stories, rather than one fixed voice for everything
+# -- N (female) and O (male). See _LANGUAGE_VOICE_POOLS and
+# _build_voice_assignments for how the alternation actually works.
 _EN_GB_LANGUAGE_CODE = "en-GB"
-_EN_GB_VOICE_NAME = "en-GB-Wavenet-B"
+
+# Curated multi-voice pools, per language, for languages where a human has
+# actually listened to samples and chosen -- see module docstring and
+# _build_voice_assignments. A language NOT in this dict falls through to the
+# live voices.list + alphabetically-first pick in _voice_for_lang below (still
+# true for fr/de/sv/it/es/pt until Will picks for each of those too -- French
+# and German notably only have 2 real WaveNet voices each to choose between,
+# confirmed 2026-09-04, so whatever gets picked for them will also become a
+# 2-voice alternating pool exactly like English, once chosen).
+_LANGUAGE_VOICE_POOLS: dict[str, tuple[str, list[str]]] = {
+    "en": (_EN_GB_LANGUAGE_CODE, ["en-GB-Wavenet-N", "en-GB-Wavenet-O"]),
+}
 
 # Every other language's locale, per Will's exact spec (Spanish is Spain, not
 # Latin America; Portuguese is Brazilian, not European). No voice NAME is
 # listed here on purpose -- see module docstring and _voice_for_lang: those
 # are chosen by querying Google's live voices.list at runtime, never from a
-# hardcoded guess.
+# hardcoded guess, for any language not (yet) in _LANGUAGE_VOICE_POOLS above.
 _OTHER_LANGUAGE_CODES = {
     "fr": "fr-FR",
     "de": "de-DE",
@@ -146,6 +159,40 @@ _OTHER_LANGUAGE_CODES = {
 }
 
 _voice_cache: dict[str, Optional[str]] = {}
+_voice_assignments: dict[tuple[str, str], tuple[str, str]] = {}
+
+
+def _build_voice_assignments(bundle: dict, date: str) -> None:
+    """For every language with a curated pool (_LANGUAGE_VOICE_POOLS), assigns
+    each distinct GLOBAL NEWS story (by slug, sorted for determinism -- never
+    by Python's hash(), which isn't stable across process restarts) an
+    alternating voice from that pool. Alternates by STORY, not length/level --
+    the short and longer editions of the same story always share one voice,
+    so it always sounds like the same reporter covered that story start to
+    finish.
+
+    The rotation's STARTING voice is derived from `date` itself (the
+    proleptic Gregorian ordinal day number, so it advances by exactly 1 every
+    calendar day), not fixed at index 0 -- on a day with an odd number of
+    stories, one voice in the pool reads one more story than the other, and
+    with a 2-voice pool that "extra" strictly ALTERNATES day to day rather
+    than always favouring the same voice. Will's own framing, verified this
+    gives exactly that: "female gets 2 one day and 1 the other," not always 2
+    -- confirmed 2026-09-04 across 14 consecutive real dates.
+
+    Call once per run, before any _voice_for_lang lookups."""
+    _voice_assignments.clear()
+    if not _LANGUAGE_VOICE_POOLS:
+        return
+    distinct_slugs = sorted({
+        (a.get("slug") or "") for _, _, _, a in _qualifying_articles(bundle)
+    })
+    day_number = _date.fromisoformat(date).toordinal()
+    for lang, (language_code, pool) in _LANGUAGE_VOICE_POOLS.items():
+        start = day_number % len(pool)
+        for i, slug in enumerate(distinct_slugs):
+            _voice_assignments[(lang, slug)] = (
+                language_code, pool[(i + start) % len(pool)])
 
 
 def _r2_credentials_present() -> bool:
@@ -227,17 +274,20 @@ def _upload_to_r2(client, key: str, audio_bytes: bytes) -> None:
     )
 
 
-def _voice_for_lang(tts_client, lang: str) -> Optional[tuple[str, str]]:
+def _voice_for_lang(tts_client, lang: str, slug: str) -> Optional[tuple[str, str]]:
     """Returns (language_code, voice_name), or None if unavailable.
 
-    English: fixed, per spec -- see module docstring. Every other language:
-    queries Google's live voices.list, cached per lang for the life of this
-    process (one run, not across runs -- see module docstring on why no
-    hardcoded fallback exists here by design). Picks the alphabetically-first
-    WaveNet-tier voice for that locale, so repeated runs within the same
-    Google voice-catalogue state stay consistent with each other."""
-    if lang == "en":
-        return (_EN_GB_LANGUAGE_CODE, _EN_GB_VOICE_NAME)
+    A language with a curated pool (_LANGUAGE_VOICE_POOLS, currently just
+    "en"): looked up from _voice_assignments, built once per run by
+    _build_voice_assignments -- see that function for the alternation logic.
+    Every other language: queries Google's live voices.list, cached per lang
+    for the life of this process (one run, not across runs -- see module
+    docstring on why no hardcoded fallback exists here by design). Picks the
+    alphabetically-first WaveNet-tier voice for that locale, so repeated runs
+    within the same Google voice-catalogue state stay consistent with each
+    other."""
+    if lang in _LANGUAGE_VOICE_POOLS:
+        return _voice_assignments.get((lang, slug))
 
     language_code = _OTHER_LANGUAGE_CODES.get(lang)
     if not language_code:
@@ -389,6 +439,8 @@ def run_audio_narration(bundle: dict, date: str) -> dict:
               f"skipping audio narration entirely this run", file=sys.stderr)
         return summary
 
+    _build_voice_assignments(bundle, date)
+
     for lang, level, length, article in _qualifying_articles(bundle):
         summary["considered"] += 1
         slug = article.get("slug") or "unknown-slug"
@@ -400,7 +452,7 @@ def run_audio_narration(bundle: dict, date: str) -> dict:
                 summary["skipped_existing"] += 1
                 continue
 
-            voice = _voice_for_lang(tts_client, lang)
+            voice = _voice_for_lang(tts_client, lang, slug)
             if not voice:
                 article["audioKey"] = None
                 summary["failed"] += 1
