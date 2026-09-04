@@ -1,5 +1,4 @@
 import { Audio } from 'expo-av';
-import { synthesizeWord } from './elevenlabs';
 
 // Lazy-require expo-speech — the native module may not be present in all
 // build environments. Static import would throw synchronously at module load
@@ -12,9 +11,6 @@ function getSpeech() {
 }
 import { useAudioStore } from '../store/useAudioStore';
 import type { LanguageCode } from '../store/useSettingsStore';
-
-// Flip to false when ElevenLabs credits are live
-const DEMO_MODE = true;
 
 const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? 'https://bilinguist-brief.williamdiggz.workers.dev';
 
@@ -43,26 +39,65 @@ async function speakDemo(text: string, language: LanguageCode, trackingKey: stri
 
 // ─── Module-level sound instance ─────────────────────────────────────────────
 // Kept outside Zustand so it's never serialised. The store only holds the
-// boolean playing/loading flags that drive the UI.
-
+// boolean playing/loading flags that drive the UI. Non-null exactly when a
+// real streamed file (playArticleAudio) is the active playback mechanism,
+// as opposed to on-device speech (speakDemo) — pause/resume/stop below branch
+// on this rather than a global mode flag, since both mechanisms can be reached
+// from different screens and need to be stopped/paused correctly regardless
+// of which one is actually active.
 let _sound: Audio.Sound | null = null;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Synthesise `text` via ElevenLabs and begin playback.
- * Stops any currently playing audio first.
+ * Speak `text` aloud on-device. Used where there's no pre-generated audio file
+ * to stream (see playArticleAudio for that case).
  */
 export async function playAudioHeadline(
   text: string,
   language: LanguageCode,
   trackingKey?: string,
 ): Promise<void> {
-  if (DEMO_MODE) { speakDemo(text, language, trackingKey ?? text); return; }
+  speakDemo(text, language, trackingKey ?? text);
+}
 
+/**
+ * Pause currently playing audio (keeps it loaded for resumption).
+ */
+export async function pauseAudio(): Promise<void> {
+  if (_sound) {
+    try { await _sound.pauseAsync(); } catch { /* ignore */ }
+  } else {
+    getSpeech()?.stop();
+  }
+  useAudioStore.getState().setIdle();
+}
+
+/**
+ * Resume paused audio. On-device speech has no true pause/resume (expo-speech
+ * only supports stop), so this only does anything when a real sound is loaded.
+ */
+export async function resumeAudio(): Promise<void> {
+  if (!_sound) return;
+  try {
+    await _sound.playAsync();
+    useAudioStore.getState().setPlaying();
+  } catch { /* ignore */ }
+}
+
+/**
+ * Stream and play pre-generated article audio from the Worker's R2-backed
+ * /audio/{key} route. `audioKey` comes straight off the article object in the
+ * bundle (set by the pipeline when it generates the file) — the caller should
+ * only invoke this when that key is actually present.
+ */
+export async function playArticleAudio(
+  language: LanguageCode,
+  trackingKey: string,
+  audioKey: string,
+): Promise<void> {
   const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
 
-  // Stop and release any existing sound
   if (_sound) {
     try {
       await _sound.stopAsync();
@@ -70,26 +105,15 @@ export async function playAudioHeadline(
     } catch { /* ignore */ }
     _sound = null;
   }
+  getSpeech()?.stop();
 
-  // Use trackingKey (e.g. headline) so per-article UI state stays in sync
-  // even when `text` is the full article body.
-  setLoading(trackingKey ?? text);
-
-  const result = await synthesizeWord(text, language);
-  if (!result.ok) {
-    setIdle();
-    return;
-  }
+  setLoading(trackingKey);
 
   try {
-    // Allow audio on silent mode (iOS)
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-    });
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
 
     const { sound } = await Audio.Sound.createAsync(
-      { uri: result.audioUri },
+      { uri: `${WORKER_URL}/audio/${audioKey}` },
       { shouldPlay: true },
     );
     _sound = sound;
@@ -106,90 +130,16 @@ export async function playAudioHeadline(
   }
 }
 
-/**
- * Pause currently playing audio (keeps it loaded for resumption).
- */
-export async function pauseAudio(): Promise<void> {
-  if (DEMO_MODE) { getSpeech()?.stop(); useAudioStore.getState().setIdle(); return; }
-  if (!_sound) return;
-  try {
-    await _sound.pauseAsync();
-  } catch { /* ignore */ }
-  useAudioStore.getState().setIdle();
-}
-
-/**
- * Resume paused audio.
- */
-export async function resumeAudio(): Promise<void> {
-  if (!_sound) return;
-  try {
-    await _sound.playAsync();
-    useAudioStore.getState().setPlaying();
-  } catch { /* ignore */ }
-}
-
-/**
- * Fetch/cache article audio via the Worker (R2-backed) and play it.
- * First caller synthesises via ElevenLabs and caches; subsequent callers stream from R2.
- */
-export async function playArticleAudio(
-  text: string,
-  language: LanguageCode,
-  trackingKey: string,
-  audioKey: string,
-): Promise<void> {
-  if (DEMO_MODE) { speakDemo(text, language, trackingKey); return; }
-
-  const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
-
+/** Stop and fully release the current sound. */
+export async function stopAudio(): Promise<void> {
   if (_sound) {
     try {
       await _sound.stopAsync();
       await _sound.unloadAsync();
     } catch { /* ignore */ }
     _sound = null;
+  } else {
+    getSpeech()?.stop();
   }
-
-  setLoading(trackingKey);
-
-  try {
-    const res = await fetch(`${WORKER_URL}/audio`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: audioKey, text, lang: language }),
-    });
-
-    if (!res.ok) { setIdle(); return; }
-
-    const data = await res.json() as { url?: string };
-    if (!data.url) { setIdle(); return; }
-
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
-
-    const { sound } = await Audio.Sound.createAsync({ uri: data.url }, { shouldPlay: true });
-    _sound = sound;
-    setPlaying();
-
-    sound.setOnPlaybackStatusUpdate((s) => {
-      if (s.isLoaded && s.didJustFinish) {
-        setIdle();
-        _sound = null;
-      }
-    });
-  } catch {
-    setIdle();
-  }
-}
-
-/** Stop and fully release the current sound. */
-export async function stopAudio(): Promise<void> {
-  if (DEMO_MODE) { getSpeech()?.stop(); useAudioStore.getState().setIdle(); return; }
-  if (!_sound) return;
-  try {
-    await _sound.stopAsync();
-    await _sound.unloadAsync();
-  } catch { /* ignore */ }
-  _sound = null;
   useAudioStore.getState().setIdle();
 }

@@ -286,6 +286,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     gameActive,
     briefingScrolled,
     settingsScrolled,
+    practiceScrolled,
     audioPillForcedUp, setAudioPillForcedUp,
   } = useNavPillStore(useShallow((s) => ({
     briefPageIndex: s.briefPageIndex,
@@ -297,6 +298,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     gameActive: s.gameActive,
     briefingScrolled: s.briefingScrolled,
     settingsScrolled: s.settingsScrolled,
+    practiceScrolled: s.practiceScrolled,
     audioPillForcedUp: s.audioPillForcedUp,
     setAudioPillForcedUp: s.setAudioPillForcedUp,
   })));
@@ -564,8 +566,8 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       animCloseLeft();
       return DUR_CLOSE;
     }
-    if (idx === 1) {
-      // Practice tab — start collapsed; user taps to open and select
+    if (idx === 1 && practiceScrolled) {
+      // Returning to Practice while still scrolled — keep pill mini
       animCloseLeft();
       return DUR_CLOSE;
     }
@@ -610,6 +612,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
       animToLeftOpen(computeLeftExpandedW());
     }
   }, [settingsScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Practice scroll — same behaviour as Brief/Settings scroll
+  useEffect(() => {
+    if (currentRouteIndex !== 1) return; // Practice tab only (index 1)
+    if (practiceScrolled) {
+      if (leftOpenRef.current) animCloseLeft();
+    } else if (!isAudioDocked) {
+      animToLeftOpen(computeLeftExpandedW());
+    }
+  }, [practiceScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Collapse pills on orientation change so they re-open at the correct new dimensions.
   useEffect(() => {

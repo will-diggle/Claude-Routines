@@ -28,6 +28,10 @@ interface NavPillStore {
   settingsScrolled: boolean;
   setSettingsScrolled: (scrolled: boolean) => void;
 
+  // True when the user has scrolled down the practice screen — collapses the left pill
+  practiceScrolled: boolean;
+  setPracticeScrolled: (scrolled: boolean) => void;
+
   // Set to true when user taps a nav pill while audio is docked — forces audio back up
   audioPillForcedUp: boolean;
   setAudioPillForcedUp: (v: boolean) => void;
@@ -56,4 +60,7 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
 
   settingsScrolled: false,
   setSettingsScrolled: (scrolled) => set({ settingsScrolled: scrolled }),
+
+  practiceScrolled: false,
+  setPracticeScrolled: (scrolled) => set({ practiceScrolled: scrolled }),
 }));

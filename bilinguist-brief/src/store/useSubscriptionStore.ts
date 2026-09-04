@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type SubscriptionStatus = 'free' | 'active' | 'promo' | 'dev';
+export type SubscriptionStatus = 'free' | 'active' | 'promo';
 
 // Add codes here to grant full access. Share freely with testers.
 const PROMO_CODES: Record<string, string> = {
@@ -17,7 +17,6 @@ interface SubscriptionStore {
   isFullAccess: () => boolean;
   applyPromoCode: (code: string) => 'success' | 'invalid' | 'already_active';
   activateRevenueCat: () => void;
-  setDev: (enabled: boolean) => void;
   restore: () => void;
 }
 
@@ -39,9 +38,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       },
 
       activateRevenueCat: () => set({ status: 'active', promoLabel: null }),
-
-      setDev: (enabled) =>
-        set({ status: enabled ? 'dev' : 'free', promoLabel: enabled ? 'Developer' : null }),
 
       restore: () => {
         // RevenueCat restore flow — stub for now

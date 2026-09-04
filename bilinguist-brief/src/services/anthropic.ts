@@ -27,6 +27,10 @@ export interface BriefingArticle {
   body: string;
   wordCount?: number; // word count of headline + body, added by Python at generation time
   tokenMap?: TokenMapEntry[]; // P5 token analysis — undefined for older bundles
+  // R2 key for this article's narration, set by the audio pipeline stage.
+  // Global News only; null/undefined everywhere else, or if generation failed
+  // for this specific article.
+  audioKey?: string | null;
 }
 
 export interface GeneratedBriefing {

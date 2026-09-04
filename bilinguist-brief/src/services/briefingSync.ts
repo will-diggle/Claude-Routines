@@ -9,7 +9,9 @@ export interface DailyBundle {
   generatedAt: number;
   volume?: number;
   daily_notification?: string;
-  factbase: FactbaseStory[];
+  // No longer sent by the Worker's public /latest — internal pipeline material,
+  // stripped server-side. Stays optional so old cached local copies still parse.
+  factbase?: FactbaseStory[];
   briefings: {
     [lang: string]: {
       [level: string]: {
@@ -27,9 +29,11 @@ export interface DailyBundle {
   nativeGrades: {
     [lang: string]: string;
   };
-  // Prompt 4 grading — array of assessment objects per language.
-  // Python writes grading[lang] as an array: [{genre, slug, level, length, reasoning}, ...].
-  grading: {
+  // Prompt 4 grading — array of assessment objects per language. Legacy fallback
+  // only: nativeGrades covers every current bundle, so this rarely arrives —
+  // no longer sent by the Worker's public /latest (raw editorial reasoning,
+  // stripped server-side). Stays optional for old cached local copies/archives.
+  grading?: {
     [language: string]: Array<{
       genre: string;
       slug: string;

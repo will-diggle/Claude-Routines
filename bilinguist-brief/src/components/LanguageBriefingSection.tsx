@@ -410,10 +410,9 @@ export function LanguageBriefingSection({
           <Text style={[styles.emptyNote, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
             {error}
           </Text>
-          {/* Was "Load demo content", which turned developer mode on from the
-              one screen a paying reader sees when something has gone wrong —
-              offering fabricated news as the only thing to tap. Demo content
-              now lives behind the developer toggle in Settings. */}
+          {/* Was "Load demo content" — the one screen a paying reader sees when
+              something has gone wrong offered fabricated news as the only
+              thing to tap. Now just retries. */}
           <TouchableOpacity
             style={[styles.demoBtn, { borderColor: colors.borderMid }]}
             onPress={onRetry}
