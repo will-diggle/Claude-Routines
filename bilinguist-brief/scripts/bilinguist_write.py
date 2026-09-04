@@ -496,7 +496,13 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "sv": ["Native"],
     "en": ["Native"],
     "it": ["A2", "Native"],
-    "es": ["A2"],
+    # "Native" added 2026-09-05 (Will's request) -- Spanish's native-grade
+    # article was already written, graded and fact-checked every run (it was
+    # never gated on this list, see NATIVE_INTERMEDIATE), just never exposed
+    # to readers. This one addition moves it from nativeIntermediate into the
+    # published nativeJournalism tier -- no new API calls, no new cost, it's
+    # publishing content that already existed.
+    "es": ["A2", "Native"],
     # NEW 2026-08-22 — Brazilian Portuguese trial. Full level set so the prompt can be
     # judged across the whole range; "pt" + VARIANT_RULES pins Brazilian over European.
     "pt": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
