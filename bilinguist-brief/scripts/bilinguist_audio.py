@@ -17,12 +17,18 @@ Will's explicit instruction. Nothing here should ever require touching
 bilinguist_write.py, bilinguist_check.py, bilinguist_prompts.py, or any other
 existing stage.
 
-SCOPE (Will's exact spec, 2026-09-04):
+SCOPE (Will's exact spec, 2026-09-04; native-level added 2026-09-05):
   - Only articles with genre == "GLOBAL NEWS".
   - Every active language, every CEFR level actually present in the leveled
-    `briefings` structure -- NOT the separate `nativeJournalism` tier (native
-    is a different reading experience the app doesn't currently pair with
-    per-level audio; leveled articles are the ones a learner scrolls through).
+    `briefings` structure (A1/A2/B1/B2/...).
+  - Also `nativeJournalism` (tagged level "Native"), added 2026-09-05 --
+    originally excluded on the reasoning that native was a different reading
+    experience not paired with per-level audio, reversed once it became clear
+    it's real published content readers actually see, same as any other
+    level. Deliberately does NOT cover `nativeIntermediate` (Spanish's
+    native-grade text) -- that tier is never shown to a reader, it exists
+    only as an internal translation stepping-stone to Portuguese, so
+    narrating it would be pure wasted TTS cost for nothing anyone hears.
   - Both length variants (short and longer).
   - Skip whatever a previous run for the same date already generated, cheaply
     -- see _r2_object_exists.
@@ -416,9 +422,19 @@ def _synthesize_article(tts_client, headline: str, body: str,
 
 def _qualifying_articles(bundle: dict):
     """Yields (lang, level, length, article) for every article this stage is
-    in scope for -- leveled `briefings` only (never nativeJournalism), every
-    level/length actually present, genre == GLOBAL NEWS only. See module
-    docstring SCOPE."""
+    in scope for -- every level/length actually present, genre == GLOBAL NEWS
+    only. See module docstring SCOPE.
+
+    Covers both tiers the app actually shows a reader:
+      - the leveled `briefings` structure (A1/A2/B1/B2/...);
+      - `nativeJournalism` (level tagged "Native" here), added 2026-09-04 --
+        originally excluded on the reasoning that native wasn't a reading
+        experience paired with per-level audio, reversed once it became clear
+        it's real, published, reader-facing content just like any other level.
+    Deliberately EXCLUDES `nativeIntermediate` (Spanish's native-grade text,
+    used only as an internal translation stepping-stone to Portuguese) -- it
+    is never shown to any reader, so narrating it would be pure wasted cost.
+    """
     briefings = bundle.get("briefings") or {}
     for lang, by_level in briefings.items():
         if not isinstance(by_level, dict):
@@ -431,6 +447,15 @@ def _qualifying_articles(bundle: dict):
                 for article in articles:
                     if (article.get("genre") or "").upper() == _TARGET_GENRE:
                         yield lang, level, length, article
+
+    native = bundle.get("nativeJournalism") or {}
+    for lang, by_length in native.items():
+        if not isinstance(by_length, dict):
+            continue
+        for length, articles in by_length.items():
+            for article in (articles or []):
+                if (article.get("genre") or "").upper() == _TARGET_GENRE:
+                    yield lang, "Native", length, article
 
 
 def run_audio_narration(bundle: dict, date: str) -> dict:
