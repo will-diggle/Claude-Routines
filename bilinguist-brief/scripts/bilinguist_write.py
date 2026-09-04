@@ -153,6 +153,7 @@ STAGE_LABELS: dict[str, str] = {
     "2S": "7 Write Levels", "2B": "7 Write Levels", "2M": "7 Write Levels",
     "4b": "8 Grade Levels",
     "5b": "5 Write Native — Verify",   # a sub-step of Stage 5, not its own numbered stage
+    "5c": "5 Write Native — Verify (English, pre-translation)",
 }
 
 
@@ -424,7 +425,8 @@ _stage_usage: dict[str, _StageUsage] = {
     "2M": _StageUsage(),
     "3":  _StageUsage(),
     "4a": _StageUsage(),  # grade native journalism → overall CEFR level (Flash-Lite)
-    "5b": _StageUsage(),  # verify native against the factbase
+    "5b": _StageUsage(),  # verify native against the factbase (post-translation, all languages)
+    "5c": _StageUsage(),  # verify+correct English only, pre-translation (see PROMPT_5B_VERIFY_CORRECT)
     "4b": _StageUsage(),  # grade CEFR level articles (Flash-Lite)
 }
 
@@ -763,7 +765,7 @@ else:
         OUTPUT_FORMAT_SINGLE, OUTPUT_FORMAT_ARRAY, OUTPUT_FORMAT_PLAIN_SINGLE,
         TRANSLATE_PROMPT_TEMPLATE,
         NATIVE_OUTLETS, NATIVE_OUTLET_FALLBACK,
-        PROMPT_5B_VERIFY, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
+        PROMPT_5B_VERIFY, PROMPT_5B_VERIFY_CORRECT, PROMPT_LEVEL_REWRITE, PROMPT_LEVEL_REWRITE_SIMPLE, QUOTE_RULES, QUOTE_RULE_FALLBACK, PROMPT_LEVEL_STRUCTURE,
         REWRITE_CUT_RULES, GLOSS_RULE_BEGINNER, GLOSS_RULE_FALLBACK,
         ATTRIBUTION_RULE_BEGINNER, ATTRIBUTION_RULE_FALLBACK,
         GRAMMAR_RULE_A1_BY_LANG, GRAMMAR_RULE_A1_FALLBACK,
@@ -1544,6 +1546,236 @@ def write_costs_report(date: str, script_dir: str) -> dict:
 # written to output/numcheck_<date>.json in main() for Stage 9 (Check & Publish) to report.
 _NUMCHECK_FINDINGS: list[dict] = []
 
+# ── English pre-translation verify+correct (added 2026-09-04) ──────────────────
+# See PROMPT_5B_VERIFY_CORRECT in bilinguist_prompts.py for why this exists as its own
+# step rather than a bigger PROMPT_5B_VERIFY, and why it only ever runs on English.
+#
+# Two failure modes drove this, both found 2026-09-04 in real shipped output:
+#   1. Oleksandr Syrskyi misattribution -- a CHANGED finding with no clean substring
+#      fix (the false attribution is woven into a full sentence), so it sat unfixed
+#      in the report while the wrong text kept shipping, identically, in all 7
+#      languages -- once per language, because translation happens BEFORE any
+#      checking, so by the time anything is checked, 7 separately-flawed texts
+#      already exist. Fixing English before translation starts means one fix
+#      reaches all 7 for free instead of needing to be caught 7 times after.
+#   2. The Portuguese "600,000 -> 300,000" corruption -- the checker's own "why"
+#      field contradicted its own correctly-quoted "factbase" field in the SAME
+#      response, and the resulting bogus "corrected" substring was applied anyway,
+#      turning an already-correct translation wrong. A model that can contradict
+#      itself mid-response can't be trusted to police its own output -- see the
+#      guardrail functions below, which check every proposed fix in Python against
+#      the REAL factbase object this process already holds, not what the model
+#      claims it says.
+#
+# SAFETY DESIGN, both here and in PROMPT_5B_VERIFY_CORRECT's own comment: never let
+# the model rewrite more than the one flagged sentence (never the paragraph, never
+# the article), and never trust a proposed fix without checking it deterministically
+# first. Every one of the functions below returns a plain bool/str with no LLM call
+# involved -- that's the actual guarantee, not the prompt wording.
+
+def _correction_diff_too_large(original: str, corrected: str, max_change_ratio: float = 0.5) -> bool:
+    """True if `corrected` changes more than `max_change_ratio` of `original`'s words --
+    circuit breaker against a sentence-level rewrite going further than the one flagged
+    problem. Word-level, not character-level, since a single-word swap ("300,000" ->
+    "600,000") should score as a tiny change even though every character after it shifts."""
+    import difflib
+    orig_words = original.split()
+    if not orig_words:
+        return False
+    ratio = difflib.SequenceMatcher(None, orig_words, corrected.split()).ratio()
+    return ratio < (1 - max_change_ratio)
+
+
+def _correction_new_numbers_ungrounded(original: str, corrected: str, story: dict) -> bool:
+    """True if `corrected` introduces a number not present in `original` that also
+    doesn't appear anywhere in the REAL fact-base object -- not the model's own
+    self-reported "factbase" field, which is exactly what lied in the Portuguese case."""
+    new_nums = numcheck.extract_plain_numbers(corrected) - numcheck.extract_plain_numbers(original)
+    if not new_nums:
+        return False
+    fb_nums = numcheck.extract_plain_numbers(numcheck._factbase_text_fields(story))
+    return bool(new_nums - fb_nums)
+
+
+def _correction_new_entities_ungrounded(original: str, corrected: str, story: dict) -> bool:
+    """True if `corrected` introduces a capitalised multi-word name, in the genuinely
+    NEW text relative to `original`, that doesn't appear anywhere in the real fact-base
+    text. Narrower than a general "every name must be in the factbase" scan (that was
+    tried for the written article itself and disabled 2026-08-15 for false positives on
+    titles and correct translated names) -- this only ever looks at what a SPECIFIC
+    correction newly introduces, so a name already present pre-fix never trips it.
+
+    Uses a word-level diff (difflib), not "entities in corrected minus entities in
+    original" -- that naive version glues an unrelated ORIGINAL word onto a genuinely
+    new name when they land adjacent, e.g. correcting "...Ministro dell'Energia" to
+    "...Ministro dell'Energia Biraj Bhakta Shrestha" was scanned as one combined span
+    "Energia Biraj Bhakta Shrestha", which then fails a literal fact-base match even
+    though the added name alone is exactly right and grounded (verified 2026-09-04 --
+    this exact case was the first thing this guardrail wrongly rejected)."""
+    import difflib
+    orig_words = (original or "").split()
+    new_words = (corrected or "").split()
+    inserted: list[str] = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, orig_words, new_words).get_opcodes():
+        if tag in ("insert", "replace"):
+            inserted.extend(new_words[j1:j2])
+    if not inserted:
+        return False
+    new_entities = {m.group(0) for m in numcheck._ENTITY_RE.finditer(" ".join(inserted))}
+    if not new_entities:
+        return False
+    fb_text_lower = numcheck._factbase_entity_text(story).lower()
+    return any(e.lower() not in fb_text_lower for e in new_entities)
+
+
+def _is_pure_trim(original: str, trimmed: str) -> bool:
+    """True only if every word in `trimmed` already appears in `original` -- i.e. it's
+    strictly a subtraction, never a rewrite. Gates INVENTED-finding clause removal: the
+    model may remove content, never add any, no matter how the removal is phrased."""
+    def _words(s: str) -> set:
+        return set(re.findall(r"\w+", (s or "").lower()))
+    if not trimmed:
+        return True  # removing everything is a valid (if extreme) trim
+    return _words(trimmed).issubset(_words(original))
+
+
+def _find_sentence_containing(text: str, quote: str) -> Optional[str]:
+    """Return the one full sentence in `text` containing `quote` (spaCy sentence
+    boundaries, reusing the same cached English parse as the A1 check), or None if
+    `quote` isn't found or spaCy is unavailable. English only, matching this stage's
+    current scope."""
+    if not text or not quote:
+        return None
+    idx = text.find(quote)
+    if idx == -1:
+        return None
+    nlp = _a1_check_nlp()
+    if nlp is None:
+        return None
+    doc = nlp(text)
+    for sent in doc.sents:
+        if sent.start_char <= idx < sent.end_char:
+            return sent.text
+    return None
+
+
+_SCHEMA_VERIFY_CORRECT = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["ok", "issues"]},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type":               {"type": "string",
+                                            "enum": ["INVENTED", "CHANGED", "CONTRADICTED"]},
+                    "quote":              {"type": "string"},
+                    "factbase":           {"type": "string"},
+                    "why":                {"type": "string"},
+                    "corrected":          {"type": "string"},
+                    "corrected_sentence": {"type": "string"},
+                    "removal_action":     {"type": "string",
+                                            "enum": ["none", "trim_clause", "remove_sentence"]},
+                },
+                "required": ["type", "quote", "factbase", "why", "corrected",
+                             "corrected_sentence", "removal_action"],
+            },
+        },
+    },
+    "required": ["verdict", "findings"],
+}
+
+_EN_PRECHECK_FINDINGS: list[dict] = []
+
+
+def run_verify_correct_english(client: genai.Client, story: dict, art: dict, length: str) -> None:
+    """Verify one English native article against its fact-base entry and safely apply
+    whatever can be safely applied, in place, BEFORE this article is translated into
+    every other language. See the module comment above for why this exists and the
+    two real bugs it's built to close.
+
+    Mutates `art` in place (headline is never touched, only body). Appends to
+    _EN_PRECHECK_FINDINGS for reporting. Never raises, never blocks the pipeline --
+    same "still never blocks the brief on failure" guarantee as run_verify_native.
+    """
+    if not art or not art.get("body"):
+        return
+    prompt = (PROMPT_5B_VERIFY_CORRECT
+              .replace("{LANGUAGE}", "English")
+              .replace("{LENGTH}", length)
+              .replace("{ARTICLE}", json.dumps(
+                  {"headline": art.get("headline"), "body": art.get("body")},
+                  ensure_ascii=False, indent=2))
+              .replace("{FACTBASE}", json.dumps(story, ensure_ascii=False, indent=2)))
+    try:
+        raw, finish = call_llm(client, _resolve_verify_grade_model(MODEL_5B), prompt,
+                                f"5c/en-{length}-{story.get('slug')}", "5c",
+                                _SCHEMA_VERIFY_CORRECT, max_output_tokens=2048)
+    except Exception as e:                                        # noqa: BLE001
+        print(f"[{_lbl('5c')}] {story.get('slug')}/{length}: call failed ({e}) — skipping",
+              file=sys.stderr)
+        return
+    if not raw or finish == "MAX_TOKENS":
+        return
+    parsed = parse_llm_json(raw) or {}
+
+    for f in parsed.get("findings") or []:
+        why = (f.get("why") or "").lower()
+        if any(t in why for t in ("translat", "omits", "omit ", "format",
+                                  "decimal separator", "wording", "correctly",
+                                  "same value", "conversion of", "abbreviat")):
+            continue
+
+        entry = {"lang": "en", "length": length, "slug": art.get("slug"),
+                  "type": f.get("type"), "quote": f.get("quote"), "why": f.get("why"),
+                  "applied": False}
+        quote = f.get("quote") or ""
+        corrected = f.get("corrected") or ""
+        corrected_sentence = f.get("corrected_sentence") or ""
+        removal_action = f.get("removal_action") or "none"
+
+        if not quote or quote not in art["body"]:
+            _EN_PRECHECK_FINDINGS.append(entry)
+            continue
+
+        # 1. Substring correction -- still gated by the grounding guardrails below,
+        #    since a small substring swap is exactly where the Portuguese bug lived.
+        if entry["type"] != "INVENTED" and corrected and corrected != quote:
+            if not (_correction_new_numbers_ungrounded(quote, corrected, story)
+                     or _correction_new_entities_ungrounded(quote, corrected, story)):
+                art["body"] = art["body"].replace(quote, corrected, 1)
+                entry["applied"] = True
+                entry["corrected"] = corrected
+            _EN_PRECHECK_FINDINGS.append(entry)
+            continue
+
+        sent = _find_sentence_containing(art["body"], quote)
+
+        # 2. Sentence-level rewrite (CHANGED/CONTRADICTED, no clean substring fix).
+        if entry["type"] != "INVENTED" and corrected_sentence and sent:
+            if (not _correction_diff_too_large(sent, corrected_sentence)
+                    and not _correction_new_numbers_ungrounded(sent, corrected_sentence, story)
+                    and not _correction_new_entities_ungrounded(sent, corrected_sentence, story)):
+                art["body"] = art["body"].replace(sent, corrected_sentence, 1)
+                entry["applied"] = True
+                entry["corrected"] = corrected_sentence
+            _EN_PRECHECK_FINDINGS.append(entry)
+            continue
+
+        # 3. INVENTED -- removal only, never a rewrite into new content.
+        if entry["type"] == "INVENTED" and sent and removal_action in ("trim_clause", "remove_sentence"):
+            replacement = corrected_sentence if removal_action == "trim_clause" else ""
+            if _is_pure_trim(sent, replacement):
+                art["body"] = art["body"].replace(sent, replacement, 1)
+                art["body"] = re.sub(r"  +", " ", art["body"]).strip()
+                entry["applied"] = True
+                entry["corrected"] = replacement
+            _EN_PRECHECK_FINDINGS.append(entry)
+            continue
+
+        _EN_PRECHECK_FINDINGS.append(entry)
+
 
 def run_native_journalism(
     client: genai.Client,
@@ -1569,6 +1801,7 @@ def run_native_journalism(
 
     Returns {lang: {short: [articles], longer: [articles]}}."""
     _NUMCHECK_FINDINGS.clear()
+    _EN_PRECHECK_FINDINGS.clear()
     # Honour the language matrix: only write native journalism for active languages
     # that actually list "Native". Previously this used every key in LANGUAGE_LEVELS,
     # so disabled languages (empty level lists) and levels-only languages still had
@@ -1655,6 +1888,10 @@ def run_native_journalism(
         en_article = _write_en(story, length)
         if not en_article:
             return out
+        # Verify+correct English BEFORE translating it -- see run_verify_correct_english's
+        # docstring. Sequential with the translate fan-out below on purpose: every language
+        # translated after this point reads whatever this step already fixed.
+        run_verify_correct_english(client, story, en_article, length)
         out["en"] = en_article
         if other_langs:
             with ThreadPoolExecutor(max_workers=len(other_langs)) as ex:
@@ -1699,6 +1936,13 @@ def run_native_journalism(
         print(f"[{_lbl("3")}] Number/entity check: {fixed_count} magnitude mismatch(es) auto-fixed, "
               f"{flagged_numbers} number(s) and {flagged_entities} name(s)/entit(ies) "
               f"flagged as unverified")
+
+    en_precheck_applied = sum(1 for f in _EN_PRECHECK_FINDINGS if f.get("applied"))
+    if _EN_PRECHECK_FINDINGS:
+        print(f"[{_lbl("5c")}] English pre-translation check: "
+              f"{len(_EN_PRECHECK_FINDINGS)} finding(s), {en_precheck_applied} fixed "
+              f"before translation, {len(_EN_PRECHECK_FINDINGS) - en_precheck_applied} "
+              f"left flagged (no fix passed the guardrails)")
 
     # Only include languages/lengths that produced at least one article
     return {lang: {ln: arts for ln, arts in lengths.items() if arts}
@@ -2268,6 +2512,17 @@ def main():
         "nativeGrades": native_grades,
         # Stage 5b's verdict, so check.py can report it without recomputing.
         "nativeFactCheck": native_check,
+        # English-only, pre-translation verify+correct (see run_verify_correct_english,
+        # added 2026-09-04) -- runs BEFORE nativeFactCheck above, so any English finding
+        # already fixed here shows up there as "clean" for English, not double-counted.
+        # Kept as its own field, separate from nativeFactCheck, specifically so the two
+        # can be compared: once nativeFactCheck's post-translation findings for languages
+        # other than English stay consistently empty across enough real runs, that's the
+        # signal to retire the post-translation check rather than just trim it to English.
+        "nativeFactCheckPreTranslation": {
+            "findings": _EN_PRECHECK_FINDINGS,
+            "applied": sum(1 for f in _EN_PRECHECK_FINDINGS if f.get("applied")),
+        },
         "grading": grading,
         # Deterministic Python-only number + entity check (bilinguist_numcheck.py) --
         # no LLM call. AUTO_FIXED entries were already corrected in-place before this

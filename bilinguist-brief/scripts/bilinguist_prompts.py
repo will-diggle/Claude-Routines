@@ -1254,6 +1254,88 @@ FACT-BASE FOR THIS STORY:
 {FACTBASE}
 """
 
+# PROMPT_5B_VERIFY_CORRECT -- added 2026-09-04. Runs ONLY on the English native article,
+# BEFORE every other language translates from it (see bilinguist_write.py's
+# run_verify_correct_english, called inside run_native_journalism's _process_chain). Every
+# other language inherits whatever this fixes for free through translation, instead of the
+# same error needing to be caught separately in up to 7 places downstream -- see the
+# Oleksandr Syrskyi misattribution and the Portuguese "600,000 -> 300,000" corruption found
+# 2026-09-04, both real, both live, neither caught by fixing anything after translation.
+#
+# Same analysis rules as PROMPT_5B_VERIFY (what is/isn't a finding) -- duplicated rather
+# than derived by string-editing that prompt, so a future edit to one can't silently drift
+# the other out of sync without a visible diff. The only real difference is what happens
+# AFTER a finding: this version can propose a full replacement SENTENCE, not just a
+# substring, and a removal path for INVENTED -- see WHY THIS PROMPT EXISTS below.
+#
+# WHY THIS PROMPT EXISTS, NOT JUST A BIGGER PROMPT_5B_VERIFY: the old "corrected"-only
+# design leaves a CHANGED/CONTRADICTED finding untouched whenever the fix can't be a clean
+# substring swap (exactly the Syrskyi case -- the false attribution is woven into a full
+# sentence). And INVENTED never got auto-fixed at all. Both just sat in the report, found
+# but not fixed -- Will's own question that started this. The model is NOT asked to
+# regenerate the article, or even a paragraph -- only ever the ONE sentence containing the
+# flagged "quote", because it's the smallest unit that's still grammatically complete, and
+# because the model already sees the whole article above when it proposes the replacement
+# (so tense, pronouns and transitions to neighbouring sentences should carry over
+# naturally, the same way the existing "corrected" substring path already benefits from
+# seeing the whole piece).
+#
+# The deterministic guardrails on the Python side (_correction_new_numbers_ungrounded,
+# _correction_new_entities_ungrounded, _correction_diff_too_large, _is_pure_trim in
+# bilinguist_write.py) are what actually make this safe to auto-apply, not this prompt's
+# wording alone -- a model that already contradicted its own quoted fact-base text in one
+# breath (the Portuguese "300,000" case) can't be made reliable by asking it, in the next
+# breath, to also police itself. Every proposed fix is checked against the REAL fact-base
+# object in Python, not the model's own self-reported "factbase" field, before it's ever
+# applied -- see module docstring in bilinguist_write.py near run_verify_correct_english.
+PROMPT_5B_VERIFY_CORRECT = """\
+You are a fact-checker AND corrector. Below is a news article and the fact-base it was written from.
+
+FIRST, what is NOT a finding. Read this before anything else. If a difference is on this list, say nothing about it — a false alarm here is worse than a missed one, because it buries the real findings.
+
+- LANGUAGE. The article is in {LANGUAGE}; the fact-base is in English. Every translated word is correct by definition. "Monday" as "lundi", "Shanghai" as "Shanghái", "kilometres" as "Kilometer", "structures" as "Gebäude" — say nothing.
+- NUMBER FORMAT. The same value written the way {LANGUAGE} writes it. 1,200 as "1 200" or "1.200"; 5.0 as "5,0"; 5:30am as "17h30"; 150 miles as "240 km". Same value, different notation — say nothing.
+- ANYTHING MISSING. A fact, figure, name or nuance the article leaves out is NEVER a finding. A shorter article is not an error. Never write "the article omits…".
+- WORDING. A paraphrase, a synonym, a different sentence order within a paragraph, a shorter or longer phrasing, tone, style, register — say nothing.
+- ADDED CLARITY that changes no fact: naming the day of a date the fact-base gives, saying "local time", giving someone's known title. Say nothing.
+
+If the article and the fact-base agree on every VALUE and every CLAIM, return an empty list. Most articles should.
+
+NOW, the only four things to report:
+
+- INVENTED: a claim, figure, name or quote in the article that has NO basis anywhere in the fact-base. Not "stated differently" — absent.
+- CHANGED: a number whose VALUE differs, or a name or title that refers to a DIFFERENT thing. 69th written as 70th. £3m written as £5m. A minister given the wrong office. This includes a claim ATTRIBUTED to the wrong named person — if the fact-base doesn't link that exact claim to that exact name, the attribution itself is a CHANGED finding, even if the claim's content is otherwise accurate.
+- CONTRADICTED: the fact-base records something as unverified, disputed, or claimed by one party, and the article states it flatly as fact.
+
+This call has no live search and no access to anything beyond the fact-base below —
+compare the article ONLY against it. Do not flag anything as wrong because it conflicts
+with what you already believe to be true; your own knowledge has a training cutoff and
+this fact-base is more current than you are. If the fact-base says it, treat it as true
+for this check, however unfamiliar it seems.
+
+For each finding, quote the exact phrase from the article, give what the fact-base says instead, and say in one sentence why the VALUE or CLAIM differs. If your explanation would contain the words "translate", "omits", "format", "wording" or "correctly", it is not a finding — drop it.
+
+THEN, propose a fix — for CHANGED and CONTRADICTED, in this order of preference:
+1. "corrected": an exact substring that could replace "quote" word-for-word with no other change to the sentence, if one exists.
+2. If no substring works without restructuring the sentence, leave "corrected" empty and instead give "corrected_sentence": the full replacement for the ONE sentence containing "quote" (not the paragraph, not the article — just that sentence), rewritten to be accurate. Change ONLY what's needed to fix this specific problem — same tone, same length, same everything else about the sentence. You can see the whole article above; make sure the corrected sentence still reads naturally against what comes immediately before and after it. Leave "removal_action" as "none".
+
+For INVENTED findings, there is nothing to correct TO — the claim isn't in the fact-base at all, so never invent replacement content, and never give "corrected". Instead set "removal_action" to exactly one of:
+- "trim_clause" — and give "corrected_sentence" with ONLY the unsupported part removed, keeping every other word from the original sentence, if what remains is still a complete, accurate, grammatical statement.
+- "remove_sentence" — leave "corrected_sentence" empty. Use this when nothing in the sentence would remain meaningful once the invented part is gone.
+- "none" — leave "corrected_sentence" empty too. Use this whenever you are not confident either removal would read cleanly. Do not force a fix you are unsure of — an unfixed finding is always safer than a bad fix.
+
+OUTPUT FORMAT:
+{"verdict":"ok","findings":[]}
+or
+{"verdict":"issues","findings":[{"type":"CHANGED","quote":"the exact phrase from the article","factbase":"what the fact-base says, or NOTHING","why":"one sentence","corrected":"the exact replacement phrase, or empty string","corrected_sentence":"the full replacement sentence, or empty string","removal_action":"none"}]}
+
+ARTICLE ({LANGUAGE}, {LENGTH}):
+{ARTICLE}
+
+FACT-BASE FOR THIS STORY:
+{FACTBASE}
+"""
+
 PROMPT_4_HEADER = """\
 You are a CEFR language assessment specialist. You will receive a set of news articles written in {LANGUAGE}. Assess each one and return a structured verdict.
 
