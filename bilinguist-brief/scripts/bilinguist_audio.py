@@ -31,15 +31,23 @@ TTS: Google Cloud Text-to-Speech, WaveNet tier specifically (not Standard,
 Neural2, or Studio -- WaveNet is the decided cost/quality tradeoff: 4M free
 characters/month, $4/million after, see cost note in run_audio_narration).
 English is fixed to en-GB (never en-US) -- a hard requirement, not a default.
-Every other language's voice is chosen by calling Google's own voices.list at
-RUNTIME (every invocation), not from a hardcoded guess -- see _voice_for_lang.
-This is deliberately different from en-GB: en-GB gets one fixed, human-picked
-voice because the requirement said so explicitly ("pick any real
-en-GB-Wavenet-* voice"); the other six explicitly said "rather than trusting
-any hardcoded list", so those six have no static fallback at all -- if the
-live query fails for one of them, that language's articles fail gracefully
-(audioKey left None, warning logged) rather than falling back to a guess that
-could be stale by the time this actually runs.
+
+Voice choice, per language, in two tiers -- see _LANGUAGE_VOICE_POOLS and
+_voice_for_lang:
+  - Curated (en, fr, de, pt as of 2026-09-04): Will listened to real samples
+    of every available WaveNet voice for that language and picked TWO to
+    alternate across a day's stories (never one fixed voice) -- see
+    _build_voice_assignments for how the alternation itself works. French and
+    German each only have 2 real WaveNet voices total, full stop, so "use
+    both" was the whole choice for those two; Portuguese has 5, and English
+    has 7.
+  - Not yet curated (sv, it, es): chosen by calling Google's own voices.list
+    at RUNTIME (every invocation), never a hardcoded guess -- see
+    _voice_for_lang. This was the original design for every non-English
+    language before any curated pool existed, and stays the fallback for
+    whichever languages Will hasn't picked for yet. If the live query fails,
+    that language's articles fail gracefully (audioKey left None, warning
+    logged) rather than falling back to a guess that could be stale.
 
 CHUNKING: Google's Text-to-Speech has a 5,000-BYTE (not character) limit per
 request (confirmed 2026-09-04 against https://cloud.google.com/text-to-speech
@@ -136,26 +144,30 @@ _EN_GB_LANGUAGE_CODE = "en-GB"
 # actually listened to samples and chosen -- see module docstring and
 # _build_voice_assignments. A language NOT in this dict falls through to the
 # live voices.list + alphabetically-first pick in _voice_for_lang below (still
-# true for fr/de/sv/it/es/pt until Will picks for each of those too -- French
-# and German notably only have 2 real WaveNet voices each to choose between,
-# confirmed 2026-09-04, so whatever gets picked for them will also become a
-# 2-voice alternating pool exactly like English, once chosen).
+# true for sv/it/es until Will picks for each of those too).
+#
+# French and German each only have 2 real WaveNet voices, full stop -- not a
+# curated subset, that's the complete list for both (confirmed 2026-09-04) --
+# so "use both, alternating" was the natural choice for each, same shape as
+# English. Portuguese has 5 real options (A, B, C, D, E); Will picked A
+# (female) and E (male) specifically, same alternating treatment.
 _LANGUAGE_VOICE_POOLS: dict[str, tuple[str, list[str]]] = {
     "en": (_EN_GB_LANGUAGE_CODE, ["en-GB-Wavenet-N", "en-GB-Wavenet-O"]),
+    "fr": ("fr-FR", ["fr-FR-Wavenet-F", "fr-FR-Wavenet-G"]),
+    "de": ("de-DE", ["de-DE-Wavenet-G", "de-DE-Wavenet-H"]),
+    "pt": ("pt-BR", ["pt-BR-Wavenet-A", "pt-BR-Wavenet-E"]),
 }
 
 # Every other language's locale, per Will's exact spec (Spanish is Spain, not
-# Latin America; Portuguese is Brazilian, not European). No voice NAME is
-# listed here on purpose -- see module docstring and _voice_for_lang: those
-# are chosen by querying Google's live voices.list at runtime, never from a
-# hardcoded guess, for any language not (yet) in _LANGUAGE_VOICE_POOLS above.
+# Latin America). No voice NAME is listed here on purpose -- see module
+# docstring and _voice_for_lang: those are chosen by querying Google's live
+# voices.list at runtime, never from a hardcoded guess, for any language not
+# (yet) in _LANGUAGE_VOICE_POOLS above -- fr/de/pt were removed from this dict
+# once curated pools existed for them; this is now just the remaining ones.
 _OTHER_LANGUAGE_CODES = {
-    "fr": "fr-FR",
-    "de": "de-DE",
     "sv": "sv-SE",
     "it": "it-IT",
     "es": "es-ES",
-    "pt": "pt-BR",
 }
 
 _voice_cache: dict[str, Optional[str]] = {}
