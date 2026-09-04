@@ -43,10 +43,75 @@ rejected: doing so would mean hand-adjusting the tokeniser's positions by how
 much text was inserted before each one -- exactly the fragile offset arithmetic
 that caused the bug above. A full bundle's A1/A2 articles parse in well under a
 second either way, so a second parse costs nothing worth trading correctness for.
+
+WHY NOT `token.pos_ == "NUM"` AS THE GATE (removed 2026-09-04, Will's real-data
+report -- German/French A2, missing brackets on "26. August 2026" and "...2034."
+in the Volkswagen article): a small spaCy model's statistical POS tag on a bare
+number is unreliable in exactly the cases that matter most here -- dates and
+years -- verified directly against every language, not assumed:
+  - German: a number directly followed by a period with no space (the German
+    ordinal-date convention, "26." = "26th", but ALSO plain sentence-final
+    punctuation that happens to land right after a number, "...2034.") gets
+    fused into ONE token by the tokenizer either way, then tagged away from
+    NUM (ADJ for the true ordinal, X/PROPN/other for the fused full stop --
+    inconsistent, sometimes the SAME string tags differently by context). The
+    old `pos_ == "NUM"` gate silently dropped every one of these.
+  - Spanish: a bare 4-digit year is tagged NOUN, not NUM, depending on the
+    preceding word ("para 2035", "desde ... 2024", "entre 2031 y 2034" -- all
+    silently dropped) while an identical year elsewhere in the same article
+    tags correctly. Confirmed against real 2026-09-04 production es output.
+  - French/Italian/Portuguese/Swedish: none of these fuse a trailing period
+    or mistag a bare year -- the gate never had anything to do there, so
+    dropping it is a no-op for them.
+`like_num` plus a real digit in the text turns out to be the correct, and
+sufficient, test on its own: it stayed True in every one of the above
+mistagged/fused cases (verified), while still correctly staying False for
+non-numeric digit-bearing tokens ("COVID-19", "G7", "3:2") regardless of what
+POS tag a model happens to assign them -- so removing the POS gate only ADDS
+acceptance for genuine numbers, it doesn't loosen what already got excluded.
+
+Two more things came out of chasing the above with real per-token spaCy output,
+both handled below:
+
+  1. SENTENT-FINAL PERIOD FUSED ONTO A NUMBER (German only, confirmed): since
+     the fused period can be either the ordinal's own marker ("26." keeps it,
+     bracket goes after: "26. (sechsundzwanzig)") or an unrelated sentence's
+     full stop that just landed adjacent with no space ("2034." -> bracket
+     must go BEFORE the period: "2034 (zweitausendvierunddreißig)."), and the
+     POS tag can't reliably tell those apart (see above), the two are told
+     apart by asking spaCy's own dependency parser for the token's real
+     sentence boundary instead: an embedded ordinal is never the last token of
+     its sentence, a fused full stop always is. This is why `_load_nlp` now
+     keeps the parser enabled (previously disabled alongside ner for speed) --
+     same "costs nothing worth trading correctness for" reasoning as above.
+
+  2. SPACE-GROUPED THOUSANDS SPLIT ACROSS TOKENS ("50 000", "1 500 000"):
+     European number formatting groups digits in 3s after a plain space, but
+     spaCy's tokenizer splits on that space, handing back separate tokens per
+     group. French tags the continuation chunk DET (so it silently missed the
+     gate either way, old or new -- a coverage gap, not a wrong answer). But
+     Swedish tags it NUM/CARD, which means it was ALREADY passing the OLD
+     `pos_ == "NUM"` gate and being spelled out as two unrelated numbers --
+     "50 000" (fifty thousand) shipping today as "50 (femtio) 000 (noll)"
+     ("fifty ... zero"). Confirmed live in the real 2026-09-04 production sv
+     bundle: 28 instances across every A1/A2 article that mentions a number
+     ≥1000, not an edge case -- a pre-existing bug independent of the POS-gate
+     change, caught while testing it. Fixed by merging a run of tokens into
+     one number before spelling it whenever each continuation chunk is EXACTLY
+     3 digits with EXACTLY one space before it and no other punctuation in
+     between -- the one unambiguous signature of this convention, so the merge
+     doesn't depend on either language's (proven unreliable) POS tag.
+
+Full-coverage re-derivation against the real 2026-09-04 production bundle (all
+7 languages, all A1/A2 articles, not a sample) after this fix: 116 additional
+correct brackets recovered across de/fr/es (the fused-period and mistagged-year
+cases above), 28 wrong split-number instances in sv corrected to one bracket
+each, zero new incorrect merges anywhere.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from typing import Optional
 
@@ -80,10 +145,15 @@ _YEAR_RANGE = range(1000, 2200)
 APPLIES_TO_LEVELS = {"A1", "A2"}
 
 _NLP_CACHE: dict = {}
+_GROUP3_RE = re.compile(r"^\d{3}$")  # a thousands-grouping continuation chunk
 
 
 def _load_nlp(lang: str):
-    """Load a spaCy model once per language. Missing model -> None, never raises."""
+    """Load a spaCy model once per language. Missing model -> None, never raises.
+
+    Parser stays ENABLED (only ner is disabled) -- needed for real sentence
+    boundaries, which is how a German number's fused trailing period is told
+    apart from a fused sentence-final full stop. See module docstring."""
     if lang in _NLP_CACHE:
         return _NLP_CACHE[lang]
     name = SPACY_MODELS.get(lang)
@@ -91,7 +161,7 @@ def _load_nlp(lang: str):
     if name and lang in NUM2WORDS_LANGS:
         try:
             import spacy
-            nlp = spacy.load(name, disable=["ner", "parser"])
+            nlp = spacy.load(name, disable=["ner"])
         except Exception as e:                                    # noqa: BLE001
             print(f"[10 spaCy — numwords] no spaCy model for {lang} ({name}): {e}",
                   file=sys.stderr)
@@ -155,11 +225,14 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
     Returns (new_text, count). A number that fails to convert is left alone --
     never inserts a wrong or partial word.
 
-    Number BOUNDARIES come entirely from spaCy's tokenizer (pos_ == "NUM" and
-    like_num), not from a hand-built regex — see module docstring for why that
-    matters. A token is skipped if it has no digit at all: English tags number
-    WORDS like "billion" as NUM too (verified 2026-08-30), and those are
-    already spelled out, nothing to convert.
+    Number BOUNDARIES come from spaCy's tokenizer (like_num + a real digit),
+    NOT a hand-built regex and, since 2026-09-04, NOT the token's POS tag
+    either — see module docstring for why the POS tag turned out to be
+    unreliable in exactly the cases (dates, years) this exists to handle, and
+    for the two related fixes below (fused-period placement, space-grouped
+    thousands). A token is skipped if it has no digit at all: English tags
+    number WORDS like "billion" as NUM too (verified 2026-08-30), and those
+    are already spelled out, nothing to convert.
     """
     nlp = _load_nlp(lang)
     if not text or nlp is None:
@@ -167,19 +240,54 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
 
     doc = nlp(text)
     out, last, count = [], 0, 0
-    for i, t in enumerate(doc):
-        if t.pos_ != "NUM" or not t.like_num or not any(c.isdigit() for c in t.text):
+    i, n = 0, len(doc)
+    while i < n:
+        t = doc[i]
+        if not t.like_num or not any(c.isdigit() for c in t.text):
+            i += 1
             continue
-        next_tok = doc[i + 1] if i + 1 < len(doc) else None
+
+        # Merge a run of space-grouped thousands chunks ("50 000", "1 500 000")
+        # into ONE number before spelling it -- see module docstring point 2.
+        digits = [t.text]
+        end_tok = t
+        j = i + 1
+        while (
+            j < n
+            and doc[j].idx == end_tok.idx + len(end_tok.text) + 1
+            and _GROUP3_RE.match(doc[j].text)
+        ):
+            digits.append(doc[j].text)
+            end_tok = doc[j]
+            j += 1
+        raw = "".join(digits)
+        span_end = end_tok.idx + len(end_tok.text)
+
+        # A German number can have a period fused onto it by the tokenizer --
+        # either its own ordinal-date marker (keep it, bracket goes after) or
+        # an unrelated sentence's full stop landing adjacent with no space
+        # (bracket must go BEFORE it instead) -- see module docstring point 1.
+        # Only ever checked on an unmerged token: a grouped-thousands run
+        # never ends a German ordinal-date expression.
+        trailing_period = ""
+        if j == i + 1 and end_tok.text.endswith(".") and end_tok.sent[-1] == end_tok:
+            raw = raw[:-1]
+            trailing_period = "."
+            span_end -= 1
+
+        next_tok = doc[j] if j < n else None
         is_percent = next_tok is not None and next_tok.text in ("%", "percent", "pct")
-        is_year = _looks_like_year(t.text, is_percent)
-        words = spell_number(t.text, lang, is_year)
+        is_year = len(digits) == 1 and _looks_like_year(raw, is_percent)
+        words = spell_number(raw, lang, is_year)
         if not words:
+            i += 1
             continue
-        out.append(text[last:t.idx + len(t.text)])
+        out.append(text[last:span_end])
         out.append(f" ({words})")
+        out.append(trailing_period)
         count += 1
-        last = t.idx + len(t.text)
+        last = span_end + len(trailing_period)
+        i = j
     out.append(text[last:])
     return "".join(out), count
 
