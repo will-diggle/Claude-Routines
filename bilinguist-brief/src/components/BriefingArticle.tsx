@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
@@ -7,6 +7,7 @@ import { Spacing } from '../theme';
 import { TappableText, countWordTokens, findWordPositionNear } from './TappableText';
 import { lookupSeparableInfo } from '../services/dictionaryService';
 import { WordPopup } from './WordPopup';
+import { GlassButton } from './GlassButton';
 import type { BriefingArticle as Article, TokenMapEntry } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
@@ -273,7 +274,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     <View style={[styles.container, isRTL && styles.containerRTL]}>
 
       {/* Headline */}
-      <View style={styles.headlineRow}>
+      <View style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}>
         <TappableText
           text={article.headline}
           style={[
@@ -285,25 +286,29 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           wordPositionOffset={0}
           onWordPress={handleWordPress}
         />
-      </View>
 
-      {canPlayAudio && (
-        <TouchableOpacity
-          onPress={handleAudioPress}
-          activeOpacity={0.7}
-          style={[styles.listenBtn, { borderColor: colors.borderMid }]}
-          disabled={isThisLoading}
-        >
-          <Ionicons
-            name={isThisLoading ? 'ellipsis-horizontal' : isThisPlaying ? 'pause' : 'play'}
-            size={13}
-            color={colors.accentRed}
-          />
-          <Text style={[styles.listenBtnText, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
-            {isThisLoading ? 'Loading…' : isThisPlaying ? 'Playing' : 'Listen'}
-          </Text>
-        </TouchableOpacity>
-      )}
+        {canPlayAudio && (
+          <GlassButton
+            onPress={handleAudioPress}
+            size={30}
+            disabled={isThisLoading}
+            style={styles.audioBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            bounce={false}
+          >
+            {isThisLoading ? (
+              <ActivityIndicator size="small" color={colors.inkMid} />
+            ) : (
+              <Ionicons
+                name={isThisPlaying ? 'pause' : 'play'}
+                size={15}
+                color={colors.inkMid}
+                style={!isThisPlaying ? { marginLeft: 2 } : undefined}
+              />
+            )}
+          </GlassButton>
+        )}
+      </View>
 
       {/* Body — split on double newlines to render proper paragraphs (RTL stays as one block) */}
       {isRTL ? (
@@ -363,22 +368,22 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   headlineRow: {
-    marginBottom: Spacing.sm,
-  },
-  headline: {},
-  listenBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  listenBtnText: {
-    fontSize: 12,
+  headlineRowRTL: {
+    flexDirection: 'row-reverse',
+  },
+  headline: {
+    flex: 1,
+  },
+  // Sized/nudged to sit within the headline's first line only — the button
+  // was taller than one line's height at most font sizes, so it visually
+  // spilled down into the second line instead of just displacing the first.
+  audioBtn: {
+    marginTop: -4,
   },
   body: {
     lineHeight: 26,

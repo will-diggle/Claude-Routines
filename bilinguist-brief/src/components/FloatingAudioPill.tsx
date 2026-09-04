@@ -6,7 +6,6 @@ import {
   Animated,
   Easing,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +15,20 @@ import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { pauseAudio, resumeAudio } from '../services/audioPlayer';
+import { BlurView } from 'expo-blur';
 import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
+
+// Same hex colors.card the flag/newspaper pills paint their own background
+// with (see FloatingTabBar's `pillBg = colors.card`) — converted to rgba so
+// this pill can use the literal same color at a chosen translucency instead
+// of a separately-invented tint.
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
@@ -34,20 +46,29 @@ const SIDE_NORMAL = 16;
 const DOCK_OFFSET = FLOAT_TAB_H + GAP_ABOVE_TAB; // 64px
 
 // Horizontal margin added each side when docked — pushes pill to sit between
-// the two mini nav pills (each 52px wide + 8px gap).
-const DOCK_SIDE = FLOAT_TAB_H + 8; // 60px each side
+// the two mini nav pills (each FLOAT_TAB_H_SMALL wide + 8px gap). Was using
+// FLOAT_TAB_H (the *open* pill height, 68) instead of FLOAT_TAB_H_SMALL (the
+// actual mini/closed pill width, 52) — 16px too much margin per side, making
+// the docked pill narrower than it needed to be to just clear the mini pills.
+const DOCK_SIDE = FLOAT_TAB_H_SMALL + 8; // 60px each side
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function FloatingAudioPill() {
-  const { colors, isDark, background, fontFamily } = useTheme();
+  const { colors, isDark, fontFamily, fontSize } = useTheme();
   const insets    = useSafeAreaInsets();
   const { isPlaying, isLoading, headline } = useAudioStore();
-  const { briefingScrolled, audioPillForcedUp } = useNavPillStore(
-    useShallow(s => ({ briefingScrolled: s.briefingScrolled, audioPillForcedUp: s.audioPillForcedUp }))
+  const { anyPillOpen, audioPillForcedUp } = useNavPillStore(
+    useShallow(s => ({
+      anyPillOpen: s.anyPillOpen,
+      audioPillForcedUp: s.audioPillForcedUp,
+    }))
   );
   const isVisible = isPlaying || isLoading;
-  const isDocked  = briefingScrolled && isVisible && !audioPillForcedUp;
+  // Docks only once both nav pills are in their narrow mini form — that's
+  // the only time there's physical room to slot this pill between them.
+  // Same formula FloatingTabBar mirrors for its own isAudioDocked.
+  const isDocked  = !anyPillOpen && isVisible && !audioPillForcedUp;
 
   // ── Entrance / exit spring (native driver) ───────────────────────────────
   const showAnim = useRef(new Animated.Value(0)).current;
@@ -159,21 +180,21 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  const isNavy  = background === 'softGrey';
-  const isCream = background === 'cream';
-  const pillBg  = isNavy  ? 'rgba(30,45,66,0.97)'
-                : isDark  ? 'rgba(22,22,22,0.96)'
-                : isCream ? 'rgba(245,240,232,0.97)'
-                : 'rgba(250,248,246,0.96)';
-  const pillBorder = isNavy  ? 'rgba(255,255,255,0.10)'
-                   : isDark  ? 'rgba(255,255,255,0.09)'
-                   : 'rgba(0,0,0,0.07)';
+  // colors.card — same color the flag/newspaper pills use — as a tint over a
+  // real BlurView blur. The native liquid-glass module isn't producing a
+  // visible effect here, so this is the plain, reliable technique: color +
+  // blur, no dependency on the custom module. Moderately translucent — not
+  // opaque enough to hide the blur, not so transparent the pill disappears.
+  const tintBg = hexToRgba(colors.card, isDark ? 0.50 : 0.45);
+  // Thin light rim at the same opacity as the fill — the classic glass-edge
+  // highlight, not a themed border.
+  const borderColorRgba = `rgba(255,255,255,${isDark ? 0.35 : 0.30})`;
   const onPill    = colors.chrome;
   const circleIcon = colors.bg;
 
   const fadeColors: [string, string] = [
-    pillBg.replace(/[\d.]+\)$/, '0)'),
-    pillBg,
+    tintBg.replace(/[\d.]+\)$/, '0)'),
+    tintBg,
   ];
 
   // ── Static position — re-calculates only when insets change ─────────────
@@ -208,9 +229,38 @@ export function FloatingAudioPill() {
             ],
           }}
         >
-          <View style={[styles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
+          {/* Shadow lives on this outer view only — a hovering pill casts a
+              shadow below/around it, not onto its own face. Separated from
+              the inner overflow:hidden — combining both on one view clips
+              the shadow (same reason FloatingTabBar's pillWrapper/pill and
+              GlassButton keep the two concerns on separate views). */}
+          <View
+            style={[
+              styles.pillShadow,
+              { borderWidth: 1, borderColor: borderColorRgba },
+            ]}
+          >
+            <View style={styles.pillClip}>
+              {/* Stronger blur across the whole pill — only the thin rim ring
+                  (not covered by the inset layer below) actually shows it,
+                  giving the edge a more intense "magnified" look than the
+                  center, the way a real convex lens bends light more at its
+                  edges than through its middle. */}
+              <BlurView
+                style={StyleSheet.absoluteFill}
+                intensity={52}
+                tint={isDark ? 'dark' : 'light'}
+              />
+              <View style={styles.pillRim}>
+                <BlurView
+                  style={StyleSheet.absoluteFill}
+                  intensity={40}
+                  tint={isDark ? 'dark' : 'light'}
+                />
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: tintBg }]} pointerEvents="none" />
 
-            {/* ── Waveform (LEFT) ── */}
+                <View style={styles.pillContent}>
+              {/* ── Waveform (LEFT) ── */}
             <View style={styles.waveform}>
               {barAnims.map((anim, i) => (
                 <Animated.View
@@ -236,13 +286,13 @@ export function FloatingAudioPill() {
                 style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
               >
                 <Text
-                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
                   onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
                 >
                   {marqueeText}
                 </Text>
                 <Text
-                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular }]}
+                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
                 >
                   {marqueeText}
                 </Text>
@@ -273,7 +323,9 @@ export function FloatingAudioPill() {
                 />
               </View>
             </TouchableOpacity>
-
+              </View>
+              </View>
+            </View>
           </View>
         </Animated.View>
 
@@ -289,23 +341,43 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
 
-  pill: {
+  // Shadow only — no overflow:hidden here so the shadow isn't clipped.
+  // Matches FloatingTabBar's own pillShadow exactly (same offset/opacity/
+  // radius/elevation) so this pill's shadow reads the same as the flag and
+  // newspaper pills either side of it.
+  pillShadow: {
     width: '100%',
     height: PILL_H,
     borderRadius: PILL_H / 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 6,
-    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.20 : 0,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  // Clips the blur + tint to the pill shape.
+  pillClip: {
+    flex: 1,
+    borderRadius: PILL_H / 2,
     overflow: 'hidden',
   },
-
+  // Inset from pillClip's edge — leaves a thin ring around the border where
+  // only the stronger outer blur shows through, uncovered by this layer.
+  pillRim: {
+    position: 'absolute',
+    top: 3, bottom: 3, left: 3, right: 3,
+    borderRadius: PILL_H / 2 - 3,
+    overflow: 'hidden',
+  },
+  // Row layout for the pill's own content, on top of the blur + tint.
+  pillContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
   waveform: {
     width: 30,
     flexDirection: 'row',
@@ -335,8 +407,11 @@ const styles = StyleSheet.create({
     minWidth: 3000,
   },
 
+  // fontFamily and fontSize set inline (fontFamily.regular / fontSize.body —
+  // the same reading-font + size the article body uses, from useTheme()).
+  // fontSize.body tracks the user's Preferences > Display font-size setting
+  // (small/medium/large/extraLarge), so this pill's text scales with it too.
   marqueeText: {
-    fontSize: 12,
     letterSpacing: 0.2,
     flexShrink: 0,
   },

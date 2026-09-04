@@ -17,6 +17,11 @@ interface Props {
   hitSlop?: { top: number; bottom: number; left: number; right: number };
   cornerRadius?: number;
   disabled?: boolean;
+  /** Overshoot-then-settle release feel. Default true, matching every
+   *  existing GlassButton (back/close/save-word buttons, etc). Pass false
+   *  for a plain press-and-release, matching FloatingTabBar's nav pills and
+   *  SpringButton — no overshoot. */
+  bounce?: boolean;
 }
 
 export function GlassButton({
@@ -27,6 +32,7 @@ export function GlassButton({
   hitSlop = { top: 8, bottom: 8, left: 8, right: 8 },
   cornerRadius,
   disabled = false,
+  bounce = true,
 }: Props) {
   const { isDark } = useTheme();
   const radius = cornerRadius ?? size / 2;
@@ -42,6 +48,15 @@ export function GlassButton({
   }, [scale]);
 
   const pressOut = useCallback(() => {
+    if (!bounce) {
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 20,
+      }).start();
+      return;
+    }
     Animated.sequence([
       Animated.spring(scale, {
         toValue: 1.12,
@@ -56,7 +71,7 @@ export function GlassButton({
         friction: 12,
       }),
     ]).start();
-  }, [scale]);
+  }, [scale, bounce]);
 
   const handlePress = useCallback((e: GestureResponderEvent) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

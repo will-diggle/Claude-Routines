@@ -246,7 +246,7 @@ const LeftContext = memo(function LeftContext({
 // interactive UIGlassEffect press response (it only fires for touches landing
 // inside the effect's own contentView, which nothing is nested inside of now);
 // worth it against a hard crash.
-function GlassPill({
+export function GlassPill({
   glass, isDark, pillBg, children,
 }: { glass: boolean; isDark: boolean; pillBg: string; children: React.ReactNode }) {
   if (!glass) {
@@ -288,6 +288,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     settingsScrolled,
     practiceScrolled,
     audioPillForcedUp, setAudioPillForcedUp,
+    setAnyPillOpen,
   } = useNavPillStore(useShallow((s) => ({
     briefPageIndex: s.briefPageIndex,
     setBriefPageIndex: s.setBriefPageIndex,
@@ -301,9 +302,9 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     practiceScrolled: s.practiceScrolled,
     audioPillForcedUp: s.audioPillForcedUp,
     setAudioPillForcedUp: s.setAudioPillForcedUp,
+    setAnyPillOpen: s.setAnyPillOpen,
   })));
   const isAudioVisible = useAudioStore(useShallow(s => s.isPlaying || s.isLoading));
-  const isAudioDocked  = briefingScrolled && isAudioVisible && !audioPillForcedUp;
 
   const savedLangCodes = useMemo(
     () => [...new Set(savedWords.map((w) => w.language))].sort(),
@@ -318,6 +319,16 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const [leftOpen,       setLeftOpen]       = useState(false);
   const [rightOpen,      setRightOpen]      = useState(false);
   const [rightNavMounted, setRightNavMounted] = useState(false);
+
+  // There's only physical room to dock the audio pill between the two nav
+  // pills once both are in their narrow mini form — mirror that into the
+  // shared store so FloatingAudioPill's own isDocked can gate on it without
+  // the two components' independent computations drifting apart.
+  useEffect(() => {
+    setAnyPillOpen(leftOpen || rightOpen);
+  }, [leftOpen, rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isAudioDocked = !leftOpen && !rightOpen && isAudioVisible && !audioPillForcedUp;
 
   // Tab index the user just tapped, applied to the pill's own rendering before
   // navigation commits. Without it the icon only swaps once the route change
@@ -737,7 +748,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const wrapperPos = { left: PILL_EDGE_INSET, right: PILL_EDGE_INSET };
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM - 6 }, wrapperPos]}>
+    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: insets.bottom + FLOAT_TAB_BOTTOM }, wrapperPos]}>
 {/* ── Left pill ──────────────────────────────────────────────────────── */}
       {/* Outer: scale only (native driver). Inner: layout only (non-native). Separating drivers prevents animation freeze. */}
       <Animated.View style={{ transform: [{ scale: leftPressScale }] }}>

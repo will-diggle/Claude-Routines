@@ -35,6 +35,14 @@ interface NavPillStore {
   // Set to true when user taps a nav pill while audio is docked — forces audio back up
   audioPillForcedUp: boolean;
   setAudioPillForcedUp: (v: boolean) => void;
+
+  // True whenever the left or right nav pill is expanded (open). There's only
+  // physical room to dock the audio pill between them when both are in their
+  // narrow mini/closed form — mirrored from FloatingTabBar's own leftOpen/
+  // rightOpen state so FloatingAudioPill can gate docking on it without the
+  // two components' independent "is docked" computations drifting apart.
+  anyPillOpen: boolean;
+  setAnyPillOpen: (v: boolean) => void;
 }
 
 export const useNavPillStore = create<NavPillStore>((set) => ({
@@ -57,6 +65,9 @@ export const useNavPillStore = create<NavPillStore>((set) => ({
 
   audioPillForcedUp: false,
   setAudioPillForcedUp: (v) => set({ audioPillForcedUp: v }),
+
+  anyPillOpen: false,
+  setAnyPillOpen: (v) => set({ anyPillOpen: v }),
 
   settingsScrolled: false,
   setSettingsScrolled: (scrolled) => set({ settingsScrolled: scrolled }),

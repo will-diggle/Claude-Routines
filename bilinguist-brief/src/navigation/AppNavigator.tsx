@@ -5,6 +5,7 @@ import { BriefingScreen } from '../screens/BriefingScreen';
 import { PracticeNavigator } from './PracticeNavigator';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { FloatingTabBar } from '../components/FloatingTabBar';
+import { FloatingAudioPill } from '../components/FloatingAudioPill';
 import { useTheme } from '../hooks/useTheme';
 
 export type RootTabParamList = {
@@ -31,6 +32,7 @@ export function AppNavigator() {
         <Tab.Screen name="Practice" component={PracticeNavigator} />
         <Tab.Screen name="Preferences" component={SettingsScreen} />
       </Tab.Navigator>
+      <FloatingAudioPill />
     </View>
   );
 }
