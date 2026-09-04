@@ -132,8 +132,13 @@ export function TappableText({
   return (
     <Text style={style}>
       {tokens.map((token) => {
+        // Non-word runs (spaces, punctuation) never get a press handler or their
+        // own style, so they don't need a nested Text element — just the raw
+        // string. A long paragraph can have 100+ of these; wrapping every one of
+        // them roughly doubles the nested Text count for no visual difference,
+        // and iOS silently drops trailing content once that count gets large.
         if (!token.isWord) {
-          return <Text key={token.index}>{token.text}</Text>;
+          return token.text;
         }
 
         const globalPos = token.wordIndex + wordPositionOffset;

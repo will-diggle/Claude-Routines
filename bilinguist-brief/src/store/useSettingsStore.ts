@@ -71,7 +71,6 @@ export interface Settings {
   fontFamily: FontFamilyKey;
   appIcon: string | null;
   appIconAuto: boolean;
-  developerMode: boolean;
   username: string;
 }
 
@@ -92,7 +91,6 @@ interface SettingsStore extends Settings {
   setFontFamily: (font: FontFamilyKey) => void;
   setAppIcon: (icon: string | null) => void;
   setAppIconAuto: (v: boolean) => void;
-  setDeveloperMode: (enabled: boolean) => void;
   setUsername: (v: string) => void;
   activeLanguages: () => LanguagePreference[];
 }
@@ -142,7 +140,6 @@ const DEFAULT_SETTINGS: Settings = {
   fontFamily: 'lora',
   appIcon: null,
   appIconAuto: false,
-  developerMode: false,
   username: '',
 };
 
@@ -234,7 +231,6 @@ export const useSettingsStore = create<SettingsStore>()(
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setAppIcon: (appIcon) => set({ appIcon }),
       setAppIconAuto: (appIconAuto) => set({ appIconAuto }),
-      setDeveloperMode: (developerMode) => set({ developerMode }),
       setUsername: (username) => set({ username }),
 
       activeLanguages: () => get().languages.filter((l) => l.active),
@@ -242,7 +238,6 @@ export const useSettingsStore = create<SettingsStore>()(
     {
       name: 'bilinguist-settings',
       storage: createJSONStorage(() => AsyncStorage),
-      // developerMode is intentionally excluded — always starts false on app launch
       partialize: (state) => ({
         languages: state.languages,
         displayLanguage: state.displayLanguage,

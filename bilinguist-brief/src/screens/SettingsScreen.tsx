@@ -36,12 +36,9 @@ import { DraggableList } from '../components/DraggableList';
 import { useSettingsStore, LanguageLevel, langDisplayCode, type ReadLength } from '../store/useSettingsStore';
 import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
-import { useSubscriptionStore } from '../store/useSubscriptionStore';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, PIPELINE_READY_TIME, getMinNotifTime } from '../services/notifications';
-import { getDailyUsage, resetDailyUsage } from '../services/apiUsage';
-import { getTodayFactbase } from '../services/factbase';
 import {
   FontFamilies,
   FontSizes,
@@ -67,7 +64,6 @@ try {
   setNativeAppIcon = require('expo-alternate-app-icons').setAlternateAppIcon;
 } catch { /* not available in Expo Go */ }
 import Constants from 'expo-constants';
-import { glassDiagSummary } from '../components/GlassSurface';
 import * as analytics from '../services/analytics';
 import { LegalDocModal, type LegalDoc } from './LegalDocModal';
 import { GlassButton } from '../components/GlassButton';
@@ -152,7 +148,6 @@ const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean; pinne
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
 );
-const DEV_CODE = 'BILDEV';
 const COMING_SOON_LANGS = new Set(['tr', 'hu', 'ar']);
 
 
@@ -166,7 +161,6 @@ export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const store = useSettingsStore();
   const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
-  const { setDev, applyPromoCode, status } = useSubscriptionStore();
   const { settingsSection: activeTab, setSettingsSection, setSettingsScrolled } = useNavPillStore();
 
   // Asymmetric thresholds: collapse once the user leaves the top, but only
@@ -183,11 +177,7 @@ export function SettingsScreen() {
     }
   }, [onScrollTabBar, setSettingsScrolled]);
   const [isDragging, setIsDragging] = useState(false);
-  const [devModalVisible, setDevModalVisible] = useState(false);
-  const [devCodeInput, setDevCodeInput] = useState('');
   const [levelModalLang, setLevelModalLang] = useState<string | null>(null);
-  const [usageLabel, setUsageLabel] = useState('');
-  const [isForceRegenerating, setIsForceRegenerating] = useState(false);
 
   // Profile page state
   const [settingsSheetVisible, setSettingsSheetVisible] = useState(false);
@@ -395,12 +385,6 @@ export function SettingsScreen() {
   const pagerRef = useRef<ScrollView>(null);
   const programmaticScrollRef = useRef(false);
 
-  useEffect(() => {
-    if (store.developerMode) {
-      getDailyUsage().then(({ used, limit }) => setUsageLabel(`${used}/${limit} briefings today`)).catch(() => {});
-    }
-  }, [store.developerMode]);
-
   // Sync pager position when pill chip is tapped
   useEffect(() => {
     const idx = SECTION_TO_INDEX[activeTab] ?? 0;
@@ -417,27 +401,6 @@ export function SettingsScreen() {
     if (section && section !== activeTab) setSettingsSection(section);
   }, [activeTab, setSettingsSection]);
 
-  function handleDevTap() {
-    if (store.developerMode) {
-      store.setDeveloperMode(false);
-      setDev(false);
-      return;
-    }
-    setDevCodeInput('');
-    setDevModalVisible(true);
-  }
-
-  function handleDevCodeSubmit() {
-    if (devCodeInput.trim().toUpperCase() === DEV_CODE) {
-      store.setDeveloperMode(true);
-      setDev(true);
-      setDevModalVisible(false);
-    } else {
-      Alert.alert('Incorrect code', 'Please try again.');
-      setDevCodeInput('');
-    }
-  }
-
   const COMING_SOON_KEYS = new Set(ALL_TOPIC_ITEMS.filter((t) => t.comingSoon).map((t) => t.key));
   const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key))
     .map((key) => ({
@@ -450,7 +413,6 @@ export function SettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
-      <TopBar />
       {isIPad ? (
         /* ── iPad: active section content only (sidebar nav lives in FloatingTabBar) ── */
         <ScrollView
@@ -462,6 +424,7 @@ export function SettingsScreen() {
           scrollEventThrottle={16}
           onScroll={onScrollSettings}
         >
+            <TopBar />
             {activeTab === 'languages' && (
               <>
                 <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
@@ -687,6 +650,7 @@ export function SettingsScreen() {
           scrollEventThrottle={16}
           onScroll={onScrollSettings}
         >
+          <TopBar />
           <SectionHeader title="Language Preferences" colors={colors} fontFamily={fontFamily} />
 
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
@@ -748,6 +712,7 @@ export function SettingsScreen() {
           scrollEventThrottle={16}
           onScroll={onScrollSettings}
         >
+          <TopBar />
           <SectionHeader title="Genres" colors={colors} fontFamily={fontFamily} />
 
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginTop: 4, marginBottom: 4 }]}>
@@ -820,6 +785,7 @@ export function SettingsScreen() {
           scrollEventThrottle={16}
           onScroll={onScrollSettings}
         >
+          <TopBar />
           <SectionHeader title="Display" colors={colors} fontFamily={fontFamily} />
 
           <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Preview</Text>
@@ -943,6 +909,7 @@ export function SettingsScreen() {
           scrollEventThrottle={16}
           onScroll={onScrollSettings}
         >
+          <TopBar />
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>
             <TouchableOpacity
@@ -1242,84 +1209,6 @@ export function SettingsScreen() {
               <Text style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 Bilinguist Brief · Version {APP_VERSION}
               </Text>
-              {/* TEMPORARY — diagnosing why the pills fall back to blur instead of
-                  UIGlassEffect. Remove once that's settled. */}
-              <Text
-                selectable
-                style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}
-              >
-                {glassDiagSummary()}
-              </Text>
-              {/* Developer */}
-              <View style={styles.devSection}>
-                <TouchableOpacity onPress={() => { setSettingsSheetVisible(false); handleDevTap(); }} style={styles.devTap}>
-                  <Text style={[styles.devText, { color: colors.inkFaint }]}>
-                    {store.developerMode ? 'Developer mode: ON — tap to disable' : '·  ·  ·'}
-                  </Text>
-                </TouchableOpacity>
-                {store.developerMode && (
-                  <View style={{ alignItems: 'center', gap: 6, marginTop: 4 }}>
-                    <Text style={[styles.devText, { color: colors.inkFaint }]}>
-                      {usageLabel} · Access: {status}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => resetDailyUsage().then(() => setUsageLabel('0/20 briefings today')).catch(() => {})}
-                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                    >
-                      <Text style={[styles.devText, { color: colors.inkLight }]}>Reset usage counter</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        const result = applyPromoCode('FOUNDER');
-                        Alert.alert(result === 'success' ? 'Full access enabled' : result === 'already_active' ? 'Already active' : 'Invalid code');
-                      }}
-                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                    >
-                      <Text style={[styles.devText, { color: colors.inkLight }]}>Enable full access (promo)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      disabled={isForceRegenerating}
-                      onPress={async () => {
-                        const active = store.languages.filter((l) => l.active);
-                        if (active.length === 0) { Alert.alert('No active languages', 'Enable at least one language in settings.'); return; }
-                        setIsForceRegenerating(true);
-                        try {
-                          const calls: Array<() => Promise<void>> = [];
-                          for (const lang of active) {
-                            const level = lang.level ?? 'B1';
-                            const length = (lang.readLength === 'short' ? 'short' : 'longer') as ArticleLength;
-                            calls.push(() => loadBriefing(lang.code, level, length, true));
-                          }
-                          await Promise.all(calls.map((fn) => fn()));
-                          Alert.alert('Done', `Regenerated ${active.length} language${active.length > 1 ? 's' : ''} (all length variants).`);
-                        } catch {
-                          Alert.alert('Error', 'One or more variants failed. Check the Brief screen for details.');
-                        } finally {
-                          setIsForceRegenerating(false);
-                        }
-                      }}
-                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accentRed, borderRadius: 6, paddingHorizontal: 16, opacity: isForceRegenerating ? 0.5 : 1 }]}
-                    >
-                      <Text style={[styles.devText, { color: colors.accentRed }]}>
-                        {isForceRegenerating ? 'Regenerating…' : 'Force regenerate everything now'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={async () => {
-                        try {
-                          const fb = await getTodayFactbase();
-                          if (!fb) { Alert.alert('No factbase', "Today's factbase hasn't been gathered yet."); return; }
-                          const preview = JSON.stringify(fb, null, 2).slice(0, 1200);
-                          Alert.alert(`Factbase (${fb.length} stories)`, preview + (preview.length >= 1200 ? '\n…(truncated)' : ''));
-                        } catch {}
-                      }}
-                      style={[styles.devTap, { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderMid, borderRadius: 6, paddingHorizontal: 16 }]}
-                    >
-                      <Text style={[styles.devText, { color: colors.inkLight }]}>View today's factbase</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
             </ScrollView>
           </Animated.View>
         </View>
@@ -1527,44 +1416,6 @@ export function SettingsScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Dev code modal */}
-      <Modal
-        visible={devModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDevModalVisible(false)}
-      >
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.codeSheet, { backgroundColor: colors.surface }]}>
-            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              Developer Access
-            </Text>
-            <TextInput
-              style={[
-                modalStyles.codeInput,
-                { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg },
-              ]}
-              value={devCodeInput}
-              onChangeText={setDevCodeInput}
-              placeholder="Enter code"
-              placeholderTextColor={colors.inkFaint}
-              autoCapitalize="characters"
-              autoFocus
-              onSubmitEditing={handleDevCodeSubmit}
-            />
-            <TouchableOpacity
-              style={[modalStyles.codeButton, { backgroundColor: colors.accentGold }]}
-              onPress={handleDevCodeSubmit}
-            >
-              <Text style={modalStyles.codeButtonText}>Unlock</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={modalStyles.cancel} onPress={() => setDevModalVisible(false)}>
-              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </Modal>
 
       {/* ── Support form ── */}
@@ -1796,9 +1647,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
   },
-  devSection: { marginTop: Spacing.xxl, alignItems: 'center', paddingBottom: Spacing.md },
-  devTap: { padding: Spacing.md },
-  devText: { fontSize: 13 },
 });
 
 const modalStyles = StyleSheet.create({

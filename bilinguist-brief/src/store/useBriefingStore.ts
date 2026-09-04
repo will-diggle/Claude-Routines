@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import type { GeneratedBriefing, ArticleLength } from '../services/anthropic';
 import { fetchWeather, type WeatherData } from '../services/weather';
-import { getMockBriefing } from '../data/mockBriefings';
 import { fetchTodayBundle, fetchBundleMeta, applyBundleToCache, clearPreviousDaysBriefings, type BundleFetchResult } from '../services/briefingSync';
 import type { LanguageCode, LanguageLevel } from './useSettingsStore';
 import { useSettingsStore } from './useSettingsStore';
@@ -443,9 +442,8 @@ export const useBriefingStore = create<BriefingStore>()(
         // ── 2.5. syncFromServer may have already loaded real content ───────
         // When forceRefresh=true, steps 1 and 2 are skipped above. But
         // syncFromServer (called concurrently in BriefingScreen) may have
-        // already written today's real briefing into the store. Use it and
-        // skip mock/error paths — this prevents developer mode from
-        // overwriting real content with demo articles.
+        // already written today's real briefing into the store — use it
+        // rather than falling through to the error path below.
         {
           const fresh = get().briefings[language];
           if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
@@ -470,17 +468,7 @@ export const useBriefingStore = create<BriefingStore>()(
           }
         }
 
-        // ── 3. Developer mock mode (fallback only — no real content found) ──
-        if (useSettingsStore.getState().developerMode) {
-          const mock = getMockBriefing(language, level, length);
-          set((s) => ({
-            briefings: { ...s.briefings, [language]: mock },
-            errorsFor: { ...s.errorsFor, [language]: undefined },
-          }));
-          return;
-        }
-
-        // ── 4. No cache — show spinner while server sync is in progress ───────
+        // ── 3. No cache — show spinner while server sync is in progress ───────
         // syncFromServer runs concurrently; when it finishes it will update
         // briefings and clear generatingFor. If sync finishes with nothing,
         // the finally block sets isSyncing:false and we show NOT_READY_MESSAGE.
@@ -512,7 +500,7 @@ export const useBriefingStore = create<BriefingStore>()(
           }
         }
 
-        // ── 5. Sync done — check again before giving up ─────────────────────
+        // ── 4. Sync done — check again before giving up ─────────────────────
         // syncFromServer may have populated the briefing concurrently; re-check
         // before showing NOT_READY_MESSAGE (forceRefresh skips the early-return
         // cache check, so we must verify here too).

@@ -1,8 +1,8 @@
 import { SpringButton } from '../components/SpringButton';
 import { BlurView } from 'expo-blur';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
-import { View, Text, ScrollView, Modal, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, Modal, StyleSheet, Pressable, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +53,21 @@ export function PracticeScreen() {
   const { streak, freezeDatesUsed } = useStreakStore(useShallow((s) => ({ streak: s.streak, freezeDatesUsed: s.freezeDatesUsed })));
   const activeLanguageCodes = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
   const selectedLang = useNavPillStore((s) => s.practiceLang);
+  const setPracticeScrolled = useNavPillStore((s) => s.setPracticeScrolled);
+
+  // Asymmetric thresholds: collapse once the user leaves the top, but only
+  // re-expand when they're actually back at the top — otherwise the pill grows
+  // and shrinks while scrolling up. Same rule as Brief/Settings.
+  const practiceScrolledRef = useRef(false);
+  const onScrollPractice = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    onScrollTabBar(e);
+    const y = e.nativeEvent.contentOffset.y;
+    const nowScrolled = practiceScrolledRef.current ? y > 4 : y > 80;
+    if (nowScrolled !== practiceScrolledRef.current) {
+      practiceScrolledRef.current = nowScrolled;
+      setPracticeScrolled(nowScrolled);
+    }
+  }, [onScrollTabBar, setPracticeScrolled]);
 
   const freezesRemaining = useMemo(() => {
     const cutoff = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();
@@ -84,13 +99,13 @@ export function PracticeScreen() {
   return (
     <>
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={[]}>
-      <TopBar />
     <ScrollView
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
       scrollEventThrottle={16}
-      onScroll={onScrollTabBar}
+      onScroll={onScrollPractice}
     >
+      <TopBar />
       <Text style={[styles.pageTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
         Practice
       </Text>

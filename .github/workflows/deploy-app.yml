@@ -25,14 +25,6 @@ jobs:
         working-directory: bilinguist-brief
         env:
           DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ELEVENLABS_VOICE_FR: ${{ secrets.ELEVENLABS_VOICE_FR }}
-          ELEVENLABS_VOICE_DE: ${{ secrets.ELEVENLABS_VOICE_DE }}
-          ELEVENLABS_VOICE_SV: ${{ secrets.ELEVENLABS_VOICE_SV }}
-          ELEVENLABS_VOICE_EN: ${{ secrets.ELEVENLABS_VOICE_EN }}
-          ELEVENLABS_VOICE_IT: ${{ secrets.ELEVENLABS_VOICE_IT }}
-          ELEVENLABS_VOICE_ES: ${{ secrets.ELEVENLABS_VOICE_ES }}
         run: |
           node -e "
             const fs = require('fs');
@@ -40,14 +32,6 @@ jobs:
             const env = eas.build.production.env || {};
             const map = {
               DEEPL_API_KEY:        'EXPO_PUBLIC_DEEPL_API_KEY',
-              ELEVENLABS_API_KEY:   'EXPO_PUBLIC_ELEVENLABS_API_KEY',
-              ANTHROPIC_API_KEY:    'EXPO_PUBLIC_ANTHROPIC_API_KEY',
-              ELEVENLABS_VOICE_FR:  'EXPO_PUBLIC_ELEVENLABS_VOICE_FR',
-              ELEVENLABS_VOICE_DE:  'EXPO_PUBLIC_ELEVENLABS_VOICE_DE',
-              ELEVENLABS_VOICE_SV:  'EXPO_PUBLIC_ELEVENLABS_VOICE_SV',
-              ELEVENLABS_VOICE_EN:  'EXPO_PUBLIC_ELEVENLABS_VOICE_EN',
-              ELEVENLABS_VOICE_IT:  'EXPO_PUBLIC_ELEVENLABS_VOICE_IT',
-              ELEVENLABS_VOICE_ES:  'EXPO_PUBLIC_ELEVENLABS_VOICE_ES',
             };
             for (const [secret, expoKey] of Object.entries(map)) {
               if (process.env[secret]) env[expoKey] = process.env[secret];

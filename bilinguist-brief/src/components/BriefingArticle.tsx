@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
 import { TappableText, countWordTokens, findWordPositionNear } from './TappableText';
@@ -9,6 +11,8 @@ import type { BriefingArticle as Article, TokenMapEntry } from '../services/anth
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
 import SEPARABLE_DE from '../data/separable_de.json';
+import { useAudioStore } from '../store/useAudioStore';
+import { playArticleAudio, pauseAudio, resumeAudio } from '../services/audioPlayer';
 
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
@@ -241,6 +245,30 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   const arabicFontRegular = 'NotoNaskhArabic_400Regular';
   const arabicFontBold = 'NotoNaskhArabic_700Bold';
 
+  // Listen button — only for Global News articles the pipeline actually
+  // generated audio for. Tracked by headline against the shared audio store,
+  // same convention playAudioHeadline already used, since there's no other
+  // stable per-article key available in that store.
+  const canPlayAudio = article.genre === 'GLOBAL NEWS' && !!article.audioKey;
+  const { audioHeadline, audioIsPlaying, audioIsLoading } = useAudioStore(
+    useShallow((s) => ({ audioHeadline: s.headline, audioIsPlaying: s.isPlaying, audioIsLoading: s.isLoading }))
+  );
+  const isThisArticle = canPlayAudio && audioHeadline === article.headline;
+  const isThisPlaying = isThisArticle && audioIsPlaying;
+  const isThisLoading = isThisArticle && audioIsLoading;
+
+  const handleAudioPress = useCallback(() => {
+    if (!article.audioKey) return;
+    if (isThisPlaying) {
+      pauseAudio();
+    } else if (isThisArticle && !audioIsPlaying && !audioIsLoading) {
+      // Paused mid-way on this same article — resume rather than restart.
+      resumeAudio();
+    } else {
+      playArticleAudio(language, article.headline, article.audioKey);
+    }
+  }, [article.audioKey, article.headline, isThisArticle, isThisPlaying, audioIsPlaying, audioIsLoading, language]);
+
   return (
     <View style={[styles.container, isRTL && styles.containerRTL]}>
 
@@ -259,6 +287,24 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         />
       </View>
 
+      {canPlayAudio && (
+        <TouchableOpacity
+          onPress={handleAudioPress}
+          activeOpacity={0.7}
+          style={[styles.listenBtn, { borderColor: colors.borderMid }]}
+          disabled={isThisLoading}
+        >
+          <Ionicons
+            name={isThisLoading ? 'ellipsis-horizontal' : isThisPlaying ? 'pause' : 'play'}
+            size={13}
+            color={colors.accentRed}
+          />
+          <Text style={[styles.listenBtnText, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>
+            {isThisLoading ? 'Loading…' : isThisPlaying ? 'Playing' : 'Listen'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {/* Body — split on double newlines to render proper paragraphs (RTL stays as one block) */}
       {isRTL ? (
         <TappableText
@@ -272,14 +318,20 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         article.body.split(/\n\n+/).map((para, i, arr) => {
           const offset = headlineWordCount + arr.slice(0, i).reduce((sum, p) => sum + countWordTokens(p), 0);
           return (
-            <TappableText
-              key={i}
-              text={para.trim()}
-              style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }, i < arr.length - 1 && styles.paragraphGap]}
-              activePositions={activePositions}
-              wordPositionOffset={offset}
-              onWordPress={handleWordPress}
-            />
+            // marginBottom used to sit directly on the TappableText's own Text
+            // element (which can hold 100+ nested word/punctuation children) —
+            // on iOS that combination can clip the text's own tail instead of
+            // just adding space after it. Margin now lives on a plain wrapping
+            // View instead, so the text-content element itself never carries it.
+            <View key={i} style={i < arr.length - 1 ? styles.paragraphGap : undefined}>
+              <TappableText
+                text={para.trim()}
+                style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
+                activePositions={activePositions}
+                wordPositionOffset={offset}
+                onWordPress={handleWordPress}
+              />
+            </View>
           );
         })
       )}
@@ -314,6 +366,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   headline: {},
+  listenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.sm,
+  },
+  listenBtnText: {
+    fontSize: 12,
+  },
   body: {
     lineHeight: 26,
     textAlign: 'justify',

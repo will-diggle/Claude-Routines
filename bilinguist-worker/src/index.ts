@@ -378,6 +378,61 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   }
 }
 
+// ── Route: POST /word/verify-tenses ───────────────────────────────────────────
+// Second-pass check on already-generated conjugation tables — generateWordData()
+// occasionally gets a form wrong, so the client sends the tables back here to be
+// re-checked. Used to run client-side with the Anthropic key shipped in the app
+// bundle (EXPO_PUBLIC_ANTHROPIC_API_KEY); moved server-side so the key never has
+// to leave the Worker.
+
+async function handleVerifyTenses(request: Request, env: Env): Promise<Response> {
+  let body: { tenses?: TenseTable[]; lemma?: string; language?: string };
+  try { body = await request.json() as typeof body; }
+  catch { return json({ tenses: null }); }
+
+  const tenses   = Array.isArray(body.tenses) ? body.tenses : null;
+  const lemma    = body.lemma?.trim();
+  const language = body.language?.trim();
+  if (!tenses || !tenses.length || !lemma || !language) {
+    return json({ tenses: null });
+  }
+
+  const langName = LANGUAGE_NAMES[language] ?? language;
+  const prompt = `You are a ${langName} grammar expert. Below are the conjugation tables for the verb "${lemma}". Verify every form and correct any errors. Return ONLY the corrected JSON array — same structure, same tenses in the same order, same pronouns as keys. Fix wrong forms silently. If everything is correct, return the data unchanged. No explanation, no markdown, no preamble.
+
+${JSON.stringify(tenses)}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) return json({ tenses: null });
+
+    const data = await res.json() as { content: { text: string }[] };
+    const raw  = data.content?.[0]?.text ?? '';
+    const start = raw.indexOf('[');
+    const end   = raw.lastIndexOf(']');
+    if (start === -1 || end === -1) return json({ tenses: null });
+
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    if (!Array.isArray(parsed) || parsed.length !== tenses.length) return json({ tenses: null });
+
+    return json({ tenses: parsed });
+  } catch {
+    return json({ tenses: null });
+  }
+}
+
 // ── Tense backfill for legacy cached verbs ────────────────────────────────────
 
 async function backfillVerbTenses(
@@ -872,8 +927,26 @@ async function handleBriefing(filePath: string, env: Env): Promise<Response> {
     return new Response(status === 404 ? 'Not found' : 'Upstream error', { status });
   }
 
-  const body = await githubRes.text();
-  return new Response(body, {
+  // The stored bundle also carries internal pipeline/QA material (factbase,
+  // gatherSource, search logs, raw grading reasoning, fact-check notes, the
+  // unshipped "intermediate" native draft) alongside the finished content —
+  // strip it here so this public, unauthenticated route only ever serves what
+  // the app actually displays. nativeGrades stays: it's just a small {lang:
+  // level} map the app reads to show the native-article level chip, not the
+  // editorial write-up. Keep this allowlist in sync with what
+  // briefingSync.ts, notifications.ts, and useBriefingStore.ts actually read.
+  const raw = await githubRes.json() as Record<string, unknown>;
+  const filtered = {
+    date:              raw.date,
+    generatedAt:       raw.generatedAt,
+    briefings:         raw.briefings,
+    nativeJournalism:  raw.nativeJournalism,
+    nativeGrades:      raw.nativeGrades,
+    daily_notification: raw.daily_notification,
+    volume:            raw.volume,
+  };
+
+  return new Response(JSON.stringify(filtered), {
     headers: {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
@@ -1076,6 +1149,7 @@ export default {
     if (pathname === '/word/export' && request.method === 'GET') return handleWordExport(request, env);
     if (pathname === '/word'        && request.method === 'GET') return handleWordGet(url, env);
     if (pathname === '/word'        && request.method === 'POST') return handleWordPost(request, env);
+    if (pathname === '/word/verify-tenses' && request.method === 'POST') return handleVerifyTenses(request, env);
     if (pathname === '/audio'      && request.method === 'POST') return handleAudioPost(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
