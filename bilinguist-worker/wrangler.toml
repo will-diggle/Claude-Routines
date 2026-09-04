@@ -9,11 +9,9 @@ database_name = "bilinguist-words"
 database_id   = "f168ed60-864d-4255-999a-3776638478ff"
 
 # ── R2 audio cache ────────────────────────────────────────────────────────────
-# Uncomment once the bucket is created:
-#   wrangler r2 bucket create bilinguist-audio
-# [[r2_buckets]]
-# binding     = "AUDIO_BUCKET"
-# bucket_name = "bilinguist-audio"
+[[r2_buckets]]
+binding     = "AUDIO_BUCKET"
+bucket_name = "bilinguist-audio"
 
 # ── Secrets — never put values here ──────────────────────────────────────────
 # Set each with: wrangler secret put <NAME>
@@ -22,5 +20,4 @@ database_id   = "f168ed60-864d-4255-999a-3776638478ff"
 #   GITHUB_TOKEN       — GitHub PAT for reading bilinguist-data repo (already set)
 #   ANTHROPIC_API_KEY  — for generating word explanations on cache miss
 #   WORKER_ADMIN_KEY   — random string used by populate script (set to anything strong)
-#   ELEVENLABS_API_KEY — for synthesising article audio on first play (cached to R2 after)
 #   NTFY_TOPIC         — ntfy.sh topic for failure alerts (same value as GitHub Actions secret)

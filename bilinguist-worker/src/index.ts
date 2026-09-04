@@ -123,7 +123,6 @@ function buildTensesInstruction(lang: string): string {
 interface Env {
   GITHUB_TOKEN: string;
   ANTHROPIC_API_KEY: string;
-  ELEVENLABS_API_KEY: string;
   WORKER_ADMIN_KEY: string;
   NTFY_TOPIC?: string;
   WORDS_DB: D1Database;
@@ -751,64 +750,11 @@ async function handleWordExport(request: Request, env: Env): Promise<Response> {
   });
 }
 
-// ── ElevenLabs voice for article audio ───────────────────────────────────────
-
-const CHARLOTTE_VOICE_ID = 'XB0fDUnXU5powFXDhCwa';
-
-// ── Route: POST /audio ────────────────────────────────────────────────────────
-// Body: { key: string, text: string, lang: string }
-// → checks R2 for {key}.mp3; on miss synthesises via ElevenLabs and caches
-
-async function handleAudioPost(request: Request, env: Env): Promise<Response> {
-  let body: { key?: string; text?: string; lang?: string };
-  try { body = await request.json() as { key?: string; text?: string; lang?: string }; }
-  catch { return json({ error: 'invalid_json' }, 400); }
-
-  const { key, text, lang } = body;
-  if (!key || !text) return json({ error: 'key and text are required' }, 400);
-
-  const r2Key = `${key}.mp3`;
-
-  // Cache hit — return the CDN-style worker URL directly
-  const existing = await env.AUDIO_BUCKET.head(r2Key);
-  if (existing) {
-    const workerUrl = new URL(request.url);
-    return json({ url: `${workerUrl.origin}/audio/${key}`, fromCache: true });
-  }
-
-  // Cache miss — synthesise via ElevenLabs
-  if (!env.ELEVENLABS_API_KEY) return json({ error: 'elevenlabs_not_configured' }, 503);
-
-  const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${CHARLOTTE_VOICE_ID}`, {
-    method: 'POST',
-    headers: {
-      'xi-api-key': env.ELEVENLABS_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text,
-      model_id: 'eleven_flash_v2_5',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-    }),
-  });
-
-  if (!elRes.ok) {
-    const errText = await elRes.text();
-    return json({ error: 'elevenlabs_error', detail: errText }, 502);
-  }
-
-  const audioBytes = await elRes.arrayBuffer();
-
-  await env.AUDIO_BUCKET.put(r2Key, audioBytes, {
-    httpMetadata: { contentType: 'audio/mpeg' },
-  });
-
-  const workerUrl = new URL(request.url);
-  return json({ url: `${workerUrl.origin}/audio/${key}`, fromCache: false });
-}
-
 // ── Route: GET /audio/* ───────────────────────────────────────────────────────
-// Streams the cached MP3 from R2
+// Streams pre-generated audio from R2. Files are written by the pipeline's
+// own audio stage (Google Cloud TTS), never synthesised on demand here — this
+// route is read-only by design, so there's nothing here for an unauthenticated
+// caller to spend money or write storage by hitting.
 
 async function handleAudioStream(key: string, env: Env): Promise<Response> {
   const r2Key = `${key}.mp3`;
@@ -1076,7 +1022,6 @@ export default {
     if (pathname === '/word/export' && request.method === 'GET') return handleWordExport(request, env);
     if (pathname === '/word'        && request.method === 'GET') return handleWordGet(url, env);
     if (pathname === '/word'        && request.method === 'POST') return handleWordPost(request, env);
-    if (pathname === '/audio'      && request.method === 'POST') return handleAudioPost(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
