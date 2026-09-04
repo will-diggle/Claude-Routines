@@ -14,7 +14,7 @@ export const LEVELS_BY_LANG: Record<string, LanguageLevel[]> = {
   de: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
   sv: ['B2', 'Native'],
   it: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  es: ['A2'],
+  es: ['A1', 'A2', 'B1', 'Native'],
   tr: ['A1'],
   hu: ['Native'],
   ar: ['A1', 'A2'],
