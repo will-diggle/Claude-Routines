@@ -480,8 +480,15 @@ def run_audio_narration(bundle: dict, date: str) -> dict:
                 continue
             language_code, voice_name = voice
 
-            headline = article.get("headline") or ""
-            body = article.get("body") or ""
+            # Prefer the pre-numwords text when bilinguist_numwords.py (Stage 10,
+            # runs earlier for A1/A2) stashed one -- see that module's
+            # enrich_bundle_with_number_words. It exists only where a number was
+            # actually spelled out; everywhere else (B1/B2, or A1/A2 with no
+            # numbers) these keys are absent and the plain field is used as-is.
+            # Reading the plain field aloud would double every number: "25
+            # (twenty-five)" is written for readers, not for TTS to speak literally.
+            headline = article.get("headlineAudio") or article.get("headline") or ""
+            body = article.get("bodyAudio") or article.get("body") or ""
             if not body:
                 article["audioKey"] = None
                 summary["failed"] += 1

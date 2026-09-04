@@ -372,8 +372,18 @@ def enrich_bundle_with_number_words(bundle: dict) -> int:
                     for field in ("headline", "body"):
                         if not article.get(field):
                             continue
-                        new_text, n = add_number_words(article[field], lang)
+                        original = article[field]
+                        new_text, n = add_number_words(original, lang)
                         if n:
+                            # Preserve the pre-insertion text under "<field>Audio" so
+                            # the audio-narration stage (which reads this article
+                            # AFTER this function has already run) can read it aloud
+                            # without doubling every number: "25 (twenty-five)"
+                            # spoken as written says "twenty-five, twenty-five".
+                            # Only set when something actually changed -- B1/B2 and
+                            # number-free A1/A2 text never gets an "Audio" field,
+                            # and the audio stage falls back to the plain field then.
+                            article[f"{field}Audio"] = original
                             article[field] = new_text
                             total_numbers += n
                             changed = True
