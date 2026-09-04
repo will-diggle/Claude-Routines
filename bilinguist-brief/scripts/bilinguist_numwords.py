@@ -107,6 +107,35 @@ Full-coverage re-derivation against the real 2026-09-04 production bundle (all
 correct brackets recovered across de/fr/es (the fused-period and mistagged-year
 cases above), 28 wrong split-number instances in sv corrected to one bracket
 each, zero new incorrect merges anywhere.
+
+WHY A NUMBER NEXT TO OR INSIDE AN EXISTING PARENTHETICAL IS SKIPPED (also
+2026-09-04, Will's report -- "240 kilometres" reading oddly in the Jackdaw gas
+field article): the A1/A2 writer prompt already puts its own parenthetical
+right after a number sometimes, independent of this module and unaware of it --
+a unit conversion ("this gas field is 150 miles (about 240 kilometres) east of
+Aberdeen") or a magnitude gloss ("£32,500 (a lot of money)"). This module used
+to insert its own bracket regardless, which either:
+  - STACKS two bracket pairs back to back: "50.000 (fünfzigtausend)
+    (fünfzigtausend, eine sehr große Zahl)" -- our insertion, then the
+    writer's own gloss, immediately adjacent.
+  - NESTS one inside the other: "...(about 240 (two hundred and forty)
+    kilometres)..." -- our insertion landing INSIDE the writer's already-open
+    conversion parenthetical. Balanced parens, but confusing to read either
+    way, and neither reads as a mistake a human writer would make.
+Both share one structural signature: the writer already opened a "(" for this
+number, either right after it (stacked) or somewhere before it and not yet
+closed (nested). Rather than trying to intelligently merge prose inside an
+arbitrary existing parenthetical across seven languages without an LLM call
+(fragile, and against this module's own "skip rather than guess" rule), a
+number is simply left unbracketed whenever either is true: (a) it falls inside
+an already-open, unmatched "(" (tracked via a running paren-depth count over
+the raw text), or (b) the text immediately following it already starts with
+"(". The reader still gets the writer's own explanatory content either way --
+just without a redundant or nested numeral-spelling stacked onto it. Confirmed
+against the real 2026-09-04 production bundle: 70 such collisions across all 7
+languages in that one day's output alone (de 11, fr 9, es 5, it 7, pt 10,
+sv 15, en 13) -- not an edge case -- all resolved with this rule and zero
+newly-introduced collisions anywhere after.
 """
 
 from __future__ import annotations
@@ -220,6 +249,23 @@ def _fix_library_spelling(lang: str, words: str) -> str:
     return words
 
 
+def _paren_depth_prefix(text: str) -> list[int]:
+    """depths[i] = how many unmatched '(' precede position i in `text`. Used to
+    tell whether a number already sits inside a writer-authored parenthetical
+    -- see module docstring "WHY A NUMBER NEXT TO OR INSIDE AN EXISTING
+    PARENTHETICAL IS SKIPPED"."""
+    depths = [0] * (len(text) + 1)
+    depth = 0
+    for idx, ch in enumerate(text):
+        depths[idx] = depth
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+    depths[len(text)] = depth
+    return depths
+
+
 def add_number_words(text: str, lang: str) -> tuple[str, int]:
     """Insert '(spelled form)' after every convertible number in `text`.
     Returns (new_text, count). A number that fails to convert is left alone --
@@ -232,13 +278,17 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
     for the two related fixes below (fused-period placement, space-grouped
     thousands). A token is skipped if it has no digit at all: English tags
     number WORDS like "billion" as NUM too (verified 2026-08-30), and those
-    are already spelled out, nothing to convert.
+    are already spelled out, nothing to convert. A number already next to or
+    inside a writer-authored parenthetical is also skipped — see module
+    docstring "WHY A NUMBER NEXT TO OR INSIDE AN EXISTING PARENTHETICAL IS
+    SKIPPED".
     """
     nlp = _load_nlp(lang)
     if not text or nlp is None:
         return text, 0
 
     doc = nlp(text)
+    depths = _paren_depth_prefix(text)
     out, last, count = [], 0, 0
     i, n = 0, len(doc)
     while i < n:
@@ -261,7 +311,16 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
             end_tok = doc[j]
             j += 1
         raw = "".join(digits)
-        span_end = end_tok.idx + len(end_tok.text)
+        true_end = end_tok.idx + len(end_tok.text)
+
+        # Never insert next to or inside a parenthetical the writer already
+        # put here -- see module docstring "WHY A NUMBER NEXT TO OR INSIDE AN
+        # EXISTING PARENTHETICAL IS SKIPPED".
+        already_inside_parens = depths[t.idx] > 0
+        writer_gloss_follows = text[true_end:true_end + 2].lstrip(" ").startswith("(")
+        if already_inside_parens or writer_gloss_follows:
+            i = j
+            continue
 
         # A German number can have a period fused onto it by the tokenizer --
         # either its own ordinal-date marker (keep it, bracket goes after) or
@@ -269,6 +328,7 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
         # (bracket must go BEFORE it instead) -- see module docstring point 1.
         # Only ever checked on an unmerged token: a grouped-thousands run
         # never ends a German ordinal-date expression.
+        span_end = true_end
         trailing_period = ""
         if j == i + 1 and end_tok.text.endswith(".") and end_tok.sent[-1] == end_tok:
             raw = raw[:-1]
