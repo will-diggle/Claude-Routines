@@ -1,0 +1,90 @@
+name: "List R2 Audio Objects"
+
+# Read-only diagnostic: lists every object under a given date prefix in the
+# bilinguist-audio R2 bucket. No mutation, no TTS/Gemini calls -- just an S3
+# list_objects_v2 call, essentially free and instant. Built to answer "what
+# audio actually exists for date X" without needing local R2 credentials
+# (they only ever live as GitHub Actions secrets).
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date prefix to list (YYYY-MM-DD). Leave blank for today (UTC)."
+        required: false
+
+jobs:
+  list-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install boto3
+        run: pip install boto3
+
+      - name: List R2 audio objects for the date
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          DATE_INPUT: ${{ github.event.inputs.date }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import json
+          import datetime
+          import boto3
+
+          account_id = (os.environ.get("R2_ACCOUNT_ID") or "").strip()
+          access_key = (os.environ.get("R2_ACCESS_KEY_ID") or "").strip()
+          secret_key = (os.environ.get("R2_SECRET_ACCESS_KEY") or "").strip()
+          if not (account_id and access_key and secret_key):
+              print("R2 credentials not set -- nothing to list.")
+              raise SystemExit(0)
+
+          date = os.environ.get("DATE_INPUT") or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+          client = boto3.client(
+              "s3",
+              endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+              aws_access_key_id=access_key,
+              aws_secret_access_key=secret_key,
+              region_name="auto",
+          )
+          bucket = "bilinguist-audio"
+          paginator = client.get_paginator("list_objects_v2")
+          objects = []
+          for page in paginator.paginate(Bucket=bucket, Prefix=f"{date}/"):
+              objects.extend(page.get("Contents", []))
+
+          objects.sort(key=lambda o: o["Key"])
+          print(f"Date: {date}")
+          print(f"Total objects: {len(objects)}")
+          print(f"Total bytes: {sum(o['Size'] for o in objects)}")
+          print()
+          for o in objects:
+              print(f"{o['Key']}  ({o['Size']} bytes, modified {o['LastModified']})")
+
+          with open("r2_objects.json", "w", encoding="utf-8") as f:
+              json.dump(
+                  [{"key": o["Key"], "size": o["Size"], "modified": str(o["LastModified"])} for o in objects],
+                  f, indent=2,
+              )
+          PY
+
+      - name: Upload full list as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: r2-audio-objects
+          path: r2_objects.json
+          retention-days: 3
