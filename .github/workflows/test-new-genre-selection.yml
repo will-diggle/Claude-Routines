@@ -1,0 +1,41 @@
+name: "TEST: New Genre Selection (UK + US)"
+
+# Isolated test for two proposed new genres -- UK (broadened from UK Politics)
+# and US (new) -- built on direct outlet RSS feeds instead of Google News,
+# same as Global News. Runs the REAL selection prompt and REAL cross-reference
+# scoring logic (test_new_genre_selection.py copies bilinguist_gather.py's
+# scoring functions verbatim, doesn't reimplement them) against freshly
+# scraped headlines, so the ranked stories shown here are what production
+# would actually produce with these outlets wired in.
+#
+# Touches NOTHING in the real pipeline: no GENRE_CONFIG change, no write to
+# the data repo, no change to any existing stage. Pure read-only diagnostic.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-genres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install requests google-genai
+
+      - name: Run new-genre selection test
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python test_new_genre_selection.py
