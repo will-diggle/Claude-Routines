@@ -29,6 +29,14 @@ jobs:
         with:
           ref: claude/build-app-from-brief-wNEna
 
+      # Real wall-clock start, for the true end-to-end duration shown in the
+      # completion notification -- see "Correct notification duration" below.
+      # bundle["startedAt"]/["finishedAt"] (what bilinguist_check.py's own
+      # duration is computed from) are stamped before Stage 9 and the Audio
+      # Narration stage even run, so they miss the ~10-15 min audio adds.
+      - name: Capture pipeline start time
+        run: echo "PIPELINE_START_EPOCH=$(date +%s)" >> $GITHUB_ENV
+
       - name: Notify started
         run: |
           curl -s -X POST \
@@ -239,6 +247,43 @@ jobs:
             git commit -m "Daily briefings: ${DATE}"
             git push
           fi
+
+      - name: Correct notification duration to reflect true end-to-end time
+        # BRIEF_BODY (set by bilinguist_check.py, Stage 9) embeds a "⏱ Xm Ys"
+        # duration computed from bundle timestamps stamped before Stage 9 and
+        # Audio Narration ran -- accurate for the writing pipeline alone, but
+        # not for the real job duration once audio (~10-15 min) runs after it.
+        # This replaces that one substring with the real elapsed time since
+        # "Capture pipeline start time" above, right before it's actually sent.
+        if: success()
+        run: |
+          python3 - <<'PY'
+          import os, re, time
+
+          start = os.environ.get("PIPELINE_START_EPOCH")
+          body = os.environ.get("BRIEF_BODY")
+          if not start or not body:
+              print("[duration-fix] PIPELINE_START_EPOCH or BRIEF_BODY not set -- skipping")
+          else:
+              elapsed = int(time.time()) - int(start)
+              if elapsed < 60:
+                  true_duration = f"{elapsed}s"
+              else:
+                  m, s = divmod(elapsed, 60)
+                  if m < 60:
+                      true_duration = f"{m}m {s:02d}s"
+                  else:
+                      h, m = divmod(m, 60)
+                      true_duration = f"{h}h {m:02d}m"
+
+              new_body, n = re.subn(r"⏱ [^\n]*", f"⏱ {true_duration}", body, count=1)
+              if n == 0:
+                  print("[duration-fix] no '⏱' duration marker found in BRIEF_BODY -- leaving unchanged")
+              else:
+                  with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+                      f.write(f"BRIEF_BODY<<BRIEF_EOF\n{new_body}\nBRIEF_EOF\n")
+                  print(f"[duration-fix] corrected duration to {true_duration} (true end-to-end)")
+          PY
 
       - name: Notify success
         if: success()
