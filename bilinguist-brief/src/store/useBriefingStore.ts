@@ -248,7 +248,7 @@ export const useBriefingStore = create<BriefingStore>()(
               const nativeArticles = nativeByLength?.[length] ?? nativeByLength?.['longer'] ?? nativeByLength?.['short'];
               if (Array.isArray(nativeArticles) && nativeArticles.length) {
                 updates[lang.code as LanguageCode] = {
-                  articles: nativeArticles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body })),
+                  articles: nativeArticles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body, audioKey: a.audioKey })),
                   date: bundle.date,
                   language: lang.code as LanguageCode,
                   level: 'Native' as LanguageLevel,

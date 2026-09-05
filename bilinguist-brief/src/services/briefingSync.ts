@@ -22,7 +22,7 @@ export interface DailyBundle {
   // P3 native journalism — articles per language per length variant.
   nativeJournalism: {
     [lang: string]: {
-      [length: string]: Array<{ genre: string; headline: string; body: string; slug?: string }>;
+      [length: string]: Array<{ genre: string; headline: string; body: string; slug?: string; audioKey?: string | null }>;
     };
   };
   // P4a output — CEFR reading level of native journalism per language.
@@ -136,7 +136,7 @@ export async function applyBundleToCache(bundle: DailyBundle): Promise<void> {
       if (!Array.isArray(articles) || !articles.length) continue;
       const key = `briefing_${bundle.date}_${lang}_Native_${length}`;
       const briefing = {
-        articles: articles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body })),
+        articles: articles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body, audioKey: a.audioKey })),
         date: bundle.date,
         language: lang,
         level: 'Native',
