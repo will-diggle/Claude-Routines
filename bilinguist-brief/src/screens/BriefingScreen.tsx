@@ -224,6 +224,9 @@ export function BriefingScreen() {
   );
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
+  // Last seen offset, for direction detection (scroll-up reopens the pill
+  // immediately, same "reveal on scroll-up" pattern as Safari's URL bar).
+  const lastScrollYRef = useRef(0);
 
   const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday, recordWordsRead, getWordsToday, getWordsLast7Days, wordsReadByDay, setConfettiActive } = useStreakStore();
   // Word count per language for current visible articles (updated by LanguageBriefingSection callback)
@@ -526,6 +529,7 @@ export function BriefingScreen() {
   useEffect(() => {
     briefingScrollY.setValue(0);
     scrolledFlagRef.current = false;
+    lastScrollYRef.current = 0;
     setBriefingScrolled(false);
     const lang = activeLanguages[briefPageIndex]?.code;
     if (lang) startTimer(lang);
@@ -681,10 +685,18 @@ export function BriefingScreen() {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
                 briefingScrollY.setValue(y);
-                // Asymmetric thresholds: collapse once the user leaves the top,
-                // but only re-expand when they're actually back at the top —
-                // otherwise the pill grows and shrinks while scrolling up.
-                const nowScrolled = scrolledFlagRef.current
+                // Reveal-on-scroll-up: any upward movement reopens the pill
+                // immediately (same pattern as Safari's URL bar), not just
+                // reaching the very top — scrolling down past the threshold
+                // collapses it again. Asymmetric threshold otherwise (only
+                // re-expand right at the top on its own) still applies when
+                // stationary or scrolling down, to avoid flicker right at
+                // the collapse boundary.
+                const scrollingUp = y < lastScrollYRef.current - 1;
+                lastScrollYRef.current = y;
+                const nowScrolled = scrollingUp
+                  ? false
+                  : scrolledFlagRef.current
                   ? y > PILL_TOP_EPS
                   : y > PILL_COLLAPSE_Y;
                 if (nowScrolled !== scrolledFlagRef.current) {

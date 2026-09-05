@@ -15,6 +15,10 @@ import SEPARABLE_DE from '../data/separable_de.json';
 import { useAudioStore } from '../store/useAudioStore';
 import { playArticleAudio, pauseAudio, resumeAudio } from '../services/audioPlayer';
 
+// Same size as GameHeader's back/settings GlassButtons, so this reads as the
+// same "round button" throughout the app rather than its own one-off size.
+const AUDIO_BTN_SIZE = 40;
+
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
 
@@ -67,6 +71,11 @@ interface Props {
 
 export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedWordPress }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
+  // Drives both the headline's own lineHeight and the audio button's
+  // vertical centering against the first line — kept as one value so the
+  // two can never drift apart as fontSize.heading changes with the user's
+  // Preferences > Display font-size setting.
+  const headlineLineHeight = Math.round(fontSize.heading * 1.25);
 
   // Word position of the first body word (= number of words in headline)
   const headlineWordCount = useMemo(
@@ -279,20 +288,19 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           text={article.headline}
           style={[
             styles.headline,
-            { color: colors.inkDark, fontFamily: isRTL ? arabicFontBold : fontFamily.bold, fontSize: fontSize.heading, lineHeight: Math.round(fontSize.heading * 1.25) },
+            { color: colors.inkDark, fontFamily: isRTL ? arabicFontBold : fontFamily.bold, fontSize: fontSize.heading, lineHeight: headlineLineHeight },
             isRTL && styles.rtlText,
           ]}
           activePositions={activePositions}
           wordPositionOffset={0}
           onWordPress={handleWordPress}
         />
-
         {canPlayAudio && (
           <GlassButton
             onPress={handleAudioPress}
-            size={30}
+            size={AUDIO_BTN_SIZE}
             disabled={isThisLoading}
-            style={styles.audioBtn}
+            style={{ marginTop: (headlineLineHeight - AUDIO_BTN_SIZE) / 2 }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             bounce={false}
           >
@@ -301,7 +309,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
             ) : (
               <Ionicons
                 name={isThisPlaying ? 'pause' : 'play'}
-                size={15}
+                size={20}
                 color={colors.inkMid}
                 style={!isThisPlaying ? { marginLeft: 2 } : undefined}
               />

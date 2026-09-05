@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,6 +59,30 @@ export function GameEndScreen({
   const { colors, fontFamily, fontSize, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const meta = GAME_META[gameKey];
+  const webViewRef = useRef<WebView>(null);
+
+  // Accelerometer → gravity injected into the confetti WebView, same wiring
+  // as StreakCelebrationModal/FullSweepModal/NewLanguageAnnouncementModal —
+  // this screen's confetti was the one place that never tilted with the
+  // phone, just fell straight down regardless of device orientation.
+  useEffect(() => {
+    if (!celebrate) return;
+    let sub: { remove: () => void } | undefined;
+    try {
+      const { Accelerometer } = require('expo-sensors');
+      Accelerometer.setUpdateInterval(33);
+      sub = Accelerometer.addListener(({ x, y }: { x: number; y: number }) => {
+        const xyMag = Math.sqrt(x * x + y * y);
+        if (xyMag < 0.22) return; // phone flat or simulator returning zeros — keep current gravity
+        const gx =  x / xyMag;
+        const gy = -y / xyMag;
+        webViewRef.current?.injectJavaScript(`handleGravity(${gx},${gy}); true;`);
+      });
+    } catch {
+      // expo-sensors unavailable — default gravity (straight down) already set in HTML
+    }
+    return () => sub?.remove();
+  }, [celebrate]);
 
   // Only ever congratulate in languages the reader actually uses: their active
   // brief languages plus any language they've saved words in. The pool used to
@@ -128,6 +152,7 @@ export function GameEndScreen({
       {celebrate && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.confettiLayer]}>
           <WebView
+            ref={webViewRef}
             source={{ html: CONFETTI_HTML }}
             style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]}
             scrollEnabled={false}

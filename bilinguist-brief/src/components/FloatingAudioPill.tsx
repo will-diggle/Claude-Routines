@@ -180,12 +180,14 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  // colors.card — same color the flag/newspaper pills use — as a tint over a
-  // real BlurView blur. The native liquid-glass module isn't producing a
-  // visible effect here, so this is the plain, reliable technique: color +
-  // blur, no dependency on the custom module. Moderately translucent — not
-  // opaque enough to hide the blur, not so transparent the pill disappears.
-  const tintBg = hexToRgba(colors.card, isDark ? 0.50 : 0.45);
+  // colors.card — same color the flag/newspaper pills use. A translucent tint
+  // over a blur always blends with whatever's behind it, so it drifts off
+  // colors.card depending on content (this was reading visibly "creamier"
+  // than the flag/newspaper pills when floating over article text). Matched
+  // to GlassButton's own backing opacity (0.80) instead — high enough that
+  // the actual color reads consistently regardless of what's behind it,
+  // same reasoning GlassButton already uses for its own colour reliability.
+  const tintBg = hexToRgba(colors.card, isDark ? 0.85 : 0.80);
   // Thin light rim at the same opacity as the fill — the classic glass-edge
   // highlight, not a themed border.
   const borderColorRgba = `rgba(255,255,255,${isDark ? 0.35 : 0.30})`;

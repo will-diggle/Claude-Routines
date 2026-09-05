@@ -97,9 +97,14 @@ function pillContentW(labels: string[], maxW: number): number {
   return Math.min(textW + n * CHIP_PAD + (n - 1) * CHIP_GAP + ROW_PAD, maxW);
 }
 
-// Width for a row of flag-circle-only chips (no text label)
+// Width for a row of flag-circle-only chips (no text label). Floored at
+// FLOAT_TAB_H_LARGE (the pill's fixed open height) — with just one flag the
+// raw content width (60) comes in under that, and borderRadius:100 on a box
+// narrower than it is tall renders as a stretched vertical oval instead of a
+// circle, not the round pill shape the mini/closed state (a perfect square)
+// always has.
 function pillFlagOnlyW(count: number, maxW: number): number {
-  return Math.min(FLAG_CHIP_W * count + (count - 1) * CHIP_GAP + ROW_PAD, maxW);
+  return Math.max(FLOAT_TAB_H_LARGE, Math.min(FLAG_CHIP_W * count + (count - 1) * CHIP_GAP + ROW_PAD, maxW));
 }
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
@@ -344,7 +349,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Always-current refs — read in effects that omit these from deps to avoid stale closures
   const leftOpenRef  = useRef(false);
   leftOpenRef.current = leftOpen;
-  const prevLeftOpenRef = useRef(false); // left state snapshot taken when audio docks
 
   // Tracks the last measured natural chip-group width so the pill can snap
   // to the true content size regardless of which font is selected.
@@ -563,10 +567,13 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // Returns how long the chosen animation runs, so a caller deferring heavy work
   // waits exactly that long and no longer.
   function animateForRoute(idx: number): number {
-    if (isAudioDocked) {
-      animCloseRight();
-      return DUR_CLOSE;
-    }
+    // No isAudioDocked special-case here — docking is *derived* from the pills
+    // being closed (anyPillOpen), not the other way around. Forcing them
+    // closed whenever audio happened to be docked already (leftover from the
+    // old causality, docking → close pills) could override "we're at the top,
+    // should be open" with no way to recover, since nothing besides a scroll
+    // event ever re-checks this after mount/route-change. The scroll-position
+    // checks below already decide the right state on their own.
     if (idx === 0 && briefingScrolled) {
       // Returning to the Brief tab while still scrolled — keep pill mini
       animCloseLeft();
@@ -604,12 +611,19 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     }
   }, [activeLanguagesKey, savedLangCodesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Brief scroll — collapse left pill when user scrolls down, re-expand at top
+  // Brief scroll — collapse left pill when user scrolls down, re-expand at top.
+  // Reopening always runs, docked or not: dock state is now *derived* from
+  // whether the pills are open (anyPillOpen, mirrored to FloatingAudioPill),
+  // not the other way around. Skipping the reopen while docked used to make
+  // sense when docking forcibly closed the pills (see the removed effect
+  // below); now it only deadlocked — docked because both pills are closed,
+  // and stuck closed because docked, so scrolling back to the top could
+  // never undock the audio pill.
   useEffect(() => {
     if (currentRouteIndex !== 0) return; // Briefing tab only (index 0)
     if (briefingScrolled) {
       if (leftOpenRef.current) animCloseLeft();
-    } else if (!isAudioDocked) {
+    } else {
       animToLeftOpen(computeLeftExpandedW());
     }
   }, [briefingScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -619,7 +633,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex !== 2) return; // Preferences tab only (index 2)
     if (settingsScrolled) {
       if (leftOpenRef.current) animCloseLeft();
-    } else if (!isAudioDocked) {
+    } else {
       animToLeftOpen(computeLeftExpandedW());
     }
   }, [settingsScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -629,7 +643,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     if (currentRouteIndex !== 1) return; // Practice tab only (index 1)
     if (practiceScrolled) {
       if (leftOpenRef.current) animCloseLeft();
-    } else if (!isAudioDocked) {
+    } else {
       animToLeftOpen(computeLeftExpandedW());
     }
   }, [practiceScrolled]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -638,17 +652,6 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   useEffect(() => {
     animCloseBoth();
   }, [winW]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When audio pill docks, close nav pills. When it undocks, restore previous open state.
-  useEffect(() => {
-    if (isAudioDocked) {
-      prevLeftOpenRef.current = leftOpenRef.current;
-      animCloseBoth();
-    } else if (prevLeftOpenRef.current) {
-      prevLeftOpenRef.current = false;
-      animToLeftOpen(computeLeftExpandedW());
-    }
-  }, [isAudioDocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Right nav content ─────────────────────────────────────────────────────
 

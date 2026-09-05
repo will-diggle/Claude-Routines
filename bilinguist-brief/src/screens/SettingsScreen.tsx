@@ -163,14 +163,19 @@ export function SettingsScreen() {
   const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
   const { settingsSection: activeTab, setSettingsSection, setSettingsScrolled } = useNavPillStore();
 
-  // Asymmetric thresholds: collapse once the user leaves the top, but only
-  // re-expand when they're actually back at the top — otherwise the pill grows
-  // and shrinks while scrolling up.
+  // Reveal-on-scroll-up: any upward movement reopens the pill immediately
+  // (same pattern as Safari's URL bar), not just reaching the very top.
+  // Otherwise, asymmetric thresholds — collapse once the user leaves the
+  // top, only re-expand right at the top on its own — avoid flicker at the
+  // collapse boundary while scrolling down or at rest.
   const settingsScrolledRef = useRef(false);
+  const lastSettingsScrollYRef = useRef(0);
   const onScrollSettings = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     onScrollTabBar(e);
     const y = e.nativeEvent.contentOffset.y;
-    const nowScrolled = settingsScrolledRef.current ? y > 4 : y > 80;
+    const scrollingUp = y < lastSettingsScrollYRef.current - 1;
+    lastSettingsScrollYRef.current = y;
+    const nowScrolled = scrollingUp ? false : settingsScrolledRef.current ? y > 4 : y > 80;
     if (nowScrolled !== settingsScrolledRef.current) {
       settingsScrolledRef.current = nowScrolled;
       setSettingsScrolled(nowScrolled);
