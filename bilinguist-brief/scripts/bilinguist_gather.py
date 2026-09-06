@@ -180,20 +180,51 @@ def validate_story(story: dict) -> dict:
 # completed Global News and stubbed the rest with placeholder slugs, and the
 # pipeline shipped 3 articles per language instead of 7. One call per genre
 # gives each its own attention and its own search budget.
+# GLOBAL NEWS must stay first: DEDUP_GENRES (below) checks every other genre's
+# candidates against Global News's already-selected winners, which only exist
+# once its own gather_genre() call has completed -- see the main loop.
 GENRE_CONFIG = {
     "GLOBAL NEWS": {
         "count": 3,
         "description": "The day's most significant world/breaking stories. The headlines any informed person would have seen today.",
     },
-    "UK POLITICS": {
+    # Broadened from UK POLITICS 2026-09-06: general UK news, not politics-only.
+    # Direct-outlet feeds now (bilinguist_scrape.py's GENRE_OUTLETS), not Google
+    # News -- see that module for why (rate-limit risk already existed at 10
+    # Google News calls/day before this).
+    "UK": {
         "count": 2,
-        "description": "Significant UK political developments — government, parliament, parties, elections, policy.",
+        "description": "Significant UK news — politics, society, economy, major national events. "
+                        "Not politics-only.",
     },
     "BUSINESS & ECONOMY": {
         "count": 2,
         "description": "Significant market, economic, or corporate developments.",
     },
+    # New 2026-09-06. Direct-outlet feeds (Der Spiegel, Politico Europe,
+    # Guardian's Europe section) -- audited directly, see
+    # test_new_genre_selection.py. Deliberately not UK- or US-specific.
+    "EU": {
+        "count": 2,
+        "description": "Significant European news — politics, society, economy, major events "
+                        "across the continent. Not UK-specific, not US-specific.",
+    },
+    # New 2026-09-06. Direct-outlet feeds (NYT, Washington Post, NPR, BBC's
+    # US & Canada section) -- audited directly, see test_new_genre_selection.py.
+    "US": {
+        "count": 2,
+        "description": "Significant US news — politics, society, economy, major national events.",
+    },
 }
+
+# Genres checked against Global News's already-selected winners at the end of
+# scoring (Will's exact spec, 2026-09-05): Global News always wins a real
+# duplicate, since it's the pipeline's flagship, highest-standard selection.
+# BUSINESS & ECONOMY is deliberately excluded -- it's a distinct enough topic
+# lane (corporate/market news) that a genuine same-story collision with Global
+# News is far less likely, and it predates this whole redesign; revisit only
+# if a real collision is ever observed.
+DEDUP_AGAINST_GLOBAL = {"UK", "EU", "US"}
 
 
 def headlines_for_genre(genre: str) -> dict:
@@ -267,6 +298,20 @@ def _same_headline(a, b) -> bool:
 CARRYING_POINTS = 1.0                                    # per outlet carrying it
 POSITION_BONUS  = {1: 2.5, 2: 2.0, 3: 1.5, 4: 1.0, 5: 0.5}
 
+# UK/EU/US (2026-09-06): 3-4 outlet pools, not Global News's 12 -- a different
+# scoring shape, not just the same one at smaller scale. Position bonus only
+# rewards the top 3 slots (position 4-5 is noise with this few outlets, unlike
+# Global News where it's still real signal). Breadth bonus is escalating, not
+# a flat per-outlet credit: full agreement across only 3-4 outlets is a much
+# rarer, stronger signal than across 12, so it's rewarded disproportionately
+# (Will's own two data points -- 2 outlets=+0.5, 3=+2.0 -- extended to 4=+4.5,
+# each increment growing by 1.0: +0.5, +1.5, +2.5). Verified against worked
+# examples in test_new_genre_selection.py before this went live: 11.0 for a
+# 3-outlet full-agreement story at position 1, 16.5 for 4-outlet.
+SMALL_POOL_GENRES = {"UK", "EU", "US"}
+SMALL_POOL_POSITION_BONUS = {1: 3.0, 2: 2.0, 3: 1.0}
+SMALL_POOL_BREADTH_BONUS  = {1: 0.0, 2: 0.5, 3: 2.0, 4: 4.5}
+
 
 def load_scraped_index() -> dict:
     """{outlet: [headline, ...]} from the Stage 1 scrape. Empty if unavailable."""
@@ -283,8 +328,10 @@ def load_scraped_index() -> dict:
     }
 
 
-def score_story(story: dict, index: dict) -> tuple[float, list, list]:
-    """Return (total, verified_sources, problems) for one Global News story."""
+def score_story(story: dict, index: dict, genre: str | None = None) -> tuple[float, list, list]:
+    """Return (total, verified_sources, problems) for one story. genre selects
+    the scoring formula -- see SMALL_POOL_GENRES above for why UK/EU/US need a
+    different shape than Global News's proven 12-outlet formula."""
     xref = story.get("cross_reference_score") or {}
     total, verified, problems = 0.0, [], []
     for src in xref.get("sources") or []:
@@ -317,11 +364,15 @@ def score_story(story: dict, index: dict) -> tuple[float, list, list]:
         o, pos = v["outlet"], v["position"]
         if o not in best or pos < best[o]:
             best[o] = pos
-    total = sum(CARRYING_POINTS + POSITION_BONUS.get(p, 0.0) for p in best.values())
+    if genre in SMALL_POOL_GENRES:
+        total = sum(SMALL_POOL_POSITION_BONUS.get(p, 0.0) for p in best.values())
+        total += SMALL_POOL_BREADTH_BONUS.get(len(best), 0.0)
+    else:
+        total = sum(CARRYING_POINTS + POSITION_BONUS.get(p, 0.0) for p in best.values())
     return round(total, 1), verified, problems
 
 
-def apply_scores(factbase: list, index: dict) -> None:
+def apply_scores(factbase: list, index: dict, genre: str | None = None) -> None:
     """Score every story in this genre's factbase and re-rank on the computed total."""
     if not index:
         print("[gather] No scraped headlines — leaving cross-reference scores as given",
@@ -330,7 +381,7 @@ def apply_scores(factbase: list, index: dict) -> None:
 
     globals_ = list(factbase)
     for story in globals_:
-        total, verified, problems = score_story(story, index)
+        total, verified, problems = score_story(story, index, genre)
         xref = story.setdefault("cross_reference_score", {})
         xref["total"] = total
         xref["sources"] = verified
@@ -754,11 +805,78 @@ def assemble_notification(factbase: list) -> str:
     return f"Today: {', '.join(phrases[:-1])} and {phrases[-1]}."
 
 
+# ── Cross-genre dedup (Global News always wins) ──────────────────────────────
+# Runs at the end of scoring, once Global News's own winners are already known
+# (see DEDUP_AGAINST_GLOBAL and the main loop). Text matching can't tell
+# whether two differently-worded headlines describe the same real-world event
+# -- confirmed directly, 2026-09-05: "US strikes Iranian oil tankers" (Global
+# News) and "US military hits Iranian oil tankers" (US genre) share almost no
+# words with several other same-story pairs that DO overlap heavily, so this
+# needs a real judgement call, not a heuristic.
+DEDUP_PROMPT = """You are checking for duplicate stories across two sections of the same \
+daily news brief. Global News has ALREADY been finalised for today -- these are the \
+events it covers, in no particular order:
+
+{GLOBAL_STORIES}
+
+Now here are candidate stories for the "{GENRE}" section, ranked by score (most \
+significant first). Your ONLY job is to flag which of these candidates describe the \
+SAME real-world event as one of the Global News stories above -- not merely a related \
+or overlapping topic, the same event. "US strikes Iranian oil tankers" and "Iran \
+tensions raise oil prices" are related but different events; do not flag a genuine \
+topical overlap that isn't actually the same event.
+
+Candidates:
+{CANDIDATES}
+
+Respond with ONLY a valid JSON object, no markdown, no preamble:
+{"duplicate_slugs": ["slug-of-any-duplicate-candidate", ...]}
+
+Return an empty list if none of the candidates duplicate a Global News story."""
+
+
+def check_duplicates_vs_global(genre: str, candidates: list[dict],
+                                global_winners: list[dict]) -> set[str]:
+    """One small Gemini call: which of this genre's ranked candidates describe the
+    same real-world event as one of Global News's already-finalised winners?
+    Returns the set of duplicate slugs; caller walks its own ranked list skipping
+    these and promoting the next-ranked candidate into each dropped slot."""
+    if not candidates or not global_winners:
+        return set()
+
+    global_block = "\n".join(f"- {s.get('headline')}" for s in global_winners)
+    cand_block = "\n".join(
+        f"- slug: {s.get('slug')} — {s.get('headline')}" for s in candidates)
+
+    prompt = (DEDUP_PROMPT
+              .replace("{GENRE}", genre)
+              .replace("{GLOBAL_STORIES}", global_block)
+              .replace("{CANDIDATES}", cand_block))
+
+    client = genai.Client()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.1),
+    )
+    parsed = parse_llm_json(response.text or "")
+    duplicate_slugs = set((parsed or {}).get("duplicate_slugs") or [])
+    if duplicate_slugs:
+        print(f"[gather]   dedup vs Global News ({genre}): dropping "
+              f"{sorted(duplicate_slugs)}")
+    return duplicate_slugs
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def gather_genre(genre: str, cfg: dict, prompt_file: str,
-                 expect_facts: bool = True) -> dict:
+                 expect_facts: bool = True, global_winners: list[dict] | None = None) -> dict:
     """Run one Gemini call for a single genre. Returns its parsed payload.
+
+    global_winners: Global News's own already-selected winners (list of story
+    dicts), passed only for genres in DEDUP_AGAINST_GLOBAL. When given, a real
+    duplicate of one of these is dropped before the final top-cfg["count"]
+    selection, and the next-ranked candidate is promoted into its place.
 
     expect_facts=False for selection-only calls: the story records legitimately arrive
     with no facts, so neither the stub check nor the field validator should complain.
@@ -913,7 +1031,7 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str,
                 else [_ensure_fields(st) for st in factbase])
     for st in factbase:
         st["genre"] = genre
-    apply_scores(factbase, index)
+    apply_scores(factbase, index, genre)
 
     # Python picks the winners, not Gemini. Stage 2 asks the model to group EVERY headline
     # into events -- the one judgement a model is needed for -- and returns every group.
@@ -929,14 +1047,33 @@ def gather_genre(genre: str, cfg: dict, prompt_file: str,
         ranked = sorted(factbase,
                         key=lambda st: (st.get("cross_reference_score") or {}).get("total", 0),
                         reverse=True)
-        keep, drop = ranked[:cfg["count"]], ranked[cfg["count"]:]
+
+        # Cross-genre dedup vs Global News, run here (end of scoring, before the
+        # final top-cfg["count"] cut) so a dropped duplicate's slot is filled by
+        # promoting the next-ranked candidate -- not just shrinking the count.
+        # Buffer beyond cfg["count"]: dropping one can require reaching further
+        # down than a straight top-N slice would ever need.
+        duplicate_slugs: set = set()
+        if global_winners and genre in DEDUP_AGAINST_GLOBAL:
+            buffer = ranked[:max(cfg["count"] + 4, 6)]
+            duplicate_slugs = check_duplicates_vs_global(genre, buffer, global_winners)
+
+        keep, drop = [], []
+        for st in ranked:
+            if st.get("slug") in duplicate_slugs or len(keep) >= cfg["count"]:
+                drop.append(st)
+            else:
+                keep.append(st)
+
         for st in drop:
             x = st.get("cross_reference_score", {})
-            print(f"[gather]   not selected [{x.get('total', 0)}] {st.get('slug', '?')} "
+            tag = "DUPLICATE of Global News" if st.get("slug") in duplicate_slugs else "not selected"
+            print(f"[gather]   {tag} [{x.get('total', 0)}] {st.get('slug', '?')} "
                   f"— {x.get('outlets_covering', [])}", file=sys.stderr)
         for rank, st in enumerate(keep, 1):
             st.setdefault("cross_reference_score", {})["rank"] = rank
-        print(f"[gather] {genre}: grouped {len(factbase)} events, kept top {len(keep)} by score")
+        dup_note = f" ({len(duplicate_slugs)} dropped as Global News duplicates)" if duplicate_slugs else ""
+        print(f"[gather] {genre}: grouped {len(factbase)} events, kept top {len(keep)} by score{dup_note}")
         factbase = keep
 
     return {"factbase": factbase, "search_log": search_log, "parsed": parsed,
@@ -1029,8 +1166,13 @@ def main():
     if args.split:
         print("[gather] STAGE 2 (Select) — grouping and ranking only, no facts")
 
+    global_winners: list[dict] = []
     for genre, cfg in (() if args.from_factbase else GENRE_CONFIG.items()):
-        res = gather_genre(genre, cfg, prompt_file, expect_facts=not args.split)
+        dedup_arg = global_winners if genre in DEDUP_AGAINST_GLOBAL else None
+        res = gather_genre(genre, cfg, prompt_file, expect_facts=not args.split,
+                            global_winners=dedup_arg)
+        if genre == "GLOBAL NEWS":
+            global_winners = res["factbase"]
         factbase.extend(res["factbase"])
         model_used = res["model"]
         for k in usage_total:
