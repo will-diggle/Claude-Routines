@@ -249,11 +249,63 @@ def fetch_merged(urls: list[str]) -> list[str]:
     return [t[2] for t in ordered[:MERGED_HEADLINES_PER_OUTLET]]
 
 
-# ── Genre feeds (UK Politics, Business & Economy) ────────────────────────────
-# These genres have no per-outlet scrape and so were free-searched by Gemini,
-# making their cross-reference scores unverifiable. Chasing individual outlet
-# feeds did not work: BBC politics is JS-rendered, Sky and iNews run 46-63h
-# behind, and Standard / Spectator / PoliticsHome / New Statesman all 404 or 403.
+# ── Direct-outlet genre feeds (UK, EU, US) ────────────────────────────────────
+# Added 2026-09-06, replacing UK POLITICS's Google-News search (see GENRE_FEEDS
+# below for why that approach was originally adopted for UK/Business). Google
+# News RSS was hitting rate limits with UK POLITICS + BUSINESS & ECONOMY already
+# on it (10 Google News calls/day pipeline-wide before this change) -- adding
+# three more genres on the same mechanism would have made that meaningfully
+# worse. Real per-outlet RSS feeds audited directly (not assumed) for all three:
+# see bilinguist-brief/scripts/test_new_genre_selection.py for the audit and
+# the full list of candidates that didn't make the cut (Telegraph/Times dead
+# for UK; El País/CNN dead for EU/global; Reuters/Yahoo/Bing/Yandex/NewsNow all
+# failed for US/EU aggregation).
+GENRE_OUTLETS: dict[str, dict[str, str]] = {
+    "UK": {
+        "BBC": "http://feeds.bbci.co.uk/news/uk/rss.xml",
+        "Guardian": "https://www.theguardian.com/uk-news/rss",
+        "Independent": "https://www.independent.co.uk/news/uk/rss",
+    },
+    "EU": {
+        "Der Spiegel": "https://www.spiegel.de/ausland/index.rss",
+        "Politico Europe": "https://www.politico.eu/feed/",
+        "Guardian": "https://www.theguardian.com/world/europe-news/rss",
+    },
+    "US": {
+        "New York Times": "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
+        "Washington Post": "https://feeds.washingtonpost.com/rss/national",
+        "NPR": "https://feeds.npr.org/1001/rss.xml",
+        "BBC": "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+    },
+}
+GENRE_OUTLET_HEADLINES = 5   # matches HEADLINES_PER_OUTLET -- same per-outlet depth as Global News
+
+
+def fetch_genre_outlets(genre: str) -> list[dict]:
+    """Direct-outlet scrape for one genre (UK/EU/US), returning the same flat
+    {source, headline} row shape fetch_genre() produces for Google-News-based
+    genres -- so headlines_for_genre() in bilinguist_gather.py needs no changes
+    to consume either kind. One outlet failing doesn't fail the genre; a genre
+    with fewer than 2 working outlets can't cross-reference meaningfully, so
+    that's logged as a warning for the run's own visibility, not raised here."""
+    rows = []
+    for name, url in GENRE_OUTLETS.get(genre, {}).items():
+        try:
+            headlines = fetch_rss(url, limit=GENRE_OUTLET_HEADLINES)
+            for h in headlines:
+                rows.append({"source": name, "headline": h})
+        except Exception as e:
+            print(f"[1-scrape]   {genre}/{name}: FAILED — {e}", file=sys.stderr)
+    return rows
+
+
+# ── Genre feeds (Business & Economy) ──────────────────────────────────────────
+# UK POLITICS used to live here too (a Google News search), replaced above by
+# direct UK outlet feeds. This genre still has no per-outlet scrape and so is
+# free-searched by Gemini, making its cross-reference score unverifiable --
+# chasing individual outlet feeds did not work: BBC politics is JS-rendered,
+# Sky and iNews run 46-63h behind, and Standard / Spectator / PoliticsHome /
+# New Statesman all 404 or 403.
 #
 # One Google News topic search covers more ground than any of them. A single
 # request returned Guardian, Telegraph, Independent, FT, New Statesman and
@@ -261,7 +313,6 @@ def fetch_merged(urls: list[str]) -> list[str]:
 # Each title carries its source as a " - Source" suffix, so outlet and position
 # still come through for scoring.
 GENRE_FEEDS = {
-    "UK POLITICS": "https://news.google.com/rss/search?q=when:24h+UK+politics&hl=en-GB&gl=GB&ceid=GB:en",
     # Business uses Google's curated business section, not a keyword search.
     # "when:24h business economy" pulled global trade press (Aaj English TV, Bali
     # Discovery, GMK Center) and scored 0 allowed sources.
@@ -372,7 +423,7 @@ def main() -> None:
             print(f"[1-scrape] ✗ {name}: {e}", file=sys.stderr)
             results.append({"name": name, "status": "failed", "headlines": []})
 
-    # ── Genre feeds ──────────────────────────────────────────────────────────
+    # ── Genre feeds (Google News: Business & Economy) ─────────────────────────
     genres: dict = {}
     for genre, url in GENRE_FEEDS.items():
         try:
@@ -384,6 +435,15 @@ def main() -> None:
         except Exception as e:
             print(f"[1-scrape] ✗ {genre}: {e}", file=sys.stderr)
             genres[genre] = []
+
+    # ── Direct-outlet genre feeds (UK, EU, US) ────────────────────────────────
+    for genre in GENRE_OUTLETS:
+        rows = fetch_genre_outlets(genre)
+        genres[genre] = rows
+        print(f"[1-scrape] ✓ {genre} ({len(rows)} headlines, "
+              f"{len(GENRE_OUTLETS[genre])} outlets attempted)")
+        for i, r in enumerate(rows, 1):
+            print(f"    {i}. [{r['source']}] {r['headline'][:80]}")
 
     print(f"[1-scrape] Done: {success_count}/{len(OUTLETS)} outlets scraped successfully")
 
