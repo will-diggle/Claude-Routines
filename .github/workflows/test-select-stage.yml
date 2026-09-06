@@ -1,0 +1,66 @@
+name: "TEST: Real Scrape + Select (UK/EU/US wiring)"
+
+# Validates the ACTUAL production code (bilinguist_scrape.py +
+# bilinguist_gather.py --select-only) with the new UK/EU/US genres and
+# cross-genre dedup wired in -- not a side test script's reimplementation.
+# Cheap: 5 genre-selection Gemini calls (Global, UK, Business, EU, US),
+# no fact-gathering, no writing, no grading. Never pushes anywhere.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to test (YYYY-MM-DD). Leave blank for today UTC.'
+        required: false
+        default: ''
+
+jobs:
+  test-select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Set pipeline date
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            echo "BRIEF_DATE=${{ inputs.date }}" >> $GITHUB_ENV
+          else
+            echo "BRIEF_DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")" >> $GITHUB_ENV
+          fi
+
+      - name: Stage 1 - Scrape headlines (real, includes new UK/EU/US direct feeds)
+        working-directory: bilinguist-brief/scripts
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        run: python bilinguist_scrape.py
+
+      - name: Stage 2 - Select only (real, includes new formula + dedup)
+        working-directory: bilinguist-brief/scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+        # Exact same invocation as production's own Stage 2 step.
+        run: python bilinguist_gather.py --select-only
+
+      - name: Upload factbase + scraped_headlines for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: select-stage-result
+          path: |
+            bilinguist-brief/scripts/factbase_*.json
+            bilinguist-brief/scripts/scraped_headlines_*.json
+          retention-days: 7
