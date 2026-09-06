@@ -248,7 +248,7 @@ Candidates:
 {CANDIDATES}
 
 Respond with ONLY a valid JSON object, no markdown, no preamble:
-{{"duplicate_slugs": ["slug-of-any-duplicate-candidate", ...]}}
+{"duplicate_slugs": ["slug-of-any-duplicate-candidate", ...]}
 
 Return an empty list if none of the candidates duplicate a Global News story."""
 
@@ -273,6 +273,9 @@ def check_duplicates_vs_global(genre: str, candidates: list[dict],
               .replace("{GLOBAL_STORIES}", global_block)
               .replace("{CANDIDATES}", cand_block))
 
+    print(f"\n[test] ===== DEDUP PROMPT SENT ({genre}) =====\n{prompt}\n"
+          f"[test] ===== END DEDUP PROMPT ({genre}) =====")
+
     client = genai.Client()
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -280,6 +283,8 @@ def check_duplicates_vs_global(genre: str, candidates: list[dict],
         config=types.GenerateContentConfig(temperature=0.1),
     )
     text = (response.text or "").strip()
+    print(f"[test] ===== DEDUP RAW RESPONSE ({genre}) =====\n{text}\n"
+          f"[test] ===== END DEDUP RAW RESPONSE ({genre}) =====")
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     parsed = json.loads(text)
     return set(parsed.get("duplicate_slugs") or [])
