@@ -231,6 +231,81 @@ def run_selection(genre: str, description: str, index: dict) -> list[dict]:
     return parsed.get("factbase", [])
 
 
+DEDUP_PROMPT = """You are checking for duplicate stories across two sections of the same \
+daily news brief. Global News has ALREADY been finalised for today -- these are the \
+events it covers, in no particular order:
+
+{GLOBAL_STORIES}
+
+Now here are candidate stories for the "{GENRE}" section, ranked by score (most \
+significant first). Your ONLY job is to flag which of these candidates describe the \
+SAME real-world event as one of the Global News stories above -- not merely a related \
+or overlapping topic, the same event. "US strikes Iranian oil tankers" and "Iran \
+tensions raise oil prices" are related but different events; do not flag a genuine \
+topical overlap that isn't actually the same event.
+
+Candidates:
+{CANDIDATES}
+
+Respond with ONLY a valid JSON object, no markdown, no preamble:
+{{"duplicate_slugs": ["slug-of-any-duplicate-candidate", ...]}}
+
+Return an empty list if none of the candidates duplicate a Global News story."""
+
+
+def check_duplicates_vs_global(genre: str, candidates: list[dict],
+                                global_top: list[dict]) -> set[str]:
+    """One small Gemini call: which of this genre's ranked candidates describe the
+    same real-world event as one of Global News's already-finalised top stories?
+    Text matching can't make this judgement (differently-worded headlines routinely
+    describe the same event) -- see test_uk_us_feeds discussion. Returns the set of
+    duplicate slugs; caller walks its own ranked list skipping these."""
+    if not candidates or not global_top:
+        return set()
+
+    global_block = "\n".join(f"- {s['story'].get('headline')}" for s in global_top)
+    cand_block = "\n".join(
+        f"- slug: {s['story'].get('slug')} — {s['story'].get('headline')}"
+        for s in candidates)
+
+    prompt = (DEDUP_PROMPT
+              .replace("{GENRE}", genre)
+              .replace("{GLOBAL_STORIES}", global_block)
+              .replace("{CANDIDATES}", cand_block))
+
+    client = genai.Client()
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.1),
+    )
+    text = (response.text or "").strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    parsed = json.loads(text)
+    return set(parsed.get("duplicate_slugs") or [])
+
+
+def apply_dedup(genre: str, scored: list[dict], global_top: list[dict], n: int) -> dict:
+    """Walk the genre's full ranked list top-down, skip anything flagged as a
+    duplicate of a Global News story, promote runners-up until n clean stories are
+    assembled (or the list runs out). Checks against a buffer of candidates deeper
+    than n, since dropping one can require reaching further down than a straight
+    top-n slice would ever need."""
+    buffer = scored[:max(n + 4, 6)]
+    duplicate_slugs = check_duplicates_vs_global(genre, buffer, global_top)
+
+    final, dropped = [], []
+    for s in scored:
+        slug = s["story"].get("slug")
+        if slug in duplicate_slugs:
+            dropped.append(s)
+            continue
+        final.append(s)
+        if len(final) == n:
+            break
+    return {"final": final, "dropped": dropped, "duplicate_slugs": duplicate_slugs}
+
+
 def process_genre(genre: str, description: str, index: dict, scorer) -> list[dict]:
     if not index:
         print(f"[test] {genre}: no outlets returned headlines — skipping")
@@ -270,12 +345,39 @@ def main():
         results[genre] = process_genre(genre, GENRE_DESCRIPTIONS[genre], index,
                                         score_story_new)
 
-    # ── What would actually ship, side by side, for duplicate review ────────
-    print(f"\n{'=' * 60}\nWOULD BE REPORTED (top N per genre) — CHECK FOR DUPLICATES\n{'=' * 60}")
-    for genre, scored in results.items():
+    # ── Cross-genre dedup, run at the end of scoring, against Global News's
+    # already-finalised top N (Global News always wins -- see Will's rule) ──
+    global_n = GENRE_STORY_COUNT["GLOBAL NEWS"]
+    global_top = results["GLOBAL NEWS"][:global_n]
+
+    print(f"\n{'=' * 60}\nCROSS-GENRE DEDUP (vs Global News's top {global_n})\n{'=' * 60}")
+    dedup_results = {}
+    for genre in ("UK", "EU", "US"):
         n = GENRE_STORY_COUNT[genre]
+        dedup = apply_dedup(genre, results[genre], global_top, n)
+        dedup_results[genre] = dedup
+        print(f"\n{genre}:")
+        if dedup["dropped"]:
+            for s in dedup["dropped"]:
+                print(f"  DROPPED (dup of Global News): [{s['total']}] "
+                      f"{s['story'].get('headline')}  (slug: {s['story'].get('slug')})")
+        else:
+            print("  no duplicates found")
+
+    # ── What would actually ship, side by side, before vs after dedup ────────
+    print(f"\n{'=' * 60}\nWOULD BE REPORTED — BEFORE vs AFTER DEDUP\n{'=' * 60}")
+    print(f"\nGLOBAL NEWS (top {global_n}, unaffected — always wins):")
+    for s in global_top:
+        print(f"  [{s['total']}] {s['story'].get('headline')}  (slug: {s['story'].get('slug')})")
+
+    for genre in ("UK", "EU", "US"):
+        n = GENRE_STORY_COUNT[genre]
+        before = results[genre][:n]
+        after = dedup_results[genre]["final"]
         print(f"\n{genre} (top {n}):")
-        for s in scored[:n]:
+        print("  BEFORE:", [s["story"].get("slug") for s in before])
+        print("  AFTER: ", [s["story"].get("slug") for s in after])
+        for s in after:
             print(f"  [{s['total']}] {s['story'].get('headline')}  (slug: {s['story'].get('slug')})")
 
 
