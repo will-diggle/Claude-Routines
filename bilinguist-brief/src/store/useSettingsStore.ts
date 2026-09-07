@@ -44,16 +44,20 @@ export interface LanguagePreference {
 
 export interface Topics {
   worldNews: boolean;
-  ukPolitics: boolean;
-  politics: boolean;
   business: boolean;
+  // Kept in the schema (still readable/writable) even though its selector
+  // entry is gone — see ALL_TOPIC_ITEMS in SettingsScreen.tsx. Defaulted to
+  // false below so UK Politics content, if the pipeline still tags any,
+  // stays hidden with no way to re-enable it from the UI. The pipeline
+  // stopped producing "UK POLITICS" on 2026-09-06 — replaced by the
+  // genre string "UK" (broader scope), which maps to the `uk` key below.
+  ukPolitics: boolean;
+  // Live in the pipeline since 2026-09-06 — genre strings "UK"/"US"/"EU"
+  // respectively (europe ↔ "EU", not "europe"/"Europe" — see GENRE_TO_TOPIC
+  // in LanguageBriefingSection.tsx). Opt-in (default false), not auto-enabled.
+  uk: boolean;
+  us: boolean;
   europe: boolean;
-  scienceTech: boolean;
-  artsCulture: boolean;
-  asia: boolean;
-  middleEast: boolean;
-  africa: boolean;
-  goodNews: boolean;
   [key: string]: boolean;
 }
 
@@ -109,8 +113,7 @@ const ALL_LANGUAGES: LanguagePreference[] = [
 ];
 
 const DEFAULT_TOPIC_ORDER = [
-  'weather', 'worldNews', 'ukPolitics', 'business', 'europe',
-  'politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews',
+  'weather', 'worldNews', 'us', 'uk', 'europe', 'business',
 ];
 
 const DEFAULT_SETTINGS: Settings = {
@@ -119,16 +122,11 @@ const DEFAULT_SETTINGS: Settings = {
   topics: {
     weather: true,
     worldNews: true,
-    ukPolitics: true,
-    politics: false,
     business: true,
-    europe: true,
-    scienceTech: false,
-    artsCulture: false,
-    asia: false,
-    middleEast: false,
-    africa: false,
-    goodNews: false,
+    ukPolitics: false,
+    uk: false,
+    us: false,
+    europe: false,
   },
   topicOrder: DEFAULT_TOPIC_ORDER,
   briefingNotificationTime: '07:00',
@@ -256,20 +254,32 @@ export const useSettingsStore = create<SettingsStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const ORDER_VALID = new Set(['weather', 'worldNews', 'ukPolitics', 'politics', 'business', 'europe', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
-        const TOPIC_VALID = ORDER_VALID;
+        // Orderable/visible in the genre selector — matches ALL_TOPIC_ITEMS in
+        // SettingsScreen.tsx. ukPolitics is deliberately excluded: it's still a
+        // valid stored flag (see TOPIC_VALID) but no longer has a menu entry.
+        const ORDER_VALID = new Set(['weather', 'worldNews', 'business', 'uk', 'us', 'europe']);
+        // Every flag worth preserving on the Topics object, including ones
+        // without a current menu entry.
+        const TOPIC_VALID = new Set([...ORDER_VALID, 'ukPolitics']);
         const cleanOrder = (state.topicOrder ?? DEFAULT_TOPIC_ORDER).filter((k) => ORDER_VALID.has(k));
         // Ensure weather appears at the front for existing users who didn't have it in topicOrder
         if (!cleanOrder.includes('weather')) cleanOrder.unshift('weather');
         ORDER_VALID.forEach((k) => { if (!cleanOrder.includes(k)) cleanOrder.push(k); });
         state.topicOrder = cleanOrder;
         const cleanTopics: any = {};
+        // uk/us/europe are opt-in (live since 2026-09-06, but not auto-enabled
+        // for anyone). ukPolitics is discontinued and has no menu entry to
+        // re-enable it from — see the explicit force-off below too.
+        const DEFAULT_OFF = new Set(['uk', 'us', 'europe', 'ukPolitics']);
         TOPIC_VALID.forEach((k) => {
-          const COMING_SOON = new Set(['politics', 'scienceTech', 'artsCulture', 'asia', 'middleEast', 'africa', 'goodNews']);
           cleanTopics[k] = state.topics?.[k] !== undefined
             ? state.topics[k]
-            : !COMING_SOON.has(k);
+            : !DEFAULT_OFF.has(k);
         });
+        // ukPolitics is discontinued, not merely defaulted-off — force it off
+        // even for users who already had it enabled from before, since there's
+        // no menu entry left for them to have turned it off themselves.
+        cleanTopics.ukPolitics = false;
         state.topics = cleanTopics;
         // Migrate removed font options → lora
         if ((state as any).fontFamily === 'ptserif' || (state as any).fontFamily === 'system') {

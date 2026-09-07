@@ -122,28 +122,26 @@ const BACKGROUNDS: { key: BackgroundKey; label: string; color: string; ink: stri
 const FONT_SIZES: FontSizeKey[] = ['small', 'medium', 'large', 'extraLarge'];
 const GENRE_SETTINGS_DISCLAIMER: Record<string, string> = {
   worldNews:  'This genre may contain technical or international vocabulary beyond A1',
-  ukPolitics: 'This genre may contain political vocabulary beyond A1',
-  politics:   'This genre may contain political vocabulary beyond A1',
   business:   'This genre may contain financial and economic vocabulary beyond A1',
+  uk:         'This genre may contain political vocabulary beyond A1',
+  us:         'This genre may contain political vocabulary beyond A1',
   europe:     'This genre may contain geopolitical vocabulary beyond A1',
-  middleEast: 'This genre may contain geopolitical vocabulary beyond A1',
-  africa:     'This genre may contain geopolitical vocabulary beyond A1',
-  asia:       'This genre may contain geopolitical vocabulary beyond A1',
 };
 
+// UK Politics dropped (no menu entry — see Topics/DEFAULT_OFF migration in
+// useSettingsStore.ts, which also forces it off for anyone who already had it
+// enabled). UK, US and Europe went live in the pipeline 2026-09-06 (genre
+// strings "UK"/"US"/"EU" respectively — see GENRE_TO_TOPIC in
+// LanguageBriefingSection.tsx and project_bilinguist_new_genres_app.md), so
+// no longer comingSoon. Default stays off (opt-in) since nothing asked for
+// them to be on by default.
 const ALL_TOPIC_ITEMS: { key: string; label: string; comingSoon?: boolean; pinned?: boolean }[] = [
-  { key: 'weather',     label: 'Weather' },
-  { key: 'worldNews',   label: 'Global News' },
-  { key: 'ukPolitics',  label: 'UK Politics' },
-  { key: 'business',    label: 'Business & Economy' },
-  { key: 'europe',      label: 'Europe',               comingSoon: true },
-  { key: 'politics',    label: 'Politics',             comingSoon: true },
-  { key: 'scienceTech', label: 'Science & Technology', comingSoon: true },
-  { key: 'artsCulture', label: 'Arts & Culture',       comingSoon: true },
-  { key: 'asia',        label: 'Asia',                 comingSoon: true },
-  { key: 'middleEast',  label: 'Middle East',          comingSoon: true },
-  { key: 'africa',      label: 'Africa',               comingSoon: true },
-  { key: 'goodNews',    label: 'Good News',            comingSoon: true },
+  { key: 'weather',   label: 'Weather' },
+  { key: 'worldNews', label: 'Global News' },
+  { key: 'us',        label: 'US' },
+  { key: 'uk',        label: 'UK' },
+  { key: 'europe',    label: 'Europe' },
+  { key: 'business',  label: 'Business & Economy' },
 ];
 const TOPIC_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TOPIC_ITEMS.map((t) => [t.key, t.label])
@@ -407,10 +405,16 @@ export function SettingsScreen() {
   }, [activeTab, setSettingsSection]);
 
   const COMING_SOON_KEYS = new Set(ALL_TOPIC_ITEMS.filter((t) => t.comingSoon).map((t) => t.key));
+  // Filtered against the current menu — a user's persisted topicOrder can
+  // still carry keys from a dropped genre (e.g. ukPolitics, or the old
+  // placeholder set) until the store's own onRehydrateStorage migration next
+  // runs; filtering here too means a stale key never renders as a raw,
+  // unlabelled row in the meantime.
   const topicItems = (store.topicOrder ?? ALL_TOPIC_ITEMS.map((t) => t.key))
+    .filter((key) => TOPIC_LABEL_MAP[key] !== undefined)
     .map((key) => ({
       key,
-      label: TOPIC_LABEL_MAP[key] ?? key,
+      label: TOPIC_LABEL_MAP[key],
       comingSoon: COMING_SOON_KEYS.has(key),
     }));
 

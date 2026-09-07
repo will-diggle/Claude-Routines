@@ -16,12 +16,23 @@ import type { WeatherData } from '../services/weather';
 import { WeatherCard, WeatherCardHandle, codeToIcon, codeToColor, codeToNightIcon, codeToNightColor } from './WeatherCard';
 import { useBriefingStore } from '../store/useBriefingStore';
 
-// Maps the genre strings the API returns to settings topic keys
+// Maps the genre strings the API returns to settings topic keys.
+// UK/EU/US are the genre strings the pipeline actually emits as of
+// 2026-09-06 — NOT the same as the old, dead 'EUROPE'/'UK POLITICS' keys
+// below (kept only so any leftover old cached bundle still filters
+// correctly). Topic key spelling doesn't match the genre string spelling
+// here: europe ↔ "EU", not "EUROPE" — see
+// project_bilinguist_new_genres_app.md for the full backend context.
 const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
   'GLOBAL NEWS':          'worldNews',
+  'BUSINESS & ECONOMY':  'business',
+  'UK':                  'uk',
+  'EU':                  'europe',
+  'US':                  'us',
+  // Dead genres — the pipeline no longer produces these, entries kept only
+  // for old cached bundles still on a device.
   'UK POLITICS':          'ukPolitics',
   'POLITICS':             'politics',
-  'BUSINESS & ECONOMY':  'business',
   'SCIENCE & TECHNOLOGY':'scienceTech',
   'ARTS & CULTURE':      'artsCulture',
   'ASIA':                'asia',
@@ -36,6 +47,9 @@ const GENRE_TO_TOPIC: Record<string, keyof Topics> = {
 // journalism) may translate it. translateGenre handles both directions.
 const GENRE_LABELS: Record<string, Partial<Record<LanguageCode, string>>> = {
   'GLOBAL NEWS':          { en: 'GLOBAL NEWS',        fr: 'ACTUALITÉS MONDIALES',    de: 'WELTNACHRICHTEN',         es: 'NOTICIAS MUNDIALES',    pt: 'NOTÍCIAS MUNDIAIS',     it: 'NOTIZIE MONDIALI',      sv: 'VÄRLDSNYHETER',        hu: 'VILÁGHÍREK',          ar: 'أخبار عالمية'      },
+  'UK':                   { en: 'UK',                 fr: 'ROYAUME-UNI',             de: 'GROSSBRITANNIEN',         es: 'REINO UNIDO',           pt: 'REINO UNIDO',           it: 'REGNO UNITO',           sv: 'STORBRITANNIEN',       hu: 'EGYESÜLT KIRÁLYSÁG', ar: 'المملكة المتحدة'   },
+  'EU':                   { en: 'EUROPEAN UNION',     fr: 'UNION EUROPÉENNE',        de: 'EUROPÄISCHE UNION',       es: 'UNIÓN EUROPEA',         pt: 'UNIÃO EUROPEIA',        it: 'UNIONE EUROPEA',        sv: 'EUROPEISKA UNIONEN',   hu: 'EURÓPAI UNIÓ',       ar: 'الاتحاد الأوروبي'  },
+  'US':                   { en: 'UNITED STATES',      fr: 'ÉTATS-UNIS',              de: 'VEREINIGTE STAATEN',      es: 'ESTADOS UNIDOS',        pt: 'ESTADOS UNIDOS',        it: 'STATI UNITI',           sv: 'FÖRENTA STATERNA',     hu: 'EGYESÜLT ÁLLAMOK',    ar: 'الولايات المتحدة'  },
   'UK POLITICS':          { en: 'UK POLITICS',        fr: 'POLITIQUE BRITANNIQUE',   de: 'BRITISCHE POLITIK',       es: 'POLÍTICA BRITÁNICA',    pt: 'POLÍTICA BRITÂNICA',    it: 'POLITICA BRITANNICA',   sv: 'BRITTISK POLITIK',     hu: 'BRIT POLITIKA',       ar: 'السياسة البريطانية' },
   'POLITICS':             { en: 'POLITICS',            fr: 'POLITIQUE',               de: 'POLITIK',                 es: 'POLÍTICA',              pt: 'POLÍTICA',              it: 'POLITICA',              sv: 'POLITIK',              hu: 'POLITIKA',            ar: 'السياسة'           },
   'BUSINESS & ECONOMY':  { en: 'BUSINESS & ECONOMY',  fr: 'ÉCONOMIE',             de: 'WIRTSCHAFT',              es: 'ECONOMÍA',              pt: 'ECONOMIA',              it: 'ECONOMIA',              sv: 'EKONOMI',              hu: 'GAZDASÁG',            ar: 'الاقتصاد'          },
@@ -72,6 +86,9 @@ function translateGenre(genre: string, lang: LanguageCode): string {
 // Genre accent colour map
 const GENRE_COLORS: Record<string, string> = {
   'GLOBAL NEWS':          '#4A6FA5',
+  'UK':                   '#7A2E3D',
+  'EU':                   '#2D5F8A',
+  'US':                   '#B03A2E',
   'UK POLITICS':          '#8B1A1A',
   'POLITICS':             '#8B1A1A',
   'BUSINESS & ECONOMY':  '#1E6B3A',
@@ -207,6 +224,9 @@ const LANG_NAME_EN: Partial<Record<LanguageCode, string>> = {
 
 const GENRE_BRIEF_DISCLAIMER: Record<string, string> = {
   'GLOBAL NEWS':         'may contain technical words beyond A1',
+  'UK':                  'may contain political words beyond A1',
+  'EU':                  'may contain geopolitical words beyond A1',
+  'US':                  'may contain political words beyond A1',
   'UK POLITICS':         'may contain political words beyond A1',
   'POLITICS':            'may contain political words beyond A1',
   'BUSINESS & ECONOMY':  'may contain financial words beyond A1',
