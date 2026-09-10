@@ -15,12 +15,16 @@ export const Colors = {
   inkDark: '#1A1A1A',
   inkMid: '#3D3D3D',
   inkLight: '#6B6B6B',
-  inkFaint: '#9A9A9A',
+  // #707070 (was #9A9A9A, which failed WCAG AA contrast at 2.7:1 on white
+  // backgrounds — this passes at ~4.8:1 on both white and whiteCard).
+  inkFaint: '#707070',
 
   // Night ink
   nightInkDark: '#F0EDE6',
   nightInkMid: '#C8C4BC',
-  nightInkLight: '#8A8680',
+  // #A8A297 (was #8A8680, which failed WCAG AA at 3.4:1 on navyCard —
+  // this passes at ~4.9:1 on navyCard, and clears night/nightCard too).
+  nightInkLight: '#A8A297',
 
   // Borders
   borderLight: '#E0DDD5',

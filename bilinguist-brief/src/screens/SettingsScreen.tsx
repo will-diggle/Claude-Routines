@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
 import { SectionHeader, SegmentedControl, TimeInput, DisplayPreview } from '../components/settings/SettingsControls';
@@ -161,19 +163,16 @@ export function SettingsScreen() {
   const { loadBriefing, nativeGradeByLang, availableLevelsByLang, availableLevelsByLangAndLength } = useBriefingStore();
   const { settingsSection: activeTab, setSettingsSection, setSettingsScrolled } = useNavPillStore();
 
-  // Reveal-on-scroll-up: any upward movement reopens the pill immediately
-  // (same pattern as Safari's URL bar), not just reaching the very top.
-  // Otherwise, asymmetric thresholds — collapse once the user leaves the
-  // top, only re-expand right at the top on its own — avoid flicker at the
-  // collapse boundary while scrolling down or at rest.
+  // Asymmetric thresholds — collapse once the user leaves the top, only
+  // re-expand once actually back at the top, not on any upward scroll.
+  // Avoids flicker at the collapse boundary. (Manually tapping a pill still
+  // opens it at any scroll position — see toggleLeft/toggleRight in
+  // FloatingTabBar, unaffected by this.)
   const settingsScrolledRef = useRef(false);
-  const lastSettingsScrollYRef = useRef(0);
   const onScrollSettings = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     onScrollTabBar(e);
     const y = e.nativeEvent.contentOffset.y;
-    const scrollingUp = y < lastSettingsScrollYRef.current - 1;
-    lastSettingsScrollYRef.current = y;
-    const nowScrolled = scrollingUp ? false : settingsScrolledRef.current ? y > 4 : y > 80;
+    const nowScrolled = settingsScrolledRef.current ? y > 4 : y > 80;
     if (nowScrolled !== settingsScrolledRef.current) {
       settingsScrolledRef.current = nowScrolled;
       setSettingsScrolled(nowScrolled);
@@ -235,6 +234,51 @@ export function SettingsScreen() {
   const [legalDocVisible, setLegalDocVisible] = useState(false);
   const [legalDocInitial, setLegalDocInitial] = useState<LegalDoc>('privacy');
 
+  // Pushes the local username to user_profiles.display_name via the
+  // update-profile Edge Function (RLS has no client-side INSERT policy on
+  // this table, so creating the row on first write needs the service role —
+  // hence a function call rather than a direct client-side upsert).
+  // Best-effort: local state is already the source of truth for the UI, so
+  // a network failure here just means next sign-in's pull will retry it.
+  async function syncDisplayNameToServer(name: string) {
+    if (!session?.access_token || !name) return;
+    try {
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+      await fetch(`${supabaseUrl}/functions/v1/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ displayName: name }),
+      });
+    } catch { /* best-effort — see comment above */ }
+  }
+
+  // Pulls the persisted username on sign-in — restores it on a fresh
+  // install/device (server value wins), or backfills the server from the
+  // local value for anyone who set a username before this sync existed.
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('display_name')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const serverName = data?.display_name?.trim();
+      if (serverName) {
+        if (serverName !== useSettingsStore.getState().username) setUsername(serverName);
+      } else {
+        const localName = useSettingsStore.getState().username;
+        if (localName) syncDisplayNameToServer(localName);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [signInModalVisible, setSignInModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [authEmail, setAuthEmail] = useState('');
@@ -242,6 +286,7 @@ export function SettingsScreen() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
 
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
@@ -323,6 +368,40 @@ export function SettingsScreen() {
     setSupportState('idle');
   }
 
+  async function performDeleteAccount() {
+    if (!session?.access_token) return;
+    setDeleteAccountLoading(true);
+    try {
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+      const res = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await signOut();
+      setSettingsSheetVisible(false);
+      Alert.alert('Account deleted', 'Your account and data have been permanently deleted.');
+    } catch {
+      Alert.alert('Something went wrong', 'We couldn\'t delete your account. Please try again, or contact support@bilinguistbrief.com.');
+    } finally {
+      setDeleteAccountLoading(false);
+    }
+  }
+
+  function handleDeleteAccount() {
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and all your data — reading history, streaks, and word bank. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: performDeleteAccount },
+      ]
+    );
+  }
+
   async function handleSupportSubmit() {
     if (!supportSubject.trim() || !supportBody.trim()) return;
     setSupportLoading(true);
@@ -385,6 +464,27 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleForgotPassword() {
+    if (!authEmail.trim()) {
+      setAuthError('Enter your email above first, then tap "Forgot password?"');
+      return;
+    }
+    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(authEmail.trim(), {
+        redirectTo: 'bilinguistbrief://auth',
+      });
+      if (error) throw error;
+      Alert.alert('Check your email', `If an account exists for ${authEmail.trim()}, we sent a link to reset your password.`);
+    } catch (e: any) {
+      setAuthError(e?.message ?? 'Could not send reset email');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   const pagerRef = useRef<ScrollView>(null);
   const programmaticScrollRef = useRef(false);
 
@@ -442,7 +542,7 @@ export function SettingsScreen() {
                 <DraggableList
                   items={store.languages}
                   keyExtractor={(lang) => lang.code}
-                  itemHeight={152}
+                  itemHeight={194}
                   onReorder={store.reorderLanguages}
                   onDragStateChange={setIsDragging}
                   draggableCount={store.languages.filter((l) => l.active).length}
@@ -468,6 +568,7 @@ export function SettingsScreen() {
                       }}
                       onSetLength={(val) => { store.setLanguageReadLength(lang.code, val); analytics.trackBriefLengthChanged(lang.code, val); }}
                       onPressLevel={() => setLevelModalLang(lang.code)}
+                      onSetShowNumberSpellouts={(val) => { store.setLanguageShowNumberSpellouts(lang.code, val); analytics.trackWrittenNumbersChanged(lang.code, val); }}
                     />
                   )}
                 />
@@ -672,7 +773,7 @@ export function SettingsScreen() {
           <DraggableList
             items={store.languages}
             keyExtractor={(lang) => lang.code}
-            itemHeight={152}
+            itemHeight={194}
             onReorder={store.reorderLanguages}
             onDragStateChange={setIsDragging}
             draggableCount={store.languages.filter((l) => l.active).length}
@@ -704,6 +805,7 @@ export function SettingsScreen() {
                   analytics.trackBriefLengthChanged(lang.code, val);
                 }}
                 onPressLevel={() => setLevelModalLang(lang.code)}
+                onSetShowNumberSpellouts={(val) => store.setLanguageShowNumberSpellouts(lang.code, val)}
               />
             )}
           />
@@ -1060,19 +1162,19 @@ export function SettingsScreen() {
             onPress={() => { sheetDragY.setValue(0); setSettingsSheetVisible(false); }}
           />
           <Animated.View
-            style={[modalStyles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: sheetDragY }] }]}
+            style={[modalStyles.sheet, { backgroundColor: colors.bg, maxHeight: SCREEN_HEIGHT * 0.93, transform: [{ translateY: sheetDragY }] }]}
           >
-            <View style={[sheetStyles.titleRow, { paddingTop: Spacing.lg }]}>
+            <View style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, zIndex: 2 }]}>
               <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
                 <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
               </GlassButton>
-              <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 23 }]}>
                 Settings
               </Text>
               <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}>
               {/* Account */}
               <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
               {isSignedIn ? (
@@ -1100,6 +1202,15 @@ export function SettingsScreen() {
                   >
                     <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                       Sign out
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                    disabled={deleteAccountLoading}
+                    onPress={handleDeleteAccount}
+                  >
+                    <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body, opacity: deleteAccountLoading ? 0.5 : 1 }]}>
+                      {deleteAccountLoading ? 'Deleting…' : 'Delete account'}
                     </Text>
                   </TouchableOpacity>
                 </>
@@ -1170,6 +1281,42 @@ export function SettingsScreen() {
                 />
               </View>
 
+              {/* Downloads */}
+              <SectionHeader title="Downloads" colors={colors} fontFamily={fontFamily} />
+              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
+                <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Auto-download words
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
+                    Download today's brief words in the background so taps work offline. Turn off to only fetch a word when you tap it.
+                  </Text>
+                </View>
+                <Switch
+                  value={store.autoDownloadWords}
+                  onValueChange={store.setAutoDownloadWords}
+                  trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                  thumbColor="#FFF"
+                />
+              </View>
+              <View style={[styles.row, { borderBottomColor: colors.borderLight, opacity: store.autoDownloadWords ? 1 : 0.4 }]}>
+                <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Only keep recent words
+                  </Text>
+                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
+                    Clear older downloaded words as new ones arrive, to save space. Off keeps everything downloaded so far.
+                  </Text>
+                </View>
+                <Switch
+                  disabled={!store.autoDownloadWords}
+                  value={store.deleteOldDownloadedWords}
+                  onValueChange={store.setDeleteOldDownloadedWords}
+                  trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                  thumbColor="#FFF"
+                />
+              </View>
+
               {/* Premium */}
               <SectionHeader title="Premium" colors={colors} fontFamily={fontFamily} />
               <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
@@ -1207,7 +1354,7 @@ export function SettingsScreen() {
                 <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.row, { borderBottomColor: colors.borderLight }]}
+                style={[styles.row, { borderBottomWidth: 0 }]}
                 onPress={openSupportForm}
               >
                 <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
@@ -1219,6 +1366,36 @@ export function SettingsScreen() {
                 Bilinguist Brief · Version {APP_VERSION}
               </Text>
             </ScrollView>
+
+            {/* Top fade — a soft blur + a continuous (no-plateau) alpha ramp, so
+                scrolled content dissolves gradually instead of hitting a flat
+                same-colour block. Sits behind the title row (zIndex 2), in
+                front of the ScrollView (zIndex 0). */}
+            <BlurView
+              intensity={12}
+              tint={isDark ? 'dark' : 'light'}
+              pointerEvents="none"
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }}
+            />
+            <LinearGradient
+              pointerEvents="none"
+              colors={[colors.bg + 'E6', colors.bg + 'B3', colors.bg + '80', colors.bg + '40', colors.bg + '00'] as any}
+              locations={[0, 0.25, 0.5, 0.75, 1]}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
+            />
+            {/* Bottom fade — same treatment, mirrored */}
+            <BlurView
+              intensity={12}
+              tint={isDark ? 'dark' : 'light'}
+              pointerEvents="none"
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: insets.bottom + Spacing.xl, zIndex: 1, overflow: 'hidden' }}
+            />
+            <LinearGradient
+              pointerEvents="none"
+              colors={[colors.bg + '00', colors.bg + '40', colors.bg + '80', colors.bg + 'B3', colors.bg + 'E6'] as any}
+              locations={[0, 0.25, 0.5, 0.75, 1]}
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: insets.bottom + Spacing.xl, zIndex: 1 }}
+            />
           </Animated.View>
         </View>
       </Modal>
@@ -1251,8 +1428,10 @@ export function SettingsScreen() {
             <TouchableOpacity
               style={[modalStyles.codeButton, { backgroundColor: colors.chrome }]}
               onPress={() => {
-                setUsername(usernameInput.trim());
+                const trimmed = usernameInput.trim();
+                setUsername(trimmed);
                 setUsernameModalVisible(false);
+                syncDisplayNameToServer(trimmed);
               }}
             >
               <Text style={modalStyles.codeButtonText}>Save</Text>
@@ -1394,6 +1573,13 @@ export function SettingsScreen() {
                   autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
                   onSubmitEditing={handleEmailAuth}
                 />
+                {authMode === 'signin' && (
+                  <TouchableOpacity onPress={handleForgotPassword} disabled={authLoading} style={{ alignSelf: 'flex-end' }}>
+                    <Text style={{ color: colors.inkLight, fontFamily: fontFamily.regular, fontSize: 13 }}>
+                      Forgot password?
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {authError ? (
@@ -1554,7 +1740,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },

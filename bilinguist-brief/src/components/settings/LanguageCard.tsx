@@ -30,7 +30,7 @@ export function nativeLabel(langCode: string, grade?: LanguageLevel): string {
 }
 
 export interface LangCardProps {
-  lang: { code: string; nativeName: string; active: boolean; readLength?: string; level?: string };
+  lang: { code: string; nativeName: string; active: boolean; readLength?: string; level?: string; showNumberSpellouts?: boolean };
   isAnyDragging: boolean;
   isDark: boolean;
   colors: any;
@@ -40,11 +40,12 @@ export interface LangCardProps {
   onToggle: () => void;
   onSetLength: (val: 'short' | 'longer') => void;
   onPressLevel: () => void;
+  onSetShowNumberSpellouts: (val: boolean) => void;
   isDraggable?: boolean;
   comingSoon?: boolean;
 }
 
-export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, isDraggable = true, comingSoon = false }: LangCardProps) {
+export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, onSetShowNumberSpellouts, isDraggable = true, comingSoon = false }: LangCardProps) {
   const anim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
   const [expandedHeight, setExpandedHeight] = useState(0);
 
@@ -111,6 +112,13 @@ export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, 
           const h = e.nativeEvent.layout.height;
           if (h > 0) setExpandedHeight(prev => prev || h);
         }}>
+          <TouchableOpacity style={[cardStyles.expandRow, { borderTopColor: colors.borderLight }]} onPress={onPressLevel}>
+            <Text style={[cardStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Level</Text>
+            <Text style={{ fontSize: 14, color: colors.inkDark, fontFamily: fontFamily.bold }}>
+              {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : (lang.level ?? 'B1')}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+          </TouchableOpacity>
           <View style={[cardStyles.expandRow, { borderTopColor: colors.borderLight }]}>
             <Text style={[cardStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Length</Text>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -141,13 +149,36 @@ export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, 
               })}
             </View>
           </View>
-          <TouchableOpacity style={[cardStyles.expandRow, { borderTopColor: colors.borderLight }]} onPress={onPressLevel}>
-            <Text style={[cardStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Level</Text>
-            <Text style={{ fontSize: 14, color: colors.inkDark, fontFamily: fontFamily.bold }}>
-              {lang.level === 'Native' ? nativeLabel(lang.code, nativeGradeByLang[lang.code]) : (lang.level ?? 'B1')}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </TouchableOpacity>
+          <View style={[cardStyles.expandRow, { borderTopColor: colors.borderLight }]}>
+            <Text style={[cardStyles.expandLabel, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Written numbers</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {([true, false] as const).map((val) => {
+                const active = (lang.showNumberSpellouts ?? true) === val;
+                return (
+                  <TouchableOpacity
+                    key={String(val)}
+                    onPress={() => onSetShowNumberSpellouts(val)}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: active
+                        ? (isDark ? colors.inkFaint : colors.inkDark)
+                        : colors.borderMid,
+                      backgroundColor: active
+                        ? (isDark ? colors.borderMid : colors.inkDark)
+                        : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: active ? colors.bg : colors.inkLight, fontFamily: fontFamily.regular }}>
+                      {val ? 'On' : 'Off'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
       </Animated.View>}
     </Animated.View>

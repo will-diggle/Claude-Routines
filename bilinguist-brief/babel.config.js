@@ -2,6 +2,8 @@ module.exports = function (api) {
   api.cache(true);
   return {
     presets: ['babel-preset-expo'],
-    // Note: react-native-reanimated/plugin is NOT needed for v4+
+    // Reanimated v4 split its worklet transform out into react-native-worklets —
+    // react-native-reanimated/plugin no longer exists as of v4. Must be last.
+    plugins: ['react-native-worklets/plugin'],
   };
 };

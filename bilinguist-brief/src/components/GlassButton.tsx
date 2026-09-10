@@ -11,6 +11,9 @@ if (glassAvailable) {
 
 interface Props {
   onPress: () => void;
+  /** Optional long-press handler — gets a distinct (medium) haptic so it
+   *  reads as a different gesture from a plain tap. */
+  onLongPress?: () => void;
   children: React.ReactNode;
   size?: number;
   style?: ViewStyle;
@@ -26,6 +29,7 @@ interface Props {
 
 export function GlassButton({
   onPress,
+  onLongPress,
   children,
   size = 40,
   style,
@@ -78,11 +82,17 @@ export function GlassButton({
     onPress();
   }, [onPress]);
 
+  const handleLongPress = useCallback((e: GestureResponderEvent) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    onLongPress?.();
+  }, [onLongPress]);
+
   return (
     <Pressable
       onPressIn={disabled ? undefined : pressIn}
       onPressOut={disabled ? undefined : pressOut}
       onPress={disabled ? undefined : handlePress}
+      onLongPress={disabled || !onLongPress ? undefined : handleLongPress}
       hitSlop={hitSlop}
     >
       {/* Shadow lives here — separated from overflow:hidden so it isn't clipped */}

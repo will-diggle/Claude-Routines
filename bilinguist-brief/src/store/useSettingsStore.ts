@@ -40,6 +40,9 @@ export interface LanguagePreference {
   level: LanguageLevel;
   readLength: ReadLength;
   active: boolean;
+  /** Whether spelled-out numbers, e.g. "20 (twenty)", render in this
+   * language's articles. Off falls back to the plain no-brackets text. */
+  showNumberSpellouts: boolean;
 }
 
 export interface Topics {
@@ -76,6 +79,14 @@ export interface Settings {
   appIcon: string | null;
   appIconAuto: boolean;
   username: string;
+  /** Whether today's brief words are downloaded to the device automatically
+   * in the background. When false, word popups are always fetched live on
+   * tap instead — "fetch live only" mode. */
+  autoDownloadWords: boolean;
+  /** When true, only the most recent day's downloaded words are kept on
+   * device (older days' cached words are cleared as new ones arrive) — saves
+   * phone storage. When false, downloaded words accumulate (capped, LRU). */
+  deleteOldDownloadedWords: boolean;
 }
 
 interface SettingsStore extends Settings {
@@ -83,6 +94,7 @@ interface SettingsStore extends Settings {
   toggleLanguage: (code: LanguageCode) => void;
   setLanguageLevel: (code: LanguageCode, level: LanguageLevel) => void;
   setLanguageReadLength: (code: LanguageCode, length: ReadLength) => void;
+  setLanguageShowNumberSpellouts: (code: LanguageCode, value: boolean) => void;
   reorderLanguages: (from: number, to: number) => void;
   toggleTopic: (topic: keyof Topics) => void;
   reorderTopics: (from: number, to: number) => void;
@@ -96,20 +108,22 @@ interface SettingsStore extends Settings {
   setAppIcon: (icon: string | null) => void;
   setAppIconAuto: (v: boolean) => void;
   setUsername: (v: string) => void;
+  setAutoDownloadWords: (v: boolean) => void;
+  setDeleteOldDownloadedWords: (v: boolean) => void;
   activeLanguages: () => LanguagePreference[];
 }
 
 const ALL_LANGUAGES: LanguagePreference[] = [
-  { code: 'fr', name: 'French',           nativeName: 'Français',  flag: '🇫🇷', level: 'B2',     readLength: 'short', active: false },
-  { code: 'de', name: 'German',           nativeName: 'Deutsch',   flag: '🇩🇪', level: 'A2',     readLength: 'short', active: false },
-  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',   flag: '🇸🇪', level: 'B2',     readLength: 'short', active: false },
-  { code: 'en', name: 'English (British)',nativeName: 'English',   flag: '🇬🇧', level: 'B2',     readLength: 'short', active: true  },
-  { code: 'it', name: 'Italian',          nativeName: 'Italiano',  flag: '🇮🇹', level: 'A1',     readLength: 'short', active: false },
-  { code: 'es', name: 'Spanish',                nativeName: 'Español',   flag: '🇪🇸', level: 'A2',     readLength: 'short', active: false },
-  { code: 'pt', name: 'Portuguese (Brazilian)', nativeName: 'Português', flag: '🇧🇷', level: 'A2',     readLength: 'short', active: false },
-  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',    flag: '🇹🇷', level: 'A1',     readLength: 'short', active: false },
-  { code: 'hu', name: 'Hungarian',        nativeName: 'Magyar',    flag: '🇭🇺', level: 'Native', readLength: 'short', active: false },
-  { code: 'ar', name: 'Arabic',           nativeName: 'العربية',   flag: '🇸🇦', level: 'A1',     readLength: 'short', active: false },
+  { code: 'fr', name: 'French',           nativeName: 'Français',  flag: '🇫🇷', level: 'B2',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'de', name: 'German',           nativeName: 'Deutsch',   flag: '🇩🇪', level: 'A2',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'sv', name: 'Swedish',          nativeName: 'Svenska',   flag: '🇸🇪', level: 'B2',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'en', name: 'English (British)',nativeName: 'English',   flag: '🇬🇧', level: 'B2',     readLength: 'short', active: true,  showNumberSpellouts: true },
+  { code: 'it', name: 'Italian',          nativeName: 'Italiano',  flag: '🇮🇹', level: 'A1',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'es', name: 'Spanish',                nativeName: 'Español',   flag: '🇪🇸', level: 'A2',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'pt', name: 'Portuguese (Brazilian)', nativeName: 'Português', flag: '🇧🇷', level: 'A2',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'tr', name: 'Turkish',          nativeName: 'Türkçe',    flag: '🇹🇷', level: 'A1',     readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'hu', name: 'Hungarian',        nativeName: 'Magyar',    flag: '🇭🇺', level: 'Native', readLength: 'short', active: false, showNumberSpellouts: true },
+  { code: 'ar', name: 'Arabic',           nativeName: 'العربية',   flag: '🇸🇦', level: 'A1',     readLength: 'short', active: false, showNumberSpellouts: true },
 ];
 
 const DEFAULT_TOPIC_ORDER = [
@@ -139,6 +153,8 @@ const DEFAULT_SETTINGS: Settings = {
   appIcon: null,
   appIconAuto: false,
   username: '',
+  autoDownloadWords: true,
+  deleteOldDownloadedWords: false,
 };
 
 const MAX_ACTIVE_LANGUAGES = 7;
@@ -195,6 +211,13 @@ export const useSettingsStore = create<SettingsStore>()(
           ),
         }),
 
+      setLanguageShowNumberSpellouts: (code, showNumberSpellouts) =>
+        set({
+          languages: get().languages.map((l) =>
+            l.code === code ? { ...l, showNumberSpellouts } : l
+          ),
+        }),
+
       reorderLanguages: (from, to) => {
         const languages = [...get().languages];
         if (to < 0 || to >= languages.length) return;
@@ -230,6 +253,8 @@ export const useSettingsStore = create<SettingsStore>()(
       setAppIcon: (appIcon) => set({ appIcon }),
       setAppIconAuto: (appIconAuto) => set({ appIconAuto }),
       setUsername: (username) => set({ username }),
+      setAutoDownloadWords: (autoDownloadWords) => set({ autoDownloadWords }),
+      setDeleteOldDownloadedWords: (deleteOldDownloadedWords) => set({ deleteOldDownloadedWords }),
 
       activeLanguages: () => get().languages.filter((l) => l.active),
     }),
@@ -251,6 +276,8 @@ export const useSettingsStore = create<SettingsStore>()(
         appIcon: state.appIcon,
         appIconAuto: state.appIconAuto,
         username: state.username,
+        autoDownloadWords: state.autoDownloadWords,
+        deleteOldDownloadedWords: state.deleteOldDownloadedWords,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -303,6 +330,7 @@ export const useSettingsStore = create<SettingsStore>()(
             ...lang,
             level: migratedLevel,
             readLength,
+            showNumberSpellouts: lang.showNumberSpellouts ?? true,
           };
         });
         // Append any newly added languages not yet in the user's list

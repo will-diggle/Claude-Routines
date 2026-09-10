@@ -111,7 +111,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
         items: [
           { type: 'text', text: 'Account and app activity data is retained for as long as your account is active. If you request account deletion, we will delete your personal data within 30 days. Reading history is retained without a fixed time limit while your account remains active, as it directly supports the streak and progress features of the App; you can request its deletion at any time by deleting your account.' },
           { type: 'text', text: 'Our payment processor (Apple, via RevenueCat once integrated) may retain transaction records for longer, as required by law for financial and tax record-keeping purposes — this is outside our control.' },
-          { type: 'text', text: '[Open item: account deletion is not yet built into the App. Once available, requesting deletion will remove your Supabase account and associated data, reset your identifier with our analytics provider, and stop any further processing. Until then, please contact support@bilinguistbrief.com to request deletion manually.]' },
+          { type: 'text', text: 'You can delete your account directly in the App at any time (Settings → Account Settings → Delete account). This immediately and permanently removes your account, reading history and streak data. You can also request deletion by contacting support@bilinguistbrief.com.' },
         ],
       },
       {
@@ -153,7 +153,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
       },
       {
         items: [
-          { type: 'text', text: 'Open items still to confirm before publishing: Supabase data centre region; account deletion flow needs to be built (currently manual via support email); international transfer mechanisms per provider; final review by a qualified solicitor before public launch.' },
+          { type: 'text', text: 'Open items still to confirm before publishing: Supabase data centre region; international transfer mechanisms per provider; final review by a qualified solicitor before public launch.' },
         ],
       },
     ],
@@ -197,7 +197,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
           { type: 'bullet', text: 'You are responsible for maintaining the confidentiality of your account credentials.' },
           { type: 'bullet', text: 'You agree to provide accurate information when creating an account.' },
           { type: 'bullet', text: 'Each account is intended for a single individual; do not share your account or create accounts on behalf of others without permission.' },
-          { type: 'bullet', text: 'You may delete your account at any time by contacting support@bilinguistbrief.com. See our Privacy Policy for details on what happens to your data on deletion.' },
+          { type: 'bullet', text: 'You may delete your account at any time in the App (Settings → Account Settings → Delete account), or by contacting support@bilinguistbrief.com. See our Privacy Policy for details on what happens to your data on deletion.' },
         ],
       },
       {

@@ -55,19 +55,16 @@ export function PracticeScreen() {
   const selectedLang = useNavPillStore((s) => s.practiceLang);
   const setPracticeScrolled = useNavPillStore((s) => s.setPracticeScrolled);
 
-  // Reveal-on-scroll-up: any upward movement reopens the pill immediately
-  // (same pattern as Safari's URL bar), not just reaching the very top.
-  // Otherwise, asymmetric thresholds — collapse once the user leaves the
-  // top, only re-expand right at the top on its own — avoid flicker at the
-  // collapse boundary while scrolling down or at rest. Same rule as Brief/Settings.
+  // Asymmetric thresholds — collapse once the user leaves the top, only
+  // re-expand once actually back at the top, not on any upward scroll.
+  // Avoids flicker at the collapse boundary. Same rule as Brief/Settings.
+  // (Manually tapping a pill still opens it at any scroll position — see
+  // toggleLeft/toggleRight in FloatingTabBar, unaffected by this.)
   const practiceScrolledRef = useRef(false);
-  const lastPracticeScrollYRef = useRef(0);
   const onScrollPractice = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     onScrollTabBar(e);
     const y = e.nativeEvent.contentOffset.y;
-    const scrollingUp = y < lastPracticeScrollYRef.current - 1;
-    lastPracticeScrollYRef.current = y;
-    const nowScrolled = scrollingUp ? false : practiceScrolledRef.current ? y > 4 : y > 80;
+    const nowScrolled = practiceScrolledRef.current ? y > 4 : y > 80;
     if (nowScrolled !== practiceScrolledRef.current) {
       practiceScrolledRef.current = nowScrolled;
       setPracticeScrolled(nowScrolled);

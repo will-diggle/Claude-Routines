@@ -1,5 +1,6 @@
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import type { WordType, WordMeta } from './wordLookup';
+import { getCachedWord } from './wordDictionaryCache';
 
 const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL || 'https://bilinguist-brief.williamdiggz.workers.dev';
 
@@ -46,15 +47,34 @@ export async function lookupWord(
   level: LanguageLevel,
   options?: { forceRefresh?: boolean; sentence?: string },
 ): Promise<WordEntry | null> {
+  const t0 = Date.now();
   // Include a short context fingerprint so the same word in different sentences
   // gets a separate in-memory cache entry (handles homographs like Bank=bench vs bank).
   const ctxKey = options?.sentence ? `:${options.sentence.slice(0, 60)}` : '';
   const cacheKey = `${word.toLowerCase()}:${language}:${level}${ctxKey}`;
   if (!options?.forceRefresh) {
     const cached = lookupCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      console.log(`[lookupWord] "${word}" — in-memory hit, ${Date.now() - t0}ms`);
+      return cached;
+    }
+
+    // On-device dictionary prefetched for today's brief — skip the network
+    // entirely when it's already there. This is checked even when sentence
+    // context is provided: showing the word's default/dictionary sense
+    // instantly beats a live per-sentence lookup on every tap (that would
+    // re-add exactly the Claude cost this cache exists to eliminate). A true
+    // homograph shows its cached default sense rather than a context-perfect
+    // one — an explicit, deliberate trade-off, not an oversight.
+    const persisted = await getCachedWord(word, language, level);
+    if (persisted) {
+      lookupCache.set(cacheKey, persisted);
+      console.log(`[lookupWord] "${word}" — SOURCE=on-device cache, total ${Date.now() - t0}ms, NO network call (sentence context ignored by design)`);
+      return persisted;
+    }
   }
 
+  console.log(`[lookupWord] "${word}" — SOURCE=network (${WORKER_URL}), forceRefresh=${!!options?.forceRefresh}`);
   const url = `${WORKER_URL}/word?w=${encodeURIComponent(word)}&lang=${language}&level=${level}`
     + (options?.sentence ? `&ctx=${encodeURIComponent(options.sentence)}` : '');
   const controller = new AbortController();
@@ -63,6 +83,7 @@ export async function lookupWord(
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     const entry = await res.json() as WordEntry;
+    console.log(`[lookupWord] "${word}" — network resolved, total ${Date.now() - t0}ms, fromCache(server)=${entry.fromCache}`);
     // Don't cache verbs that came back without full tenses — next lookup will backfill via worker
     const isIncompleteVerb = entry.wordType === 'verb' && (!entry.tenses || entry.tenses.length < 3);
     if (!isIncompleteVerb) lookupCache.set(cacheKey, entry);

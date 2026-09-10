@@ -22,6 +22,11 @@ verify_jwt = true
 # JWT, not from the request body, so a user can only record their own acceptance.
 verify_jwt = true
 
+[functions.update-profile]
+# verify_jwt = true — requires a signed-in user. The user ID is taken from the
+# JWT, not from the request body, so a user can only update their own profile.
+verify_jwt = true
+
 [functions.revenuecat-webhook]
 # verify_jwt = false — RevenueCat sends no user JWT. Authentication is via the
 # RC_WEBHOOK_SECRET shared secret validated inside the function body.

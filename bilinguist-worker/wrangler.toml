@@ -13,11 +13,19 @@ database_id   = "f168ed60-864d-4255-999a-3776638478ff"
 binding     = "AUDIO_BUCKET"
 bucket_name = "bilinguist-audio"
 
+# ── Scheduled job — Supabase→D1 sync, then pre-warm today's brief ────────────
+# 08:00 UTC — comfortably after the 07:30 delivery deadline in any UK clock
+# (GMT or BST). Adjust if the brief's actual publish time moves.
+[triggers]
+crons = ["0 8 * * *"]
+
 # ── Secrets — never put values here ──────────────────────────────────────────
 # Set each with: wrangler secret put <NAME>
 # Or via Cloudflare dashboard → Workers → bilinguist-brief → Settings → Variables
 #
-#   GITHUB_TOKEN       — GitHub PAT for reading bilinguist-data repo (already set)
-#   ANTHROPIC_API_KEY  — for generating word explanations on cache miss
-#   WORKER_ADMIN_KEY   — random string used by populate script (set to anything strong)
-#   NTFY_TOPIC         — ntfy.sh topic for failure alerts (same value as GitHub Actions secret)
+#   GITHUB_TOKEN               — GitHub PAT for reading bilinguist-data repo (already set)
+#   ANTHROPIC_API_KEY          — for generating word explanations on cache miss
+#   WORKER_ADMIN_KEY           — random string used by populate script (set to anything strong)
+#   NTFY_TOPIC                 — ntfy.sh topic for failure alerts (same value as GitHub Actions secret)
+#   SUPABASE_URL               — same value as EXPO_PUBLIC_SUPABASE_URL in bilinguist-brief/.env
+#   SUPABASE_SERVICE_ROLE_KEY  — same value as bilinguist-brief/.env (read-through + nightly D1 sync)

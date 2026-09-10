@@ -126,12 +126,12 @@ const PHRASES: Record<LanguageCode, Record<WeatherGroup, Record<PhraseTier, stri
     partlyCloudy: {
       beginner:     'Det är delvis molnigt idag.',
       intermediate: 'Det finns några moln idag men det bör förbli torrt.',
-      advanced:     'Spridda moln driftar över en i övrigt behaglig dag.',
+      advanced:     'Spridda moln driver över en i övrigt behaglig dag.',
     },
     overcast: {
       beginner:     'Himlen är grå och molnig.',
-      intermediate: 'Det är mulet idag med låga moln och eventulig dimma.',
-      advanced:     'Ett tjockt molntäcke sveper in dagen i ett dystert, grått skimmer.',
+      intermediate: 'Det är mulet idag med låga moln och eventuell dimma.',
+      advanced:     'Ett tjockt molntäcke sveper in dagen i ett dystert, grått hölje.',
     },
     rain: {
       beginner:     'Det regnar idag.',
@@ -146,13 +146,13 @@ const PHRASES: Record<LanguageCode, Record<WeatherGroup, Record<PhraseTier, stri
     storm: {
       beginner:     'Det är oväder idag.',
       intermediate: 'Åskväder förväntas idag. Stanna inomhus om du kan.',
-      advanced:     'Kraftiga oväder är prognosticerade med åska och kraftiga skyfall över regionen.',
+      advanced:     'Kraftiga oväder är prognostiserade med åska och kraftiga skyfall över regionen.',
     },
   },
   it: {
     clear: {
       beginner:     'Il cielo è sereno oggi.',
-      intermediate: 'Oggi è una giornata soleggiata con cielo azzurro limpido.',
+      intermediate: 'Oggi è una giornata soleggiata con cielo azzurro e limpido.',
       advanced:     'Un cielo senza nuvole preannuncia una magnifica giornata ricca di sole.',
     },
     partlyCloudy: {
@@ -167,7 +167,7 @@ const PHRASES: Record<LanguageCode, Record<WeatherGroup, Record<PhraseTier, stri
     },
     rain: {
       beginner:     'Oggi piove.',
-      intermediate: 'Aspettatevi pioggia per tutto il giorno. Non dimenticare l\'ombrello.',
+      intermediate: 'Aspettati pioggia per tutto il giorno. Non dimenticare l\'ombrello.',
       advanced:     'Piogge persistenti si abbattono sulla regione portando una giornata decisamente bagnata.',
     },
     snow: {
@@ -236,7 +236,7 @@ const PHRASES: Record<LanguageCode, Record<WeatherGroup, Record<PhraseTier, stri
     },
     snow: {
       beginner:     'Bugün kar yağıyor.',
-      intermediate: 'Bugün kar yağıyor. Sıcak giyinin ve buzlu yollarda dikkatli olun.',
+      intermediate: 'Bugün kar yağıyor. Sıcak giyin ve buzlu yollarda dikkatli ol.',
       advanced:     'Kar örtüsü iniyor ve manzarayı sessiz, beyaz bir dünyaya dönüştürüyor.',
     },
     storm: {
@@ -470,13 +470,13 @@ const MAIN_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
   },
   fr: {
     basic:    "{greeting}. À {city} aujourd'hui : {description}. Maximum {high} degrés, minimum {low} degrés.",
-    mid:      "{greeting}, aujourd'hui à {city}, prévoyez {description} avec des maximales de {high} degrés et des minimales de {low} degrés.",
-    advanced: "{greeting} — {city} s'apprête à connaître {description} ce jour, avec des températures culminant à {high} degrés et descendant jusqu'à {low} degrés.",
+    mid:      "{greeting}, la météo à {city} aujourd'hui : {description}, avec des maximales de {high} degrés et des minimales de {low} degrés.",
+    advanced: "{greeting} — {city} s'apprête à vivre, ce jour, la météo suivante : {description}, avec des températures culminant à {high} degrés et descendant jusqu'à {low} degrés.",
   },
   de: {
     basic:    "{greeting}. In {city} heute: {description}. Höchstens {high} Grad, mindestens {low} Grad.",
-    mid:      "{greeting}, heute in {city} gibt es {description} mit Höchstwerten von {high} Grad und Tiefstwerten von {low} Grad.",
-    advanced: "{greeting} — {city} erwartet heute {description}, mit Temperaturen, die bis auf {high} Grad steigen und auf {low} Grad sinken können.",
+    mid:      "{greeting}, heute in {city} ist es {description}, mit Höchstwerten von {high} Grad und Tiefstwerten von {low} Grad.",
+    advanced: "{greeting} — in {city} ist es heute {description}, mit Temperaturen, die bis auf {high} Grad steigen und auf {low} Grad sinken können.",
   },
   sv: {
     basic:    "{greeting}. I {city} idag: {description}. Max {high} grader, min {low} grader.",
@@ -485,28 +485,28 @@ const MAIN_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
   },
   it: {
     basic:    "{greeting}. A {city} oggi: {description}. Massima {high} gradi, minima {low} gradi.",
-    mid:      "{greeting}, oggi a {city} il tempo sarà {description} con massime di {high} gradi e minime di {low} gradi.",
-    advanced: "{greeting} — {city} si prepara a una giornata di {description}, con temperature che raggiungeranno i {high} gradi e scenderanno fino a {low} gradi.",
+    mid:      "{greeting}, oggi a {city} il meteo prevede {description}, con massime di {high} gradi e minime di {low} gradi.",
+    advanced: "{greeting} — a {city} le previsioni indicano {description} per la giornata odierna, con temperature che raggiungeranno i {high} gradi e scenderanno fino a {low} gradi.",
   },
   es: {
     basic:    "{greeting}. En {city} hoy: {description}. Máxima {high} grados, mínima {low} grados.",
-    mid:      "{greeting}, hoy en {city} se esperan {description} con máximas de {high} grados y mínimas de {low} grados.",
-    advanced: "{greeting} — {city} se prepara para {description} hoy, con temperaturas que alcanzarán los {high} grados y descenderán hasta los {low} grados.",
+    mid:      "{greeting}, hoy en {city} el pronóstico anuncia {description} con máximas de {high} grados y mínimas de {low} grados.",
+    advanced: "{greeting} — {city} se prepara para una jornada de {description} hoy, con temperaturas que alcanzarán los {high} grados y descenderán hasta los {low} grados.",
   },
   tr: {
-    basic:    "{greeting}. Bugün {city}'de hava: {description}. En yüksek {high} derece, en düşük {low} derece.",
-    mid:      "{greeting}, bugün {city}'de {description} bekleniyor, en yüksek {high} derece, en düşük {low} derece.",
+    basic:    "{greeting}. Bugün {city} şehrinde hava: {description}. En yüksek {high} derece, en düşük {low} derece.",
+    mid:      "{greeting}, bugün {city} şehrinde {description} bekleniyor, en yüksek {high} derece, en düşük {low} derece.",
     advanced: "{greeting} — {city} bugün {description} yaşayacak; sıcaklıklar {high} dereceye ulaşacak ve {low} dereceye kadar düşecek.",
   },
   hu: {
-    basic:    "{greeting}. {city}ban ma: {description}. Maximum {high} fok, minimum {low} fok.",
-    mid:      "{greeting}, ma {city}ban {description} várható, maximum {high} fok, minimum {low} fok.",
-    advanced: "{greeting} — {city} ma {description} időjárást tapasztal, a hőmérséklet {high} fokig emelkedik és {low} fokra süllyed.",
+    basic:    "{greeting}. Ma {city} városában: {description}. Maximum {high} fok, minimum {low} fok.",
+    mid:      "{greeting}, ma {city} városában {description} várható, maximum {high} fok, minimum {low} fok.",
+    advanced: "{greeting} — {city} időjárása ma: {description}, a hőmérséklet {high} fokig emelkedik és {low} fokra süllyed.",
   },
   ar: {
     basic:    "{greeting}. الطقس في {city} اليوم: {description}. الأعلى {high} درجة، الأدنى {low} درجة.",
-    mid:      "{greeting}, اليوم في {city} من المتوقع {description} مع درجات عليا {high} درجة ودنيا {low} درجة.",
-    advanced: "{greeting} — تستعد {city} اليوم لـ{description}، مع درجات حرارة تصل إلى {high} درجة وتنخفض إلى {low} درجة.",
+    mid:      "{greeting}, الطقس المتوقع اليوم في {city} هو {description}، مع درجات عليا {high} درجة ودنيا {low} درجة.",
+    advanced: "{greeting} — من المرتقب أن يكون الطقس في {city} اليوم {description}، مع درجات حرارة تصل إلى {high} درجة وتنخفض إلى {low} درجة.",
   },
 };
 
@@ -524,12 +524,12 @@ const EXTRA_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
   },
   de: {
     basic:    "Es gibt {rain} Prozent Regenrisiko. Wind: {wind} Kilometer pro Stunde.",
-    mid:      "Es besteht ein {rain}-prozentiges Regenrisiko bei Winden von {wind} Kilometer pro Stunde.",
-    advanced: "Die Niederschlagswahrscheinlichkeit liegt bei {rain} Prozent, mit Windgeschwindigkeiten von bis zu {wind} Kilometer pro Stunde.",
+    mid:      "Es besteht ein {rain}prozentiges Regenrisiko bei Winden von {wind} Kilometern pro Stunde.",
+    advanced: "Die Niederschlagswahrscheinlichkeit liegt bei {rain} Prozent, mit Windgeschwindigkeiten von bis zu {wind} Kilometern pro Stunde.",
   },
   sv: {
-    basic:    "Det är {rain} procent chans för regn. Vind: {wind} kilometer i timmen.",
-    mid:      "Det finns {rain} procent chans för regn och vindar på {wind} kilometer i timmen.",
+    basic:    "Det är {rain} procents chans för regn. Vind: {wind} kilometer i timmen.",
+    mid:      "Det finns {rain} procents chans för regn och vindar på {wind} kilometer i timmen.",
     advanced: "Nederbördssannolikheten uppgår till {rain} procent, med vindar som når {wind} kilometer i timmen.",
   },
   it: {
@@ -543,13 +543,13 @@ const EXTRA_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
     advanced: "La probabilidad de precipitaciones es del {rain} por ciento, con vientos que alcanzan los {wind} kilómetros por hora.",
   },
   tr: {
-    basic:    "Yağmur ihtimali yüzde {rain}. Rüzgar: {wind} kilometre saat.",
-    mid:      "Yüzde {rain} yağmur ihtimali ve {wind} kilometre saat rüzgar bekleniyor.",
-    advanced: "Yağış olasılığı yüzde {rain} olup rüzgar hızı {wind} kilometre saate ulaşabilir.",
+    basic:    "Yağmur ihtimali yüzde {rain}. Rüzgar: saatte {wind} kilometre.",
+    mid:      "Yüzde {rain} yağmur ihtimali ve saatte {wind} kilometre hızında rüzgar bekleniyor.",
+    advanced: "Yağış olasılığı yüzde {rain} olup rüzgar hızı saatte {wind} kilometreye ulaşabilir.",
   },
   hu: {
-    basic:    "{rain} százalék az esővalószínűség. Szél: {wind} kilométer per óra.",
-    mid:      "{rain} százalék az esővalószínűség és {wind} kilométer per óra a szélsebesség.",
+    basic:    "Az esővalószínűség {rain} százalék. Szél: {wind} kilométer per óra.",
+    mid:      "Az esővalószínűség {rain} százalék és a szélsebesség {wind} kilométer per óra.",
     advanced: "A csapadék valószínűsége {rain} százalék, a szél elérheti a {wind} kilométer per óra sebességet.",
   },
   ar: {
@@ -562,14 +562,14 @@ const EXTRA_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
 // Farewell phrase — vocabulary scales with level
 const FAREWELL_TPL: Partial<Record<LanguageCode, Record<Tier, string>>> = {
   en: { basic: "Have a good {f}.", mid: "Have a lovely {f}.", advanced: "Wishing you a wonderful {f}." },
-  fr: { basic: "Bonne {f}.", mid: "Passez un beau {f}.", advanced: "Passez une excellente {f}." },
-  de: { basic: "Schönen {f}.", mid: "Genießen Sie den {f}.", advanced: "Ich wünsche Ihnen einen wunderbaren {f}." },
+  fr: { basic: "Profitez bien de votre {f} !", mid: "J'espère que vous profiterez pleinement de votre {f}.", advanced: "Puissiez-vous profiter pleinement de votre {f}." },
+  de: { basic: "Alles Gute an diesem {f}!", mid: "Ich wünsche Ihnen an diesem schönen {f} alles Gute.", advanced: "Ich wünsche Ihnen an diesem wunderbaren {f} von Herzen alles Gute." },
   sv: { basic: "Trevlig {f}.", mid: "Ha en fin {f}.", advanced: "Ha en fantastisk {f}." },
-  it: { basic: "Buona {f}.", mid: "Buon {f}.", advanced: "Le auguro una splendida {f}." },
-  es: { basic: "Buen {f}.", mid: "Que tengas un buen {f}.", advanced: "Espero que disfrutes de un magnífico {f}." },
-  tr: { basic: "İyi {f}.", mid: "İyi {f}.", advanced: "Güzel bir {f} geçirmenizi dilerim." },
-  hu: { basic: "Szép {f}.", mid: "Szép {f} kívánunk.", advanced: "Kellemes {f}t kívánunk." },
-  ar: { basic: "أتمنى لك {f} سعيداً.", mid: "أتمنى لك {f} رائعاً.", advanced: "أتمنى لك قضاء {f} استثنائي." },
+  it: { basic: "Buon resto di {f}.", mid: "Ti auguro un buon resto di {f}.", advanced: "Le auguro un ottimo resto di {f}." },
+  es: { basic: "¡Feliz {f}!", mid: "Que disfrutes mucho de tu {f}.", advanced: "Espero que disfrutes plenamente de tu {f}." },
+  tr: { basic: "İyi {f}.", mid: "İyi {f}.", advanced: "Güzel {f} geçirmenizi dilerim." },
+  hu: { basic: "Szép {f}.", mid: "Szép {f} kívánunk.", advanced: "Kellemes {f} kívánunk." },
+  ar: { basic: "أتمنى لك {f}.", mid: "أرجو أن تقضي {f}.", advanced: "أتمنى لك من كل قلبي أن تقضي {f}." },
 };
 
 // Farewell nouns per language × slot (day / evening / weekend)
@@ -592,10 +592,10 @@ function fill(tpl: string, vars: Record<string, string>): string {
 const CURRENT_TPL: Partial<Record<LanguageCode, string>> = {
   en: "It is currently {current}°C.",
   fr: "Il fait actuellement {current}°C.",
-  de: "Aktuell sind es {current} Grad.",
+  de: "Aktuell liegt die Temperatur bei {current} Grad.",
   sv: "Det är för närvarande {current}°C.",
   it: "Attualmente sono {current}°C.",
-  es: "Actualmente son {current}°C.",
+  es: "Actualmente la temperatura es de {current}°C.",
   tr: "Şu an hava {current}°C.",
   hu: "Jelenleg {current} fok van.",
   ar: "درجة الحرارة الحالية {current}°م.",
@@ -632,13 +632,13 @@ export function getWeatherRichPhrase(
 const HEADLINE_TEMPLATE: Partial<Record<LanguageCode, string>> = {
   en: 'Today {city} will be {temp}°C with {description}.',
   fr: "Aujourd'hui à {city}, {temp}°C avec {description}.",
-  de: 'Heute in {city}: {temp}°C mit {description}.',
+  de: 'Heute in {city}: {temp}°C, {description}.',
   sv: 'Idag i {city}: {temp}°C med {description}.',
-  it: 'Oggi a {city}, {temp}°C con {description}.',
+  it: 'Oggi a {city}: {temp}°C, {description}.',
   es: 'Hoy en {city}, {temp}°C con {description}.',
-  tr: 'Bugün {city}\'de {description} ile {temp}°C olacak.',
-  hu: 'Ma {city}ban {temp}°C lesz, {description}.',
-  ar: 'اليوم في {city}: {temp}°C مع {description}.',
+  tr: 'Bugün {city} şehrinde {description} ile {temp}°C olacak.',
+  hu: 'Ma {city} városában {temp}°C lesz, {description}.',
+  ar: 'اليوم في {city}: {temp}°C مع طقس {description}.',
 };
 
 export function getWeatherHeadline(city: string, temp: number, description: string, language: LanguageCode): string {

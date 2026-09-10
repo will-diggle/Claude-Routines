@@ -14,9 +14,16 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { useAudioStore } from '../store/useAudioStore';
 import { useNavPillStore } from '../store/useNavPillStore';
-import { pauseAudio, resumeAudio } from '../services/audioPlayer';
-import { BlurView } from 'expo-blur';
+import { pauseAudio, resumeAudio, LANG_LOCALE } from '../services/audioPlayer';
 import { FLOAT_TAB_H, FLOAT_TAB_H_SMALL, FLOAT_TAB_BOTTOM } from './FloatingTabBar';
+import { BlurView } from 'expo-blur';
+// Deliberately BlurView-only, not the native LiquidGlassView used elsewhere
+// (GlassButton, the nav pills) — confirmed by direct on-device comparison
+// that real UIGlassEffect composites far more transparently on this pill's
+// large capsule surface than it does on GlassButton's small circles, even
+// with an identical opaque-ish backing tint underneath it. BlurView with
+// that same backing tint renders solid and legible, so it's the right
+// choice here specifically, not a fallback being settled for.
 
 // Same hex colors.card the flag/newspaper pills paint their own background
 // with (see FloatingTabBar's `pillBg = colors.card`) — converted to rgba so
@@ -30,6 +37,36 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+// English has no Intl-native ordinal day ("8th") — every other supported
+// language's Intl long-date output already matches its own convention as-is
+// (German's "8. September" already carries its own ordinal marker, French's
+// "8 septembre" takes none for most days, etc.), so only English needs this.
+function ordinalSuffix(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return 'th';
+  switch (n % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+// Full (non-abbreviated) day + month, localized to the playing article's
+// language rather than the device locale — parsed/formatted pinned to UTC
+// so the date never rolls back a day from a timezone offset alone.
+function formatAudioDate(dateStr: string, language: string | null): string {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  const locale = (language && LANG_LOCALE[language]) || 'en-GB';
+  if (locale.startsWith('en')) {
+    const day = d.getUTCDate();
+    const weekday = d.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' });
+    const month = d.toLocaleDateString(locale, { month: 'long', timeZone: 'UTC' });
+    return `${weekday}, ${day}${ordinalSuffix(day)} ${month}`;
+  }
+  return d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+}
+
 // ─── Geometry ─────────────────────────────────────────────────────────────────
 
 const PILL_H        = FLOAT_TAB_H_SMALL; // 52px — matches nav pill height
@@ -38,6 +75,18 @@ const BAR_MAX       = 12;
 const GAP_ABOVE_TAB = 12;
 const MARQUEE_SPEED = 38;
 const FADE_WIDTH    = 24;
+// Narrower than the right-edge fade, and the marquee stack is padded left by
+// this same amount — otherwise the fade zone overlaps the very start of the
+// headline/date text itself instead of resolving to fully transparent
+// before readable content begins.
+const FADE_WIDTH_LEFT = 14;
+// Caps OS Dynamic Type scaling on this pill's text specifically — at PILL_H's
+// fixed 52px height with two stacked text rows, an uncapped multiplier (which
+// stacks on top of the app's own font-size setting) will clip against the
+// pill's overflow:hidden well before reaching the OS's largest accessibility
+// sizes. The article body itself stays unclamped; this is scoped to this
+// compact chrome element only.
+const PILL_MAX_FONT_SCALE = 1.3;
 
 const SIDE_NORMAL = 16;
 
@@ -57,7 +106,9 @@ const DOCK_SIDE = FLOAT_TAB_H_SMALL + 8; // 60px each side
 export function FloatingAudioPill() {
   const { colors, isDark, fontFamily, fontSize } = useTheme();
   const insets    = useSafeAreaInsets();
-  const { isPlaying, isLoading, headline } = useAudioStore();
+  const { isPlaying, isLoading, headline, date, language, queueCount } = useAudioStore(
+    useShallow(s => ({ isPlaying: s.isPlaying, isLoading: s.isLoading, headline: s.headline, date: s.date, language: s.language, queueCount: s.queue.length }))
+  );
   const { anyPillOpen, audioPillForcedUp } = useNavPillStore(
     useShallow(s => ({
       anyPillOpen: s.anyPillOpen,
@@ -180,17 +231,15 @@ export function FloatingAudioPill() {
   }, [animTrigger, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Theming ──────────────────────────────────────────────────────────────
-  // colors.card — same color the flag/newspaper pills use. A translucent tint
-  // over a blur always blends with whatever's behind it, so it drifts off
-  // colors.card depending on content (this was reading visibly "creamier"
-  // than the flag/newspaper pills when floating over article text). Matched
-  // to GlassButton's own backing opacity (0.80) instead — high enough that
-  // the actual color reads consistently regardless of what's behind it,
-  // same reasoning GlassButton already uses for its own colour reliability.
-  const tintBg = hexToRgba(colors.card, isDark ? 0.85 : 0.80);
-  // Thin light rim at the same opacity as the fill — the classic glass-edge
-  // highlight, not a themed border.
-  const borderColorRgba = `rgba(255,255,255,${isDark ? 0.35 : 0.30})`;
+  // colors.card — same color the flag/newspaper pills use. Backing tint that
+  // sits behind the glass/blur layer (see render below) so the pill stays
+  // legible over any content, same role GlassButton's own backing plays —
+  // but noticeably stronger than GlassButton's 0.80 default. Real glass
+  // refraction reads far more washed-out over this pill's much larger
+  // surface area (a wide capsule with lots of moving article text under it)
+  // than it does on GlassButton's small 28-40px circles, so the same backing
+  // opacity that works fine there was still nearly invisible here.
+  const tintBg = hexToRgba(colors.card, isDark ? 0.90 : 0.88);
   const onPill    = colors.chrome;
   const circleIcon = colors.bg;
 
@@ -198,6 +247,9 @@ export function FloatingAudioPill() {
     tintBg.replace(/[\d.]+\)$/, '0)'),
     tintBg,
   ];
+  // Same fade, mirrored — used on the marquee's left edge so text fades IN
+  // next to the waveform icon the same way it fades OUT on the right.
+  const fadeColorsReversed: [string, string] = [fadeColors[1], fadeColors[0]];
 
   // ── Static position — re-calculates only when insets change ─────────────
   const normalBottom = insets.bottom + FLOAT_TAB_BOTTOM + FLOAT_TAB_H + GAP_ABOVE_TAB;
@@ -210,6 +262,7 @@ export function FloatingAudioPill() {
   }
 
   const marqueeText = headline ? `${headline}   ·   ` : '';
+  const dateLabel = date ? formatAudioDate(date, language) : null;
 
   return (
     // Outermost: static absolute position
@@ -236,31 +289,15 @@ export function FloatingAudioPill() {
               the inner overflow:hidden — combining both on one view clips
               the shadow (same reason FloatingTabBar's pillWrapper/pill and
               GlassButton keep the two concerns on separate views). */}
-          <View
-            style={[
-              styles.pillShadow,
-              { borderWidth: 1, borderColor: borderColorRgba },
-            ]}
-          >
-            <View style={styles.pillClip}>
-              {/* Stronger blur across the whole pill — only the thin rim ring
-                  (not covered by the inset layer below) actually shows it,
-                  giving the edge a more intense "magnified" look than the
-                  center, the way a real convex lens bends light more at its
-                  edges than through its middle. */}
+          <View style={styles.pillShadow}>
+            {/* Backing tint + BlurView — see the import comment above for
+                why this pill deliberately skips native LiquidGlassView. */}
+            <View style={[styles.pillClip, { backgroundColor: tintBg }]}>
               <BlurView
-                style={StyleSheet.absoluteFill}
-                intensity={52}
+                intensity={isDark ? 60 : 70}
                 tint={isDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
               />
-              <View style={styles.pillRim}>
-                <BlurView
-                  style={StyleSheet.absoluteFill}
-                  intensity={40}
-                  tint={isDark ? 'dark' : 'light'}
-                />
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: tintBg }]} pointerEvents="none" />
-
                 <View style={styles.pillContent}>
               {/* ── Waveform (LEFT) ── */}
             <View style={styles.waveform}>
@@ -284,21 +321,43 @@ export function FloatingAudioPill() {
               style={styles.marqueeContainer}
               onLayout={e => onContainerLayout(e.nativeEvent.layout.width)}
             >
-              <Animated.View
-                style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
-              >
-                <Text
-                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
-                  onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+              <View style={styles.marqueeStack}>
+                <Animated.View
+                  style={[styles.marqueeTrack, { transform: [{ translateX: marqAnim }] }]}
                 >
-                  {marqueeText}
-                </Text>
-                <Text
-                  style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
-                >
-                  {marqueeText}
-                </Text>
-              </Animated.View>
+                  <Text
+                    style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
+                    onLayout={e => onTextLayout(e.nativeEvent.layout.width)}
+                    maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}
+                  >
+                    {marqueeText}
+                  </Text>
+                  <Text
+                    style={[styles.marqueeText, { color: onPill, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
+                    maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}
+                  >
+                    {marqueeText}
+                  </Text>
+                </Animated.View>
+                {dateLabel && (
+                  <Text
+                    style={[styles.dateLabel, { color: onPill, fontFamily: fontFamily.bold }]}
+                    maxFontSizeMultiplier={PILL_MAX_FONT_SCALE}
+                  >
+                    {dateLabel}
+                  </Text>
+                )}
+              </View>
+
+              {/* Left-edge fade — text fades IN here, next to the waveform,
+                  mirroring the right-edge fade-out below. */}
+              <LinearGradient
+                colors={fadeColorsReversed}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.fadeEdgeLeft}
+                pointerEvents="none"
+              />
 
               {/* Right-edge fade */}
               <LinearGradient
@@ -316,16 +375,25 @@ export function FloatingAudioPill() {
               activeOpacity={0.7}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <View style={[styles.playCircle, { backgroundColor: onPill }]}>
+              <View style={styles.playCircle}>
                 <Ionicons
                   name={isPlaying ? 'pause' : 'play'}
-                  size={12}
-                  color={circleIcon}
-                  style={!isPlaying ? { marginLeft: 1 } : undefined}
+                  size={20}
+                  color={onPill}
+                  style={!isPlaying ? { marginLeft: 2 } : undefined}
                 />
               </View>
+              {/* Queued-next count — confirms a long-press "add to queue"
+                  actually did something, since that gesture has no other
+                  feedback besides the haptic. */}
+              {queueCount > 0 && (
+                <View style={[styles.queueBadge, { backgroundColor: onPill, borderColor: tintBg }]}>
+                  <Text style={[styles.queueBadgeText, { color: circleIcon, fontFamily: fontFamily.bold }]}>
+                    {queueCount > 9 ? '9+' : queueCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-              </View>
               </View>
             </View>
           </View>
@@ -357,21 +425,13 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  // Clips the blur + tint to the pill shape.
+  // Clips the backing tint + glass/blur to the pill shape.
   pillClip: {
     flex: 1,
     borderRadius: PILL_H / 2,
     overflow: 'hidden',
   },
-  // Inset from pillClip's edge — leaves a thin ring around the border where
-  // only the stronger outer blur shows through, uncovered by this layer.
-  pillRim: {
-    position: 'absolute',
-    top: 3, bottom: 3, left: 3, right: 3,
-    borderRadius: PILL_H / 2 - 3,
-    overflow: 'hidden',
-  },
-  // Row layout for the pill's own content, on top of the blur + tint.
+  // Row layout for the pill's own content, on top of the backing + glass.
   pillContent: {
     flex: 1,
     flexDirection: 'row',
@@ -402,11 +462,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
 
+  // Column stack — the scrolling headline row on top, the static date label
+  // beneath it. Centering this whole stack (marqueeContainer's justifyContent)
+  // is what nudges the headline text up from the pill's true vertical
+  // center, rather than needing a separate manual offset.
+  marqueeStack: {
+    alignItems: 'flex-start',
+    // Pushes text/date past the left fade zone so it never renders under it.
+    paddingLeft: FADE_WIDTH_LEFT,
+  },
+
   marqueeTrack: {
     flexDirection: 'row',
     alignItems: 'center',
     flexShrink: 0,
     minWidth: 3000,
+  },
+
+  dateLabel: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: 0.2,
+    opacity: 0.7,
+    marginTop: 1,
   },
 
   // fontFamily and fontSize set inline (fontFamily.regular / fontSize.body —
@@ -426,12 +504,38 @@ const styles = StyleSheet.create({
     width: FADE_WIDTH,
   },
 
+  fadeEdgeLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: FADE_WIDTH_LEFT,
+  },
+
+  // No filled circle behind the icon — reads directly against the glass,
+  // same as the waveform bars and marquee text already do.
   playCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+
+  queueBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 15,
+    height: 15,
+    borderRadius: 7.5,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  queueBadgeText: {
+    fontSize: 9,
+    lineHeight: 11,
   },
 });

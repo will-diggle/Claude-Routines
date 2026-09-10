@@ -1,8 +1,10 @@
 """
-Spell out numbers in brackets for beginner articles: "25 (twenty-five)".
+Spell out numbers in brackets: "25 (twenty-five)".
 
-Applies to A1 and A2 articles only (per Will's decision, 2026-08-30 — B1 readers
-are expected to read numerals fluently; the scaffolding is for true beginners).
+Applies to every level and native journalism (widened 2026-09-10 — originally
+A1/A2 only, on the reasoning that B1+ readers read numerals fluently; now an
+app-side toggle lets each reader decide for themselves, so the scaffolding is
+generated everywhere and shown or hidden per reader instead of per level).
 Covers plain numbers, years, percentages and currency amounts, since all of those
 were in scope by request — but see WHY NOT num2words' 'currency' mode below.
 
@@ -169,9 +171,6 @@ SPACY_MODELS = {
 # just less colloquial.
 _YEAR_SUPPORTED = NUM2WORDS_LANGS - {"sv"}
 _YEAR_RANGE = range(1000, 2200)
-
-# Levels this applies to. Matches CEFR_ORDER's own strings.
-APPLIES_TO_LEVELS = {"A1", "A2"}
 
 _NLP_CACHE: dict = {}
 _GROUP3_RE = re.compile(r"^\d{3}$")  # a thousands-grouping continuation chunk
@@ -352,44 +351,58 @@ def add_number_words(text: str, lang: str) -> tuple[str, int]:
     return "".join(out), count
 
 
+def _enrich_article(article: dict, lang: str) -> int:
+    """Spell out numbers in one article's headline/body in place. Returns how many
+    numbers were spelled out. Preserves the pre-insertion text under "<field>Audio"
+    -- both the audio stage (reads this AFTER enrichment, would otherwise double
+    every number aloud: "25 (twenty-five)" spoken as written says "twenty-five,
+    twenty-five") and the app's own numbers-on/off toggle read from that field.
+    Only set when something actually changed -- number-free text never gets an
+    "Audio" field, and both consumers fall back to the plain field then."""
+    total = 0
+    for field in ("headline", "body"):
+        if not article.get(field):
+            continue
+        original = article[field]
+        new_text, n = add_number_words(original, lang)
+        if n:
+            article[f"{field}Audio"] = original
+            article[field] = new_text
+            total += n
+    return total
+
+
 def enrich_bundle_with_number_words(bundle: dict) -> int:
-    """Walk every A1/A2 article in the bundle and spell out its numbers in place.
-    Native journalism and B1+ are untouched -- this is beginner scaffolding only.
-    Returns the number of articles touched."""
-    briefings = bundle.get("briefings") or {}
+    """Walk every article in the bundle -- every level, plus native journalism and
+    native-intermediate -- and spell out its numbers in place. Returns the number of
+    articles touched."""
     touched = 0
     total_numbers = 0
 
+    briefings = bundle.get("briefings") or {}
     for lang, lang_data in briefings.items():
         if lang not in NUM2WORDS_LANGS:
             continue
-        for level, level_data in lang_data.items():
-            if level not in APPLIES_TO_LEVELS:
-                continue
-            for length, briefing in level_data.items():
+        for level_data in lang_data.values():
+            for briefing in level_data.values():
                 for article in briefing.get("articles", []):
-                    changed = False
-                    for field in ("headline", "body"):
-                        if not article.get(field):
-                            continue
-                        original = article[field]
-                        new_text, n = add_number_words(original, lang)
-                        if n:
-                            # Preserve the pre-insertion text under "<field>Audio" so
-                            # the audio-narration stage (which reads this article
-                            # AFTER this function has already run) can read it aloud
-                            # without doubling every number: "25 (twenty-five)"
-                            # spoken as written says "twenty-five, twenty-five".
-                            # Only set when something actually changed -- B1/B2 and
-                            # number-free A1/A2 text never gets an "Audio" field,
-                            # and the audio stage falls back to the plain field then.
-                            article[f"{field}Audio"] = original
-                            article[field] = new_text
-                            total_numbers += n
-                            changed = True
-                    if changed:
+                    n = _enrich_article(article, lang)
+                    if n:
                         touched += 1
+                        total_numbers += n
 
-    print(f"[10 spaCy — numwords] {touched} A1/A2 article(s) enriched, "
+    for key in ("nativeJournalism", "nativeIntermediate"):
+        native = bundle.get(key) or {}
+        for lang, by_length in native.items():
+            if lang not in NUM2WORDS_LANGS:
+                continue
+            for articles in by_length.values():
+                for article in articles or []:
+                    n = _enrich_article(article, lang)
+                    if n:
+                        touched += 1
+                        total_numbers += n
+
+    print(f"[10 spaCy — numwords] {touched} article(s) enriched, "
           f"{total_numbers} number(s) spelled out")
     return touched

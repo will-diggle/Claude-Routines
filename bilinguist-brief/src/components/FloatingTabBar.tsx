@@ -3,6 +3,10 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   Dimensions, Animated, Easing, Platform, useWindowDimensions,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue, useAnimatedStyle, withTiming, cancelAnimation, runOnJS,
+  Easing as REasing,
+} from 'react-native-reanimated';
 
 export const isIOS26Plus =
   Platform.OS === 'ios' && parseInt(Platform.Version as string, 10) >= 26;
@@ -362,13 +366,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     chipGroupMeasuredW.current = Math.min(chipGroupW + ROW_PAD, LEFT_MAX_W); // uses reactive LEFT_MAX_W
   }
 
-  // JS-driver: layout properties (width, height) cannot use native driver
+  // UI-thread layout animation via Reanimated — width/height run through
+  // Fabric's shadow tree on the UI thread instead of the JS thread, so they
+  // stay smooth even while the scroll handler is busy on JS (unlike RN's
+  // built-in Animated, which can't native-drive layout props at all).
   // Each pill has its own height value — sharing one caused conflicts when
   // animToLeftOpen (h=48) and animOpenRight (h=60) ran in close succession.
-  const leftHeightAnim  = useRef(new Animated.Value(FLOAT_TAB_H_SMALL)).current;
-  const rightHeightAnim = useRef(new Animated.Value(FLOAT_TAB_H_SMALL)).current;
-  const leftWidthAnim   = useRef(new Animated.Value(LEFT_MINI_W)).current;
-  const rightWidthAnim  = useRef(new Animated.Value(RIGHT_MINI_W)).current;
+  const leftHeightSV  = useSharedValue(FLOAT_TAB_H_SMALL);
+  const rightHeightSV = useSharedValue(FLOAT_TAB_H_SMALL);
+  const leftWidthSV   = useSharedValue(LEFT_MINI_W);
+  const rightWidthSV  = useSharedValue(RIGHT_MINI_W);
+  const leftBoxStyle  = useAnimatedStyle(() => ({ width: leftWidthSV.value,  height: leftHeightSV.value  }));
+  const rightBoxStyle = useAnimatedStyle(() => ({ width: rightWidthSV.value, height: rightHeightSV.value }));
 
   // Native-driver: opacity and transform run on the UI thread, keeping them
   // off the JS thread reduces competition with the layout animations above.
@@ -407,29 +416,31 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
   // borderRadius uses a static value of 100 (React Native clamps to height/2,
   // so it always renders as a perfect capsule/circle regardless of pill height).
 
-  // Layout props (width/height) can't use native driver — timing is smoother
-  // than spring here because it avoids per-frame spring physics on the JS thread
-  // while layout recalculates simultaneously. Cubic ease-out feels lush and snappy.
-  const TM_LAYOUT_OPEN       = { duration: DUR_OPEN,       easing: Easing.out(Easing.cubic), useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE      = { duration: DUR_CLOSE,      easing: Easing.out(Easing.quad),  useNativeDriver: false } as const;
-  const TM_LAYOUT_CLOSE_FAST = { duration: DUR_CLOSE_FAST, easing: Easing.in(Easing.cubic),  useNativeDriver: false } as const;
+  // Timing runs on the UI thread via Reanimated's withTiming — Reanimated's own
+  // Easing export (not RN's) is required so the easing curve is workletizable.
+  // Cubic ease-out feels lush and snappy.
+  const TM_LAYOUT_OPEN       = { duration: DUR_OPEN,       easing: REasing.out(REasing.cubic) };
+  const TM_LAYOUT_CLOSE      = { duration: DUR_CLOSE,      easing: REasing.out(REasing.quad)  };
+  const TM_LAYOUT_CLOSE_FAST = { duration: DUR_CLOSE_FAST, easing: REasing.in(REasing.cubic)  };
   // Scale runs on UI thread via native driver — spring here is free (no layout cost).
   const SP_SCALE_OPEN  = { stiffness: 200, damping: 14, mass: 0.7, useNativeDriver: true } as const;
   const SP_SCALE_CLOSE = { stiffness: 320, damping: 28, mass: 0.8, useNativeDriver: true } as const;
 
+  // Setting a shared value to withTiming(...) starts that animation on the UI
+  // thread immediately — assigning several in a row (as every function below
+  // does) is how Reanimated expresses "run these in parallel," no explicit
+  // parallel/group wrapper needed the way RN's Animated API requires one.
   function animCloseLeft() {
     setLeftOpen(false);
     setRightOpen(false);
     setRightNavMounted(false);
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);
-    Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+    leftHeightSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightHeightSV.value = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    leftWidthSV.value   = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightWidthSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    Animated.spring(iconScaleAnim, { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE }).start();
   }
 
   function animOpenRight() {
@@ -437,29 +448,25 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightOpen(true);
     setRightNavMounted(true);
     leftContextOp.setValue(0);
-    Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightWidthAnim,  { toValue: Math.min(
-        NAV_CHIP_W * TABS.length + (TABS.length - 1) * CHIP_GAP + ROW_PAD, RIGHT_MAX_W,
-      ), ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_LARGE,  ...TM_LAYOUT_OPEN }),
-      Animated.timing(rightFullOp,     { toValue: 1, duration: 40, delay: 165, useNativeDriver: true }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }),
-    ]).start();
+    leftHeightSV.value  = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_OPEN);
+    rightHeightSV.value = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_OPEN);
+    rightWidthSV.value  = withTiming(Math.min(
+      NAV_CHIP_W * TABS.length + (TABS.length - 1) * CHIP_GAP + ROW_PAD, RIGHT_MAX_W,
+    ), TM_LAYOUT_OPEN);
+    leftWidthSV.value   = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_OPEN);
+    Animated.timing(rightFullOp, { toValue: 1, duration: 40, delay: 165, useNativeDriver: true }).start();
+    Animated.spring(iconScaleAnim, { toValue: SCALE_LARGE, ...SP_SCALE_OPEN }).start();
   }
 
   function animCloseRight() {
     setRightOpen(false);
     setRightNavMounted(false); // unmount immediately — don't wait for animation
     rightFullOp.setValue(0);   // mini nav shows instantly; no fade-while-compressing
-    Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+    leftHeightSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightHeightSV.value = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightWidthSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    leftWidthSV.value   = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    Animated.spring(iconScaleAnim, { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE }).start();
   }
 
   function animCloseBoth() {
@@ -468,13 +475,18 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     setRightNavMounted(false); // unmount immediately
     leftContextOp.setValue(0);
     rightFullOp.setValue(0);   // mini nav shows instantly
-    Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(leftWidthAnim,   { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_SMALL, ...TM_LAYOUT_CLOSE }),
-      Animated.spring(iconScaleAnim,   { toValue: SCALE_DEFAULT,      ...SP_SCALE_CLOSE  }),
-    ]).start();
+    leftHeightSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightHeightSV.value = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    leftWidthSV.value   = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    rightWidthSV.value  = withTiming(FLOAT_TAB_H_SMALL, TM_LAYOUT_CLOSE);
+    Animated.spring(iconScaleAnim, { toValue: SCALE_DEFAULT, ...SP_SCALE_CLOSE }).start();
+  }
+
+  // Called from the UI thread once the right pill has finished collapsing to
+  // a circle (see animToLeftOpen below) — hops back to JS via runOnJS since
+  // rightFullOp is still a plain RN Animated.Value.
+  function revealMiniNav() {
+    rightFullOp.setValue(0);
   }
 
   function animToLeftOpen(targetW: number) {
@@ -490,17 +502,17 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
     rightFullOp.setValue(1);
     leftContextOp.setValue(0);
     iconScaleAnim.setValue(SCALE_SMALL);
-    rightHeightAnim.stopAnimation();
-    rightWidthAnim.stopAnimation();
-    Animated.parallel([
-      Animated.timing(leftHeightAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftWidthAnim,   { toValue: targetW,            ...TM_LAYOUT_OPEN }),
-      Animated.timing(leftContextOp,   { toValue: 1, duration: 70, delay: 95, useNativeDriver: true }),
-      Animated.timing(rightHeightAnim, { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE_FAST }),
-      Animated.timing(rightWidthAnim,  { toValue: FLOAT_TAB_H_LARGE, ...TM_LAYOUT_CLOSE_FAST }),
-    ]).start(() => {
+    cancelAnimation(rightHeightSV);
+    cancelAnimation(rightWidthSV);
+
+    leftHeightSV.value  = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_OPEN);
+    leftWidthSV.value   = withTiming(targetW, TM_LAYOUT_OPEN);
+    Animated.timing(leftContextOp, { toValue: 1, duration: 70, delay: 95, useNativeDriver: true }).start();
+    rightHeightSV.value = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_CLOSE_FAST);
+    rightWidthSV.value  = withTiming(FLOAT_TAB_H_LARGE, TM_LAYOUT_CLOSE_FAST, (finished) => {
+      'worklet';
       // Pill is now a closed circle — reveal the mini nav icon
-      rightFullOp.setValue(0);
+      if (finished) runOnJS(revealMiniNav)();
     });
   }
 
@@ -755,7 +767,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 {/* ── Left pill ──────────────────────────────────────────────────────── */}
       {/* Outer: scale only (native driver). Inner: layout only (non-native). Separating drivers prevents animation freeze. */}
       <Animated.View style={{ transform: [{ scale: leftPressScale }] }}>
-      <Animated.View style={[styles.pillWrapper, pillShadow, { height: leftHeightAnim, width: leftWidthAnim }]}>
+      <Reanimated.View style={[styles.pillWrapper, pillShadow, leftBoxStyle]}>
         <GlassPill glass={glassAvailable} isDark={isDark} pillBg={pillBg}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: leftContextOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
@@ -795,7 +807,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             </TouchableOpacity>
           </Animated.View>
         </GlassPill>
-      </Animated.View>
+      </Reanimated.View>
       </Animated.View>
 
       {/* Spacer — takes all remaining space, preventing any overlap */}
@@ -803,7 +815,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
       {/* ── Right pill ─────────────────────────────────────────────────────── */}
       <Animated.View style={{ transform: [{ scale: rightPressScale }] }}>
-      <Animated.View style={[styles.pillWrapper, pillShadow, { height: rightHeightAnim, width: rightWidthAnim }]}>
+      <Reanimated.View style={[styles.pillWrapper, pillShadow, rightBoxStyle]}>
         <GlassPill glass={glassAvailable} isDark={isDark} pillBg={pillBg}>
           <Animated.View
             style={[styles.absoluteFill, { opacity: rightFullOp.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
@@ -818,7 +830,7 @@ export function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
             </Animated.View>
           )}
         </GlassPill>
-      </Animated.View>
+      </Reanimated.View>
       </Animated.View>
     </View>
   );

@@ -169,6 +169,11 @@ export function trackBriefLengthChanged(language: string, newLength: string): vo
   ph()?.capture('brief_length_changed', { language, new_length: newLength });
 }
 
+/** Fired when the user toggles spelled-out numbers, e.g. "20 (twenty)", on or off for a language. */
+export function trackWrittenNumbersChanged(language: string, enabled: boolean): void {
+  ph()?.capture('written_numbers_changed', { language, enabled });
+}
+
 export function trackArticleTapped(language: string): void {
   ph()?.capture('article_tapped', { language });
 }

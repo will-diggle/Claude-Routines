@@ -192,6 +192,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
     const currentWord = lookupTarget;
     const currentLemma = lookupLemma;
     const currentLang = language;
+    const tapStart = Date.now();
 
     (async () => {
       analytics.trackWordTapped(currentWord, currentLang, level, false);
@@ -205,8 +206,10 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
         // If we got a verb back with only legacy 2-tense data, force-refresh to hit the worker backfill
         let finalResult = result;
         if (result?.wordType === 'verb' && (!result.tenses || result.tenses.length < 3)) {
+          console.log(`[WordPopup] "${currentWord}" — forcing a second live lookup, tenses looked incomplete`);
           finalResult = await lookupWord(currentWord, currentLang, level, { forceRefresh: true, sentence }).catch(() => result);
         }
+        console.log(`[WordPopup] "${currentWord}" — tap-to-rendered: ${Date.now() - tapStart}ms`);
         setEntry(finalResult);
         setIsLoading(false);
         if (finalResult) {

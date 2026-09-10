@@ -127,10 +127,10 @@ export function DisplayPreview({ colors, fontFamily, fontSize }: { colors: any; 
 const sectionStyles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.xl,
     paddingBottom: Spacing.sm,
   },
-  title: { fontSize: 26 },
+  title: { fontSize: 15, textTransform: 'uppercase', letterSpacing: 0.4 },
 });
 
 const segStyles = StyleSheet.create({

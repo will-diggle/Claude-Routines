@@ -48,7 +48,7 @@ const GREETINGS: Partial<Record<LanguageCode, Record<'morning' | 'afternoon' | '
   es: { morning: 'Buenos días',    afternoon: 'Buenas tardes',   evening: 'Buenas noches' },
   tr: { morning: 'Günaydın',       afternoon: 'İyi günler',      evening: 'İyi akşamlar'  },
   hu: { morning: 'Jó reggelt',     afternoon: 'Jó napot',        evening: 'Jó estét'      },
-  ar: { morning: 'صباح الخير',    afternoon: 'مساء الخير',      evening: 'مساء النور'    },
+  ar: { morning: 'صباح الخير',    afternoon: 'مساء الخير',      evening: 'مساء الخير'    },
 };
 
 const LANG_CITIES: Partial<Record<LanguageCode, { latitude: number; longitude: number; name: string }>> = {
@@ -125,11 +125,11 @@ const WMO: Record<string, Record<number, string>> = {
   },
   es: {
     0: 'cielo despejado',
-    1: 'principalmente despejado', 2: 'parcialmente nublado', 3: 'nublado',
+    1: 'cielo mayormente despejado', 2: 'cielo parcialmente nublado', 3: 'cielo nublado',
     45: 'niebla', 48: 'niebla helada',
     51: 'llovizna ligera', 53: 'llovizna', 55: 'llovizna intensa',
     61: 'lluvia ligera', 63: 'lluvia', 65: 'lluvia intensa',
-    71: 'nieve ligera', 73: 'nieve', 75: 'nieve intensa', 77: 'granizo de nieve',
+    71: 'nieve ligera', 73: 'nieve', 75: 'nieve intensa', 77: 'nieve granulada',
     80: 'chubascos ligeros', 81: 'chubascos', 82: 'chubascos intensos',
     85: 'chubascos de nieve', 86: 'chubascos de nieve intensa',
     95: 'tormenta', 96: 'tormenta con granizo', 99: 'tormenta con granizo intenso',

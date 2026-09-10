@@ -210,7 +210,7 @@ export async function scheduleMorningBriefNotification(
 
     await Notifications.scheduleNotificationAsync({
       identifier: MORNING_NOTIFICATION_ID,
-      content: { title: 'Morning Bilingual Briefing ☀️', body, data: { screen: 'Briefing' } },
+      content: { title: 'Bilinguist Brief ☀️', body, data: { screen: 'Briefing' } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
     });
   } catch {}

@@ -904,7 +904,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
       if (frames.length === 0) return; // wait for frames to arrive
       const safeIdx = Math.min(idx, frames.length - 1);
       const url = rainviewerTileUrl(frames[safeIdx].path);
-      webViewRef.current?.injectJavaScript(`window.setLayer('${url}',6); true;`);
+      webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
     } else {
       const url = owmTileUrl(layer); // clouds only
       webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
@@ -1117,7 +1117,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
                         if (activeLayer === 'precipitation' && frames.length > 0) {
                           const safeIdx = Math.min(frameIdx, frames.length - 1);
                           const url = rainviewerTileUrl(frames[safeIdx].path);
-                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}',6); true;`);
+                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
                         } else if (activeLayer === 'clouds') {
                           const url = owmTileUrl('clouds');
                           webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
@@ -1228,7 +1228,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
                           if (activeLayer === 'precipitation' && frames.length > 0) {
                             const safeIdx = Math.min(frameIdx, frames.length - 1);
                             const url = rainviewerTileUrl(frames[safeIdx].path);
-                            webViewRef.current?.injectJavaScript(`window.setLayer('${url}',6); true;`);
+                            webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
                           } else if (activeLayer === 'clouds') {
                             const url = owmTileUrl('clouds');
                             webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);

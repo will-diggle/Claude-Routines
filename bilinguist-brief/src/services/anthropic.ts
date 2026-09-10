@@ -25,6 +25,11 @@ export interface BriefingArticle {
   slug?: string;
   headline: string;
   body: string;
+  // Plain (no spelled-out-number brackets) variant of headline/body — present
+  // only when a number was actually spelled out in that field; absent means
+  // there was nothing to strip, so callers should fall back to headline/body.
+  headlineAudio?: string;
+  bodyAudio?: string;
   wordCount?: number; // word count of headline + body, added by Python at generation time
   tokenMap?: TokenMapEntry[]; // P5 token analysis — undefined for older bundles
   // R2 key for this article's narration, set by the audio pipeline stage.

@@ -14,26 +14,30 @@ import type { LanguageCode } from '../store/useSettingsStore';
 
 const WORKER_URL = process.env.EXPO_PUBLIC_DATA_URL ?? 'https://bilinguist-brief.williamdiggz.workers.dev';
 
-const LANG_LOCALE: Record<string, string> = {
+export const LANG_LOCALE: Record<string, string> = {
   fr: 'fr-FR', de: 'de-DE', sv: 'sv-SE', en: 'en-GB',
   it: 'it-IT', es: 'es-ES', tr: 'tr-TR',
 };
 
 async function speakDemo(text: string, language: LanguageCode, trackingKey: string) {
-  const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
-  setLoading(trackingKey);
+  const { setLoading, setPlaying, setFinished } = useAudioStore.getState();
+  setLoading(trackingKey, null, language);
   setPlaying();
   // Configure AVAudioSession BEFORE speaking — changing the category while the
   // synthesiser is running triggers a system interruption that fires onStopped.
   try {
     await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
   } catch { /* ignore — speech will still play, just may respect the silent switch */ }
+  // expo-speech has no real pause/resume (only stop), so every one of these
+  // is a genuine end-of-playback, not a pausable state — always clear
+  // `headline` via setFinished so pressing play again restarts it instead
+  // of being misread as "resume."
   getSpeech()?.speak(text, {
     language: LANG_LOCALE[language] ?? 'en-GB',
     rate: 0.88,
-    onDone:    setIdle,
-    onStopped: setIdle,
-    onError:   setIdle,
+    onDone:    setFinished,
+    onStopped: setFinished,
+    onError:   setFinished,
   });
 }
 
@@ -95,8 +99,9 @@ export async function playArticleAudio(
   language: LanguageCode,
   trackingKey: string,
   audioKey: string,
+  date?: string | null,
 ): Promise<void> {
-  const { setLoading, setPlaying, setIdle } = useAudioStore.getState();
+  const { setLoading, setPlaying, setFinished } = useAudioStore.getState();
 
   if (_sound) {
     try {
@@ -107,7 +112,7 @@ export async function playArticleAudio(
   }
   getSpeech()?.stop();
 
-  setLoading(trackingKey);
+  setLoading(trackingKey, date, language);
 
   try {
     await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
@@ -121,12 +126,17 @@ export async function playArticleAudio(
 
     sound.setOnPlaybackStatusUpdate((s) => {
       if (s.isLoaded && s.didJustFinish) {
-        setIdle();
         _sound = null;
+        const next = useAudioStore.getState().dequeueNext();
+        if (next) {
+          playArticleAudio(next.language, next.headline, next.audioKey, next.date);
+        } else {
+          setFinished();
+        }
       }
     });
   } catch {
-    setIdle();
+    setFinished();
   }
 }
 
@@ -141,5 +151,6 @@ export async function stopAudio(): Promise<void> {
   } else {
     getSpeech()?.stop();
   }
-  useAudioStore.getState().setIdle();
+  useAudioStore.getState().clearQueue();
+  useAudioStore.getState().setFinished();
 }

@@ -26,7 +26,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       status: 'promo',
       promoLabel: null,
 
-      isFullAccess: () => true,
+      isFullAccess: () => get().status !== 'free',
 
       applyPromoCode: (raw) => {
         const code = raw.trim().toUpperCase();

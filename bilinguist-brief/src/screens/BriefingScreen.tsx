@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   AppState, AppStateStatus, ScrollView, RefreshControl, StyleSheet,
-  View, Text, Image, Dimensions, Modal, TouchableOpacity,
+  View, Text, Image, Dimensions, Modal, TouchableOpacity, Alert,
   NativeScrollEvent, NativeSyntheticEvent, Animated, useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +28,8 @@ import type { ArticleLength, GeneratedBriefing } from '../services/anthropic';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import * as Haptics from 'expo-haptics';
 import * as analytics from '../services/analytics';
+import { prefetchDictionaryForArticles } from '../services/wordDictionaryCache';
+import { useDictionaryPrefetchStore } from '../store/useDictionaryPrefetchStore';
 import { scheduleStreakReminder } from '../services/notifications';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -199,8 +201,8 @@ export function BriefingScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const lockupW = Math.round(winW * (winW >= 768 ? 0.38 : 1.18));
   const lockupH = Math.round(lockupW / 6.21);
-  const { languages, topics, setLanguageLevel, setLanguageReadLength } = useSettingsStore(
-    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength }))
+  const { languages, topics, setLanguageLevel, setLanguageReadLength, setLanguageShowNumberSpellouts } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength, setLanguageShowNumberSpellouts: s.setLanguageShowNumberSpellouts }))
   );
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
@@ -218,16 +220,13 @@ export function BriefingScreen() {
 
   const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
   const langCount = activeLanguages.length;
+  const dictPrefetchByLanguage = useDictionaryPrefetchStore((s) => s.byLanguage);
 
   const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore(
     useShallow((s) => ({ briefPageIndex: s.briefPageIndex, setBriefPageIndex: s.setBriefPageIndex, setBriefingScrolled: s.setBriefingScrolled }))
   );
   // Track scroll threshold without spamming Zustand on every frame
   const scrolledFlagRef = useRef(false);
-  // Last seen offset, for direction detection (scroll-up reopens the pill
-  // immediately, same "reveal on scroll-up" pattern as Safari's URL bar).
-  const lastScrollYRef = useRef(0);
-
   const { recordRead, readingStreaks, readingHistory, lastReadDates, freezeDatesUsed, addReadingTime, getReadingTimeToday, checkAndConsumeFreeze, isFrozenToday, allReadToday, recordFullSweep, fullSweepShownToday, recordWordsRead, getWordsToday, getWordsLast7Days, wordsReadByDay, setConfettiActive } = useStreakStore();
   // Word count per language for current visible articles (updated by LanguageBriefingSection callback)
   const visibleWordCountRef = useRef<Record<string, number>>({});
@@ -475,6 +474,14 @@ export function BriefingScreen() {
         const level = lang.level ?? 'B1';
         return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'longer') as ArticleLength), true);
       }));
+      // Fire-and-forget: pull every word in each freshly-loaded brief into the
+      // on-device dictionary cache so tapping any of them works instantly,
+      // even offline. Never awaited — must not block weather loading or stall
+      // on network latency; text is already on screen by this point.
+      for (const lang of langs) {
+        const articles = useBriefingStore.getState().briefings[lang.code]?.articles;
+        if (articles?.length) prefetchDictionaryForArticles(lang.code, lang.level ?? 'B1', articles);
+      }
       await Promise.all(langs.map((lang) => loadWeather(lang.code)));
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -529,7 +536,6 @@ export function BriefingScreen() {
   useEffect(() => {
     briefingScrollY.setValue(0);
     scrolledFlagRef.current = false;
-    lastScrollYRef.current = 0;
     setBriefingScrolled(false);
     const lang = activeLanguages[briefPageIndex]?.code;
     if (lang) startTimer(lang);
@@ -685,18 +691,13 @@ export function BriefingScreen() {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
                 const y = contentOffset.y;
                 briefingScrollY.setValue(y);
-                // Reveal-on-scroll-up: any upward movement reopens the pill
-                // immediately (same pattern as Safari's URL bar), not just
-                // reaching the very top — scrolling down past the threshold
-                // collapses it again. Asymmetric threshold otherwise (only
-                // re-expand right at the top on its own) still applies when
-                // stationary or scrolling down, to avoid flicker right at
-                // the collapse boundary.
-                const scrollingUp = y < lastScrollYRef.current - 1;
-                lastScrollYRef.current = y;
-                const nowScrolled = scrollingUp
-                  ? false
-                  : scrolledFlagRef.current
+                // Collapse once scrolled past PILL_COLLAPSE_Y; only re-expand
+                // once actually back within PILL_TOP_EPS of the top — not on
+                // any upward scroll. Asymmetric threshold avoids flicker
+                // right at the collapse boundary. (Manually tapping a pill
+                // still opens it at any scroll position — see toggleLeft/
+                // toggleRight in FloatingTabBar, unaffected by this.)
+                const nowScrolled = scrolledFlagRef.current
                   ? y > PILL_TOP_EPS
                   : y > PILL_COLLAPSE_Y;
                 if (nowScrolled !== scrolledFlagRef.current) {
@@ -765,6 +766,38 @@ export function BriefingScreen() {
                   <Ionicons name="chevron-down" size={14} color={colors.inkFaint} style={{ marginLeft: 3, marginTop: 1 }} />
                 </TouchableOpacity>
                 {(() => {
+                  const dp = dictPrefetchByLanguage[lang.code];
+                  if (!dp || dp.status === 'idle') return null;
+                  const icon = dp.status === 'loading' ? 'cloud-download-outline'
+                             : dp.status === 'error'   ? 'cloud-offline-outline'
+                             : dp.found >= dp.total     ? 'checkmark-circle-outline'
+                             :                            'alert-circle-outline';
+                  const iconColor = dp.status === 'error' ? '#DC2626'
+                                   : dp.status === 'done' && dp.found < dp.total ? '#D97706'
+                                   : colors.inkFaint;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).finally(() => {
+                        Alert.alert(
+                          'Word downloads',
+                          dp.status === 'loading'
+                            ? `Downloading words for offline use… ${dp.found}/${dp.total} so far.`
+                            : dp.status === 'error'
+                            ? "Couldn't finish downloading today's words — some taps may need a connection."
+                            : dp.found >= dp.total
+                            ? `All ${dp.total} words for today's brief are downloaded. Safe to go offline.`
+                            : `${dp.found}/${dp.total} words downloaded. The rest (proper nouns, some inflected forms) will need a connection when tapped.`
+                        );
+                      })}
+                      activeOpacity={0.6}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                      style={{ marginLeft: 8 }}
+                    >
+                      <Ionicons name={icon as any} size={16} color={iconColor} />
+                    </TouchableOpacity>
+                  );
+                })()}
+                {(() => {
                   const streak = readingStreaks[lang.code] ?? 0;
                   const isReadToday = lastReadDates[lang.code] === today;
                   const isFrozen = isFrozenToday(lang.code);
@@ -807,27 +840,6 @@ export function BriefingScreen() {
                   );
                 })()}
               </View>
-
-              {/* ── Word count row ──────────────────────────────────────── */}
-              {(() => {
-                const wordsToday = getWordsToday(lang.code);
-                const words7d    = getWordsLast7Days(lang.code);
-                if (wordsToday === 0 && words7d === 0) return null;
-                const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-                return (
-                  <View style={styles.wordCountRow}>
-                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                      {fmt(wordsToday)} words today
-                    </Text>
-                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                      ·
-                    </Text>
-                    <Text style={[styles.wordCountText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                      {fmt(words7d)} this week
-                    </Text>
-                  </View>
-                );
-              })()}
 
               {/* ── Language content ────────────────────────────────────── */}
               <LanguageBriefingSection
@@ -945,42 +957,6 @@ export function BriefingScreen() {
             <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.borderLight, minHeight: 370 }]}>
               <View style={{ padding: 16 }}>
 
-                {/* Length */}
-                <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                  Length
-                </Text>
-                <View style={[styles.lengthToggleRow, { marginBottom: 20 }]}>
-                  {(['short', 'longer'] as const).map((len) => {
-                    const isActive = pickerLength === len;
-                    return (
-                      <TouchableOpacity
-                        key={len}
-                        style={[
-                          styles.lengthChip,
-                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
-                          isActive && {
-                            backgroundColor: colors.inkDark,
-                            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.18, shadowRadius: 4, elevation: 3,
-                          },
-                        ]}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setPickerLength(len);
-                          if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
-                          {len === 'short'
-                            ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
-                            : (LENGTH_LABELS[levelPickerLang ?? '']?.[1] ?? 'Long')}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
                 {/* Level chips */}
                 <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                   Level
@@ -1034,9 +1010,81 @@ export function BriefingScreen() {
                   })}
                 </View>
 
-                <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+                <Text style={[styles.levelHint, { color: colors.inkFaint, fontFamily: fontFamily.italic, marginBottom: 20 }]}>
                   Your brief will reload at the selected edition.
                 </Text>
+
+                {/* Length */}
+                <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Length
+                </Text>
+                <View style={[styles.lengthToggleRow, { marginBottom: 20 }]}>
+                  {(['short', 'longer'] as const).map((len) => {
+                    const isActive = pickerLength === len;
+                    return (
+                      <TouchableOpacity
+                        key={len}
+                        style={[
+                          styles.lengthChip,
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                          isActive && {
+                            backgroundColor: colors.inkDark,
+                            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.18, shadowRadius: 4, elevation: 3,
+                          },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setPickerLength(len);
+                          if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+                          {len === 'short'
+                            ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
+                            : (LENGTH_LABELS[levelPickerLang ?? '']?.[1] ?? 'Long')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Numbers — show/hide spelled-out numbers, e.g. "20 (twenty)" */}
+                <Text style={[styles.pickerSectionLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                  Written numbers
+                </Text>
+                <View style={styles.lengthToggleRow}>
+                  {([true, false] as const).map((val) => {
+                    const isActive = (activeLanguages.find(l => l.code === levelPickerLang)?.showNumberSpellouts ?? true) === val;
+                    return (
+                      <TouchableOpacity
+                        key={String(val)}
+                        style={[
+                          styles.lengthChip,
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                          isActive && {
+                            backgroundColor: colors.inkDark,
+                            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.18, shadowRadius: 4, elevation: 3,
+                          },
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          if (levelPickerLang) {
+                            setLanguageShowNumberSpellouts(levelPickerLang as any, val);
+                            analytics.trackWrittenNumbersChanged(levelPickerLang, val);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
+                          {val ? 'On' : 'Off'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             </View>
 
@@ -1239,18 +1287,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     paddingRight: 4,
   },
-  wordCountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingBottom: 6,
-  },
-  wordCountText: {
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-
   fixedDots: {
     position: 'absolute',
     left: 0,

@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
 import { Spacing } from '../theme';
-import { TappableText, countWordTokens, findWordPositionNear } from './TappableText';
+import { TappableText, countWordTokens, findWordPositionNear, buildPositionRemap } from './TappableText';
 import { lookupSeparableInfo } from '../services/dictionaryService';
 import { WordPopup } from './WordPopup';
 import { GlassButton } from './GlassButton';
 import type { BriefingArticle as Article, TokenMapEntry } from '../services/anthropic';
-import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
+import { useSettingsStore, type LanguageCode, type LanguageLevel } from '../store/useSettingsStore';
 import * as analytics from '../services/analytics';
 import SEPARABLE_DE from '../data/separable_de.json';
 import { useAudioStore } from '../store/useAudioStore';
@@ -77,10 +77,35 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   // Preferences > Display font-size setting.
   const headlineLineHeight = Math.round(fontSize.heading * 1.25);
 
-  // Word position of the first body word (= number of words in headline)
+  // Word position of the first body word (= number of words in headline).
+  // Always computed against the canonical (bracketed) headline — tokenMap
+  // positions are fixed to that numbering regardless of the display toggle.
   const headlineWordCount = useMemo(
     () => countWordTokens(article.headline),
     [article.headline],
+  );
+
+  // Per-language "show spelled-out numbers" toggle. ON renders the article's
+  // own headline/body (numbers spelled out, e.g. "20 (twenty)"); OFF falls
+  // back to the plain *Audio variant, which only exists when a number was
+  // actually spelled out — otherwise there's nothing to strip.
+  const showNumbers = useSettingsStore(
+    (s) => s.languages.find((l) => l.code === language)?.showNumberSpellouts ?? true
+  );
+  const displayHeadline = showNumbers ? article.headline : (article.headlineAudio ?? article.headline);
+  const displayBody = showNumbers ? article.body : (article.bodyAudio ?? article.body);
+
+  // Only built when the displayed text actually differs from the canonical
+  // one — i.e. the toggle is off AND a number really was stripped. Remaps a
+  // word's LOCAL index in the plain text back to its tokenMap-aligned index
+  // in the canonical text, so tap-to-define stays accurate either way.
+  const headlineRemap = useMemo(
+    () => (displayHeadline === article.headline ? undefined : buildPositionRemap(article.headline, displayHeadline)),
+    [article.headline, displayHeadline],
+  );
+  const bodyRemap = useMemo(
+    () => (displayBody === article.body ? undefined : buildPositionRemap(article.body, displayBody)),
+    [article.body, displayBody],
   );
 
   // Build a position-indexed lookup map from the token map for O(1) access
@@ -275,9 +300,21 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       // Paused mid-way on this same article — resume rather than restart.
       resumeAudio();
     } else {
-      playArticleAudio(language, article.headline, article.audioKey);
+      playArticleAudio(language, article.headline, article.audioKey, date);
     }
-  }, [article.audioKey, article.headline, isThisArticle, isThisPlaying, audioIsPlaying, audioIsLoading, language]);
+  }, [article.audioKey, article.headline, isThisArticle, isThisPlaying, audioIsPlaying, audioIsLoading, language, date]);
+
+  // Long-press: if something else is already playing, queue this article
+  // after it instead of interrupting. If nothing else is playing, behaves
+  // the same as a tap.
+  const handleAudioLongPress = useCallback(() => {
+    if (!article.audioKey) return;
+    if ((audioIsPlaying || audioIsLoading) && !isThisArticle) {
+      useAudioStore.getState().enqueue({ language, headline: article.headline, audioKey: article.audioKey, date });
+    } else {
+      handleAudioPress();
+    }
+  }, [article.audioKey, article.headline, isThisArticle, audioIsPlaying, audioIsLoading, language, date, handleAudioPress]);
 
   return (
     <View style={[styles.container, isRTL && styles.containerRTL]}>
@@ -285,7 +322,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       {/* Headline */}
       <View style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}>
         <TappableText
-          text={article.headline}
+          text={displayHeadline}
           style={[
             styles.headline,
             { color: colors.inkDark, fontFamily: isRTL ? arabicFontBold : fontFamily.bold, fontSize: fontSize.heading, lineHeight: headlineLineHeight },
@@ -293,11 +330,13 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           ]}
           activePositions={activePositions}
           wordPositionOffset={0}
+          remapPosition={headlineRemap}
           onWordPress={handleWordPress}
         />
         {canPlayAudio && (
           <GlassButton
             onPress={handleAudioPress}
+            onLongPress={handleAudioLongPress}
             size={AUDIO_BTN_SIZE}
             disabled={isThisLoading}
             style={{ marginTop: (headlineLineHeight - AUDIO_BTN_SIZE) / 2 }}
@@ -321,15 +360,23 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       {/* Body — split on double newlines to render proper paragraphs (RTL stays as one block) */}
       {isRTL ? (
         <TappableText
-          text={article.body}
+          text={displayBody}
           style={[styles.body, { color: colors.inkMid, fontFamily: arabicFontRegular, fontSize: fontSize.body }, styles.rtlText]}
           activePositions={activePositions}
           wordPositionOffset={headlineWordCount}
+          remapPosition={bodyRemap ? (idx) => headlineWordCount + bodyRemap(idx) : undefined}
           onWordPress={handleWordPress}
         />
       ) : (
-        article.body.split(/\n\n+/).map((para, i, arr) => {
-          const offset = headlineWordCount + arr.slice(0, i).reduce((sum, p) => sum + countWordTokens(p), 0);
+        displayBody.split(/\n\n+/).map((para, i, arr) => {
+          // Word count of prior paragraphs IN THE DISPLAYED TEXT — when
+          // bodyRemap is set this is a plain-text-local offset that gets
+          // translated back to the canonical tokenMap position below; when
+          // it's unset (toggle on, displayBody === article.body) this is
+          // identical to the original offset math, so the default path is
+          // byte-for-byte unchanged from before this feature existed.
+          const localOffset = arr.slice(0, i).reduce((sum, p) => sum + countWordTokens(p), 0);
+          const offset = headlineWordCount + localOffset;
           return (
             // marginBottom used to sit directly on the TappableText's own Text
             // element (which can hold 100+ nested word/punctuation children) —
@@ -342,6 +389,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
                 style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
                 activePositions={activePositions}
                 wordPositionOffset={offset}
+                remapPosition={bodyRemap ? (idx) => headlineWordCount + bodyRemap(idx + localOffset) : undefined}
                 onWordPress={handleWordPress}
               />
             </View>

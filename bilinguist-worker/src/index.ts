@@ -127,6 +127,8 @@ interface Env {
   NTFY_TOPIC?: string;
   WORDS_DB: D1Database;
   AUDIO_BUCKET: R2Bucket;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
 }
 
 interface WordRow {
@@ -221,6 +223,266 @@ function rowToWordData(row: WordRow, fromCache: boolean): WordData {
     level:         row.level,
     fromCache,
   };
+}
+
+// ── Supabase pre-populated dictionary (read-through + batch sync) ─────────────
+//
+// Supabase `word_dictionary` is the source of truth populated by the nightly
+// batch pipeline (one row per lemma, keyed by language+lemma+word_type). D1
+// `words` is the fast edge cache keyed by exact surface form. This section
+// lets D1 read through to Supabase on a miss (avoiding a live Claude call for
+// any word Supabase already has) and lets the scheduled job bulk-expand every
+// Supabase lemma's conjugated forms into D1 ahead of time.
+
+interface SupabaseWordRow {
+  language: string;
+  word: string;
+  lemma: string;
+  word_type: string | null;
+  translation: string | null;
+  level: string | null;
+  ipa: string | null;
+  explanation: string | null;
+  example_sentence: string | null;
+  tip: string | null;
+  data: Record<string, unknown> | null;
+}
+
+function tensesDictToArray(tenses: unknown): TenseTable[] | null {
+  if (!tenses || typeof tenses !== 'object') return null;
+  const array: TenseTable[] = [];
+  for (const [label, table] of Object.entries(tenses as Record<string, unknown>)) {
+    if (table && typeof table === 'object') array.push({ label, table: table as Record<string, string> });
+  }
+  return array.length > 0 ? array : null;
+}
+
+function buildFormsFromSupabaseData(wordType: string | null, data: Record<string, unknown>): Record<string, string> | null {
+  const svForms = (data.forms && typeof data.forms === 'object') ? data.forms as Record<string, string> : {};
+  if (wordType === 'noun') {
+    const cases = (data.cases as Record<string, string>) ?? {};
+    const forms: Record<string, string> = {};
+    if (data.gender) forms.gender = String(data.gender);
+    if (data.article_definite) { forms.article = String(data.article_definite); forms.definite = String(data.article_definite); }
+    if (data.article_indefinite) forms.indefinite = String(data.article_indefinite);
+    const plural = data.plural ?? cases.nominative_plural ?? svForms.plural_indefinite;
+    if (plural) forms.plural = String(plural);
+    return Object.keys(forms).length > 0 ? forms : null;
+  }
+  if (wordType === 'adjective') {
+    const forms: Record<string, string> = {};
+    if (data.feminine) forms.feminine = String(data.feminine);
+    if (data.masculine) forms.masculine = String(data.masculine);
+    if (data.comparative) forms.comparative = String(data.comparative);
+    if (data.superlative) forms.superlative = String(data.superlative);
+    if (svForms.plural_indefinite) forms.plural = String(svForms.plural_indefinite);
+    return Object.keys(forms).length > 0 ? forms : null;
+  }
+  return null;
+}
+
+/** Every other single-token inflected surface form Claude already generated
+ * for this lemma (plurals, feminine/masculine, comparative/superlative, case
+ * declensions) — mirrors scripts/sync_supabase_to_d1.py's
+ * extract_additional_forms() across all 6 languages' actual field shapes. */
+function extractAdditionalForms(wordType: string | null, data: Record<string, unknown>): string[] {
+  const forms = new Set<string>();
+  const svForms = (data.forms && typeof data.forms === 'object') ? data.forms as Record<string, unknown> : {};
+  if (wordType === 'verb') {
+    // Flat fields alongside `tenses` on every verb across all 6 languages
+    // (e.g. fr "ajouter": past_participle="ajouté", present_participle=
+    // "ajoutant") — already read into `meta` for display but never extracted
+    // as their own tappable single-word forms.
+    for (const key of ['past_participle', 'present_participle']) {
+      if (typeof data[key] === 'string') forms.add(data[key] as string);
+    }
+  } else if (wordType === 'adjective') {
+    for (const key of ['feminine', 'masculine', 'comparative', 'superlative']) {
+      if (typeof data[key] === 'string') forms.add(data[key] as string);
+    }
+    for (const v of Object.values(svForms)) if (typeof v === 'string') forms.add(v);
+  } else if (wordType === 'noun') {
+    for (const key of ['plural', 'singular']) {
+      if (typeof data[key] === 'string') forms.add(data[key] as string);
+    }
+    const cases = (data.cases && typeof data.cases === 'object') ? data.cases as Record<string, unknown> : {};
+    for (const v of Object.values(cases)) if (typeof v === 'string') forms.add(v);
+    for (const v of Object.values(svForms)) if (typeof v === 'string') forms.add(v);
+  }
+  return Array.from(forms);
+}
+
+/** Builds the D1 row for a Supabase lemma row's BASE form only (word === lemma) — used by the live read-through, which only ever checks an exact lemma match. */
+function d1RowFromSupabaseLemma(row: SupabaseWordRow): Partial<WordRow> {
+  const data = row.data ?? {};
+  const tenses = row.word_type === 'verb' ? tensesDictToArray(data.tenses) : null;
+  const meta: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) if (k !== 'tenses' && k !== 'cases') meta[k] = v;
+  if (tenses) meta.tenses = tenses;
+
+  return {
+    word: row.lemma,
+    language: row.language,
+    lemma: row.lemma,
+    word_type: row.word_type,
+    translation: row.translation,
+    explanation: row.explanation,
+    example: row.example_sentence,
+    pronunciation: row.ipa,
+    forms: buildFormsFromSupabaseData(row.word_type, data) ? JSON.stringify(buildFormsFromSupabaseData(row.word_type, data)) : null,
+    tip: row.tip,
+    meta: Object.keys(meta).length > 0 ? JSON.stringify(meta) : null,
+    level: row.level,
+  };
+}
+
+/** Cheap, indexed exact-lemma lookup — the only Supabase query the live request path makes. */
+async function fetchSupabaseLemma(env: Env, word: string, lang: string): Promise<SupabaseWordRow | null> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  const url = `${env.SUPABASE_URL}/rest/v1/word_dictionary`
+    + `?language=eq.${encodeURIComponent(lang)}&lemma=eq.${encodeURIComponent(word)}`
+    + `&select=language,word,lemma,word_type,translation,level,ipa,explanation,example_sentence,tip,data&limit=1`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json() as SupabaseWordRow[];
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Full row set for one Supabase lemma: the lemma itself, plus (verbs only) every
+ * distinct single-token conjugated form. Compound tenses ("habe gehabt") are two
+ * tokens in running text — a tap only ever hits one token, and that token belongs
+ * to a different lemma (the auxiliary) or needs its own row (the participle), so
+ * a multi-word key here would never be looked up and risks misattributing the
+ * auxiliary to this lemma. Mirrors scripts/sync_supabase_to_d1.py exactly. */
+function d1RowsFromSupabaseRow(row: SupabaseWordRow): Partial<WordRow>[] {
+  const lemma = (row.lemma || '').trim().toLowerCase();
+  if (!lemma) return [];
+  const base = d1RowFromSupabaseLemma({ ...row, lemma });
+  const rows: Partial<WordRow>[] = [{ ...base, word: lemma }];
+
+  const data = row.data ?? {};
+  const seen = new Set([lemma]);
+  const candidateForms: string[] = [];
+  if (row.word_type === 'verb') {
+    const tenses = tensesDictToArray(data.tenses);
+    if (tenses) for (const tense of tenses) candidateForms.push(...Object.values(tense.table));
+  }
+  candidateForms.push(...extractAdditionalForms(row.word_type, data));
+
+  const isRealWord = (w: string) => !!w && /\p{L}/u.test(w);
+
+  for (const form of candidateForms) {
+    if (typeof form !== 'string') continue;
+    const w = form.trim().toLowerCase();
+    if (!isRealWord(w)) continue;
+    if (w.includes(' ')) {
+      // Compound tenses ("j'ai affirmé", "wirst haben") and multi-word
+      // comparative/superlative phrases ("le plus grand") are more than one
+      // token in running text — a tap only ever hits one token. The LAST
+      // token is always this lemma's own participle or infinitive (never
+      // the leading auxiliary/pronoun/qualifier), so it's safe to extract
+      // on its own; the rest of the phrase is someone else's word.
+      const last = w.split(' ').pop() ?? '';
+      if (isRealWord(last) && !seen.has(last)) {
+        seen.add(last);
+        rows.push({ ...base, word: last });
+      }
+      continue;
+    }
+    if (seen.has(w)) continue;
+    seen.add(w);
+    rows.push({ ...base, word: w });
+  }
+  return rows;
+}
+
+async function fetchAllSupabaseRows(env: Env, lang: string): Promise<SupabaseWordRow[]> {
+  const rows: SupabaseWordRow[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const url = `${env.SUPABASE_URL}/rest/v1/word_dictionary`
+      + `?language=eq.${encodeURIComponent(lang)}&order=id.asc&limit=${pageSize}&offset=${offset}`
+      + `&select=language,word,lemma,word_type,translation,level,ipa,explanation,example_sentence,tip,data`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
+    if (!res.ok) { console.error(`[sync] Supabase fetch failed for ${lang}: ${res.status}`); break; }
+    const page = await res.json() as SupabaseWordRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
+const SYNC_LANGUAGES = ['fr', 'de', 'es', 'it', 'sv', 'pt'];
+const SUPABASE_UPSERT_BATCH_SIZE = 1000;
+
+/** Bulk-expands every Supabase lemma (+ conjugated/inflected forms) into
+ * word_forms — the table the app's on-device prefetch queries directly (no
+ * D1, no Worker round-trip, just a public read policy). Idempotent —
+ * ON CONFLICT DO UPDATE keeps every row current with the latest population. */
+async function syncSupabaseToWordForms(env: Env): Promise<{ lang: string; rows: number }[]> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[sync] Supabase env vars not set — skipping word_forms sync');
+    return [];
+  }
+
+  const summary: { lang: string; rows: number }[] = [];
+  for (const lang of SYNC_LANGUAGES) {
+    try {
+      const supaRows = await fetchAllSupabaseRows(env, lang);
+      const rawFormRows = supaRows.flatMap(d1RowsFromSupabaseRow).map((r) => ({
+        word: r.word, language: r.language, lemma: r.lemma, word_type: r.word_type ?? null,
+        translation: r.translation ?? null, explanation: r.explanation ?? null,
+        example: r.example ?? null, pronunciation: r.pronunciation ?? null,
+        forms: r.forms ? JSON.parse(r.forms) : null, tip: r.tip ?? null,
+        meta: r.meta ? JSON.parse(r.meta) : null, level: r.level ?? null,
+      }));
+      // Two different lemmas can legitimately produce the same surface form
+      // (homographs). word_forms is unique on (word, language) only, so
+      // de-dup here — last one wins. Without this, a single upsert batch can
+      // contain the same conflict key twice, which Postgres rejects outright
+      // ("ON CONFLICT DO UPDATE command cannot affect row a second time")
+      // and fails the whole batch, not just the duplicate.
+      const dedupMap = new Map<string, typeof rawFormRows[number]>();
+      for (const r of rawFormRows) dedupMap.set(`${r.word} ${r.language}`, r);
+      const formRows = Array.from(dedupMap.values());
+
+      for (let i = 0; i < formRows.length; i += SUPABASE_UPSERT_BATCH_SIZE) {
+        const chunk = formRows.slice(i, i + SUPABASE_UPSERT_BATCH_SIZE);
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/word_forms?on_conflict=word,language`, {
+          method: 'POST',
+          headers: {
+            apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates,return=minimal',
+          },
+          body: JSON.stringify(chunk),
+        });
+        if (!res.ok) {
+          console.error(`[sync] word_forms ${lang} batch ${i} failed: ${res.status} ${await res.text()}`);
+        }
+      }
+      console.log(`[sync] ${lang}: ${supaRows.length} lemmas -> ${formRows.length} word_forms rows`);
+      summary.push({ lang, rows: formRows.length });
+    } catch (err) {
+      console.error(`[sync] word_forms ${lang} failed (continuing to next language):`, err);
+    }
+  }
+  return summary;
 }
 
 // ── Retry helper ─────────────────────────────────────────────────────────────
@@ -588,6 +850,19 @@ Reply ONLY with a JSON object — no markdown, no preamble:
 
 // ── Route: GET /word ──────────────────────────────────────────────────────────
 
+/** Fire off a D1 write without ever letting it fail the response. Writes on
+ * this path (cache-fill inserts) are all optional bookkeeping — the data to
+ * return has already been read or generated by the time these run, so a
+ * write failure (e.g. the daily D1 rows_written cap) must never turn an
+ * otherwise-successful lookup into a 500. */
+async function safeD1Write(stmt: D1PreparedStatement): Promise<void> {
+  try {
+    await stmt.run();
+  } catch (err) {
+    console.error('[d1] write failed (non-fatal):', err);
+  }
+}
+
 async function handleWordGet(url: URL, env: Env): Promise<Response> {
   const rawWord = url.searchParams.get('w')?.trim();
   const lang    = url.searchParams.get('lang')?.trim().toLowerCase() ?? 'fr';
@@ -605,11 +880,6 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
 
   // Only trust the cache if translation is populated — null means saved during an outage
   if (hit && hit.translation !== null) {
-    await env.WORDS_DB
-      .prepare('UPDATE words SET lookup_count = lookup_count + 1 WHERE word = ?1 AND language = ?2')
-      .bind(word, lang)
-      .run();
-
     // When sentence context is provided, get a contextual explanation overlay so
     // homographs (e.g. Bank=bench vs Bank=financial) resolve correctly even from cache.
     // Grammar tables (tenses, declensions) are always context-independent — keep from cache.
@@ -660,6 +930,25 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     return json(rowToWordData(updatedHit, true));
   }
 
+  // ── Step 1.5: Supabase read-through — word may already be a synced lemma we
+  // haven't pulled into D1 yet (batch sync runs on a schedule, not instantly) ───
+  const supaLemma = await fetchSupabaseLemma(env, word, lang);
+  if (supaLemma) {
+    const supaRow = d1RowFromSupabaseLemma(supaLemma) as WordRow;
+    await safeD1Write(env.WORDS_DB.prepare(`
+      INSERT INTO words
+        (word, language, translation, lemma, word_type, explanation, example, pronunciation,
+         forms, tip, meta, level)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+      ON CONFLICT(word, language) DO NOTHING
+    `).bind(
+      supaRow.word, supaRow.language, supaRow.translation, supaRow.lemma, supaRow.word_type,
+      supaRow.explanation, supaRow.example, supaRow.pronunciation,
+      supaRow.forms, supaRow.tip, supaRow.meta, supaRow.level,
+    ));
+    return json(rowToWordData(supaRow, true));
+  }
+
   // ── Step 2: cache miss — call Claude (provides translation + full word data) ───
   const generatedResult = await withRetry(
     () => generateWordData(word, lang, level, env.ANTHROPIC_API_KEY, ctx), 3,
@@ -681,7 +970,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
       .first<WordRow>();
 
     if (lemmaHit) {
-      await env.WORDS_DB.prepare(`
+      await safeD1Write(env.WORDS_DB.prepare(`
         INSERT INTO words
           (word, language, translation, lemma, word_type, explanation, example, pronunciation,
            verb_present, verb_past, forms, tip, meta, level)
@@ -700,7 +989,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
         lemmaHit.word_type, lemmaHit.explanation, lemmaHit.example,
         lemmaHit.pronunciation, lemmaHit.verb_present, lemmaHit.verb_past,
         lemmaHit.forms, lemmaHit.tip, lemmaHit.meta, lemmaHit.level,
-      ).run();
+      ));
 
       return json(rowToWordData(
         { ...lemmaHit, word, translation: translation ?? lemmaHit.translation, lemma },
@@ -712,7 +1001,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
   // ── Step 4: full miss — store everything and return ───────────────────────────
   const row: Partial<WordRow> = { word, language: lang, translation, lemma, ...generated };
 
-  await env.WORDS_DB.prepare(`
+  await safeD1Write(env.WORDS_DB.prepare(`
     INSERT INTO words
       (word, language, translation, lemma, word_type, explanation, example, pronunciation,
        verb_present, verb_past, forms, tip, meta, level)
@@ -730,7 +1019,7 @@ async function handleWordGet(url: URL, env: Env): Promise<Response> {
     row.word_type ?? null, row.explanation ?? null, row.example ?? null,
     row.pronunciation ?? null, row.verb_present ?? null, row.verb_past ?? null,
     row.forms ?? null, row.tip ?? null, row.meta ?? null, row.level ?? null,
-  ).run();
+  ));
 
   return json(rowToWordData(row as WordRow, false));
 }
@@ -802,6 +1091,49 @@ async function handleWordExport(request: Request, env: Env): Promise<Response> {
     exported_at: new Date().toISOString(),
     total: rows.results.length,
     words: rows.results.map((r) => rowToWordData(r, true)),
+  });
+}
+
+// ── Route: POST /words/bulk ────────────────────────────────────────────────────
+// D1-only lookup for many words at once — the client's on-device prefetch calls
+// this once per brief instead of one request per word. NEVER touches Claude or
+// Supabase: a word not yet in D1 is just absent from the response, and the
+// client's normal per-tap lookupWord() (which does read through) fills the gap
+// if the user actually taps it.
+
+async function handleWordsBulk(request: Request, env: Env): Promise<Response> {
+  let body: { lang?: string; words?: string[] };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'invalid_json' }, 400);
+  }
+
+  const lang = body.lang?.trim().toLowerCase();
+  const words = Array.isArray(body.words)
+    ? Array.from(new Set(body.words.map((w) => String(w).trim().toLowerCase()).filter(Boolean)))
+    : [];
+  if (!lang || words.length === 0) return json({ error: 'missing_lang_or_words' }, 400);
+
+  const capped = words.slice(0, 3000);
+  const CHUNK = 90; // stay comfortably under D1's per-statement bound-parameter limit
+  const found: WordRow[] = [];
+
+  for (let i = 0; i < capped.length; i += CHUNK) {
+    const chunk = capped.slice(i, i + CHUNK);
+    const placeholders = chunk.map((_, j) => `?${j + 2}`).join(',');
+    const res = await env.WORDS_DB
+      .prepare(`SELECT * FROM words WHERE language = ?1 AND word IN (${placeholders}) AND translation IS NOT NULL`)
+      .bind(lang, ...chunk)
+      .all<WordRow>();
+    found.push(...res.results);
+  }
+
+  return json({
+    lang,
+    requested: capped.length,
+    found: found.length,
+    words: found.map((r) => rowToWordData(r, true)),
   });
 }
 
@@ -986,8 +1318,6 @@ function tokenise(text: string): Set<string> {
 }
 
 async function warmDb(env: Env): Promise<void> {
-  const WORKER_BASE = 'https://bilinguist-brief.williamdiggz.workers.dev';
-
   // 1. Fetch today's brief via the internal handler
   const briefRes = await handleBriefing('latest.json', env);
   if (!briefRes.ok) { console.error('[warm] failed to fetch brief:', briefRes.status); return; }
@@ -1019,54 +1349,73 @@ async function warmDb(env: Env): Promise<void> {
 
   console.log(`[warm] ${seen.size} unique (word, lang) pairs`);
 
-  // 3. Look up each word — handleWordGet auto-generates via Haiku on cache miss
-  const CONCURRENCY = 6;
+  // 3. Check word_forms directly — NO Claude fallback here, NO D1 either.
+  // word_forms (public-read Supabase table) is the actual source of truth
+  // the app's own on-device prefetch queries, so this reports the same
+  // coverage a real user would see. A word still missing after this needs
+  // the (separate, Haiku-subagent-based) population pipeline to run for it —
+  // this job never spends live API cost, it only reports the gap.
   const entries = Array.from(seen.entries()).map(([key, level]) => {
     const [word, lang] = key.split('|');
     return { word, lang, level };
   });
 
-  let cached = 0, generated = 0, errors = 0;
-  const newByLang: Record<string, number> = {};
-
-  for (let i = 0; i < entries.length; i += CONCURRENCY) {
-    const batch = entries.slice(i, i + CONCURRENCY);
-    await Promise.all(batch.map(async ({ word, lang, level }) => {
-      try {
-        const u = new URL(`${WORKER_BASE}/word`);
-        u.searchParams.set('w', word);
-        u.searchParams.set('lang', lang);
-        u.searchParams.set('level', level);
-        const res = await handleWordGet(u, env);
-        if (!res.ok) { errors++; return; }
-        const data = await res.json() as { fromCache?: boolean };
-        if (data.fromCache) { cached++; }
-        else { generated++; newByLang[lang] = (newByLang[lang] ?? 0) + 1; }
-      } catch { errors++; }
-    }));
+  const byLang = new Map<string, string[]>();
+  for (const { word, lang } of entries) {
+    if (!byLang.has(lang)) byLang.set(lang, []);
+    byLang.get(lang)!.push(word);
   }
 
-  console.log(`[warm] done — cached=${cached} generated=${generated} errors=${errors}`);
+  let cached = 0;
+  const missingByLang: Record<string, number> = {};
+  const CHUNK = 150;
+
+  if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+    for (const [lang, words] of byLang) {
+      const found = new Set<string>();
+      for (let i = 0; i < words.length; i += CHUNK) {
+        const chunk = words.slice(i, i + CHUNK);
+        const url = `${env.SUPABASE_URL}/rest/v1/word_forms`
+          + `?language=eq.${encodeURIComponent(lang)}&word=in.(${encodeURIComponent(chunk.join(','))})&select=word`;
+        try {
+          const res = await fetch(url, {
+            headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+          });
+          if (res.ok) {
+            const rows = await res.json() as { word: string }[];
+            for (const r of rows) found.add(r.word);
+          }
+        } catch { /* best-effort chunk */ }
+      }
+      cached += found.size;
+      const missingCount = words.length - found.size;
+      if (missingCount > 0) missingByLang[lang] = missingCount;
+    }
+  }
+
+  const missing = Object.values(missingByLang).reduce((a, b) => a + b, 0);
+  console.log(`[warm] done — cached=${cached} missing=${missing}`);
 
   // 4. Send ntfy summary
   if (!env.NTFY_TOPIC) return;
   const lines: string[] = [];
-  if (generated === 0) {
-    lines.push('All words already cached — nothing new to generate.');
+  if (missing === 0) {
+    lines.push('All of today\'s brief words are already in the dictionary — nothing missing.');
   } else {
-    const LANG_FLAGS: Record<string, string> = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', sv: '🇸🇪', nl: '🇳🇱' };
-    const LANG_NAMES: Record<string, string> = { de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', sv: 'Swedish', nl: 'Dutch' };
-    for (const lang of Object.keys(newByLang).sort((a, b) => newByLang[b] - newByLang[a])) {
-      lines.push(`${LANG_FLAGS[lang] ?? ''} ${LANG_NAMES[lang] ?? lang.toUpperCase()}: ${newByLang[lang]} new`);
+    lines.push('Not yet in the dictionary — needs the population pipeline to run:');
+    const LANG_FLAGS: Record<string, string> = { de: '🇩🇪', fr: '🇫🇷', es: '🇪🇸', it: '🇮🇹', sv: '🇸🇪', pt: '🇵🇹' };
+    const LANG_NAMES: Record<string, string> = { de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', sv: 'Swedish', pt: 'Portuguese' };
+    for (const lang of Object.keys(missingByLang).sort((a, b) => missingByLang[b] - missingByLang[a])) {
+      lines.push(`${LANG_FLAGS[lang] ?? ''} ${LANG_NAMES[lang] ?? lang.toUpperCase()}: ${missingByLang[lang]} missing`);
     }
   }
   lines.push('');
-  lines.push(`Total: ${generated} new · ${cached} cached${errors ? ` · ${errors} errors` : ''}`);
+  lines.push(`Total: ${cached} cached · ${missing} missing (no API calls made)`);
 
   await fetch(`https://ntfy.sh/${env.NTFY_TOPIC}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: `Bilinguist DB warmed — ${date}`, message: lines.join('\n') }),
+    body: JSON.stringify({ title: `Bilinguist DB coverage — ${date}`, message: lines.join('\n') }),
   });
 }
 
@@ -1074,7 +1423,22 @@ async function warmDb(env: Env): Promise<void> {
 
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(warmDb(env));
+    ctx.waitUntil((async () => {
+      // 1. Expand every Supabase lemma (+ conjugated forms) into word_forms —
+      //    the table the app's on-device prefetch queries directly (no D1,
+      //    no Worker round-trip). This is what keeps that path current
+      //    without anyone running a script by hand.
+      //    (D1 bulk sync was removed here — D1 free tier caps at 100k row
+      //    writes/day, and re-attempting a full sync of an ~80k-row+ and
+      //    growing dictionary every morning blew through that repeatedly.
+      //    D1 is no longer the primary delivery path — it self-heals
+      //    incrementally from real live taps via the read-through in
+      //    handleWordGet, which needs no bulk pre-sync.)
+      await syncSupabaseToWordForms(env);
+      // 2. Pre-warm today's brief words — only genuinely-uncovered words fall
+      //    through to a live Claude call now.
+      await warmDb(env);
+    })());
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -1096,6 +1460,7 @@ export default {
     if (pathname === '/word'        && request.method === 'GET') return handleWordGet(url, env);
     if (pathname === '/word'        && request.method === 'POST') return handleWordPost(request, env);
     if (pathname === '/word/verify-tenses' && request.method === 'POST') return handleVerifyTenses(request, env);
+    if (pathname === '/words/bulk'  && request.method === 'POST') return handleWordsBulk(request, env);
 
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
