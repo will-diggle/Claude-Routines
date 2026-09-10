@@ -2600,7 +2600,7 @@ def main():
         bilinguist_numwords.enrich_bundle_with_number_words(bundle)
         print(f"[timing]   numwords: {time.time() - _t0:.1f}s")
     except Exception as e:                                        # noqa: BLE001
-        print(f"[WARN] numwords skipped ({e}) — A1/A2 articles ship without "
+        print(f"[WARN] numwords skipped ({e}) — articles ship without "
               f"spelled-out numbers", file=sys.stderr)
 
     try:
