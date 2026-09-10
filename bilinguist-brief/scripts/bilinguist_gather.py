@@ -1250,16 +1250,23 @@ def main():
         for k in ("prompt_token_count", "candidates_token_count", "thoughts_token_count"):
             usage_total[k] += u[k]
 
-        # Fail here rather than exiting 0 with a factbase nothing can be written from.
+        # A story with no facts can't be written truthfully -- but one bad source (e.g.
+        # Google News RSS down for that outlet, see 2026-09-10) used to fail the WHOLE
+        # run over a single story, leaving readers with nothing. Drop just the story
+        # that has no facts and publish the rest; only abort if every story failed,
+        # since that points at something systemic (API outage) worth a hard stop.
         # gather_facts_for_genre returns the selection unchanged when a genre's call
         # cannot be recovered, so success has to be asserted, not assumed.
         no_facts = [s_.get("slug") for s_ in factbase if not s_.get("what_happened")]
         if no_facts:
-            print(f"[gather] ERROR: {len(no_facts)}/{len(factbase)} stories have no facts "
-                  f"after all retries: {no_facts}", file=sys.stderr)
-            print("[gather] Refusing to write a factbase the writing stages cannot use.",
+            print(f"[gather] WARNING: {len(no_facts)}/{len(factbase)} stories have no facts "
+                  f"after all retries — dropping and publishing the rest: {no_facts}",
                   file=sys.stderr)
-            sys.exit(1)
+            factbase = [s_ for s_ in factbase if s_.get("what_happened")]
+            if not factbase:
+                print("[gather] ERROR: every story failed fact-gathering — nothing to "
+                      "publish.", file=sys.stderr)
+                sys.exit(1)
 
         if args.split or args.from_factbase:
             # Both were previously side-effects of the genre call. Neither needs a model.

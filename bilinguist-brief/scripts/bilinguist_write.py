@@ -222,6 +222,27 @@ def _set_workers(n: int) -> None:
     _MAX_WORKERS = n
     _API_SEMAPHORE = threading.Semaphore(n)
 
+# Each ThreadPoolExecutor(max_workers=_MAX_WORKERS) is a fresh pool per stage, so every
+# stage transition fires _MAX_WORKERS first-requests in the same instant. Flex is a
+# shared, sheddable capacity pool (2026-09-08 run: 523 "high demand" 503s) — a
+# synchronised 16-wide burst at every stage boundary is a self-inflicted spike on top
+# of whatever demand is already there. Ramping the first _MAX_WORKERS calls OF EACH
+# STAGE out over a couple of seconds costs nothing at 40+ minutes of steady state but
+# smooths that spike. Keyed by `stage` (not global) because stages run one after another,
+# each spinning up its own fresh pool.
+_STAGGER_STEP = 0.3  # seconds between ramp-up starts
+_ramp_counts: dict = {}
+_ramp_lock = threading.Lock()
+
+
+def _ramp_stagger(stage: Optional[str]) -> None:
+    key = stage or "_default"
+    with _ramp_lock:
+        n = _ramp_counts.get(key, 0)
+        _ramp_counts[key] = n + 1
+    if n < _MAX_WORKERS:
+        time.sleep(n * _STAGGER_STEP)
+
 # Retry settings for transient API errors.
 # Delays are SHORT — jitter below breaks the thundering-herd where all 4 workers
 # would otherwise retry at the exact same instant, causing a second 503 wave.
@@ -1001,6 +1022,7 @@ def call_gemini(
     parsed downstream by parse_plain_article) -- Stage 5 (native) only, tested this
     session to beat forced JSON on word-count precision.
     """
+    _ramp_stagger(stage)
     for attempt in range(MAX_RETRIES + 1):
         try:
             with _API_SEMAPHORE:
@@ -1086,6 +1108,7 @@ def call_claude(
         "description": "Return the result as structured JSON matching this schema.",
         "input_schema": schema,
     } if schema else None
+    _ramp_stagger(stage)
     for attempt in range(MAX_RETRIES + 1):
         try:
             with _API_SEMAPHORE:
