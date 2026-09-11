@@ -35,6 +35,17 @@ export function setSuperProperties(props: Record<string, unknown>): void {
   ph()?.register(props as any);
 }
 
+/** Fired on every navigation state change whose active route name differs
+ *  from the previous one — PostHog's dedicated screen-view event, distinct
+ *  from capture(). @react-navigation/native v7 removed the auto-tracking
+ *  hook PostHogProvider used to rely on (navigationRef), so this is wired
+ *  manually via NavigationContainer's onStateChange (see App.tsx) rather
+ *  than through PostHogProvider's autocapture — the officially recommended
+ *  replacement per posthog-react-native's own v7 migration notes. */
+export function trackScreenView(routeName: string): void {
+  ph()?.screen(routeName);
+}
+
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 /** Fired once on cold start. languages_active and days_streak give a snapshot

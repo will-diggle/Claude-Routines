@@ -330,6 +330,7 @@ export default function App() {
   const [storedBg, setStoredBg] = useState('cream');
   const navRef = useNavigationContainerRef();
   const lastResponse = Notifications.useLastNotificationResponse();
+  const lastTrackedRoute = useRef<string | undefined>(undefined);
 
   // Tab names must match the Tab.Screen order in AppNavigator.tsx.
   const TAB_NAMES = useRef(['Briefing', 'Practice', 'Preferences'] as const);
@@ -376,7 +377,16 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer ref={navRef}>
+        <NavigationContainer
+          ref={navRef}
+          onStateChange={() => {
+            const routeName = (navRef.getCurrentRoute() as { name?: string } | undefined)?.name;
+            if (routeName && routeName !== lastTrackedRoute.current) {
+              lastTrackedRoute.current = routeName;
+              analytics.trackScreenView(routeName);
+            }
+          }}
+        >
           <AppContent />
         </NavigationContainer>
       </SafeAreaProvider>
