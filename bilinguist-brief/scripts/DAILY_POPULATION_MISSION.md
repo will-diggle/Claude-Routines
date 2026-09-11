@@ -62,10 +62,28 @@ confirm every `agent(` call has it.
      --out output/consolidated_{tag}.json \
      --write
    ```
-   Then sync everything into `word_forms` (what the app actually reads):
+   Then run `backfill_requested_forms.py` — every population round generates
+   entries keyed by LEMMA, but the exact requested surface form (elisions,
+   clitic-attached verb forms, German case/gender-declined forms, etc.) is
+   often different from the lemma and never gets its own `word_forms` row
+   otherwise, even though the lemma's data is fully generated. This script
+   reads all of today's `output/consolidated*{tag}*.json` files and backfills
+   the gap at zero extra AI cost (this was the single highest-impact fix
+   found on 2026-09-11 — it alone dropped 5 languages' remaining gap from
+   228 words to 19):
+   ```
+   python3 backfill_requested_forms.py
+   ```
+   Then sync everything into `word_forms` (what the app actually reads) —
+   run this AFTER backfill, since backfill needs each lemma's row to already
+   exist in `word_forms` to copy its data from:
    ```
    python3 sync_supabase_to_word_forms.py
    ```
+   If `backfill_requested_forms.py` reports any "skipped (no matching lemma
+   row yet)", it means backfill ran before sync had a chance to write that
+   lemma's row — re-run `backfill_requested_forms.py` once more after the
+   sync completes to pick up the rest.
 
 5. **Report**: how many words were newly populated today (sum of both
    Workflows' written counts), the day's total/unique/truly-new stats from

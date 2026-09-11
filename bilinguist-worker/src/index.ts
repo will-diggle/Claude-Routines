@@ -299,6 +299,7 @@ function extractAdditionalForms(wordType: string | null, data: Record<string, un
     for (const key of [
       'past_participle', 'present_participle',
       'past_participle_feminine', 'past_participle_masculine_plural', 'past_participle_feminine_plural',
+      'zu_infinitive', 'joined_present_form',
     ]) {
       if (typeof data[key] === 'string') forms.add(data[key] as string);
     }
@@ -308,6 +309,8 @@ function extractAdditionalForms(wordType: string | null, data: Record<string, un
       if (typeof data[key] === 'string') forms.add(data[key] as string);
     }
     for (const v of Object.values(svForms)) if (typeof v === 'string') forms.add(v);
+    const caseDeclensions = (data.case_declensions && typeof data.case_declensions === 'object') ? data.case_declensions as Record<string, unknown> : {};
+    for (const v of Object.values(caseDeclensions)) if (typeof v === 'string') forms.add(v);
   } else if (wordType === 'noun') {
     for (const key of ['plural', 'singular']) {
       if (typeof data[key] === 'string') forms.add(data[key] as string);

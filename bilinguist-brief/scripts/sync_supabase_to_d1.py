@@ -154,6 +154,7 @@ def extract_additional_forms(word_type, data):
             "past_participle", "present_participle",
             "past_participle_feminine", "past_participle_masculine_plural",
             "past_participle_feminine_plural",
+            "zu_infinitive", "joined_present_form",
         ):
             v = data.get(key)
             if isinstance(v, str):
@@ -169,6 +170,9 @@ def extract_additional_forms(word_type, data):
         nested = data.get("forms")
         if isinstance(nested, dict):
             forms.update(v for v in nested.values() if isinstance(v, str))
+        case_declensions = data.get("case_declensions")
+        if isinstance(case_declensions, dict):
+            forms.update(v for v in case_declensions.values() if isinstance(v, str))
     elif word_type == "noun":
         for key in ("plural", "singular"):
             v = data.get(key)
