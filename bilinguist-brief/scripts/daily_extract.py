@@ -42,6 +42,14 @@ PROPER_NOUN_HEURISTIC_LANGUAGES = ["fr", "es", "it", "sv", "pt"]  # no 'de'
 # happened to use.
 WORD_RE = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?", re.UNICODE)
 SENT_SPLIT = re.compile(r"(?<=[.!?»])\s+")
+# Known, still-unfixed upstream bug: some accented characters in published
+# article text get replaced by a literal newline+"H"+newline sequence (e.g.
+# "arrivé" -> "arriv" + "\nH\n"). Any WORD_RE token touching this sequence is
+# a truncated fragment of the real word, not a genuinely missing word — see
+# 2026-09-11 session notes. Populating dictionary entries for these fragments
+# is nonsensical, so they're excluded from candidates entirely rather than
+# treated as truly-new vocabulary.
+CORRUPTION_RE = re.compile(r"\nH\n")
 CHUNK = 150
 BATCH_SIZE = 25
 
@@ -87,14 +95,22 @@ def extract_words_for_lang(bundle: dict, lang: str) -> set:
     Getting this wrong silently drops 100+ native-journalism articles
     (confirmed the hard way — see 2026-09-11 session notes)."""
     words = set()
+    corrupted = set()
 
     def scan(articles):
         for article in articles:
             text = f"{article.get('headline', '')} {article.get('body', '')}"
+            corruption_spans = [m.span() for m in CORRUPTION_RE.finditer(text)]
             for m in WORD_RE.finditer(text):
                 token = m.group(0).lower()
-                if len(token) >= 2:
-                    words.add(token)
+                if len(token) < 2:
+                    continue
+                if corruption_spans:
+                    ws, we = m.span()
+                    if any(we == cs or ws == ce for cs, ce in corruption_spans):
+                        corrupted.add(token)
+                        continue
+                words.add(token)
 
     native_lengths = bundle.get("nativeJournalism", {}).get(lang, {})
     for articles in native_lengths.values():
@@ -105,6 +121,14 @@ def extract_words_for_lang(bundle: dict, lang: str) -> set:
         for section in lengths.values():
             scan(section.get("articles", []))
 
+    if corrupted:
+        # A token seen ONLY as a corruption-adjacent fragment is dropped; one
+        # also seen cleanly elsewhere in the brief is kept (real evidence it's
+        # a genuine word). No silent loss — logged so the gap stays visible.
+        still_bad = corrupted - words
+        if still_bad:
+            words -= still_bad
+            print(f"  [{lang}] dropped {len(still_bad)} corrupted-text fragment(s): {sorted(still_bad)}")
     return words
 
 

@@ -54,14 +54,23 @@ confirm every `agent(` call has it.
    Wait for both to complete (the Workflow tool call blocks/notifies on
    completion within a session — just await them normally).
 
-4. **Consolidate and write**, for each completed Workflow:
+4. **Consolidate and write**, for each completed Workflow. Each Workflow call's
+   own return value (the `result` field of the tool result, not the journal)
+   is already an array of `{"lang": ..., "idx": ..., "entries": [...]}`
+   objects — write that straight to a file and pass it as `--result-json`:
    ```
    python3 consolidate_and_write.py \
-     --journal <journal.jsonl path from the Workflow's own result> \
-     --batch-glob "output/final{tag}_*.json"   # or final_pn_{tag}_*.json for the proper-noun one \
+     --result-json output/result_{tag}_vocab.json \
      --out output/consolidated_{tag}.json \
      --write
    ```
+   (repeat for the proper-noun Workflow's own result -> `output/result_{tag}_pn.json`
+   -> `output/consolidated_pn_{tag}.json`). This is IMPORTANT: consolidate_and_write.py
+   also supports a `--journal`/`--batch-glob` fallback mode that recovers
+   language by word-overlap against the input batch files, but that fails
+   for any batch of 1-3 words (routinely happens on a near-100%-coverage
+   day) and silently drops them — always prefer `--result-json`, which
+   carries the language directly and never has this failure mode.
    Then run `backfill_requested_forms.py` — every population round generates
    entries keyed by LEMMA, but the exact requested surface form (elisions,
    clitic-attached verb forms, German case/gender-declined forms, etc.) is

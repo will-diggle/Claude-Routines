@@ -116,7 +116,12 @@ async function fetchWordFormsFromSupabase(lang: LanguageCode, words: string[]): 
 // Capped, LRU-ish per (language, level) so on-device storage can't grow
 // unbounded across months of daily briefs.
 const MAX_ENTRIES_PER_DICT = 1500;
-const WORD_RE = /[^\W\d_]+(?:'[^\W\d_]+)?/gu;
+// Brief text mixes straight (') and curly (') apostrophes inconsistently —
+// both must match or an elided word ("s'abstiendrait") gets truncated to an
+// uncoverable stem. Stored word_forms rows always use a straight apostrophe
+// (see scripts/dict_writer.py), so tokenise() also normalizes curly -> straight
+// before anything downstream (Supabase query, cache key) uses the token.
+const WORD_RE = /[^\W\d_]+(?:['’][^\W\d_]+)?/gu;
 
 interface StoredDict {
   order: string[]; // insertion order — oldest evicted first
@@ -187,7 +192,7 @@ export async function getCachedWord(
 function tokenise(text: string): Set<string> {
   const tokens = new Set<string>();
   for (const m of text.matchAll(WORD_RE)) {
-    const w = m[0].toLowerCase();
+    const w = m[0].toLowerCase().replace(/’/g, "'");
     if (w.length >= 2) tokens.add(w);
   }
   return tokens;
