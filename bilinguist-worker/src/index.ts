@@ -450,19 +450,22 @@ async function syncSupabaseToWordForms(env: Env): Promise<{ lang: string; rows: 
         forms: r.forms ? JSON.parse(r.forms) : null, tip: r.tip ?? null,
         meta: r.meta ? JSON.parse(r.meta) : null, level: r.level ?? null,
       }));
-      // Two different lemmas can legitimately produce the same surface form
-      // (homographs). word_forms is unique on (word, language) only, so
-      // de-dup here — last one wins. Without this, a single upsert batch can
-      // contain the same conflict key twice, which Postgres rejects outright
-      // ("ON CONFLICT DO UPDATE command cannot affect row a second time")
-      // and fails the whole batch, not just the duplicate.
+      // word_forms is unique on (word, language, word_type) — one row PER
+      // SENSE, e.g. German "sein" keeps a separate row for the verb ("to
+      // be") and the possessive adjective ("his/its") instead of one
+      // colliding into the other. Still de-dup within a batch: the same
+      // word_type can still coincide across two different lemmas (verb-verb
+      // homographs), or within one lemma's own expansion. Without this, a
+      // single upsert batch containing the same conflict key twice is
+      // rejected outright by Postgres ("ON CONFLICT DO UPDATE command
+      // cannot affect row a second time"), failing the whole batch.
       const dedupMap = new Map<string, typeof rawFormRows[number]>();
-      for (const r of rawFormRows) dedupMap.set(`${r.word} ${r.language}`, r);
+      for (const r of rawFormRows) dedupMap.set(`${r.word} ${r.language} ${r.word_type}`, r);
       const formRows = Array.from(dedupMap.values());
 
       for (let i = 0; i < formRows.length; i += SUPABASE_UPSERT_BATCH_SIZE) {
         const chunk = formRows.slice(i, i + SUPABASE_UPSERT_BATCH_SIZE);
-        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/word_forms?on_conflict=word,language`, {
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/word_forms?on_conflict=word,language,word_type`, {
           method: 'POST',
           headers: {
             apikey: env.SUPABASE_SERVICE_ROLE_KEY,

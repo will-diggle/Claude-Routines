@@ -41,11 +41,40 @@ export interface WordEntry {
 // Repeat taps on the same word are instant with zero network calls.
 const lookupCache = new Map<string, WordEntry>();
 
+/**
+ * Maps a spaCy coarse POS tag (from the pipeline's tokenMap — see
+ * TokenMapEntry.pos in services/anthropic.ts) to the word_type the
+ * dictionary stores that sense under, for the cases where the mapping is
+ * unambiguous. Deliberately conservative: only VERB/AUX, NOUN/PROPN, ADJ and
+ * ADV are mapped. Everything else (PRON, DET, ADP, NUM, ...) returns null
+ * rather than guessing — a real word like German "sein" has FOUR different
+ * non-verb word_type labels in the dictionary (adjective/other/possessive
+ * adjective/pronoun, an existing data-quality inconsistency, not something
+ * this mapping should paper over by picking one). Returning null here just
+ * falls back to "no preference", never worse than before this existed.
+ */
+export function posToWordType(pos: string | null | undefined): string | null {
+  switch ((pos ?? '').toUpperCase()) {
+    case 'VERB':
+    case 'AUX':
+      return 'verb';
+    case 'NOUN':
+    case 'PROPN':
+      return 'noun';
+    case 'ADJ':
+      return 'adjective';
+    case 'ADV':
+      return 'adverb';
+    default:
+      return null;
+  }
+}
+
 export async function lookupWord(
   word: string,
   language: LanguageCode,
   level: LanguageLevel,
-  options?: { forceRefresh?: boolean; sentence?: string },
+  options?: { forceRefresh?: boolean; sentence?: string; expectedWordType?: string | null },
 ): Promise<WordEntry | null> {
   const t0 = Date.now();
   // Include a short context fingerprint so the same word in different sentences
@@ -63,13 +92,15 @@ export async function lookupWord(
     // entirely when it's already there. This is checked even when sentence
     // context is provided: showing the word's default/dictionary sense
     // instantly beats a live per-sentence lookup on every tap (that would
-    // re-add exactly the Claude cost this cache exists to eliminate). A true
-    // homograph shows its cached default sense rather than a context-perfect
-    // one — an explicit, deliberate trade-off, not an oversight.
-    const persisted = await getCachedWord(word, language, level);
+    // re-add exactly the Claude cost this cache exists to eliminate).
+    // `expectedWordType` (from the tapped token's own POS tag) picks the
+    // right sense among a real homograph's several cached senses — e.g.
+    // German "sein" the verb vs. "sein" the possessive — without needing a
+    // live per-sentence lookup to do it.
+    const persisted = await getCachedWord(word, language, level, options?.expectedWordType);
     if (persisted) {
       lookupCache.set(cacheKey, persisted);
-      console.log(`[lookupWord] "${word}" — SOURCE=on-device cache, total ${Date.now() - t0}ms, NO network call (sentence context ignored by design)`);
+      console.log(`[lookupWord] "${word}" — SOURCE=on-device cache, total ${Date.now() - t0}ms, NO network call`);
       return persisted;
     }
   }

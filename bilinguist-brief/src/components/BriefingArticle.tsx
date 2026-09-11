@@ -130,6 +130,11 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   // The detached prefix's own surface form (e.g. "ab", "über") — used to split
   // the popup title as "ab·sperren" regardless of which half was tapped.
   const [activeSeparablePrefix, setActiveSeparablePrefix] = useState<string | null>(null);
+  // spaCy's POS tag for the tapped token itself (NOUN/VERB/ADJ/...) — lets the
+  // popup disambiguate a real homograph (e.g. German "sein" the verb vs. the
+  // possessive) by the sense actually used here, instead of whichever sense
+  // happened to sync into word_forms last. See wordService.posToWordType.
+  const [activePos, setActivePos] = useState<string | null>(null);
   const [activeSentence, setActiveSentence] = useState('');
 
   const articleTappedRef = React.useRef(false);
@@ -156,6 +161,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     setActiveWord(word);
     setActiveLemma(lemma);
     setActiveCompound(linked.length > 0 ? lemma : null);
+    setActivePos(tokenEntry?.pos ?? null);
     setActiveSentence(sentence);
 
     // The linked pair's PART entry (if any) is the detached prefix — used to
@@ -404,6 +410,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           lemma={activeLemma ?? activeWord}
           compoundLemma={activeCompound}
           separablePrefix={activeSeparablePrefix}
+          pos={activePos}
           sentence={activeSentence}
           language={language}
           level={level}

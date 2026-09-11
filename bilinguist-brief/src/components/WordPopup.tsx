@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
-import { lookupWord } from '../services/wordService';
+import { lookupWord, posToWordType } from '../services/wordService';
 import type { WordEntry, TenseTable } from '../services/wordService';
 import { verifyTenses } from '../services/wordLookup';
 import { translateWord } from '../services/deepl';
@@ -70,6 +70,32 @@ const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   tr: 'GEÇMİŞ ZAMAN',
 };
 
+// Basic-to-advanced teaching order, language-agnostic (matched by keyword,
+// not exact label — generated tense labels vary in exact wording across
+// entries). Checked top to bottom, first match wins, so a more specific
+// pattern (pluperfect) must come before a pattern it's a superset of
+// (plain perfect) — "PLUSQUAMPERFEKT" contains "PERFEKT", so pluperfect is
+// checked first or every pluperfect would misrank as a plain perfect.
+// Ties (including anything unmatched) keep their original relative order —
+// Array.prototype.sort is a stable sort.
+const TENSE_ORDER: Array<[number, RegExp]> = [
+  [0, /PR[ÄEÉ]S|PRESENT|PRESEN[SÇ]/i],                                    // present
+  [3, /PLUSQUAM|PLUS-QUE|PLUSCUAM|PAST PERFECT|TRAPASSATO|PLUSKVAM/i],     // pluperfect (check before plain perfect)
+  [1, /PERFEKT|PERFECT|COMPOS[ÉE]|PROSSIMO|PERFEITO|PERFECTO/i],          // perfect / compound past
+  [2, /PR[ÄA]TERIT|IMPARFAIT|IMPERFET|IMPERFEIT|PASS[ÉE] SIMPLE|PASSATO REMOTO|PRET[ÉE]RITO|^PAST$|SIMPLE PAST|GE[ÇC]M[İI][ŞS]/i], // simple past / imperfect
+  [4, /FUTUR|FUTURE/i],                                                    // future
+  [5, /KONDITIONAL|CONDITIONNEL|CONDIZIONALE|CONDICIONAL|CONDITIONAL/i],   // conditional
+  [6, /KONJUNKTIV|SUBJONCTIF|CONGIUNTIVO|SUBJUNTIVO|SUBJUNCTIVE/i],        // subjunctive
+  [7, /IMPERATIV|IMP[ÉE]RATIF|IMPERATIVO|IMPERATIVE/i],                    // imperative
+];
+
+function tensePriority(label: string): number {
+  for (const [tier, re] of TENSE_ORDER) {
+    if (re.test(label)) return tier;
+  }
+  return 99; // unrecognised label — keep at the end rather than guess
+}
+
 interface Props {
   word: string | null;
   /** Lemma resolved from token map (e.g. "ansehen" for tapped "sehe"). Falls back to word. */
@@ -90,6 +116,13 @@ interface Props {
    * alone ("ab") doesn't tell the learner what verb it belongs to.
    */
   separablePrefix?: string | null;
+  /**
+   * spaCy's POS tag for the tapped token itself (NOUN/VERB/ADJ/ADV/PRON/DET/
+   * ...), from the pipeline's tokenMap — see TokenMapEntry.pos. Disambiguates
+   * a real homograph (German "sein" the verb vs. the possessive "his/its")
+   * by the sense actually used in this occurrence, via posToWordType.
+   */
+  pos?: string | null;
   sentence: string;
   language: LanguageCode;
   level: LanguageLevel;
@@ -99,9 +132,19 @@ interface Props {
   onDismissStart?: () => void;
   /** When true, shows a back arrow (←) instead of close (✕) — used for nested infinitive popup */
   isNested?: boolean;
+  /**
+   * Pre-loaded data for `word`, when the caller already has it — e.g. tapping
+   * "Infinitive: schicken" from a "geschickt" popup: that popup's own `entry`
+   * IS schicken's full record (verb entries are keyed by lemma regardless of
+   * which inflected surface form was tapped), so there's nothing new to fetch.
+   * Skips the network/cache lookup entirely when set, which also means this
+   * keeps working offline even when the bare lemma was never itself a token
+   * in the brief text (so never separately prefetched on its own).
+   */
+  initialEntry?: WordEntry | null;
 }
 
-export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentence, language, level, genre, onClose, onDismissStart, isNested = false }: Props) {
+export function WordPopup({ word, lemma, compoundLemma, separablePrefix, pos, sentence, language, level, genre, onClose, onDismissStart, isNested = false, initialEntry = null }: Props) {
   const lookupLemma = lemma ?? word ?? '';
   // What the dictionary is actually queried with — the compound when this token
   // is half of a split lexical unit, otherwise the tapped surface form.
@@ -113,7 +156,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
   const { isFullAccess } = useSubscriptionStore();
   const fullAccess = isFullAccess();
 
-  const [entry, setEntry] = useState<WordEntry | null>(null);
+  const [entry, setEntry] = useState<WordEntry | null>(initialEntry);
   const [quickTranslation, setQuickTranslation] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -121,7 +164,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
   const [verifiedTenses, setVerifiedTenses] = useState<TenseTable[] | null>(null);
   const [activeDeclIdx, setActiveDeclIdx] = useState(0);
   const [declNumber, setDeclNumber] = useState<'sg' | 'pl'>('sg');
-  const [nestedWord, setNestedWord] = useState<string | null>(null);
+  const [nested, setNested] = useState<{ word: string; seedEntry?: WordEntry | null; pos?: string | null } | null>(null);
   const [exampleTranslation, setExampleTranslation] = useState<string | null>(null);
   const [wordFormTranslation, setWordFormTranslation] = useState<string | null>(null);
 
@@ -178,6 +221,18 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
 
   useEffect(() => {
     if (!word) return;
+
+    // Already have this word's full data (e.g. the Infinitive pill reusing
+    // its parent popup's own entry — see the `initialEntry` prop doc) —
+    // nothing to fetch, and skipping means this still works offline even
+    // when the bare lemma was never its own token in the brief text.
+    if (initialEntry && (initialEntry.word?.toLowerCase() === word.toLowerCase()
+      || initialEntry.lemma?.toLowerCase() === word.toLowerCase())) {
+      setEntry(initialEntry);
+      setIsLoading(false);
+      return;
+    }
+
     setEntry(null);
     setQuickTranslation(null);
     setExampleTranslation(null);
@@ -202,7 +257,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
       }).catch(() => {});
 
 
-      lookupWord(currentWord, currentLang, level, { sentence }).then(async (result) => {
+      lookupWord(currentWord, currentLang, level, { sentence, expectedWordType: posToWordType(pos) }).then(async (result) => {
         // If we got a verb back with only legacy 2-tense data, force-refresh to hit the worker backfill
         let finalResult = result;
         if (result?.wordType === 'verb' && (!result.tenses || result.tenses.length < 3)) {
@@ -242,21 +297,29 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
       }).catch(() => { setIsLoading(false); });
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [word, lookupLemma, lookupTarget, language]);
+  }, [word, lookupLemma, lookupTarget, language, pos]);
 
-  // Build ordered tense list — verified > rich array > legacy two-field fallback
+  // Build ordered tense list — verified > rich array > legacy two-field fallback,
+  // then always resorted basic-to-advanced (present, past, ..., imperative) —
+  // stored order is whatever order generation happened to emit, not a
+  // teaching order, so this can't be skipped for any of the three sources.
   const tenses = useMemo(() => {
     if (!entry) return [];
-    if (verifiedTenses && verifiedTenses.length > 0) return verifiedTenses;
-    if (entry.tenses && entry.tenses.length > 0) return entry.tenses;
-    const list: Array<{ label: string; table: Record<string, string> }> = [];
-    if (entry.verbTable && Object.keys(entry.verbTable).length > 0) {
-      list.push({ label: 'PRESENT', table: entry.verbTable });
+    let list: Array<{ label: string; table: Record<string, string> }>;
+    if (verifiedTenses && verifiedTenses.length > 0) {
+      list = verifiedTenses;
+    } else if (entry.tenses && entry.tenses.length > 0) {
+      list = entry.tenses;
+    } else {
+      list = [];
+      if (entry.verbTable && Object.keys(entry.verbTable).length > 0) {
+        list.push({ label: 'PRESENT', table: entry.verbTable });
+      }
+      if (entry.verbTablePast && Object.keys(entry.verbTablePast).length > 0) {
+        list.push({ label: PAST_TENSE_LABEL[language] ?? 'PAST', table: entry.verbTablePast });
+      }
     }
-    if (entry.verbTablePast && Object.keys(entry.verbTablePast).length > 0) {
-      list.push({ label: PAST_TENSE_LABEL[language] ?? 'PAST', table: entry.verbTablePast });
-    }
-    return list;
+    return [...list].sort((a, b) => tensePriority(a.label) - tensePriority(b.label));
   }, [entry, verifiedTenses, language]);
 
   function handleSave() {
@@ -420,7 +483,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
                 {pillLabel}:
               </Text>
               <TouchableOpacity
-                onPress={() => setNestedWord(subtitleLemma)}
+                onPress={() => setNested({ word: subtitleLemma, seedEntry: entry })}
                 activeOpacity={0.8}
                 style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
               >
@@ -435,7 +498,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
                     without {separablePrefix}-:
                   </Text>
                   <TouchableOpacity
-                    onPress={() => setNestedWord(baseVerb)}
+                    onPress={() => setNested({ word: baseVerb, pos: 'VERB' })}
                     activeOpacity={0.8}
                     style={[styles.infinitivePill, { backgroundColor: colors.card, borderColor: colors.borderLight }]}
                   >
@@ -827,17 +890,19 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, sentenc
       </Animated.View>
 
       {/* Nested popup for the infinitive/lemma — X on nested closes both */}
-      {nestedWord && !isNested && (
+      {nested && !isNested && (
         <WordPopup
-          word={nestedWord}
-          lemma={nestedWord}
+          word={nested.word}
+          lemma={nested.word}
+          pos={nested.pos}
           sentence={word ?? ''}
           language={language}
           level={level}
           genre={genre}
           isNested
+          initialEntry={nested.seedEntry}
           onDismissStart={dismissSheet}
-          onClose={() => setNestedWord(null)}
+          onClose={() => setNested(null)}
         />
       )}
     </Modal>

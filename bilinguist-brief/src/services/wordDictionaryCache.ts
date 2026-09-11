@@ -67,6 +67,28 @@ function wordEntryFromSupabaseFormRow(row: SupabaseWordFormRow): WordEntry {
  * the full list in the query string, and a brief can have 1000+ words. */
 const SUPABASE_QUERY_CHUNK = 150;
 
+/**
+ * word_forms holds one row PER SENSE now (unique on word+language+word_type),
+ * not one row per surface form — a real homograph like German "sein" (verb
+ * "to be" vs. possessive "his/its") gets a separate row per sense instead of
+ * one colliding into the other. The on-device cache mirrors that: entries
+ * are keyed by word+word_type so multiple senses of the same word can be
+ * cached side by side, and a lookup can ask for the sense matching the
+ * tapped occurrence's actual part of speech (from the pipeline's tokenMap)
+ * instead of getting back whichever sense happened to sync last.
+ */
+function entryKey(word: string, wordType?: string | null): string {
+  return `${word.toLowerCase()}|${wordType ?? ''}`;
+}
+
+/** Every cached sense for a bare word, regardless of word_type — used to
+ * decide whether a word still needs prefetching at all (see below) and as
+ * the fallback when the caller doesn't know which sense it wants. */
+function sensesFor(dict: StoredDict, word: string): string[] {
+  const prefix = `${word.toLowerCase()}|`;
+  return dict.order.filter((k) => k.startsWith(prefix));
+}
+
 async function fetchWordFormsFromSupabase(lang: LanguageCode, words: string[]): Promise<WordEntry[]> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || words.length === 0) return [];
   const results: WordEntry[] = [];
@@ -133,12 +155,32 @@ async function saveDict(lang: LanguageCode, level: LanguageLevel, dict: StoredDi
   }
 }
 
-export async function getCachedWord(word: string, lang: LanguageCode, level: LanguageLevel): Promise<WordEntry | null> {
+/**
+ * `expectedWordType` disambiguates a homograph by picking the sense that
+ * matches the tapped occurrence's actual part of speech (map the pipeline's
+ * tokenMap POS tag with `posToWordType` before calling). Omit it, or when no
+ * sense matches, and this falls back to whichever sense is cached — the
+ * pre-disambiguation behaviour, never a harder failure than before.
+ */
+export async function getCachedWord(
+  word: string,
+  lang: LanguageCode,
+  level: LanguageLevel,
+  expectedWordType?: string | null,
+): Promise<WordEntry | null> {
   const t0 = Date.now();
   const wasWarm = memoryCache.has(storageKey(lang, level));
   const dict = await loadDict(lang, level);
-  const hit = dict.entries[word.toLowerCase()] ?? null;
-  console.log(`[wordcache] ${hit ? 'HIT' : 'MISS'} "${word}" (${lang}:${level}) — ${Date.now() - t0}ms, memCache=${wasWarm ? 'warm' : 'cold'}, dictSize=${dict.order.length}`);
+
+  let hit = expectedWordType ? dict.entries[entryKey(word, expectedWordType)] ?? null : null;
+  let matchedBy = hit ? 'word_type' : null;
+  if (!hit) {
+    const anyKey = sensesFor(dict, word)[0];
+    hit = anyKey ? dict.entries[anyKey] ?? null : null;
+    matchedBy = hit ? 'fallback' : null;
+  }
+
+  console.log(`[wordcache] ${hit ? `HIT (${matchedBy})` : 'MISS'} "${word}"${expectedWordType ? ` [wanted ${expectedWordType}]` : ''} (${lang}:${level}) — ${Date.now() - t0}ms, memCache=${wasWarm ? 'warm' : 'cold'}, dictSize=${dict.order.length}`);
   return hit;
 }
 
@@ -181,7 +223,11 @@ export async function prefetchDictionaryForArticles(
   for (const a of articles) {
     for (const w of tokenise(`${a.headline} ${a.body}`)) allWords.add(w);
   }
-  const missing = Array.from(allWords).filter((w) => !dict.entries[w]);
+  // "Missing" is per bare word, not per sense — once ANY sense of a word has
+  // been prefetched, a second sense that appears in a LATER day's dictionary
+  // won't be separately backfilled here. Matches this cache's existing
+  // "today's brief is a snapshot" trade-off rather than a live sync.
+  const missing = Array.from(allWords).filter((w) => sensesFor(dict, w).length === 0);
   const total = allWords.size;
   const store = useDictionaryPrefetchStore.getState();
 
@@ -195,7 +241,7 @@ export async function prefetchDictionaryForArticles(
   try {
     const entries = await fetchWordFormsFromSupabase(lang, missing);
     for (const entry of entries) {
-      const key = entry.word.toLowerCase();
+      const key = entryKey(entry.word, entry.wordType);
       if (!(key in dict.entries)) dict.order.push(key);
       dict.entries[key] = entry;
     }
@@ -206,8 +252,11 @@ export async function prefetchDictionaryForArticles(
     await saveDict(lang, level, dict);
     // "found" = words already cached before this run + newly fetched this run —
     // may be less than `total` when some words (proper nouns, gaps) aren't in
-    // the dictionary at all. That's honest signal, not a bug to hide.
-    store.setDone(lang, total - missing.length + entries.length);
+    // the dictionary at all. That's honest signal, not a bug to hide. Counted
+    // by unique WORD, not by row — a homograph can now return more than one
+    // row per word, which must never inflate this past `total`.
+    const newlyFoundWords = new Set(entries.map((e) => e.word.toLowerCase())).size;
+    store.setDone(lang, total - missing.length + newlyFoundWords);
   } catch {
     store.setError(lang);
     // Background prefetch only — silent failure, per-tap lookupWord() still works
