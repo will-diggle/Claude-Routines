@@ -72,7 +72,25 @@
           }
         ]
       ],
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Bilinguist Brief uses motion data to add a playful tilt effect to celebration and confetti animations."
+        }
+      ],
       [
         "expo-build-properties",
         {
