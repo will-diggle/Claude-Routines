@@ -1,0 +1,90 @@
+# Daily word-population mission
+
+Runs unattended every morning via launchd. You are a fresh Claude Code session
+with no memory of prior runs — everything you need is below or in the scripts
+this references.
+
+**Working directory**: `/Users/willdiggle/claude-routines/bilinguist-brief/scripts`
+
+**Hard constraint, no exceptions**: every `agent()` call inside any Workflow
+script you write or launch MUST set `model: 'claude-haiku-4-5-20251001'`
+explicitly. Omitting it silently inherits this session's own (expensive)
+model — that mistake already happened once and is not to be repeated. Before
+launching any Workflow, grep the script you're about to run for `model:` and
+confirm every `agent(` call has it.
+
+## Steps
+
+1. **Extract today's candidates**:
+   ```
+   python3 daily_extract.py
+   ```
+   (no `--tag` — defaults to today's date). This fetches the live brief
+   bundle, extracts every unique word across native journalism AND all CEFR
+   levels for 6 languages (fr/de/es/it/sv/pt — NOT English), filters out
+   anything already in `word_forms`, and writes:
+   - `output/final{tag}_{lang}.json` — genuine-vocabulary batches
+   - `output/jobs_{tag}.json` — job descriptors for the vocab Workflow
+   - `output/summary_{tag}.json` — the day's stats
+
+   If `jobs_{tag}.json` is empty (0 batches), there's nothing to populate —
+   skip straight to step 5 and just report that.
+
+2. **Split off proper nouns using tokenMap POS tags** (NOT capitalization —
+   German capitalizes every noun, so capitalization is useless as a signal
+   there; PROPN is the actual pipeline-provided signal and works for all 6
+   languages). For each language, read `output/brief_{tag}.json`, walk every
+   article's `tokenMap`, collect surface forms tagged `PROPN`, and intersect
+   with that language's `final{tag}_{lang}.json` word list. Move any match
+   into its own `output/final_pn_{tag}_{lang}.json` batch file (same 25-word
+   batching), and rebuild `output/final{tag}_{lang}.json` / `jobs_{tag}.json`
+   to exclude those words. Write `output/pn_jobs_{tag}.json` for the
+   proper-noun batches. (See `output/populate_pn_0911_workflow.js`'s
+   docstring-style comments for the exact prompt shape to reuse — don't
+   reinvent it, copy the pattern and just swap in the new tag.)
+
+3. **Launch two Workflows** (Haiku, per the hard constraint above):
+   - Main vocabulary: reuse the pattern in
+     `output/populate_0911_workflow.js` (copy it to
+     `output/populate_{tag}_workflow.js`, updating the file paths it reads
+     from `final0911_{lang}.json` to `final{tag}_{lang}.json`), with
+     `args` = the contents of `output/jobs_{tag}.json`.
+   - Proper nouns: same pattern from `output/populate_pn_0911_workflow.js`,
+     `args` = `output/pn_jobs_{tag}.json`.
+   Wait for both to complete (the Workflow tool call blocks/notifies on
+   completion within a session — just await them normally).
+
+4. **Consolidate and write**, for each completed Workflow:
+   ```
+   python3 consolidate_and_write.py \
+     --journal <journal.jsonl path from the Workflow's own result> \
+     --batch-glob "output/final{tag}_*.json"   # or final_pn_{tag}_*.json for the proper-noun one \
+     --out output/consolidated_{tag}.json \
+     --write
+   ```
+   Then sync everything into `word_forms` (what the app actually reads):
+   ```
+   python3 sync_supabase_to_word_forms.py
+   ```
+
+5. **Report**: how many words were newly populated today (sum of both
+   Workflows' written counts), the day's total/unique/truly-new stats from
+   `output/summary_{tag}.json`, and confirm `word_forms` sync succeeded with
+   0 failures. If anything failed partway (a script error, a Workflow with
+   errored agents, a sync failure), say exactly what failed and where things
+   were left — don't silently retry indefinitely or guess at a fix.
+
+## What NOT to do
+
+- Don't touch `bilinguist-brief/src/**` or `bilinguist-worker/src/**` (app
+  code) — this mission is data population only.
+- Don't run any SQL migrations or `ALTER TABLE` statements.
+- Don't delete or overwrite existing dictionary entries except via the
+  merge-safe patterns already established (`consolidate_and_write.py`'s
+  richest-`data`-wins dedup) — never a blind overwrite.
+- Don't loop more than 2 population rounds in one run even if truly-new
+  isn't zero afterward — diminishing returns set in fast (see
+  2026-09-11 session: 2832 -> 1159 -> 872 truly-new across 3 rounds). One
+  fresh-candidates round plus one immediate re-check-and-fill round is
+  enough for a daily cadence; leave any stubborn remainder for the next
+  day's run rather than burning a long unattended session chasing it.
