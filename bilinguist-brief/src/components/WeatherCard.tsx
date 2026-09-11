@@ -25,6 +25,7 @@ import { useTheme } from '../hooks/useTheme';
 import type { WeatherData, RainviewerFrame, CityTemp, WindGrid } from '../services/weather';
 import { fetchRainviewerFrames, fetchNearbyCityTemps, fetchWindGrid, WEATHER_IN } from '../services/weather';
 import { getWeatherRichPhrase, getWeatherHeadline, LAYER_LABELS } from '../services/weatherPhrases';
+import { trackWeatherOpened } from '../services/analytics';
 import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 
 const { width: SW } = Dimensions.get('window');
@@ -957,6 +958,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
   }, [mapReady, windGrid, activeLayer]);
 
   function openModal() {
+    trackWeatherOpened(language);
     // Use the pre-measured edition row Y (same anchor as streak calendar) when available
     if (modalY && modalY > 0) {
       setModalTop(modalY);

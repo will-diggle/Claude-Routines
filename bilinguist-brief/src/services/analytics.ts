@@ -150,6 +150,11 @@ export function trackLanguageSelected(language: string): void {
   ph()?.capture('language_selected', { language });
 }
 
+/** Fired when the user turns a genre/topic on or off for a language. */
+export function trackTopicToggled(topic: string, enabled: boolean): void {
+  ph()?.capture('topic_toggled', { topic, enabled });
+}
+
 /** Fired when the user picks a CEFR level (or Native) for a language. */
 export function trackLevelSelected(language: string, level: string): void {
   ph()?.capture('level_selected', { language, level });
@@ -176,6 +181,12 @@ export function trackWrittenNumbersChanged(language: string, enabled: boolean): 
 
 export function trackArticleTapped(language: string): void {
   ph()?.capture('article_tapped', { language });
+}
+
+/** Fired when the user opens the weather detail modal — the only tracked
+ *  weather interaction; the widget had zero analytics coverage before this. */
+export function trackWeatherOpened(language: string): void {
+  ph()?.capture('weather_opened', { language });
 }
 
 // ── Subscription ──────────────────────────────────────────────────────────────

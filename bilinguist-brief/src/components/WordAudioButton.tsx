@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useTheme } from '../hooks/useTheme';
 import { GlassButton } from './GlassButton';
+import { trackAudioPlayed } from '../services/analytics';
 import type { LanguageCode } from '../store/useSettingsStore';
 
 // Uses Google Translate's unofficial TTS endpoint — free for short words.
@@ -60,6 +61,7 @@ export function WordAudioButton({ word, language, size = 'md' }: Props) {
       const { sound } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
       soundRef.current = sound;
       setState('playing');
+      trackAudioPlayed(word, language);
 
       sound.setOnPlaybackStatusUpdate((s) => {
         if (s.isLoaded && s.didJustFinish) {

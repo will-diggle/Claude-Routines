@@ -142,7 +142,7 @@ function AppContent() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       if (data.session?.user?.id) {
-        analytics.identifyUser(data.session.user.id);
+        analytics.identifyUser(data.session.user.id, { email: data.session.user.email });
         analytics.setSuperProperties({
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
@@ -158,7 +158,7 @@ function AppContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user?.id) {
-        analytics.identifyUser(session.user.id);
+        analytics.identifyUser(session.user.id, { email: session.user.email });
         analytics.setSuperProperties({
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',

@@ -602,7 +602,7 @@ export function SettingsScreen() {
                               <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Coming Soon</Text>
                             </View>
                           ) : (
-                            <Switch value={store.topics[item.key]} onValueChange={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); store.toggleTopic(item.key); }} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
+                            <Switch value={store.topics[item.key]} onValueChange={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); const nextEnabled = !store.topics[item.key]; store.toggleTopic(item.key); analytics.trackTopicToggled(item.key, nextEnabled); }} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
                           )}
                         </View>
                       </View>
@@ -873,7 +873,9 @@ export function SettingsScreen() {
                         value={store.topics[item.key]}
                         onValueChange={() => {
                           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          const nextEnabled = !store.topics[item.key];
                           store.toggleTopic(item.key);
+                          analytics.trackTopicToggled(item.key, nextEnabled);
                         }}
                         trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                         thumbColor="#FFF"
