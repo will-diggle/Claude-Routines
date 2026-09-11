@@ -20,5 +20,30 @@ __pycache__/
 bilinguist-brief/scripts/output/
 bilinguist-brief/scripts/factbase_*.json
 
+# One-off scratch/output files from ad-hoc population/batch scripts — never
+# meant to be committed, but weren't excluded so `git add -A` could sweep
+# them in by accident (flagged in the 2026-09-07 security audit).
+bilinguist-brief/scripts/batch_*.json
+bilinguist-brief/scripts/chunk_*.json
+bilinguist-brief/scripts/_batch_*.json
+bilinguist-brief/scripts/missing_*.json
+bilinguist-brief/scripts/separable_de*.json
+bilinguist-brief/scripts/*_dictionary_batch*.json
+bilinguist-brief/scripts/*_dict_batch*.json
+bilinguist-brief/scripts/dict_jobs.json
+bilinguist-brief/scripts/needs_regeneration.json
+bilinguist-brief/scripts/french_batch_*.json
+bilinguist-brief/scripts/german_dict_batch_*.json
+
 # Wrangler local state/cache
 bilinguist-worker/.wrangler/
+
+# macOS
+.DS_Store
+
+# Firebase/Google service credentials — never committed regardless of
+# subproject, defense-in-depth even though none currently exist in the repo.
+GoogleService-Info.plist
+google-services.json
+credentials.json
+ExportOptions.plist

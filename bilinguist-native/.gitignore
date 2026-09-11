@@ -1,0 +1,23 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+DerivedData/
+.build/
+*.moved-aside
+*.xccheckout
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Credentials / signing
+*.mobileprovision
+*.p8
+*.p12
+ExportOptions.plist
+GoogleService-Info.plist
