@@ -291,13 +291,20 @@ function extractAdditionalForms(wordType: string | null, data: Record<string, un
   if (wordType === 'verb') {
     // Flat fields alongside `tenses` on every verb across all 6 languages
     // (e.g. fr "ajouter": past_participle="ajouté", present_participle=
-    // "ajoutant") — already read into `meta` for display but never extracted
-    // as their own tappable single-word forms.
-    for (const key of ['past_participle', 'present_participle']) {
+    // "ajoutant"). The three gendered/number-agreed participle fields were
+    // added to the generation schema on 2026-09-11 for past participles used
+    // as adjectives (e.g. "acceptée", "accueillis") — missing them here (not
+    // a generation gap) is why those surface forms kept showing as
+    // uncovered through multiple population rounds that day.
+    for (const key of [
+      'past_participle', 'present_participle',
+      'past_participle_feminine', 'past_participle_masculine_plural', 'past_participle_feminine_plural',
+    ]) {
       if (typeof data[key] === 'string') forms.add(data[key] as string);
     }
   } else if (wordType === 'adjective') {
-    for (const key of ['feminine', 'masculine', 'comparative', 'superlative']) {
+    // masculine_plural/feminine_plural were added the same day, same reason.
+    for (const key of ['feminine', 'masculine', 'comparative', 'superlative', 'masculine_plural', 'feminine_plural']) {
       if (typeof data[key] === 'string') forms.add(data[key] as string);
     }
     for (const v of Object.values(svForms)) if (typeof v === 'string') forms.add(v);

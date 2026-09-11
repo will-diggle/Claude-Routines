@@ -33,7 +33,14 @@ OUTPUT_DIR = SCRIPT_DIR / "output"
 ENV_FILE = SCRIPT_DIR.parent / ".env"
 LANGUAGES = ["fr", "de", "es", "it", "sv", "pt"]
 PROPER_NOUN_HEURISTIC_LANGUAGES = ["fr", "es", "it", "sv", "pt"]  # no 'de'
-WORD_RE = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?", re.UNICODE)
+# Source text mixes straight (') and curly (’) apostrophes inconsistently
+# (e.g. "qu’il s’abstiendrait" uses curly) — matching only straight left
+# curly-apostrophe elisions like "s’abstiendrait" truncated to a bare, never-
+# coverable stem ("abstiendrait", dropping the reflexive "s’"). Both are
+# accepted here so a word's real, complete surface form is what gets checked
+# and populated, not an artifact of which apostrophe character the source
+# happened to use.
+WORD_RE = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?", re.UNICODE)
 SENT_SPLIT = re.compile(r"(?<=[.!?»])\s+")
 CHUNK = 150
 BATCH_SIZE = 25
@@ -166,13 +173,33 @@ def fetch_existing_lemmas(supa, lang: str) -> set:
     return lemmas
 
 
+def normalize_apostrophe(word: str) -> str:
+    """Generated/stored forms always use a straight apostrophe; source brief
+    text mixes straight and curly inconsistently. Comparing on the same
+    normalized form avoids treating "s'abstiendrait" (generated) and
+    "s’abstiendrait" (extracted from text) as two different words."""
+    return word.replace("’", "'")
+
+
 def fetch_word_forms(supa, lang: str, words: list) -> set:
-    found = set()
-    words = list(words)
-    for i in range(0, len(words), CHUNK):
-        chunk = words[i:i + CHUNK]
+    """Returns the subset of `words` that are covered — checked via the
+    apostrophe-normalized form, but each returned value is the ORIGINAL
+    (possibly curly-apostrophe) input word, so callers can still filter
+    their own original candidate list by membership."""
+    normalized_to_original = {}
+    for w in words:
+        normalized_to_original.setdefault(normalize_apostrophe(w), []).append(w)
+    normalized_words = list(normalized_to_original.keys())
+
+    found_normalized = set()
+    for i in range(0, len(normalized_words), CHUNK):
+        chunk = normalized_words[i:i + CHUNK]
         r = supa.table("word_forms").select("word").eq("language", lang).in_("word", chunk).execute()
-        found.update(row["word"] for row in r.data)
+        found_normalized.update(row["word"] for row in r.data)
+
+    found = set()
+    for norm in found_normalized:
+        found.update(normalized_to_original.get(norm, []))
     return found
 
 
@@ -203,7 +230,29 @@ def main():
         candidates = sorted(w for w in unique_words if w not in existing_lemmas)
 
         found_in_word_forms = fetch_word_forms(supa, lang, candidates)
-        truly_new = sorted(w for w in candidates if w not in found_in_word_forms)
+        truly_new_raw = sorted(w for w in candidates if w not in found_in_word_forms)
+
+        # Elided-contraction false positives: "d'achat", "l'administration",
+        # "qu'il" etc. are ONE token to this regex-based extraction, but the
+        # app's real (spaCy-based) tokenizer splits them into the elision
+        # prefix (de/le-la/que/...) and the content word, and looks up the
+        # content word alone. So a word like "d'achat" isn't really missing
+        # if "achat" itself is already covered — checking that content word
+        # is what a real tap in the app actually resolves against. Only
+        # applies when the SUFFIX after the apostrophe is itself a real
+        # multi-letter word (not another elision, not empty).
+        elision_suffix_covered = set()
+        candidates_with_apostrophe = [w for w in truly_new_raw if ("'" in w or "’" in w)]
+        if candidates_with_apostrophe:
+            suffixes = {}
+            for w in candidates_with_apostrophe:
+                suffix = re.split(r"['’]", w)[-1]
+                if len(suffix) >= 2:
+                    suffixes[w] = suffix
+            suffix_found = fetch_word_forms(supa, lang, sorted(set(suffixes.values())))
+            elision_suffix_covered = {w for w, suf in suffixes.items() if suf in suffix_found}
+
+        truly_new = sorted(w for w in truly_new_raw if w not in elision_suffix_covered)
 
         # Split truly-new into proper-noun-heuristic hits vs genuine vocabulary
         if lang in PROPER_NOUN_HEURISTIC_LANGUAGES:

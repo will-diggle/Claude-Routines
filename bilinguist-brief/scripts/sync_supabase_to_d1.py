@@ -141,14 +141,28 @@ def extract_additional_forms(word_type, data):
     if word_type == "verb":
         # Flat fields alongside `tenses` on every verb across all 6 languages
         # (e.g. fr "ajouter": past_participle="ajouté", present_participle=
-        # "ajoutant") — these were already read into `meta` for display but
-        # never extracted as their own tappable single-word forms.
-        for key in ("past_participle", "present_participle"):
+        # "ajoutant"). The three gendered/number-agreed participle fields
+        # (past_participle_feminine/masculine_plural/feminine_plural) were
+        # added to the generation schema on 2026-09-11 to cover past
+        # participles used as adjectives (e.g. "acceptée", "accueillis") —
+        # they were sitting in word_dictionary.data but never reached here,
+        # so those surface forms never got a word_forms row even though the
+        # data existed. This is why they kept showing as "truly new" through
+        # multiple population rounds that day: it was never a generation
+        # gap, it was this extraction never picking the fields up.
+        for key in (
+            "past_participle", "present_participle",
+            "past_participle_feminine", "past_participle_masculine_plural",
+            "past_participle_feminine_plural",
+        ):
             v = data.get(key)
             if isinstance(v, str):
                 forms.add(v)
     elif word_type == "adjective":
-        for key in ("feminine", "masculine", "comparative", "superlative"):
+        # masculine_plural/feminine_plural were added the same day, for the
+        # same reason — see the verb branch's comment above.
+        for key in ("feminine", "masculine", "comparative", "superlative",
+                    "masculine_plural", "feminine_plural"):
             v = data.get(key)
             if isinstance(v, str):
                 forms.add(v)
