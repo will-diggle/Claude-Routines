@@ -13,6 +13,7 @@ import {
   View,
   Text,
   Image,
+  ActivityIndicator,
   ScrollView,
   TouchableOpacity,
   Switch,
@@ -56,6 +57,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
 import { useShallow } from 'zustand/react/shallow';
 // expo-alternate-app-icons is not available in Expo Go — lazy require so it fails
@@ -205,6 +208,8 @@ export function SettingsScreen() {
   const [usernameModalVisible, setUsernameModalVisible] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [filterLang, setFilterLang] = useState<string>('all');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // Streak store
   const readingHistory = useStreakStore((s) => s.readingHistory);
@@ -258,13 +263,15 @@ export function SettingsScreen() {
   // Pulls the persisted username on sign-in — restores it on a fresh
   // install/device (server value wins), or backfills the server from the
   // local value for anyone who set a username before this sync existed.
+  // Also pulls avatar_url — that one has no local-first fallback since a
+  // photo (unlike a typed username) never existed anywhere but the server.
   useEffect(() => {
     if (!supabase || !session?.user?.id) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from('user_profiles')
-        .select('display_name')
+        .select('display_name, avatar_url')
         .eq('user_id', session.user.id)
         .maybeSingle();
       if (cancelled) return;
@@ -275,9 +282,69 @@ export function SettingsScreen() {
         const localName = useSettingsStore.getState().username;
         if (localName) syncDisplayNameToServer(localName);
       }
+      setAvatarUrl(data?.avatar_url?.trim() || null);
     })();
     return () => { cancelled = true; };
   }, [session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Picks a photo, downsizes/compresses it, uploads to the "avatars" Storage
+  // bucket at avatars/{user_id}/avatar.jpg (fixed filename + upsert so a
+  // re-upload replaces rather than accumulates), then persists the public
+  // URL via update-profile. Storage RLS (migration 006) only allows writing
+  // inside one's own {user_id}/ folder.
+  async function handleAvatarPress() {
+    if (!isSignedIn || !supabase || !session?.user?.id || avatarUploading) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Photo access needed', 'Allow photo library access in Settings to choose a profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setAvatarUploading(true);
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 512, height: 512 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const response = await fetch(manipulated.uri);
+      const blob = await response.blob();
+      const path = `${session.user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      // Cache-bust so the new photo shows immediately — same path is reused
+      // on every upload, so without this the CDN/Image cache would keep
+      // serving the previous photo under an unchanged URL.
+      const bustedUrl = `${pub.publicUrl}?t=${Date.now()}`;
+
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+      await fetch(`${supabaseUrl}/functions/v1/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ avatarUrl: bustedUrl }),
+      });
+      setAvatarUrl(bustedUrl);
+    } catch (e) {
+      console.warn('[avatar] upload failed:', e);
+      Alert.alert('Upload failed', 'Could not upload your photo — please try again.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   const [signInModalVisible, setSignInModalVisible] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -684,9 +751,16 @@ export function SettingsScreen() {
             {activeTab === 'profile' && (
               <>
                 <View style={profileStyles.avatarSection}>
-                  <TouchableOpacity onPress={() => setSettingsSheetVisible(true)} activeOpacity={0.8} style={profileStyles.avatarWrap}>
+                  <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8} style={profileStyles.avatarWrap} disabled={avatarUploading}>
                     <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
-                      <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>{displayName ? displayName.charAt(0).toUpperCase() : 'G'}</Text>
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={profileStyles.avatarImage} />
+                      ) : (
+                        <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>{displayName ? displayName.charAt(0).toUpperCase() : 'G'}</Text>
+                      )}
+                      {avatarUploading && (
+                        <View style={profileStyles.avatarUploadingOverlay}><ActivityIndicator color="#FFF" /></View>
+                      )}
                     </View>
                     <View style={[profileStyles.avatarCameraIcon, { backgroundColor: colors.accentRed }]}><Ionicons name="camera-outline" size={12} color="#FFF" /></View>
                   </TouchableOpacity>
@@ -1026,14 +1100,22 @@ export function SettingsScreen() {
           {/* Profile Avatar */}
           <View style={profileStyles.avatarSection}>
             <TouchableOpacity
-              onPress={() => setSettingsSheetVisible(true)}
+              onPress={handleAvatarPress}
               activeOpacity={0.8}
               style={profileStyles.avatarWrap}
+              disabled={avatarUploading}
             >
               <View style={[profileStyles.avatar, { backgroundColor: colors.chrome }]}>
-                <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>
-                  {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
-                </Text>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={profileStyles.avatarImage} />
+                ) : (
+                  <Text style={[profileStyles.avatarInitials, { fontFamily: fontFamily.bold, color: colors.bg }]}>
+                    {displayName ? displayName.charAt(0).toUpperCase() : 'G'}
+                  </Text>
+                )}
+                {avatarUploading && (
+                  <View style={profileStyles.avatarUploadingOverlay}><ActivityIndicator color="#FFF" /></View>
+                )}
               </View>
               <View style={[profileStyles.avatarCameraIcon, { backgroundColor: colors.accentRed }]}>
                 <Ionicons name="camera-outline" size={12} color="#FFF" />
@@ -1958,6 +2040,17 @@ const profileStyles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+  },
+  avatarUploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },

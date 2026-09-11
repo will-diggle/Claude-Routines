@@ -92,6 +92,14 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bilinguist Brief uses your photos to let you choose a profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

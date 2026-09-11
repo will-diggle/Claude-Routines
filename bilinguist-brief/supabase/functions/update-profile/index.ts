@@ -1,6 +1,7 @@
 // Supabase Edge Function: update-profile
 //
-// Upserts the calling user's `user_profiles.display_name`. Distinct from
+// Upserts the calling user's `user_profiles.display_name` and/or `avatar_url`.
+// Distinct from
 // record-acceptance (which also writes user_profiles, but only as a
 // side-effect of stamping ToS/Privacy acceptance timestamps) — reusing that
 // function for a plain profile edit would incorrectly re-stamp acceptance
@@ -61,7 +62,7 @@ serve(async (req) => {
     });
   }
 
-  let body: { displayName?: string };
+  let body: { displayName?: string; avatarUrl?: string };
   try {
     body = await req.json();
   } catch {
@@ -72,8 +73,9 @@ serve(async (req) => {
   }
 
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 60) : null;
-  if (!displayName) {
-    return new Response(JSON.stringify({ error: 'displayName is required' }), {
+  const avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim().slice(0, 500) : null;
+  if (!displayName && !avatarUrl) {
+    return new Response(JSON.stringify({ error: 'displayName or avatarUrl is required' }), {
       status: 400,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
@@ -81,16 +83,21 @@ serve(async (req) => {
 
   // Service-role client — user_profiles has no client-side INSERT policy
   // (row creation is server-side only), so this needs to bypass RLS to
-  // create the row on first write. onConflict upsert only ever touches the
-  // display_name column here — terms/privacy acceptance columns on an
-  // existing row are left untouched.
+  // create the row on first write. Only the field(s) actually provided are
+  // written — a display-name-only call must never clobber an existing
+  // avatar_url (and vice versa); terms/privacy acceptance columns on an
+  // existing row are always left untouched.
   const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
+  const row: Record<string, string> = { user_id: user.id };
+  if (displayName) row.display_name = displayName;
+  if (avatarUrl) row.avatar_url = avatarUrl;
+
   const { error: upsertError } = await adminClient
     .from('user_profiles')
-    .upsert({ user_id: user.id, display_name: displayName }, { onConflict: 'user_id' });
+    .upsert(row, { onConflict: 'user_id' });
 
   if (upsertError) {
     console.error('update-profile upsert error:', upsertError);
@@ -100,7 +107,7 @@ serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, displayName }), {
+  return new Response(JSON.stringify({ ok: true, displayName, avatarUrl }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   });
 });
