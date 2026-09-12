@@ -80,7 +80,11 @@ def fetch_today_bundle(tag: str) -> dict:
             return json.load(f)
     data_url = os.environ["EXPO_PUBLIC_DATA_URL"].rstrip("/")
     url = f"{data_url}/latest"
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    # Cloudflare 403s requests with no User-Agent (urllib's default sends
+    # none) — never hit before because every prior run happened to already
+    # have a cached brief_{tag}.json from same-day interactive testing.
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
         bundle = json.loads(resp.read().decode("utf-8"))
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(bundle, f, ensure_ascii=False)
