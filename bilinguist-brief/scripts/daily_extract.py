@@ -173,6 +173,75 @@ def collect_all_text(bundle: dict, lang: str) -> list:
     return texts
 
 
+def collect_token_lemmas(bundle: dict, lang: str) -> dict:
+    """Surface-form -> spaCy lemma, from the pipeline's own tokenMap (the
+    same signal the real app uses to resolve a tapped word). Used to catch
+    candidates whose LEMMA is already in the dictionary even though this
+    exact inflected surface form isn't — e.g. "adoptée" when "adopter" (with
+    past_participle_feminine already generated) already exists. Without
+    this, every such case gets sent through full paid generation to
+    re-derive a lemma that's already fully known, and occasionally gets
+    assigned the wrong lemma in the process (see 2026-09-12 session notes:
+    ~1.6% of the whole dictionary is duplicate/collided lemmas from exactly
+    this failure mode)."""
+    mapping = {}
+
+    def scan(articles):
+        for article in articles:
+            for tok in article.get("tokenMap") or []:
+                surf = (tok.get("surface") or "").lower()
+                lemma = (tok.get("lemma") or "").lower()
+                if surf and lemma:
+                    mapping.setdefault(surf, lemma)
+
+    native_lengths = bundle.get("nativeJournalism", {}).get(lang, {})
+    for articles in native_lengths.values():
+        scan(articles)
+    levels = bundle.get("briefings", {}).get(lang, {})
+    for lengths in levels.values():
+        for section in lengths.values():
+            scan(section.get("articles", []))
+    return mapping
+
+
+def auto_resolve_known_lemmas(supa, lang: str, words: list, surface_to_lemma: dict, existing_lemmas: set) -> set:
+    """For candidates whose tokenMap lemma is already a known lemma, copy
+    that lemma's existing word_forms row under this new surface form —
+    zero AI cost, and avoids re-asking a model to (re-)determine a lemma
+    that's already resolved. Returns the set of words successfully
+    resolved this way; callers should exclude these from generation."""
+    resolved = set()
+    lemma_cache = {}
+    for w in words:
+        lemma = surface_to_lemma.get(w)
+        if not lemma or lemma == w or lemma not in existing_lemmas:
+            continue
+        if lemma not in lemma_cache:
+            for attempt in range(3):
+                try:
+                    r = supa.table("word_forms").select("*").eq("language", lang).eq("lemma", lemma).execute()
+                    lemma_cache[lemma] = r.data
+                    break
+                except Exception:
+                    if attempt == 2:
+                        lemma_cache[lemma] = []
+        rows = lemma_cache[lemma]
+        if not rows:
+            continue
+        base_row = dict(rows[0])
+        base_row["word"] = w
+        base_row.pop("id", None)
+        base_row.pop("updated_at", None)
+        try:
+            supa.table("word_forms").upsert(
+                base_row, on_conflict="word,language,word_type", ignore_duplicates=False
+            ).execute()
+            resolved.add(w)
+        except Exception as ex:
+            print(f"  [auto-resolve FAIL] {lang}/{w} <- {lemma}: {ex}")
+    return resolved
+
+
 def capitalized_midsentence_words(text: str) -> set:
     found = set()
     for sentence in SENT_SPLIT.split(text):
@@ -282,6 +351,19 @@ def main():
 
         truly_new = sorted(w for w in truly_new_raw if w not in elision_suffix_covered)
 
+        # Auto-resolve candidates whose real (tokenMap) lemma is already
+        # fully known — e.g. "affectés" when "affecter" already exists and
+        # already has past_participle_masculine_plural generated. Copies the
+        # existing lemma's word_forms row under the new surface form at zero
+        # AI cost, and skips sending an already-resolved lemma through
+        # generation again (which is also how ~1.6% of the dictionary ended
+        # up as duplicate/collided lemmas — see 2026-09-12 session notes).
+        surface_to_lemma = collect_token_lemmas(bundle, lang)
+        auto_resolved = auto_resolve_known_lemmas(supa, lang, truly_new, surface_to_lemma, existing_lemmas)
+        if auto_resolved:
+            print(f"  [{lang}] auto-resolved {len(auto_resolved)} word(s) from already-known lemmas (no generation needed): {sorted(auto_resolved)[:10]}{'...' if len(auto_resolved) > 10 else ''}")
+        truly_new = sorted(w for w in truly_new if w not in auto_resolved)
+
         # Split truly-new into proper-noun-heuristic hits vs genuine vocabulary
         if lang in PROPER_NOUN_HEURISTIC_LANGUAGES:
             capitalized = set()
@@ -297,6 +379,7 @@ def main():
             "total_tokens": total_tokens,
             "unique_words": len(unique_words),
             "candidates": len(candidates),
+            "auto_resolved": len(auto_resolved),
             "truly_new": len(truly_new),
             "proper_nouns": len(proper_nouns),
             "genuine_vocab": len(genuine),
@@ -316,16 +399,19 @@ def main():
             pn_job_descriptors.append({"lang": lang, "idx": idx})
 
         print(f"{lang}: {total_tokens} tokens, {len(unique_words)} unique, "
+              f"{len(auto_resolved)} auto-resolved (free), "
               f"{len(truly_new)} truly-new ({len(genuine)} vocab / {len(proper_nouns)} proper nouns)")
 
     grand_total = sum(s["total_tokens"] for s in summary.values())
     grand_unique = sum(s["unique_words"] for s in summary.values())
+    grand_auto_resolved = sum(s["auto_resolved"] for s in summary.values())
     grand_truly_new = sum(s["truly_new"] for s in summary.values())
     grand_genuine = sum(s["genuine_vocab"] for s in summary.values())
     grand_pn = sum(s["proper_nouns"] for s in summary.values())
 
     print(f"\nTOTAL (6 languages, excl. English): {grand_total} words written, "
-          f"{grand_unique} unique, {grand_truly_new} truly-new "
+          f"{grand_unique} unique, {grand_auto_resolved} auto-resolved for free, "
+          f"{grand_truly_new} truly-new needing generation "
           f"({grand_genuine} vocab / {grand_pn} proper nouns)")
     print("(Cross-check this total-words-written figure against today's ntfy notification —")
     print(" this now includes native journalism correctly, so it should match closely.)")
@@ -337,6 +423,7 @@ def main():
     with open(OUTPUT_DIR / f"summary_{tag}.json", "w", encoding="utf-8") as f:
         json.dump({"tag": tag, "date": bundle.get("date"), "per_language": summary,
                     "grand_total_tokens": grand_total, "grand_unique": grand_unique,
+                    "grand_auto_resolved": grand_auto_resolved,
                     "grand_truly_new": grand_truly_new, "grand_genuine": grand_genuine,
                     "grand_proper_nouns": grand_pn}, f, indent=2)
 

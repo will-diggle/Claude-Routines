@@ -27,6 +27,18 @@ confirm every `agent(` call has it.
    - `output/jobs_{tag}.json` — job descriptors for the vocab Workflow
    - `output/summary_{tag}.json` — the day's stats
 
+   Before batching, it also auto-resolves candidates whose real (tokenMap)
+   lemma is already a known lemma — e.g. a French candidate "affectés" when
+   "affecter" already exists and already has past_participle_masculine_plural
+   generated. These get their word_forms row copied from the existing lemma
+   directly, at zero AI cost, and never reach the Workflow at all (see the
+   "N auto-resolved (free)" line in the console output). This matters: on
+   2026-09-12 this alone cut candidates needing generation by ~2.5% same-day,
+   and — more importantly — it's also *why* re-asking a model to determine a
+   lemma for an already-known word was producing duplicate/collided lemma
+   entries (see prompt note in step 3 below). Don't skip this step or try to
+   "optimize" it away — it's the fix, not overhead.
+
    If `jobs_{tag}.json` is empty (0 batches), there's nothing to populate —
    skip straight to step 5 and just report that.
 
@@ -48,7 +60,14 @@ confirm every `agent(` call has it.
      `output/populate_0911_workflow.js` (copy it to
      `output/populate_{tag}_workflow.js`, updating the file paths it reads
      from `final0911_{lang}.json` to `final{tag}_{lang}.json`), with
-     `args` = the contents of `output/jobs_{tag}.json`.
+     `args` = the contents of `output/jobs_{tag}.json`. That template's
+     `lemma` field instruction was tightened on 2026-09-12 to explicitly
+     reject participle/inflected forms as their own lemma (e.g. French
+     "adoptée"/"allés"/"atteint" must resolve to "adopter"/"aller"/
+     "atteindre") — ~1.6% of the whole dictionary was duplicate/collided
+     lemma entries from Haiku treating an inflected surface form as if it
+     were its own citation form. Keep this instruction when copying the
+     template; don't simplify it back down.
    - Proper nouns: same pattern from `output/populate_pn_0911_workflow.js`,
      `args` = `output/pn_jobs_{tag}.json`.
    Wait for both to complete (the Workflow tool call blocks/notifies on
@@ -76,10 +95,12 @@ confirm every `agent(` call has it.
    clitic-attached verb forms, German case/gender-declined forms, etc.) is
    often different from the lemma and never gets its own `word_forms` row
    otherwise, even though the lemma's data is fully generated. This script
-   reads all of today's `output/consolidated*{tag}*.json` files and backfills
-   the gap at zero extra AI cost (this was the single highest-impact fix
-   found on 2026-09-11 — it alone dropped 5 languages' remaining gap from
-   228 words to 19):
+   reads EVERY `output/consolidated*.json` file that has ever been written
+   (not scoped to today's tag — it was hardcoded to "0911" until
+   2026-09-12, which silently skipped every later day; don't reintroduce a
+   tag scope here) and backfills the gap at zero extra AI cost (this was the
+   single highest-impact fix found on 2026-09-11 — it alone dropped 5
+   languages' remaining gap from 228 words to 19):
    ```
    python3 backfill_requested_forms.py
    ```

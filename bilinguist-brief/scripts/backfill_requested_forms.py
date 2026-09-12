@@ -10,16 +10,21 @@ these exact requested surface forms were never captured as their own
 word_forms row, even though the underlying data (translation, full verb
 paradigm, etc.) was generated correctly.
 
-This reads every output/consolidated*_0911*.json from today (already has
-the resolved language attached to each entry — no need to re-derive it),
-finds every {word, lemma} pair where they differ, and upserts a word_forms
-row for the REQUESTED word carrying the resolved lemma's full data — no
-new AI generation, just making already-generated data reachable under the
-actual surface form a real tap would use.
+This reads every output/consolidated*.json ever written (already has the
+resolved language attached to each entry — no need to re-derive it), finds
+every {word, lemma} pair where they differ, and upserts a word_forms row
+for the REQUESTED word carrying the resolved lemma's full data — no new AI
+generation, just making already-generated data reachable under the actual
+surface form a real tap would use. Deliberately not scoped to one day's
+tag (was hardcoded to "0911" until 2026-09-12, which silently skipped
+every later day's files) — re-processing old pairs is a harmless no-op
+upsert, and this way nothing is ever missed regardless of which day it
+came from.
 """
 import glob
 import json
 import os
+import time
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
@@ -39,7 +44,7 @@ _load_env_file(ENV_FILE)
 from supabase import create_client
 supa = create_client(os.environ["EXPO_PUBLIC_SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
-files = sorted(glob.glob(str(SCRIPT_DIR / "output" / "consolidated*0911*.json")))
+files = sorted(glob.glob(str(SCRIPT_DIR / "output" / "consolidated*.json")))
 print(f"Reading {len(files)} consolidated files: {[Path(f).name for f in files]}")
 
 diffs = []
@@ -67,8 +72,17 @@ lemma_cache = {}
 for (word, lang), (lemma, word_type) in by_key.items():
     cache_key = (lang, lemma)
     if cache_key not in lemma_cache:
-        r = supa.table("word_forms").select("*").eq("language", lang).eq("lemma", lemma).execute()
-        lemma_cache[cache_key] = r.data
+        for attempt in range(3):
+            try:
+                r = supa.table("word_forms").select("*").eq("language", lang).eq("lemma", lemma).execute()
+                lemma_cache[cache_key] = r.data
+                break
+            except Exception as ex:
+                if attempt == 2:
+                    print(f"[FAIL] lookup {lang}/{lemma} after 3 attempts: {ex}")
+                    lemma_cache[cache_key] = []
+                else:
+                    time.sleep(2 * (attempt + 1))
     rows = lemma_cache[cache_key]
     if not rows:
         skipped += 1
