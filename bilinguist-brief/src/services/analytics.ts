@@ -190,8 +190,12 @@ export function trackWrittenNumbersChanged(language: string, enabled: boolean): 
   ph()?.capture('written_numbers_changed', { language, enabled });
 }
 
-export function trackArticleTapped(language: string): void {
-  ph()?.capture('article_tapped', { language });
+/** genre is the article's own genre (GLOBAL NEWS, UK, EU, US, BUSINESS &
+ *  ECONOMY) — a brief spans multiple genres, so this is the only reliable
+ *  place to derive per-genre engagement from, not trackBriefOpened/Completed
+ *  which are per-language/level and know nothing about genre mix. */
+export function trackArticleTapped(language: string, genre?: string): void {
+  ph()?.capture('article_tapped', { language, genre: genre ?? null });
 }
 
 /** Fired when the user opens the weather detail modal — the only tracked

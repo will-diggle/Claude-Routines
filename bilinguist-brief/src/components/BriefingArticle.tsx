@@ -148,7 +148,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
 
     if (!articleTappedRef.current) {
       articleTappedRef.current = true;
-      analytics.trackArticleTapped(language);
+      analytics.trackArticleTapped(language, genre ?? article.genre);
     }
 
     // Resolve lemma and linked positions from token map (if available)
