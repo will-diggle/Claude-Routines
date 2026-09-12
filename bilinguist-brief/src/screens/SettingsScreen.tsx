@@ -1451,16 +1451,25 @@ export function SettingsScreen() {
               </Text>
             </ScrollView>
 
-            {/* Top fade — a soft blur + a continuous (no-plateau) alpha ramp, so
-                scrolled content dissolves gradually instead of hitting a flat
-                same-colour block. Sits behind the title row (zIndex 2), in
-                front of the ScrollView (zIndex 0). */}
-            <BlurView
-              intensity={12}
-              tint={isDark ? 'dark' : 'light'}
-              pointerEvents="none"
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }}
-            />
+            {/* Top fade — expo-blur has no gradient-of-blur support (a single
+                BlurView is uniformly blurred across its whole rect, so its
+                bottom edge is a hard blur/no-blur seam no matter how smooth
+                the colour overlay on top of it is). Approximated here by
+                stacking BlurViews of shrinking height/intensity, all anchored
+                to the same edge so they overlap — the region nearest the
+                title accumulates every layer (most blur), each band further
+                in drops a layer, tapering the TOTAL blur out in steps small
+                enough to read as a gradient rather than a cliff. Sits behind
+                the title row (zIndex 2), in front of the ScrollView (zIndex 0). */}
+            {[16, 12, 8, 4].map((intensity, i) => (
+              <BlurView
+                key={`top-blur-${i}`}
+                intensity={intensity}
+                tint={isDark ? 'dark' : 'light'}
+                pointerEvents="none"
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: (Spacing.md + 66) * (1 - i * 0.22), zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }}
+              />
+            ))}
             <LinearGradient
               pointerEvents="none"
               colors={[colors.bg + 'E6', colors.bg + 'B3', colors.bg + '80', colors.bg + '40', colors.bg + '00'] as any}
@@ -1468,12 +1477,15 @@ export function SettingsScreen() {
               style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
             />
             {/* Bottom fade — same treatment, mirrored */}
-            <BlurView
-              intensity={12}
-              tint={isDark ? 'dark' : 'light'}
-              pointerEvents="none"
-              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: insets.bottom + Spacing.xl, zIndex: 1, overflow: 'hidden' }}
-            />
+            {[16, 12, 8, 4].map((intensity, i) => (
+              <BlurView
+                key={`bottom-blur-${i}`}
+                intensity={intensity}
+                tint={isDark ? 'dark' : 'light'}
+                pointerEvents="none"
+                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: (insets.bottom + Spacing.xl) * (1 - i * 0.22), zIndex: 1, overflow: 'hidden' }}
+              />
+            ))}
             <LinearGradient
               pointerEvents="none"
               colors={[colors.bg + '00', colors.bg + '40', colors.bg + '80', colors.bg + 'B3', colors.bg + 'E6'] as any}
