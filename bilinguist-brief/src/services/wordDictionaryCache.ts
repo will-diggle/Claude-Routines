@@ -228,23 +228,44 @@ export async function prefetchDictionaryForArticles(
   for (const a of articles) {
     for (const w of tokenise(`${a.headline} ${a.body}`)) allWords.add(w);
   }
+  // Elided words ("d'analyses", "l'affaire", "qu'un") are ONE token here,
+  // but a real tap resolves via the pipeline's tokenMap to just the content
+  // word ("analyses") — the elided string itself never gets its own
+  // word_forms row. Checking/fetching coverage by the whole elided string
+  // made an already-fully-covered word report (and keep re-fetching) as
+  // permanently missing — this is what the "496/668 downloaded" counter
+  // was actually showing, not a real gap. Resolve to the content word for
+  // coverage purposes; only fall back to the literal word if there's no
+  // apostrophe or the suffix is too short to be a real word on its own.
+  const checkWord = (w: string): string => {
+    if (!w.includes("'")) return w;
+    const suffix = w.split("'").pop()!;
+    return suffix.length >= 2 ? suffix : w;
+  };
   // "Missing" is per bare word, not per sense — once ANY sense of a word has
   // been prefetched, a second sense that appears in a LATER day's dictionary
   // won't be separately backfilled here. Matches this cache's existing
   // "today's brief is a snapshot" trade-off rather than a live sync.
-  const missing = Array.from(allWords).filter((w) => sensesFor(dict, w).length === 0);
+  const missingCheckWords = Array.from(new Set(Array.from(allWords, checkWord)))
+    .filter((w) => sensesFor(dict, w).length === 0);
   const total = allWords.size;
   const store = useDictionaryPrefetchStore.getState();
 
-  if (missing.length === 0) {
+  const countFound = (newlyFoundWords: Set<string>): number =>
+    Array.from(allWords).filter((w) => {
+      const cw = checkWord(w);
+      return sensesFor(dict, cw).length > 0 || newlyFoundWords.has(cw);
+    }).length;
+
+  if (missingCheckWords.length === 0) {
     await saveDict(lang, level, dict); // persist lastPrefetchDate even when nothing new to fetch
-    store.setDone(lang, total);
+    store.setDone(lang, countFound(new Set()));
     return;
   }
   store.setLoading(lang, total);
 
   try {
-    const entries = await fetchWordFormsFromSupabase(lang, missing);
+    const entries = await fetchWordFormsFromSupabase(lang, missingCheckWords);
     for (const entry of entries) {
       const key = entryKey(entry.word, entry.wordType);
       if (!(key in dict.entries)) dict.order.push(key);
@@ -255,13 +276,12 @@ export async function prefetchDictionaryForArticles(
       if (oldest) delete dict.entries[oldest];
     }
     await saveDict(lang, level, dict);
-    // "found" = words already cached before this run + newly fetched this run —
-    // may be less than `total` when some words (proper nouns, gaps) aren't in
-    // the dictionary at all. That's honest signal, not a bug to hide. Counted
-    // by unique WORD, not by row — a homograph can now return more than one
-    // row per word, which must never inflate this past `total`.
-    const newlyFoundWords = new Set(entries.map((e) => e.word.toLowerCase())).size;
-    store.setDone(lang, total - missing.length + newlyFoundWords);
+    // "found" = original words (not check-words) whose resolved content word
+    // is now covered — may be less than `total` when some words (proper
+    // nouns, gaps) genuinely aren't in the dictionary at all. That's honest
+    // signal, not a bug to hide.
+    const newlyFoundWords = new Set(entries.map((e) => e.word.toLowerCase()));
+    store.setDone(lang, countFound(newlyFoundWords));
   } catch {
     store.setError(lang);
     // Background prefetch only — silent failure, per-tap lookupWord() still works
