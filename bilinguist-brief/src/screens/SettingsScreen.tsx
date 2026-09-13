@@ -1450,25 +1450,36 @@ export function SettingsScreen() {
               </Text>
             </ScrollView>
 
-            {/* Top fade — matches BriefingScreen's status-bar fade exactly
-                (see its "Status-bar fade" comment): a plain LinearGradient,
-                no BlurView at all. Every earlier attempt here tried to make
-                an actual optical blur taper smoothly (stacked BlurViews,
-                then a masked BlurView) — but the already-proven pattern
-                elsewhere in this app was never a real blur gradient in the
-                first place, just a translucent colour fade. Sits behind the
-                title row (zIndex 2), in front of the ScrollView (zIndex 0). */}
+            {/* Top fade — a plain LinearGradient (matches BriefingScreen's
+                status-bar fade — no BlurView involved, see git history for
+                two earlier attempts that assumed an optical blur was
+                needed; it wasn't). The first version used 5 EVENLY-SPACED
+                alpha stops (E6/B3/80/40/00 at 0/.25/.5/.75/1) — a straight
+                linear ramp. Linear alpha does not look linear: human
+                perception of opacity/contrast against a background is
+                non-linear, so an evenly-stepped ramp reads as a near-instant
+                snap rather than a steady taper. Fixed with a 9-stop
+                "smoothstep" curve (3t²-2t³, an S-curve easing in and out at
+                both ends) — the standard technique for a fade that actually
+                looks steady rather than abrupt. Sits behind the title row
+                (zIndex 2), in front of the ScrollView (zIndex 0). */}
             <LinearGradient
               pointerEvents="none"
-              colors={[colors.bg + 'E6', colors.bg + 'B3', colors.bg + '80', colors.bg + '40', colors.bg + '00'] as any}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              colors={[
+                colors.bg + 'FF', colors.bg + 'F4', colors.bg + 'D7', colors.bg + 'AF',
+                colors.bg + '80', colors.bg + '51', colors.bg + '28', colors.bg + '0B', colors.bg + '00',
+              ] as any}
+              locations={[0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]}
               style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
             />
-            {/* Bottom fade — same treatment, mirrored */}
+            {/* Bottom fade — same smoothstep curve, mirrored */}
             <LinearGradient
               pointerEvents="none"
-              colors={[colors.bg + '00', colors.bg + '40', colors.bg + '80', colors.bg + 'B3', colors.bg + 'E6'] as any}
-              locations={[0, 0.25, 0.5, 0.75, 1]}
+              colors={[
+                colors.bg + '00', colors.bg + '0B', colors.bg + '28', colors.bg + '51',
+                colors.bg + '80', colors.bg + 'AF', colors.bg + 'D7', colors.bg + 'F4', colors.bg + 'FF',
+              ] as any}
+              locations={[0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]}
               style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: insets.bottom + Spacing.xl, zIndex: 1 }}
             />
           </Animated.View>
