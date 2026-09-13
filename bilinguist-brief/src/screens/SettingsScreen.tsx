@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
 import { SectionHeader, SegmentedControl, TimeInput, DisplayPreview } from '../components/settings/SettingsControls';
@@ -1451,25 +1450,14 @@ export function SettingsScreen() {
               </Text>
             </ScrollView>
 
-            {/* Top fade — expo-blur has no gradient-of-blur support (a single
-                BlurView is uniformly blurred across its whole rect, so its
-                bottom edge is a hard blur/no-blur seam no matter how smooth
-                the colour overlay on top of it is). Approximated here by
-                stacking BlurViews of shrinking height/intensity, all anchored
-                to the same edge so they overlap — the region nearest the
-                title accumulates every layer (most blur), each band further
-                in drops a layer, tapering the TOTAL blur out in steps small
-                enough to read as a gradient rather than a cliff. Sits behind
-                the title row (zIndex 2), in front of the ScrollView (zIndex 0). */}
-            {[16, 12, 8, 4].map((intensity, i) => (
-              <BlurView
-                key={`top-blur-${i}`}
-                intensity={intensity}
-                tint={isDark ? 'dark' : 'light'}
-                pointerEvents="none"
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: (Spacing.md + 66) * (1 - i * 0.22), zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }}
-              />
-            ))}
+            {/* Top fade — matches BriefingScreen's status-bar fade exactly
+                (see its "Status-bar fade" comment): a plain LinearGradient,
+                no BlurView at all. Every earlier attempt here tried to make
+                an actual optical blur taper smoothly (stacked BlurViews,
+                then a masked BlurView) — but the already-proven pattern
+                elsewhere in this app was never a real blur gradient in the
+                first place, just a translucent colour fade. Sits behind the
+                title row (zIndex 2), in front of the ScrollView (zIndex 0). */}
             <LinearGradient
               pointerEvents="none"
               colors={[colors.bg + 'E6', colors.bg + 'B3', colors.bg + '80', colors.bg + '40', colors.bg + '00'] as any}
@@ -1477,15 +1465,6 @@ export function SettingsScreen() {
               style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
             />
             {/* Bottom fade — same treatment, mirrored */}
-            {[16, 12, 8, 4].map((intensity, i) => (
-              <BlurView
-                key={`bottom-blur-${i}`}
-                intensity={intensity}
-                tint={isDark ? 'dark' : 'light'}
-                pointerEvents="none"
-                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: (insets.bottom + Spacing.xl) * (1 - i * 0.22), zIndex: 1, overflow: 'hidden' }}
-              />
-            ))}
             <LinearGradient
               pointerEvents="none"
               colors={[colors.bg + '00', colors.bg + '40', colors.bg + '80', colors.bg + 'B3', colors.bg + 'E6'] as any}
