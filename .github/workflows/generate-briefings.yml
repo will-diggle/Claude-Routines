@@ -174,7 +174,15 @@ jobs:
         # (2B/2S/2M) and level grading (4b); native grading (4a) and native fact-check (5b,
         # a separate step below) stay standard tier. Change SERVICE_TIER_BY_STAGE directly
         # to adjust which stages are on Flex, not this workflow file.
-        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native --all-levels
+        # --all-levels removed 2026-09-14 (Will's request, testing-phase cost cut): it
+        # makes every language with a native edition write EVERY CEFR level below its
+        # native grade, overriding LANGUAGE_LEVELS' specific per-language list entirely
+        # -- confirmed live on the 2026-09-14 run, where LANGUAGE_LEVELS restricted
+        # French to B1 only but it still wrote A1/A2/B1 (everything below its B2 native
+        # grade). Without the flag, _active_levels() falls back to LANGUAGE_LEVELS as
+        # written, so fr=B1-only/de=A2-only/es=A2-only are actually honoured. Add
+        # --all-levels back to restore "every level below native" for all languages.
+        run: python bilinguist_write.py --date ${{ env.BRIEF_DATE }} --per-article --workers 16 --levels-from native
 
       - name: Stage 9 - Check & Publish
         working-directory: bilinguist-brief/scripts

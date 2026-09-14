@@ -21,36 +21,27 @@ from bilinguist_prompts import LANGUAGE_WORD_FACTOR, word_band, word_band_for_le
 
 # Every active language now writes every CEFR level below its own native grade
 # (bilinguist_write.py --all-levels, production default since 2026-08-11), not just a
-# fixed per-language subset. This module deliberately does NOT import bilinguist_write
-# (which pulls in google.genai — Stage 9 (Check & Publish) makes no API calls and should stay lightweight),
-# so this list is kept in sync by hand: every active language gets the full ladder: which
-# levels actually got written is still decided per-bundle by native_grades (skip_from_idx
-# below), same as the write side. Before this fix, fr/de/it only checked A2, sv/en checked
-# nothing beyond native, and es checked A2 only — every B1+ article Stage 7 now writes for
-# them was invisible here: not flagged, not word-counted, not counted toward coverage.
-LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
-    "de": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
-    "sv": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
-    "en": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
-    "it": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
-    "es": ["A1", "A2", "B1", "B2", "C1", "C2"],  # no shipped Native edition
-    "pt": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],  # Brazilian Portuguese trial
-    "tr": [],  # temporarily disabled
-    "hu": [],  # temporarily disabled
-    "ar": [],  # temporarily disabled
-}
+# fixed per-language subset. Which levels/lengths are actually active is decided
+# per-bundle by native_grades (skip_from_idx below), same as the write side.
+#
+# LANGUAGE_LEVELS and ACTIVE_LENGTHS are imported from write.py, not restated here --
+# same fix as TEST_MATRIX below, and for the same reason: on 2026-08-23 this file's own
+# hand-copied matrix (13 combos vs. write.py's actual 60) reported coverage as 19/60 =
+# 32%, fell under PUBLISH_THRESHOLD, and a brief that had generated correctly was
+# withheld. Repeated 2026-09-14 the same way for a fresh reduction to
+# levels/lengths/genres -- LANGUAGE_LEVELS was still hand-copied then (ACTIVE_LENGTHS
+# didn't exist yet), 54 intentionally-skipped combos read as failures, coverage hit
+# 18/72, another correctly-generated brief got withheld. Importing both means neither
+# can drift out of sync again. LENGTHS stays a plain constant below -- it's the table's
+# column structure (always show an S and an L column), a different job from
+# ACTIVE_LENGTHS (what's actually expected to exist for the coverage count).
+from bilinguist_write import LANGUAGE_LEVELS, ACTIVE_LENGTHS  # noqa: F401
 
 LENGTHS = ["short", "longer"]
 
 # What the write stage was actually ASKED to produce. bilinguist_write.TEST_MATRIX pins
 # the CEFR stages to an explicit (language, level, length) list while the pipeline is
-# being tuned; when it is empty the full LANGUAGE_LEVELS matrix above applies.
-#
-# This MUST be read from write.py rather than restated here. On 2026-08-23 the matrix was
-# cut to 13 combos but this file still expected all 60, so coverage read 19/60 = 32%,
-# fell under PUBLISH_THRESHOLD, and a brief that had generated correctly was withheld.
-# Importing it means the two can never drift again.
+# being tuned; when it is empty the full LANGUAGE_LEVELS/ACTIVE_LENGTHS matrix applies.
 from bilinguist_write import TEST_MATRIX as _WRITE_TEST_MATRIX
 
 _EXPECTED_CEFR = {(l, lv, ln) for l, lv, ln in _WRITE_TEST_MATRIX}
@@ -782,6 +773,8 @@ def check(bundle_path: Path) -> int:
                     # A reduced matrix means these were never requested. Counting them as
                     # missing would punish the run for doing exactly what it was told.
                     if _EXPECTED_CEFR and (lang, level, length) not in _EXPECTED_CEFR:
+                        continue
+                    if length not in ACTIVE_LENGTHS:
                         continue
                     total += 1
                     key = f"{lang_name} {level}/{length}"
