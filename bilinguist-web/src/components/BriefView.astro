@@ -29,10 +29,23 @@
   </div>
 </section>
 
+<template id="coming-soon-template">
+  <div class="coming-soon-overlay">
+    <p class="micro-label coming-soon-label">Coming Soon</p>
+    <h2 class="coming-soon-heading">Bilinguist Brief</h2>
+    <p class="tagline coming-soon-tagline">We're putting the finishing touches on things — leave your name and we'll let you know the moment it's ready.</p>
+    <form class="coming-soon-form">
+      <input type="text" class="coming-soon-input" placeholder="Your name" autocomplete="name" required />
+      <button type="submit" class="coming-soon-submit">Notify me</button>
+    </form>
+    <p class="meta-text coming-soon-thanks" hidden>Thanks — we'll be in touch when we launch.</p>
+  </div>
+</template>
+
 <script>
   import { loadPreferences } from '../lib/preferences';
   import { fetchBrief, type BriefArticle } from '../lib/brief';
-  import { langInfo, translateGenre, genreColor, PHRASE_POOL, type LanguageCode } from '../lib/config';
+  import { langInfo, translateGenre, genreColor, PHRASE_POOL, COMING_SOON, type LanguageCode } from '../lib/config';
 
   const loadingEl = document.getElementById('brief-loading') as HTMLDivElement;
   const statusEl = document.getElementById('brief-status') as HTMLDivElement;
@@ -142,6 +155,20 @@
     }
   }
 
+  function setUpComingSoonGate() {
+    const wrap = contentEl.querySelector('.columns-wrap') as HTMLDivElement;
+    const template = document.getElementById('coming-soon-template') as HTMLTemplateElement;
+    wrap.appendChild(template.content.cloneNode(true));
+
+    const form = wrap.querySelector('.coming-soon-form') as HTMLFormElement;
+    const thanks = wrap.querySelector('.coming-soon-thanks') as HTMLParagraphElement;
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      form.hidden = true;
+      thanks.hidden = false;
+    });
+  }
+
   async function loadAndRender() {
     const prefs = loadPreferences();
     showLoading(prefs.language);
@@ -174,7 +201,12 @@
       .map((a, i) => renderArticle(a, prefs.language, i, brief.articles.length))
       .join('');
 
-    contentEl.innerHTML = edition + `<div class="columns">${articlesHtml}</div>`;
+    const columnsHtml = `<div class="columns${COMING_SOON ? ' columns-gated' : ''}">${articlesHtml}</div>`;
+    contentEl.innerHTML = COMING_SOON
+      ? edition + `<div class="columns-wrap">${columnsHtml}</div>`
+      : edition + columnsHtml;
+
+    if (COMING_SOON) setUpComingSoonGate();
 
     // Tell the selector bar which genres are actually present today.
     const seen = new Set<string>();
@@ -299,6 +331,84 @@
   :global(.article-divider) {
     margin: var(--space-lg) 0;
     break-inside: avoid;
+  }
+
+  :global(.columns-wrap) {
+    position: relative;
+  }
+
+  :global(.columns-gated) {
+    filter: blur(6px);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  :global(.coming-soon-overlay) {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-sm);
+    padding: var(--space-lg);
+    background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  }
+
+  :global(.coming-soon-label) {
+    color: var(--color-accent-gold);
+  }
+
+  :global(.coming-soon-heading) {
+    font-size: var(--font-headline);
+    color: var(--color-ink-dark);
+    margin: 0;
+  }
+
+  :global(.coming-soon-tagline) {
+    max-width: 360px;
+    color: var(--color-ink-light);
+    margin: 0 0 var(--space-sm);
+  }
+
+  :global(.coming-soon-form) {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  /* .coming-soon-form[hidden] must win over display:flex below — see the
+     ProfileButton panel fix for why an unconditional display here would
+     otherwise beat the UA stylesheet's [hidden] rule regardless of the
+     hidden property being set from JS. */
+  :global(.coming-soon-form:not([hidden])) {
+    display: flex;
+  }
+
+  :global(.coming-soon-input) {
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-dark);
+    background: var(--color-card);
+    border: var(--hairline-width) solid var(--color-border-mid);
+    padding: var(--space-sm) var(--space-md);
+    min-width: 200px;
+  }
+
+  :global(.coming-soon-submit) {
+    font-family: var(--font-body-family);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: var(--color-bg);
+    background: var(--color-ink-dark);
+    border: none;
+    padding: var(--space-sm) var(--space-lg);
+    cursor: pointer;
+  }
+
+  :global(.coming-soon-thanks) {
+    margin: 0;
   }
 </style>
 

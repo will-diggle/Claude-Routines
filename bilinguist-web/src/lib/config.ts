@@ -7,6 +7,11 @@ export type ThemeKey = 'white' | 'cream' | 'softGrey' | 'night';
 export type FontKey = 'lora' | 'garamond' | 'playfair' | 'times';
 export type ReadLength = 'short' | 'longer';
 
+// Pre-launch gate: blurs the brief text behind a "Coming Soon" notice with a
+// name field (cosmetic only — nothing is stored or sent anywhere). Flip to
+// false once the site is ready to show real content to the public.
+export const COMING_SOON = true;
+
 export interface LanguageInfo {
   code: LanguageCode;
   name: string;
