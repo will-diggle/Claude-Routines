@@ -511,12 +511,15 @@ CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"]
 # ── Language / level matrix ───────────────────────────────────────────────────
 # Testing phase matrix — add languages/levels here as pipeline is validated.
 
+# Narrowed 2026-09-14 (Will's request) -- cost cut for the testing phase, not a
+# permanent change. Nothing deleted, just emptied out the same way tr/hu/ar
+# already were; restore each language's real level list to re-activate it.
 LANGUAGE_LEVELS: dict[str, list[str]] = {
-    "fr": ["A2", "Native"],
+    "fr": ["B1", "Native"],
     "de": ["A2", "Native"],
-    "sv": ["Native"],
+    "sv": [],  # temporarily disabled to cut prompt cost during testing
     "en": ["Native"],
-    "it": ["A2", "Native"],
+    "it": [],  # temporarily disabled to cut prompt cost during testing
     # "Native" added 2026-09-05 (Will's request) -- Spanish's native-grade
     # article was already written, graded and fact-checked every run (it was
     # never gated on this list, see NATIVE_INTERMEDIATE), just never exposed
@@ -526,7 +529,7 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "es": ["A2", "Native"],
     # NEW 2026-08-22 — Brazilian Portuguese trial. Full level set so the prompt can be
     # judged across the whole range; "pt" + VARIANT_RULES pins Brazilian over European.
-    "pt": ["A1", "A2", "B1", "B2", "C1", "C2", "Native"],
+    "pt": [],  # temporarily disabled to cut prompt cost during testing (was full C1/C2 trial)
     "tr": [],  # temporarily disabled to cut prompt cost during testing
     "hu": [],  # temporarily disabled to cut prompt cost during testing
     "ar": [],  # temporarily disabled to cut prompt cost during testing
@@ -631,6 +634,12 @@ NATIVE_INTERMEDIATE = [l for l in ACTIVE_LANGUAGES if "Native" not in LANGUAGE_L
 # ]
 TEST_MATRIX: list[tuple[str, str, str]] = []
 
+# ACTIVE_LENGTHS: which lengths actually get written, for both CEFR-level articles
+# (build_combinations) and native journalism. Narrowed to "longer" only 2026-09-14
+# (Will's request) -- testing-phase cost cut, not permanent. Restore to
+# ("short", "longer") to re-activate short articles.
+ACTIVE_LENGTHS: tuple[str, ...] = ("longer",)
+
 
 # ── Combination matrix ────────────────────────────────────────────────────────
 
@@ -706,8 +715,10 @@ def build_combinations(
                 continue
             if CEFR_ORDER.index(level) >= skip_from_idx:
                 continue  # at or above native grade — skip
-            combos_2s.append((lang, level, "short"))
-            combos_2m.append((lang, level, "longer"))
+            if "short" in ACTIVE_LENGTHS:
+                combos_2s.append((lang, level, "short"))
+            if "longer" in ACTIVE_LENGTHS:
+                combos_2m.append((lang, level, "longer"))
 
     return combos_2s, combos_2m
 
@@ -1933,7 +1944,7 @@ def run_native_journalism(
                         out[lang] = article
         return out
 
-    chains = [(story, length) for story in factbase for length in ("short", "longer")]
+    chains = [(story, length) for story in factbase for length in ACTIVE_LENGTHS]
     slug_order = {(s.get("slug") or "").strip(): i for i, s in enumerate(factbase)}
     native_journalism: dict = {lang: {"short": [], "longer": []} for lang in native_langs}
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:

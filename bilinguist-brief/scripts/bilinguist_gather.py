@@ -197,18 +197,21 @@ GENRE_CONFIG = {
         "description": "Significant UK news — politics, society, economy, major national events. "
                         "Not politics-only.",
     },
-    "BUSINESS & ECONOMY": {
-        "count": 2,
-        "description": "Significant market, economic, or corporate developments.",
-    },
+    # Disabled 2026-09-14 (Will's request) -- testing-phase cost cut, not permanent.
+    # Uncomment to re-activate; nothing else about it changed.
+    # "BUSINESS & ECONOMY": {
+    #     "count": 2,
+    #     "description": "Significant market, economic, or corporate developments.",
+    # },
     # New 2026-09-06. Direct-outlet feeds (Der Spiegel, Politico Europe,
     # Guardian's Europe section) -- audited directly, see
     # test_new_genre_selection.py. Deliberately not UK- or US-specific.
-    "EU": {
-        "count": 2,
-        "description": "Significant European news — politics, society, economy, major events "
-                        "across the continent. Not UK-specific, not US-specific.",
-    },
+    # Disabled 2026-09-14 (Will's request) -- testing-phase cost cut, not permanent.
+    # "EU": {
+    #     "count": 2,
+    #     "description": "Significant European news — politics, society, economy, major events "
+    #                     "across the continent. Not UK-specific, not US-specific.",
+    # },
     # New 2026-09-06. Direct-outlet feeds (NYT, Washington Post, NPR, BBC's
     # US & Canada section) -- audited directly, see test_new_genre_selection.py.
     "US": {
