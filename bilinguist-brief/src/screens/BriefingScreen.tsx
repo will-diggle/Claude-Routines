@@ -655,7 +655,7 @@ export function BriefingScreen() {
           }
           const displayBriefing = briefingMatches
             ? stored
-            : (lastValidBriefingsRef.current[lang.code] ?? undefined);
+            : (lastValidBriefingsRef.current[lang.code] ?? stored ?? undefined);
           const isTransitioning = !briefingMatches && !!lastValidBriefingsRef.current[lang.code];
 
           // All active cities, each translated into this page's language
