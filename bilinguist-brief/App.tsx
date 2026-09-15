@@ -57,6 +57,7 @@ import { startSubscriptionSync } from './src/store/useSubscriptionStore';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
 import { useStreakStore, getStreakSnapshot } from './src/store/useStreakStore';
 import { migrateAnonymousData, reconcileStreaks } from './src/services/streakSync';
+import { useAuthDeepLink } from './src/hooks/useAuthDeepLink';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -109,6 +110,8 @@ function AppContent() {
           appIcon } = useSettingsStore();
   const lastReadDates = useStreakStore((s) => s.lastReadDates);
   const setSession = useAuthStore((s) => s.setSession);
+
+  useAuthDeepLink();
 
   // Deduplicate streak sync calls within this session (avoids double-sync on
   // getSession + INITIAL_SESSION both firing for the same persisted session).
