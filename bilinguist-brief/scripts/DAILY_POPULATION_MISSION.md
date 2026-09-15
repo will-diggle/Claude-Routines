@@ -122,6 +122,25 @@ confirm every `agent(` call has it.
    errored agents, a sync failure), say exactly what failed and where things
    were left — don't silently retry indefinitely or guess at a fix.
 
+   **Specifically call out the `auto_resolved` count** (in `summary_{tag}.json`
+   and the console output) — this is the fix added 2026-09-12 that resolves
+   already-known-lemma candidates for free instead of sending them through
+   paid generation. Will wants this watched day over day: report it
+   explicitly (e.g. "N words auto-resolved for free today, M sent to
+   generation") so it's visible whether the fix is actually holding up, not
+   just whether truly-new hit 0. A day where auto_resolved is suspiciously
+   low despite a normal-sized brief could mean the tokenMap lemma lookup
+   silently isn't matching (e.g. a bundle schema change) — worth a sentence
+   of comment if that ever looks off, not silently ignored.
+
+   Also worth a quick spot-check every few days (not necessarily every
+   single run): re-run `python3 merge_lemma_collisions.py --dry-run` and
+   see if the "safe collisions to merge" count is climbing again — that
+   would mean the tightened lemma-field prompt (in
+   `output/populate_0911_workflow.js`, copied into each day's version) isn't
+   actually preventing new duplicate lemma entries, and the fix needs
+   revisiting rather than just re-running the merge on autopilot.
+
 ## What NOT to do
 
 - Don't touch `bilinguist-brief/src/**` or `bilinguist-worker/src/**` (app

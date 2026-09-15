@@ -51,11 +51,45 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 
 
+def load_token_lemma_maps(tag):
+    """surface(lowercase) -> spaCy lemma(lowercase), per language, from that
+    day's cached bundle. Used to catch a generated entry whose OWN `lemma`
+    field is actually just an inflected form of something else (e.g. Haiku
+    returning lemma="allée" instead of "aller") BEFORE it's ever written —
+    see 2026-09-12/13 session notes: the generation-prompt instruction
+    alone cut this but didn't eliminate it (9 new collisions appeared on
+    2026-09-13 despite the tightened prompt), so this is a second,
+    structural line of defense rather than relying on prompt compliance."""
+    path = SCRIPT_DIR / "output" / f"brief_{tag}.json"
+    if not path.exists():
+        return {}
+    bundle = json.load(open(path, encoding="utf-8"))
+    maps = {}
+
+    def scan(lang, articles):
+        for a in articles:
+            for t in a.get("tokenMap") or []:
+                surf = (t.get("surface") or "").lower()
+                lemma = (t.get("lemma") or "").lower()
+                if surf and lemma:
+                    maps.setdefault(lang, {}).setdefault(surf, lemma)
+
+    for lang, native in bundle.get("nativeJournalism", {}).items():
+        for articles in native.values():
+            scan(lang, articles)
+    for lang, levels in bundle.get("briefings", {}).items():
+        for lengths in levels.values():
+            for section in lengths.values():
+                scan(lang, section.get("articles", []))
+    return maps
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--result-json", help="Workflow's own [{lang, idx, entries}] return value — preferred, see module docstring")
     ap.add_argument("--journal", help="Fallback: journal.jsonl path, used with --batch-glob")
     ap.add_argument("--batch-glob", help='Fallback: e.g. "output/final0911_*.json" or "output/final_pn_0911_*.json"')
+    ap.add_argument("--tag", help="Date tag (e.g. 0913) — enables pre-write lemma-collision correction against that day's cached bundle tokenMap. Strongly recommended.")
     ap.add_argument("--out", required=True)
     ap.add_argument("--write", action="store_true", help="Upsert to Supabase via dict_writer.py")
     args = ap.parse_args()
@@ -129,6 +163,79 @@ def main():
     deduped = [v[1] for v in best_by_key.values()]
     raw_count = sum(len(entries) for _, entries in matched)
     print(f"{raw_count} raw entries -> {len(deduped)} deduped entries")
+
+    # Pre-write lemma-collision correction: only for word_types where an
+    # inflected-form-as-lemma mistake is mechanically unambiguous to fix
+    # (verb/noun/adjective) — never closed-class (articles/pronouns/
+    # determiners), where spaCy's own lemmatizer is markedly less reliable
+    # and an auto-correction risks introducing a wrong result instead of
+    # fixing one (mirrors merge_lemma_collisions.py's same safety split).
+    #
+    # CRITICAL SAFETY RULE, added 2026-09-13 after a real incident: only
+    # correct TO a lemma that ALREADY independently exists in the
+    # dictionary (from before this run). The first version of this trusted
+    # spaCy's tokenMap lemma tag blindly and wrote real garbage as a result
+    # — e.g. Swedish "neutralitet" "corrected" to "neutralit" (not a word),
+    # "ögonblick" to "ögonblå" (not a word), Italian "irlandese" to
+    # "irlandendere" (not a word). spaCy's lemmatizer is unreliable enough,
+    # especially on compounds and less-common words, that its output must
+    # never be trusted as ground truth on its own — only as CORROBORATION
+    # of something already independently verified (i.e. a real lemma
+    # someone/something else already created a dictionary entry for).
+    # Never trust an unvalidated NLP tag as a silent correction to real data.
+    SAFE_WORD_TYPES = {"verb", "noun", "adjective"}
+    if args.tag:
+        token_lemma_maps = load_token_lemma_maps(args.tag)
+        # Read-only, so runs regardless of --write — a dry run should preview
+        # the same corrections a real write would actually apply.
+        existing_lemmas_by_lang = {}
+        import dict_writer
+        from supabase import create_client
+        supa = create_client(dict_writer.SUPABASE_URL, dict_writer.SUPABASE_KEY)
+        for lang in {e["language"] for e in deduped}:
+            start, page, lemmas = 0, 1000, set()
+            while True:
+                r = supa.table("word_dictionary").select("lemma").eq("language", lang).order("id").range(start, start + page - 1).execute()
+                if not r.data:
+                    break
+                lemmas.update(row["lemma"].lower() for row in r.data if row.get("lemma"))
+                if len(r.data) < page:
+                    break
+                start += page
+            existing_lemmas_by_lang[lang] = lemmas
+        corrected = 0
+        for e in deduped:
+            word_type = str(e.get("word_type", "")).lower()
+            if word_type not in SAFE_WORD_TYPES:
+                continue
+            lang_map = token_lemma_maps.get(e["language"], {})
+            declared_lemma = str(e.get("lemma", "")).strip().lower()
+            true_lemma = lang_map.get(declared_lemma)
+            if not true_lemma or true_lemma == declared_lemma:
+                continue
+            if true_lemma not in existing_lemmas_by_lang.get(e["language"], set()):
+                print(f"  [lemma-fix SKIPPED, unverified] {e['language']}: \"{declared_lemma}\" -> \"{true_lemma}\" is not an existing lemma — spaCy tag alone isn't trusted, keeping \"{declared_lemma}\" (word={e.get('word')})")
+                continue
+            print(f"  [lemma-fix] {e['language']}: \"{declared_lemma}\" -> \"{true_lemma}\" (word={e.get('word')})")
+            e["lemma"] = true_lemma
+            corrected += 1
+        if corrected:
+            print(f"Corrected {corrected} mis-resolved lemma(s) before writing (see above)")
+            # Correcting lemmas can make two originally-distinct entries land
+            # on the same (language, lemma, word_type) key — re-dedupe,
+            # richest data wins, same rule as the first pass.
+            re_deduped = {}
+            for e in deduped:
+                dkey = (e["language"], str(e.get("lemma", "")).strip().lower(), str(e.get("word_type", "other")).lower())
+                richness = len(json.dumps(e.get("data") or {}))
+                prev = re_deduped.get(dkey)
+                if prev is None or richness > prev[0]:
+                    re_deduped[dkey] = (richness, e)
+            if len(re_deduped) < len(deduped):
+                print(f"  (lemma correction merged {len(deduped) - len(re_deduped)} newly-colliding entries)")
+            deduped = [v[1] for v in re_deduped.values()]
+    else:
+        print("WARNING: no --tag given, skipping pre-write lemma-collision correction — pass --tag to enable it")
 
     from collections import defaultdict
     by_lang = defaultdict(int)
