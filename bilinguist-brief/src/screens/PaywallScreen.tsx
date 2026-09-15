@@ -39,12 +39,18 @@ interface Props {
 export function PaywallScreen({ onClose }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const insets = useSafeAreaInsets();
-  const { applyPromoCode, activateRevenueCat, restore, isFullAccess } = useSubscriptionStore();
+  const { applyPromoCode, purchase, restore, loadPackages, packages, purchaseInProgress } = useSubscriptionStore();
 
   const [promoVisible, setPromoVisible] = useState(false);
   const [promoInput, setPromoInput] = useState('');
 
-  useEffect(() => { analytics.trackPaywallShown(); }, []);
+  useEffect(() => {
+    analytics.trackPaywallShown();
+    loadPackages();
+  }, []);
+
+  const monthlyPackage = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
+  const priceValue = monthlyPackage?.product.priceString ?? '£3.50';
 
   function handlePromoSubmit() {
     const result = applyPromoCode(promoInput);
@@ -59,18 +65,36 @@ export function PaywallScreen({ onClose }: Props) {
     }
   }
 
-  function handleSubscribe() {
-    // RevenueCat purchase flow — stub
-    // Production: await Purchases.purchasePackage(package); analytics.trackSubscriptionStarted(plan)
-    Alert.alert(
-      'Subscription',
-      'Add your RevenueCat API key to enable in-app purchases.\n\nFor testing, use your promo code instead.',
-      [{ text: 'OK' }]
-    );
+  async function handleSubscribe() {
+    if (!monthlyPackage) {
+      Alert.alert(
+        'Subscription unavailable',
+        'Add your RevenueCat API key and configure an offering to enable in-app purchases.\n\nFor testing, use your promo code instead.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    const result = await purchase(monthlyPackage);
+    if (result === 'success') {
+      analytics.trackSubscriptionStarted(monthlyPackage.identifier);
+      Alert.alert('Subscribed', 'You now have full access to Bilinguist Brief.');
+      onClose?.();
+    } else if (result === 'error') {
+      Alert.alert('Purchase failed', 'Something went wrong completing the purchase. Please try again.');
+    }
+    // 'cancelled' — user backed out of the native purchase sheet, no alert needed.
   }
 
-  function handleRestore() {
-    Alert.alert('Restore', 'Add your RevenueCat API key to enable purchase restoration.');
+  async function handleRestore() {
+    const result = await restore();
+    if (result === 'success') {
+      Alert.alert('Restored', 'Your purchase has been restored.');
+      onClose?.();
+    } else if (result === 'no_purchases') {
+      Alert.alert('Nothing to restore', "We couldn't find a previous purchase for this account.");
+    } else {
+      Alert.alert('Restore failed', 'Something went wrong. Please try again.');
+    }
   }
 
   return (
@@ -101,7 +125,7 @@ export function PaywallScreen({ onClose }: Props) {
 
         {/* Pricing */}
         <View style={[styles.priceCard, { backgroundColor: colors.accentGold }]}>
-          <Text style={[styles.price, { fontFamily: fontFamily.bold }]}>£3.50</Text>
+          <Text style={[styles.price, { fontFamily: fontFamily.bold }]}>{priceValue}</Text>
           <Text style={[styles.priceLabel, { fontFamily: fontFamily.regular }]}>per month · cancel anytime</Text>
         </View>
 
@@ -134,8 +158,14 @@ export function PaywallScreen({ onClose }: Props) {
         </View>
 
         {/* Subscribe button */}
-        <TouchableOpacity style={[styles.subscribeButton, { backgroundColor: colors.accentGold }]} onPress={handleSubscribe}>
-          <Text style={[styles.subscribeText, { fontFamily: fontFamily.bold }]}>Subscribe — £3.50/month</Text>
+        <TouchableOpacity
+          style={[styles.subscribeButton, { backgroundColor: colors.accentGold, opacity: purchaseInProgress ? 0.6 : 1 }]}
+          onPress={handleSubscribe}
+          disabled={purchaseInProgress}
+        >
+          <Text style={[styles.subscribeText, { fontFamily: fontFamily.bold }]}>
+            {purchaseInProgress ? 'Processing…' : `Subscribe — ${priceValue}/month`}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleRestore} style={styles.restoreRow}>

@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
+import { identifyUser, resetIdentity } from '../services/analytics';
+import { loginPurchasesUser, logoutPurchasesUser } from '../services/purchases';
+import { useSubscriptionStore } from './useSubscriptionStore';
 import type { Session } from '@supabase/supabase-js';
 
 function generateAnonymousId(): string {
@@ -26,11 +29,26 @@ export const useAuthStore = create<AuthStore>()(
       session: null,
       anonymousId: generateAnonymousId(),
 
-      setSession: (session) => set({ session }),
+      setSession: (session) => {
+        set({ session });
+        if (session?.user) {
+          identifyUser(session.user.id, {
+            email: session.user.email,
+            name: sessionDisplayName(session),
+          });
+          loginPurchasesUser(session.user.id).then((info) => {
+            useSubscriptionStore.getState().syncFromCustomerInfo(info);
+          });
+        } else {
+          resetIdentity();
+        }
+      },
 
       signOut: async () => {
         if (supabase) await supabase.auth.signOut().catch(() => {});
         set({ session: null });
+        resetIdentity();
+        logoutPurchasesUser();
       },
 
       refresh: async () => {

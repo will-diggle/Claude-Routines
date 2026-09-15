@@ -52,6 +52,8 @@ function safeSetAppIcon(icon: string | null) {
 }
 import { lookupWord } from './src/services/wordService';
 import * as analytics from './src/services/analytics';
+import { initPurchases } from './src/services/purchases';
+import { startSubscriptionSync } from './src/store/useSubscriptionStore';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
 import { useStreakStore, getStreakSnapshot } from './src/store/useStreakStore';
 import { migrateAnonymousData, reconcileStreaks } from './src/services/streakSync';
@@ -306,12 +308,15 @@ const SPINNER_COLORS: Record<string, string> = {
 export default function App() {
   useEffect(() => {
     analytics.initAnalytics();
+    initPurchases();
+    const unsubscribeSubscriptionSync = startSubscriptionSync();
     const langs = useSettingsStore.getState().languages.filter(l => l.active);
     const streaks = useStreakStore.getState().readingStreaks;
     analytics.trackAppOpened(
       langs.map(l => l.code),
       Object.fromEntries(langs.map(l => [l.code, (streaks as Record<string, number>)[l.code] ?? 0])),
     );
+    return unsubscribeSubscriptionSync;
   }, []);
 
   const [fontsLoaded] = useFonts({
