@@ -33,20 +33,24 @@ function resolveParticleViaTokenMap(
   particlePos: number,
   tokens: Map<number, TokenMapEntry>,
 ): { compound: string; verbPos: number } | null {
-  // Every separable prefix is also an ordinary preposition — "an der Grenze" is
-  // not half of a verb. Without this the search happily pairs a preposition with
-  // any nearby verb that could form a compound, and invents one that isn't there.
-  if (tokens.get(particlePos)?.pos !== 'PART') return null;
-
   // Positions are article-global, so bound the search near the tapped particle —
-  // a separable pair is only ever a clause apart.
-  const WINDOW = 15;
+  // German sends a separable prefix to the end of its clause regardless of
+  // sentence length, so this needs to reach further than a single clause's
+  // typical width.
+  const WINDOW = 30;
   let best: { compound: string; verbPos: number; distance: number } | null = null;
 
   for (let d = 1; d <= WINDOW; d++) {
     for (const pos of [particlePos - d, particlePos + d]) {
       const t = tokens.get(pos);
       if (!t?.lemma) continue;
+      // Every separable prefix is also an ordinary preposition — "an der
+      // Grenze" is not half of a verb. Gate on the CANDIDATE's own parsed POS
+      // (not the tapped particle's — the parse can fail to tag the particle
+      // itself as PART, which is exactly the case this function exists for)
+      // so a stray preposition can't pair with an unrelated noun that happens
+      // to form a real dictionary compound by coincidence.
+      if (t.pos !== 'VERB' && t.pos !== 'AUX') continue;
       const compound = particle + t.lemma.toLowerCase();
       if (!(compound in (SEPARABLE_DE as Record<string, string>))) continue;
       if (!best || d < best.distance) best = { compound, verbPos: pos, distance: d };
