@@ -1,6 +1,19 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { BlurView } from 'expo-blur';
 import { Spacing } from '../../theme';
+
+function timeStringToDate(value: string): Date {
+  const [h, m] = value.split(':').map((n) => parseInt(n, 10));
+  const d = new Date();
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return d;
+}
+
+function dateToTimeString(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 export function SectionHeader({ title, colors, fontFamily }: { title: string; colors: any; fontFamily: any }) {
   return (
@@ -86,28 +99,67 @@ export function TimeInput({
   colors: any;
   fontFamily: any;
 }) {
+  const [visible, setVisible] = useState(false);
+  const [pendingDate, setPendingDate] = useState(() => timeStringToDate(value));
+
   return (
-    <TextInput
-      style={[
-        timeStyles.input,
-        { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.card },
-      ]}
-      value={value}
-      onChangeText={(text) => {
-        const clean = text.replace(/[^0-9:]/g, '');
-        onChange(clean);
-      }}
-      onEndEditing={() => {
-        if (minTime && value.length === 5 && value < minTime) {
-          onChange(minTime);
-        }
-        onCommit?.();
-      }}
-      placeholder="HH:MM"
-      placeholderTextColor={colors.inkFaint}
-      keyboardType="numbers-and-punctuation"
-      maxLength={5}
-    />
+    <>
+      <TouchableOpacity
+        style={[
+          timeStyles.input,
+          { borderColor: colors.borderMid, backgroundColor: colors.card },
+        ]}
+        onPress={() => {
+          setPendingDate(timeStringToDate(value));
+          setVisible(true);
+        }}
+      >
+        <Text style={{ color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: 15 }}>{value}</Text>
+      </TouchableOpacity>
+
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+        <TouchableOpacity
+          style={timeStyles.overlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        />
+        <View pointerEvents="box-none" style={timeStyles.glassCardWrap}>
+          <View style={timeStyles.glassCard}>
+            <BlurView
+              intensity={70}
+              tint={colors.inkDark === '#FFFFFF' || colors.inkDark === '#fff' ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={[timeStyles.pickerHeader, { borderBottomColor: colors.borderLight }]}>
+              <TouchableOpacity onPress={() => setVisible(false)}>
+                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  let next = dateToTimeString(pendingDate);
+                  if (minTime && next < minTime) next = minTime;
+                  onChange(next);
+                  setVisible(false);
+                  onCommit?.();
+                }}
+              >
+                <Text style={{ color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 16 }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={pendingDate}
+              mode="time"
+              display="spinner"
+              themeVariant={colors.inkDark === '#FFFFFF' || colors.inkDark === '#fff' ? 'dark' : 'light'}
+              onChange={(_event, selectedDate) => {
+                if (selectedDate) setPendingDate(selectedDate);
+              }}
+              style={timeStyles.pickerWheel}
+            />
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -159,7 +211,34 @@ const timeStyles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 8 : 6,
     fontSize: 15,
     width: 72,
-    textAlign: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  glassCardWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  glassCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 32,
+    overflow: 'hidden',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pickerWheel: {
+    alignSelf: 'center',
   },
 });
 

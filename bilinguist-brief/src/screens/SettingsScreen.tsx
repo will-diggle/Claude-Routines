@@ -185,6 +185,7 @@ export function SettingsScreen() {
 
   // Profile page state
   const [settingsSheetVisible, setSettingsSheetVisible] = useState(false);
+  const SETTINGS_HEADER_HEIGHT = Spacing.md + 10 + 40 + Spacing.sm;
   const sheetDragY = useRef(new Animated.Value(0)).current;
   const sheetPanResponder = useRef(
     PanResponder.create({
@@ -1245,9 +1246,11 @@ export function SettingsScreen() {
             onPress={() => { sheetDragY.setValue(0); setSettingsSheetVisible(false); }}
           />
           <Animated.View
-            style={[modalStyles.sheet, { backgroundColor: colors.bg, maxHeight: SCREEN_HEIGHT * 0.93, transform: [{ translateY: sheetDragY }] }]}
+            style={[modalStyles.sheet, { backgroundColor: colors.bg, height: SCREEN_HEIGHT * 0.93, maxHeight: SCREEN_HEIGHT * 0.93, transform: [{ translateY: sheetDragY }] }]}
           >
-            <View style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, zIndex: 2 }]}>
+            <View
+              style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, zIndex: 2, position: 'absolute', top: 0, left: 0, right: 0, height: SETTINGS_HEADER_HEIGHT, backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }]}
+            >
               <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
                 <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
               </GlassButton>
@@ -1257,7 +1260,7 @@ export function SettingsScreen() {
               <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: SETTINGS_HEADER_HEIGHT, paddingBottom: insets.bottom + Spacing.lg }}>
               {/* Account */}
               <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
               {isSignedIn ? (
@@ -1450,38 +1453,6 @@ export function SettingsScreen() {
               </Text>
             </ScrollView>
 
-            {/* Top fade — a plain LinearGradient (matches BriefingScreen's
-                status-bar fade — no BlurView involved, see git history for
-                two earlier attempts that assumed an optical blur was
-                needed; it wasn't). The first version used 5 EVENLY-SPACED
-                alpha stops (E6/B3/80/40/00 at 0/.25/.5/.75/1) — a straight
-                linear ramp. Linear alpha does not look linear: human
-                perception of opacity/contrast against a background is
-                non-linear, so an evenly-stepped ramp reads as a near-instant
-                snap rather than a steady taper. Fixed with a 9-stop
-                "smoothstep" curve (3t²-2t³, an S-curve easing in and out at
-                both ends) — the standard technique for a fade that actually
-                looks steady rather than abrupt. Sits behind the title row
-                (zIndex 2), in front of the ScrollView (zIndex 0). */}
-            <LinearGradient
-              pointerEvents="none"
-              colors={[
-                colors.bg + 'FF', colors.bg + 'F4', colors.bg + 'D7', colors.bg + 'AF',
-                colors.bg + '80', colors.bg + '51', colors.bg + '28', colors.bg + '0B', colors.bg + '00',
-              ] as any}
-              locations={[0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: Spacing.md + 66, zIndex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
-            />
-            {/* Bottom fade — same smoothstep curve, mirrored */}
-            <LinearGradient
-              pointerEvents="none"
-              colors={[
-                colors.bg + '00', colors.bg + '0B', colors.bg + '28', colors.bg + '51',
-                colors.bg + '80', colors.bg + 'AF', colors.bg + 'D7', colors.bg + 'F4', colors.bg + 'FF',
-              ] as any}
-              locations={[0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]}
-              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: insets.bottom + Spacing.xl, zIndex: 1 }}
-            />
           </Animated.View>
         </View>
       </Modal>
