@@ -1,0 +1,97 @@
+name: Generate Audio (post fact-sweep)
+
+# Added 2026-09-18. Runs Audio Narration AFTER the "Bilinguist Brief daily fact
+# sweep" routine has verified/fixed/promoted staging to main -- not as part of
+# the main generate-briefings.yml job anymore. Rationale: Audio Narration used
+# to run before the fact-sweep's staging push, generating narration from
+# whatever text existed at that moment. If the sweep then edited the article
+# text and promoted a corrected version to main, the audio stayed tied to the
+# old, pre-fix wording -- text and audio would disagree. This workflow instead
+# runs once main already holds the final, corrected content, dispatched by the
+# fact-sweep routine itself right after it merges staging into main.
+#
+# bilinguist_audio.py is unmodified -- it hardcodes reading/writing
+# output/latest.json and output/{date}.json (see its module docstring). Rather
+# than change that shared script's interface, this workflow just builds the
+# same directory shape it expects from a fresh bilinguist-data clone, runs it
+# as-is, then copies the result (now carrying audioKey) back and pushes it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Brief date to generate audio for (YYYY-MM-DD). Defaults to today (UTC) if omitted."
+        required: false
+
+jobs:
+  audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout app repo (for bilinguist_audio.py and its deps)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/build-app-from-brief-wNEna
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: bilinguist-brief/scripts
+        run: pip install -r requirements.txt
+
+      - name: Resolve date
+        run: |
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(python3 -c "import datetime; print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))")
+          fi
+          echo "BRIEF_DATE=$DATE" >> $GITHUB_ENV
+
+      - name: Clone bilinguist-data at main
+        env:
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
+
+      - name: Shim main's content into the output/ shape bilinguist_audio.py expects
+        run: |
+          mkdir -p bilinguist-brief/scripts/output
+          cp /tmp/bilinguist-data/latest.json bilinguist-brief/scripts/output/latest.json
+          cp /tmp/bilinguist-data/briefings/${BRIEF_DATE}.json bilinguist-brief/scripts/output/${BRIEF_DATE}.json
+
+      - name: Audio Narration (Global News, purely additive)
+        working-directory: bilinguist-brief/scripts
+        continue-on-error: true
+        env:
+          BRIEF_DATE: ${{ env.BRIEF_DATE }}
+          GOOGLE_TTS_CREDENTIALS_B64: ${{ secrets.GOOGLE_TTS_CREDENTIALS_B64 }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python bilinguist_audio.py
+
+      - name: Push audioKey update back to main
+        env:
+          DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
+        run: |
+          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
+          cp bilinguist-brief/scripts/output/${BRIEF_DATE}.json /tmp/bilinguist-data/briefings/${BRIEF_DATE}.json
+
+          cd /tmp/bilinguist-data
+          git config user.email "actions@github.com"
+          git config user.name "Bilinguist Brief Bot"
+          git add latest.json briefings/${BRIEF_DATE}.json
+
+          if git diff --cached --quiet; then
+            echo "No audio changes to commit."
+          else
+            git commit -m "Audio narration: ${BRIEF_DATE}"
+            git pull --rebase origin main
+            git push origin main
+          fi
