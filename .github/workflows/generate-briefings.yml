@@ -213,36 +213,49 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: python bilinguist_audio.py
 
-      - name: Push bundle to data repo
+      - name: Push bundle to staging branch (fact-sweep gate)
+        # Changed 2026-09-18: this used to push straight to main. Now it pushes to a
+        # `staging` branch instead — reset from main each run, so staging is always
+        # "main + today's new files" and a clean fast-forward onto main later.
+        # That push fires a webhook-triggered run of the "Bilinguist Brief daily fact
+        # sweep" routine (claude.ai, Will's account — see Claude-Routines memory/
+        # project_fact_accuracy.md for the incident history this responds to). The
+        # routine now has edit+push authority (testing-phase decision, 2026-09-18):
+        # it verifies the staging content, applies fixes it can independently confirm,
+        # and — if nothing critical remains unresolved — merges staging into main
+        # itself. If it doesn't merge (finds something it can't safely fix, or never
+        # runs), main is simply never updated and the brief does not go live that day.
+        # There is deliberately no timeout/fallback promotion yet; this is the known
+        # gap to close before this leaves testing.
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
         run: |
           DATE=${{ env.BRIEF_DATE }}
 
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
+          cd /tmp/bilinguist-data
+          git checkout -B staging origin/main
 
-          mkdir -p /tmp/bilinguist-data/briefings
-          mkdir -p /tmp/bilinguist-data/reports
+          mkdir -p briefings reports
 
-          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
-          cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
+          cp ../../bilinguist-brief/scripts/output/latest.json latest.json
+          cp ../../bilinguist-brief/scripts/output/${DATE}.json briefings/${DATE}.json
 
           # Structured report for the companion iOS app — written by
           # bilinguist_check.py (Stage 9 - Check & Publish, above). Not required: an older
           # bilinguist_check.py or a run where it failed to write its report
           # shouldn't block the actual briefing from publishing.
-          REPORT_JSON="bilinguist-brief/scripts/output/report_${DATE}.json"
+          REPORT_JSON="../../bilinguist-brief/scripts/output/report_${DATE}.json"
           if [ -f "$REPORT_JSON" ]; then
-            cp "$REPORT_JSON" /tmp/bilinguist-data/reports/${DATE}.json
-            cp "$REPORT_JSON" /tmp/bilinguist-data/reports/latest.json
+            cp "$REPORT_JSON" reports/${DATE}.json
+            cp "$REPORT_JSON" reports/latest.json
           fi
 
-          COSTS_JSON="bilinguist-brief/scripts/output/costs_${DATE}.json"
+          COSTS_JSON="../../bilinguist-brief/scripts/output/costs_${DATE}.json"
           if [ -f "$COSTS_JSON" ]; then
-            python3 bilinguist-brief/scripts/update_costs_csv.py "$COSTS_JSON" "/tmp/bilinguist-data/costs.csv"
+            python3 ../../bilinguist-brief/scripts/update_costs_csv.py "$COSTS_JSON" "costs.csv"
           fi
 
-          cd /tmp/bilinguist-data
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
           git add latest.json briefings/${DATE}.json
@@ -250,10 +263,10 @@ jobs:
           [ -f costs.csv ] && git add costs.csv || true
 
           if git diff --cached --quiet; then
-            echo "No changes to commit - briefing for ${DATE} already pushed."
+            echo "No changes to commit - briefing for ${DATE} already staged."
           else
-            git commit -m "Daily briefings: ${DATE}"
-            git push
+            git commit -m "Daily briefings: ${DATE} (staged for fact sweep)"
+            git push origin staging --force
           fi
 
       - name: Correct notification duration to reflect true end-to-end time
