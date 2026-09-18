@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import Purchases, { LOG_LEVEL, type CustomerInfo, type PurchasesPackage } from 'react-native-purchases';
+import Purchases, { LOG_LEVEL, INTRO_ELIGIBILITY_STATUS, type CustomerInfo, type PurchasesPackage } from 'react-native-purchases';
 
 // Must match the entitlement identifier in the RevenueCat dashboard
 // (Product catalog → Entitlements) that the App Store subscription
@@ -97,6 +97,20 @@ export async function restorePurchases(): Promise<CustomerInfo | null> {
   } catch (e) {
     console.warn('[purchases] restorePurchases failed:', e);
     return null;
+  }
+}
+
+/** Whether this user is still eligible for the product's introductory offer
+ *  (e.g. a free trial) — false once they've already used it before, even on
+ *  a different device tied to the same App Store account. */
+export async function isEligibleForIntroOffer(productId: string): Promise<boolean> {
+  if (!_configured) return false;
+  try {
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility([productId]);
+    return result[productId]?.status === INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+  } catch (e) {
+    console.warn('[purchases] checkTrialOrIntroductoryPriceEligibility failed:', e);
+    return false;
   }
 }
 

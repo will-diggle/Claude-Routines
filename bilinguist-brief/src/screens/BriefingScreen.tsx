@@ -32,6 +32,7 @@ import { prefetchDictionaryForArticles } from '../services/wordDictionaryCache';
 import { useDictionaryPrefetchStore } from '../store/useDictionaryPrefetchStore';
 import { scheduleStreakReminder } from '../services/notifications';
 import { useIsFocused } from '@react-navigation/native';
+import { useSubscriptionStore, FREE_READ_LENGTH } from '../store/useSubscriptionStore';
 
 const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/masthead-compact-cream.png'),
@@ -40,12 +41,6 @@ const MASTHEADS: Record<string, ReturnType<typeof require>> = {
   night:    require('../../assets/masthead-compact-black.png'),
 };
 
-const CRESTS: Record<string, ReturnType<typeof require>> = {
-  cream:    require('../../assets/splash-crest-cream.png'),
-  softGrey: require('../../assets/splash-crest-navy.png'),
-  white:    require('../../assets/splash-crest-white.png'),
-  night:    require('../../assets/splash-crest-black.png'),
-};
 
 const SCREEN_WIDTH  = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -194,6 +189,16 @@ function resolveLength(_level: LanguageLevel, readLength: ArticleLength): Articl
   return readLength === 'medium' ? 'longer' : readLength;
 }
 
+// Defense in depth: a free user never actually fetches or renders long-form
+// content, even if a stale 'longer' value is already persisted (e.g. from a
+// lapsed subscription, or the historical `?? 'longer'` default below) —
+// setLanguageReadLength gates new writes, but doesn't retroactively fix
+// state written before that restriction existed.
+function effectiveReadLength(readLength: ArticleLength | undefined, fullAccess: boolean): ArticleLength {
+  if (!fullAccess) return FREE_READ_LENGTH;
+  return readLength ?? 'longer';
+}
+
 export function BriefingScreen() {
   const isFocused = useIsFocused();
   const { colors, fontFamily, background, isDark } = useTheme();
@@ -201,9 +206,11 @@ export function BriefingScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const lockupW = Math.round(winW * (winW >= 768 ? 0.38 : 1.18));
   const lockupH = Math.round(lockupW / 6.21);
-  const { languages, topics, setLanguageLevel, setLanguageReadLength, setLanguageShowNumberSpellouts } = useSettingsStore(
-    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength, setLanguageShowNumberSpellouts: s.setLanguageShowNumberSpellouts }))
+  const { languages, topics, setLanguageLevel, setLanguageReadLength, setLanguageShowNumberSpellouts, markFirstBriefSeen } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength, setLanguageShowNumberSpellouts: s.setLanguageShowNumberSpellouts, markFirstBriefSeen: s.markFirstBriefSeen }))
   );
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
+  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
   const {
     briefings, generatingFor, errorsFor, weatherByLang,
     syncFromServer, loadBriefing, loadWeather, clearError, bundleReceivedAt,
@@ -220,6 +227,14 @@ export function BriefingScreen() {
 
   const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
   const langCount = activeLanguages.length;
+
+  // Marks the mandatory-sign-in gate (App.tsx) as eligible to apply from the
+  // next app open onward — flips once real brief content has actually landed,
+  // not just on screen mount, so an empty/loading state doesn't count as
+  // "seen." One-way and idempotent (markFirstBriefSeen no-ops once true).
+  useEffect(() => {
+    if (Object.keys(briefings).length > 0) markFirstBriefSeen();
+  }, [briefings, markFirstBriefSeen]);
   const dictPrefetchByLanguage = useDictionaryPrefetchStore((s) => s.byLanguage);
 
   const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore(
@@ -463,16 +478,17 @@ export function BriefingScreen() {
   const programmaticScrollRef = useRef(false);
 
   const activeLangKey =
-    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${resolveLength(l.level ?? 'B1', (l.readLength ?? 'longer') as ArticleLength)}`).join(',');
+    activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${resolveLength(l.level ?? 'B1', effectiveReadLength(l.readLength, fullAccess))}`).join(',');
 
   const runSync = useCallback(async (force = false) => {
     try {
       lastSyncRef.current = Date.now();
       const langs = useSettingsStore.getState().languages.filter((l) => l.active);
+      const syncFullAccess = useSubscriptionStore.getState().isFullAccess();
       await syncFromServer(force);
       await Promise.all(langs.map((lang) => {
         const level = lang.level ?? 'B1';
-        return loadBriefing(lang.code, level, resolveLength(level, (lang.readLength ?? 'longer') as ArticleLength), true);
+        return loadBriefing(lang.code, level, resolveLength(level, effectiveReadLength(lang.readLength, syncFullAccess)), true);
       }));
       // Fire-and-forget: pull every word in each freshly-loaded brief into the
       // on-device dictionary cache so tapping any of them works instantly,
@@ -645,7 +661,7 @@ export function BriefingScreen() {
       >
         {activeLanguages.map((lang) => {
           const level = lang.level ?? 'B1';
-          const length = resolveLength(level, (lang.readLength ?? 'longer') as ArticleLength);
+          const length = resolveLength(level, effectiveReadLength(lang.readLength, fullAccess));
           const stored = briefings[lang.code];
           const today = new Date().toISOString().split('T')[0];
           const briefingMatches =
@@ -882,21 +898,6 @@ export function BriefingScreen() {
                   <Text style={[styles.footerTagline, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
                     {tagline}
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setCelebration({ langCode: lang.code, streakCount: readingStreaks[lang.code] ?? 1 });
-                      setConfettiActive(true);
-                    }}
-                    activeOpacity={0.75}
-                    hitSlop={{ top: 14, bottom: 14, left: 20, right: 20 }}
-                  >
-                    <Image
-                      source={CRESTS[background] ?? CRESTS.cream}
-                      style={styles.footerCrest}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
                 </View>
               )}
             </ScrollView>
@@ -1021,12 +1022,13 @@ export function BriefingScreen() {
                 <View style={[styles.lengthToggleRow, { marginBottom: 20 }]}>
                   {(['short', 'longer'] as const).map((len) => {
                     const isActive = pickerLength === len;
+                    const locked = !fullAccess && len !== FREE_READ_LENGTH;
                     return (
                       <TouchableOpacity
                         key={len}
                         style={[
                           styles.lengthChip,
-                          { borderColor: isActive ? colors.inkDark : colors.borderMid },
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid, flexDirection: 'row', alignItems: 'center', gap: 4, opacity: locked ? 0.45 : 1 },
                           isActive && {
                             backgroundColor: colors.inkDark,
                             shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -1034,12 +1036,14 @@ export function BriefingScreen() {
                           },
                         ]}
                         onPress={() => {
+                          if (locked) { showPaywall(); return; }
                           Haptics.selectionAsync();
                           setPickerLength(len);
                           if (levelPickerLang) setLanguageReadLength(levelPickerLang as any, len);
                         }}
                         activeOpacity={0.7}
                       >
+                        {locked && <Ionicons name="lock-closed" size={10} color={colors.inkDark} />}
                         <Text style={[styles.lengthChipText, { color: isActive ? colors.bg : colors.inkDark, fontFamily: isActive ? fontFamily.bold : fontFamily.regular }]}>
                           {len === 'short'
                             ? (LENGTH_LABELS[levelPickerLang ?? '']?.[0] ?? 'Short')
@@ -1325,12 +1329,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.5,
     textAlign: 'center',
-  },
-  footerCrest: {
-    marginTop: 12,
-    width: 44,
-    height: 44,
-    opacity: 0.45,
   },
   statusFade: {
     position: 'absolute',

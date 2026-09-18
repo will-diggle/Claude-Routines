@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
+import { useAuthFlows } from '../hooks/useAuthFlows';
 import { SectionHeader, SegmentedControl, TimeInput, DisplayPreview } from '../components/settings/SettingsControls';
 import { LanguageCard, nativeLabel, cardStyles, type LangCardProps } from '../components/settings/LanguageCard';
 
@@ -40,7 +41,7 @@ import { useBriefingStore } from '../store/useBriefingStore';
 import type { ArticleLength } from '../services/anthropic';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
-import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, PIPELINE_READY_TIME, getMinNotifTime } from '../services/notifications';
+import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, getMinNotifTime } from '../services/notifications';
 import {
   FontFamilies,
   FontSizes,
@@ -54,6 +55,7 @@ import {
 import { TopBar } from '../components/TopBar';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStreakStore } from '../store/useStreakStore';
+import { useWordBankStore } from '../store/useWordBankStore';
 import { supabase } from '../services/supabase';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as ImagePicker from 'expo-image-picker';
@@ -69,10 +71,18 @@ try {
 } catch { /* not available in Expo Go */ }
 import Constants from 'expo-constants';
 import * as analytics from '../services/analytics';
-import { LegalDocModal, type LegalDoc } from './LegalDocModal';
+import * as WebBrowser from 'expo-web-browser';
 import { GlassButton } from '../components/GlassButton';
+import { GlassSurface } from '../components/GlassSurface';
+import { useSubscriptionStore, FREE_TOPICS } from '../store/useSubscriptionStore';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
+
+// Legal docs live on the website now, not in-app — opened via an in-app
+// browser sheet (WebBrowser.openBrowserAsync) rather than a native screen,
+// so there's one source of truth shared with the App Store listing.
+const PRIVACY_POLICY_URL = 'https://bilinguistbrief.com/privacy/';
+const TERMS_OF_SERVICE_URL = 'https://bilinguistbrief.com/terms/';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -227,7 +237,7 @@ export function SettingsScreen() {
 
 
   // Auth
-  const { session, setSession, signOut } = useAuthStore();
+  const { session, signOut } = useAuthStore();
   const isSignedIn = !!session;
   const displayName = session?.user?.user_metadata?.full_name ?? session?.user?.user_metadata?.name ?? null;
   const userEmail = session?.user?.email ?? null;
@@ -236,8 +246,13 @@ export function SettingsScreen() {
   const [supportBody, setSupportBody] = useState('');
   const [supportLoading, setSupportLoading] = useState(false);
   const [supportState, setSupportState] = useState<'idle' | 'success' | 'error'>('idle');
-  const [legalDocVisible, setLegalDocVisible] = useState(false);
-  const [legalDocInitial, setLegalDocInitial] = useState<LegalDoc>('privacy');
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
+  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
+  const canChangeFreeSlot = useSubscriptionStore((s) => s.canChangeFreeSlot());
+  // The one non-English language currently occupying the free tier's slot,
+  // if any — every other inactive non-English language is locked until this
+  // one is switched (and the switch cooldown allows it).
+  const activeFreeSlotCode = store.languages.find((l) => l.active && l.code !== 'en')?.code ?? null;
 
   // Pushes the local username to user_profiles.display_name via the
   // update-profile Edge Function (RLS has no client-side INSERT policy on
@@ -347,80 +362,23 @@ export function SettingsScreen() {
   }
 
   const [signInModalVisible, setSignInModalVisible] = useState(false);
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const {
+    authMode, setAuthMode,
+    authEmail, setAuthEmail,
+    authPassword, setAuthPassword,
+    authLoading,
+    authError, setAuthError,
+    handleAppleSignIn,
+    handleGoogleSignIn,
+    handleEmailAuth,
+    handleForgotPassword,
+  } = useAuthFlows({ onDone: () => setSignInModalVisible(false) });
 
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
   }, []);
-
-  async function handleAppleSignIn() {
-    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-      if (!credential.identityToken) throw new Error('No identity token from Apple');
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: 'apple',
-        token: credential.identityToken,
-      });
-      if (error) throw error;
-      if (data.session) {
-        setSession(data.session);
-        analytics.trackUserLoggedIn();
-      }
-      setSignInModalVisible(false);
-    } catch (e: any) {
-      if (e?.code !== 'ERR_REQUEST_CANCELED') {
-        setAuthError(e?.message ?? 'Apple sign-in failed');
-      }
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleGoogleSignIn() {
-    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const { data } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          skipBrowserRedirect: true,
-          redirectTo: 'bilinguistbrief://auth',
-        },
-      });
-      if (data?.url) Linking.openURL(data.url);
-      setSignInModalVisible(false);
-    } catch (e: any) {
-      setAuthError(e?.message ?? 'Google sign-in failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  function openLegalDoc(doc: LegalDoc) {
-    setLegalDocInitial(doc);
-    setSettingsSheetVisible(false);
-    setLegalDocVisible(true);
-  }
-
-  function closeLegalDoc() {
-    setLegalDocVisible(false);
-    setSettingsSheetVisible(true);
-  }
 
   function openSupportForm() {
     setSettingsSheetVisible(false);
@@ -448,6 +406,7 @@ export function SettingsScreen() {
         },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      useWordBankStore.getState().clearAll();
       await signOut();
       setSettingsSheetVisible(false);
       Alert.alert('Account deleted', 'Your account and data have been permanently deleted.');
@@ -495,60 +454,6 @@ export function SettingsScreen() {
       setSupportState('error');
     } finally {
       setSupportLoading(false);
-    }
-  }
-
-  async function handleEmailAuth() {
-    if (!authEmail.trim() || !authPassword) return;
-    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      if (authMode === 'signin') {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
-        if (error) throw error;
-        if (data.session) {
-          setSession(data.session);
-          analytics.trackUserLoggedIn();
-        }
-      } else {
-        const { data, error } = await supabase.auth.signUp({ email: authEmail.trim(), password: authPassword });
-        if (error) throw error;
-        if (data.session) {
-          setSession(data.session);
-          analytics.trackUserSignedUp();
-        } else {
-          Alert.alert('Check your email', 'We sent you a confirmation link — click it to activate your account.');
-        }
-      }
-      setSignInModalVisible(false);
-      setAuthEmail('');
-      setAuthPassword('');
-    } catch (e: any) {
-      setAuthError(e?.message ?? 'Authentication failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleForgotPassword() {
-    if (!authEmail.trim()) {
-      setAuthError('Enter your email above first, then tap "Forgot password?"');
-      return;
-    }
-    if (!supabase) { setAuthError('Supabase not configured — add credentials to .env'); return; }
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(authEmail.trim(), {
-        redirectTo: 'bilinguistbrief://auth',
-      });
-      if (error) throw error;
-      Alert.alert('Check your email', `If an account exists for ${authEmail.trim()}, we sent a link to reset your password.`);
-    } catch (e: any) {
-      setAuthError(e?.message ?? 'Could not send reset email');
-    } finally {
-      setAuthLoading(false);
     }
   }
 
@@ -624,9 +529,18 @@ export function SettingsScreen() {
                       nativeGradeByLang={nativeGradeByLang}
                       isDraggable={lang.active && !COMING_SOON_LANGS.has(lang.code)}
                       comingSoon={COMING_SOON_LANGS.has(lang.code)}
+                      premiumLocked={!fullAccess && !lang.active && lang.code !== 'en' && (
+                        (activeFreeSlotCode !== null && activeFreeSlotCode !== lang.code) || !canChangeFreeSlot
+                      )}
                       onToggle={() => {
                         const wasActive = lang.active;
                         store.toggleLanguage(lang.code);
+                        const isActiveNow = useSettingsStore.getState().languages.find((l) => l.code === lang.code)?.active;
+                        if (!wasActive && !isActiveNow && !fullAccess) {
+                          // Blocked by the free-tier language cap or switch cooldown.
+                          showPaywall();
+                          return;
+                        }
                         if (wasActive) analytics.trackLanguageRemoved(lang.code);
                         else analytics.trackLanguageSelected(lang.code);
                         const { lastReadDates } = useStreakStore.getState();
@@ -654,8 +568,9 @@ export function SettingsScreen() {
                   draggableCount={topicItems.filter((t) => !t.comingSoon && store.topics[t.key]).length}
                   renderItem={(item) => {
                     const isOn = !item.comingSoon && store.topics[item.key];
+                    const premiumLocked = !fullAccess && !item.comingSoon && !FREE_TOPICS.has(item.key);
                     return (
-                      <View style={[cardStyles.card, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: item.comingSoon ? 0.45 : (isOn ? 1 : 0.45), shadowColor: '#000', shadowOffset: { width: 0, height: isOn ? 4 : 2 }, shadowOpacity: isOn ? 0.12 : 0.07, shadowRadius: isOn ? 8 : 5, elevation: isOn ? 5 : 3 }]}>
+                      <View style={[cardStyles.card, { backgroundColor: colors.card, borderColor: colors.borderLight, opacity: (item.comingSoon || premiumLocked) ? 0.45 : (isOn ? 1 : 0.45), shadowColor: '#000', shadowOffset: { width: 0, height: isOn ? 4 : 2 }, shadowOpacity: isOn ? 0.12 : 0.07, shadowRadius: isOn ? 8 : 5, elevation: isOn ? 5 : 3 }]}>
                         <View style={cardStyles.mainRow}>
                           <Ionicons name="reorder-three-outline" size={20} color={colors.inkFaint} style={{ marginRight: 4, opacity: isOn ? 1 : 0 }} />
                           <View style={{ flex: 1 }}>
@@ -668,6 +583,11 @@ export function SettingsScreen() {
                             <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
                               <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Coming Soon</Text>
                             </View>
+                          ) : premiumLocked ? (
+                            <TouchableOpacity onPress={() => showPaywall()} style={[styles.comingSoonBadge, { borderColor: colors.borderMid, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                              <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+                              <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Premium</Text>
+                            </TouchableOpacity>
                           ) : (
                             <Switch value={store.topics[item.key]} onValueChange={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); const nextEnabled = !store.topics[item.key]; store.toggleTopic(item.key); analytics.trackTopicToggled(item.key, nextEnabled); }} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
                           )}
@@ -862,9 +782,18 @@ export function SettingsScreen() {
                 nativeGradeByLang={nativeGradeByLang}
                 isDraggable={lang.active && !COMING_SOON_LANGS.has(lang.code)}
                 comingSoon={COMING_SOON_LANGS.has(lang.code)}
+                premiumLocked={!fullAccess && !lang.active && lang.code !== 'en' && (
+                  (activeFreeSlotCode !== null && activeFreeSlotCode !== lang.code) || !canChangeFreeSlot
+                )}
                 onToggle={() => {
                   const wasActive = lang.active;
                   store.toggleLanguage(lang.code);
+                  const isActiveNow = useSettingsStore.getState().languages.find((l) => l.code === lang.code)?.active;
+                  if (!wasActive && !isActiveNow && !fullAccess) {
+                    // Blocked by the free-tier language cap or switch cooldown.
+                    showPaywall();
+                    return;
+                  }
                   if (wasActive) analytics.trackLanguageRemoved(lang.code);
                   else analytics.trackLanguageSelected(lang.code);
                   // Reschedule streak reminder so it reflects the new active-language set
@@ -913,11 +842,12 @@ export function SettingsScreen() {
             draggableCount={topicItems.filter((t) => !t.comingSoon && store.topics[t.key]).length}
             renderItem={(item) => {
               const isOn = !item.comingSoon && store.topics[item.key];
+              const premiumLocked = !fullAccess && !item.comingSoon && !FREE_TOPICS.has(item.key);
               return (
                 <View style={[cardStyles.card, {
                   backgroundColor: colors.card,
                   borderColor: colors.borderLight,
-                  opacity: item.comingSoon ? 0.45 : (isOn ? 1 : 0.45),
+                  opacity: (item.comingSoon || premiumLocked) ? 0.45 : (isOn ? 1 : 0.45),
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: isOn ? 4 : 2 },
                   shadowOpacity: isOn ? 0.12 : 0.07,
@@ -942,6 +872,16 @@ export function SettingsScreen() {
                           Coming Soon
                         </Text>
                       </View>
+                    ) : premiumLocked ? (
+                      <TouchableOpacity
+                        onPress={() => showPaywall()}
+                        style={[styles.comingSoonBadge, { borderColor: colors.borderMid, flexDirection: 'row', alignItems: 'center', gap: 4 }]}
+                      >
+                        <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+                        <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                          Premium
+                        </Text>
+                      </TouchableOpacity>
                     ) : (
                       <Switch
                         value={store.topics[item.key]}
@@ -1249,205 +1189,223 @@ export function SettingsScreen() {
             style={[modalStyles.sheet, { backgroundColor: colors.bg, height: SCREEN_HEIGHT * 0.93, maxHeight: SCREEN_HEIGHT * 0.93, transform: [{ translateY: sheetDragY }] }]}
           >
             <View
-              style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, zIndex: 2, position: 'absolute', top: 0, left: 0, right: 0, height: SETTINGS_HEADER_HEIGHT, backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28 }]}
+              pointerEvents="box-none"
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, height: SETTINGS_HEADER_HEIGHT + 28 }}
             >
-              <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
-                <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-              </GlassButton>
-              <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 23 }]}>
-                Settings
-              </Text>
-              <View style={{ width: 40 }} />
+              <LinearGradient
+                pointerEvents="none"
+                colors={[colors.bg, colors.bg, colors.bg + '00'] as any}
+                locations={[0, SETTINGS_HEADER_HEIGHT / (SETTINGS_HEADER_HEIGHT + 28), 1]}
+                style={[StyleSheet.absoluteFill, { borderTopLeftRadius: 28, borderTopRightRadius: 28 }]}
+              />
+              <View style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, height: SETTINGS_HEADER_HEIGHT }]}>
+                <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
+                  <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
+                </GlassButton>
+                <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 23 }]}>
+                  Settings
+                </Text>
+                <View style={{ width: 40 }} />
+              </View>
             </View>
 
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: SETTINGS_HEADER_HEIGHT, paddingBottom: insets.bottom + Spacing.lg }}>
               {/* Account */}
               <SectionHeader title="Account" colors={colors} fontFamily={fontFamily} />
-              {isSignedIn ? (
-                <>
-                  <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                    <View style={{ flex: 1 }}>
-                      {displayName ? (
-                        <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
-                          {displayName}
-                        </Text>
-                      ) : null}
-                      {userEmail ? (
-                        <Text style={[styles.rowSub, { color: colors.inkFaint }]}>{userEmail}</Text>
-                      ) : null}
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                {isSignedIn ? (
+                  <>
+                    <View style={[styles.displayTileRow, { borderTopWidth: 0 }]}>
+                      <View style={{ flex: 1 }}>
+                        {displayName ? (
+                          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: fontSize.body }]}>
+                            {displayName}
+                          </Text>
+                        ) : null}
+                        {userEmail ? (
+                          <Text style={[styles.rowSub, { color: colors.inkFaint }]}>{userEmail}</Text>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                    onPress={() => {
-                      Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
-                      ]);
-                    }}
-                  >
-                    <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                      Sign out
+                    <TouchableOpacity
+                      style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                      onPress={() => {
+                        Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
+                        ]);
+                      }}
+                    >
+                      <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                        Sign out
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                      disabled={deleteAccountLoading}
+                      onPress={handleDeleteAccount}
+                    >
+                      <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body, opacity: deleteAccountLoading ? 0.5 : 1 }]}>
+                        {deleteAccountLoading ? 'Deleting…' : 'Delete account'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: Spacing.md, marginTop: Spacing.md }]}>
+                      Sign in to sync your streaks and word bank across devices.
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                    disabled={deleteAccountLoading}
-                    onPress={handleDeleteAccount}
-                  >
-                    <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body, opacity: deleteAccountLoading ? 0.5 : 1 }]}>
-                      {deleteAccountLoading ? 'Deleting…' : 'Delete account'}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular, marginHorizontal: 16, marginTop: 4 }]}>
-                    Sign in to sync your streaks and word bank across devices.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                    onPress={() => {
-                      setSettingsSheetVisible(false);
-                      setAuthError(null);
-                      setAuthEmail('');
-                      setAuthPassword('');
-                      setSignInModalVisible(true);
-                    }}
-                  >
-                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                      Sign in / Create account
-                    </Text>
-                    <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                  </TouchableOpacity>
-                </>
-              )}
+                    <TouchableOpacity
+                      style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                      onPress={() => {
+                        setSettingsSheetVisible(false);
+                        setAuthError(null);
+                        setAuthEmail('');
+                        setAuthPassword('');
+                        setSignInModalVisible(true);
+                      }}
+                    >
+                      <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                        Sign in / Create account
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
 
               {/* Notifications */}
               <SectionHeader title="Notifications" colors={colors} fontFamily={fontFamily} />
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    Daily Briefing Time
-                  </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Brief usually ready by {PIPELINE_READY_TIME}</Text>
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                <View style={[styles.displayTileRow, { borderTopWidth: 0 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Daily Briefing Time
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Top global news stories of the day</Text>
+                  </View>
+                  <TimeInput
+                    value={store.briefingNotificationTime}
+                    onChange={store.setBriefingNotificationTime}
+                    minTime={getMinNotifTime()}
+                    onCommit={() => {
+                      const { languages, topicOrder, topics, briefingNotificationTime } = store;
+                      const { lastReadDates } = useStreakStore.getState();
+                      scheduleAllNotifications({
+                        briefingTime: briefingNotificationTime,
+                        topicOrder: topicOrder ?? [],
+                        topics: topics as Record<string, boolean>,
+                        activeLanguages: languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name })),
+                        lastReadDates,
+                      });
+                    }}
+                    colors={colors}
+                    fontFamily={fontFamily}
+                  />
                 </View>
-                <TimeInput
-                  value={store.briefingNotificationTime}
-                  onChange={store.setBriefingNotificationTime}
-                  minTime={getMinNotifTime()}
-                  onCommit={() => {
-                    const { languages, topicOrder, topics, briefingNotificationTime } = store;
-                    const { lastReadDates } = useStreakStore.getState();
-                    scheduleAllNotifications({
-                      briefingTime: briefingNotificationTime,
-                      topicOrder: topicOrder ?? [],
-                      topics: topics as Record<string, boolean>,
-                      activeLanguages: languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name })),
-                      lastReadDates,
-                    });
-                  }}
-                  colors={colors}
-                  fontFamily={fontFamily}
-                />
-              </View>
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    Daily Practice Reminder
-                  </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
+                <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Daily Practice Reminder
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>When to practise your word bank</Text>
+                  </View>
+                  <TimeInput
+                    value={store.practiceNotificationTime}
+                    onChange={store.setPracticeNotificationTime}
+                    onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
+                    colors={colors}
+                    fontFamily={fontFamily}
+                  />
                 </View>
-                <TimeInput
-                  value={store.practiceNotificationTime}
-                  onChange={store.setPracticeNotificationTime}
-                  onCommit={() => schedulePracticeNotification(store.practiceNotificationTime)}
-                  colors={colors}
-                  fontFamily={fontFamily}
-                />
               </View>
 
               {/* Downloads */}
               <SectionHeader title="Downloads" colors={colors} fontFamily={fontFamily} />
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    Auto-download words
-                  </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
-                    Download today's brief words in the background so taps work offline. Turn off to only fetch a word when you tap it.
-                  </Text>
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                <View style={[styles.displayTileRow, { borderTopWidth: 0 }]}>
+                  <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Auto-download words
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
+                      Download today's brief words in the background so taps work offline. Turn off to only fetch a word when you tap it.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={store.autoDownloadWords}
+                    onValueChange={store.setAutoDownloadWords}
+                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                    thumbColor="#FFF"
+                  />
                 </View>
-                <Switch
-                  value={store.autoDownloadWords}
-                  onValueChange={store.setAutoDownloadWords}
-                  trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-                  thumbColor="#FFF"
-                />
-              </View>
-              <View style={[styles.row, { borderBottomColor: colors.borderLight, opacity: store.autoDownloadWords ? 1 : 0.4 }]}>
-                <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    Only keep recent words
-                  </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
-                    Clear older downloaded words as new ones arrive, to save space. Off keeps everything downloaded so far.
-                  </Text>
+                <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight, opacity: store.autoDownloadWords ? 1 : 0.4 }]}>
+                  <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Only keep recent words
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>
+                      Clear older downloaded words as new ones arrive, to save space. Off keeps everything downloaded so far.
+                    </Text>
+                  </View>
+                  <Switch
+                    disabled={!store.autoDownloadWords}
+                    value={store.deleteOldDownloadedWords}
+                    onValueChange={store.setDeleteOldDownloadedWords}
+                    trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
+                    thumbColor="#FFF"
+                  />
                 </View>
-                <Switch
-                  disabled={!store.autoDownloadWords}
-                  value={store.deleteOldDownloadedWords}
-                  onValueChange={store.setDeleteOldDownloadedWords}
-                  trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
-                  thumbColor="#FFF"
-                />
               </View>
 
               {/* Premium */}
               <SectionHeader title="Premium" colors={colors} fontFamily={fontFamily} />
-              <View style={[styles.row, { borderBottomColor: colors.borderLight }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                    Bilinguist Premium
-                  </Text>
-                  <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
-                </View>
-                <View style={[styles.comingSoonBadge, { borderColor: colors.borderMid }]}>
-                  <Text style={[styles.comingSoonText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    Coming soon
-                  </Text>
-                </View>
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                <TouchableOpacity
+                  style={[styles.displayTileRow, { borderTopWidth: 0 }]}
+                  onPress={() => showPaywall()}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Bilinguist Premium
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
               </View>
 
               {/* Legal & Support */}
               <SectionHeader title="Legal & Support" colors={colors} fontFamily={fontFamily} />
-              <TouchableOpacity
-                style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                onPress={() => openLegalDoc('privacy')}
-              >
-                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Privacy Policy
-                </Text>
-                <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.row, { borderBottomColor: colors.borderLight }]}
-                onPress={() => openLegalDoc('terms')}
-              >
-                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Terms of Service
-                </Text>
-                <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.row, { borderBottomWidth: 0 }]}
-                onPress={openSupportForm}
-              >
-                <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                  Contact Support
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-              </TouchableOpacity>
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                <TouchableOpacity
+                  style={[styles.displayTileRow, { borderTopWidth: 0 }]}
+                  onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
+                >
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Privacy Policy
+                  </Text>
+                  <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                  onPress={() => WebBrowser.openBrowserAsync(TERMS_OF_SERVICE_URL)}
+                >
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Terms of Service
+                  </Text>
+                  <Ionicons name="open-outline" size={15} color={colors.inkFaint} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                  onPress={openSupportForm}
+                >
+                  <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                    Contact Support
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
+              </View>
               <Text style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 Bilinguist Brief · Version {APP_VERSION}
               </Text>
@@ -1593,15 +1551,19 @@ export function SettingsScreen() {
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[sheetStyles.googleButton, { borderColor: colors.borderMid, backgroundColor: colors.bg }]}
-                onPress={handleGoogleSignIn}
-                disabled={authLoading}
-              >
-                <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                  Continue with Google
-                </Text>
-              </TouchableOpacity>
+              <View style={modalStyles.glassPillShadow}>
+                <TouchableOpacity
+                  style={[modalStyles.glassPillButton, { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}
+                  onPress={handleGoogleSignIn}
+                  disabled={authLoading}
+                >
+                  <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} intensity={80} />
+                  <Ionicons name="logo-google" size={18} color={colors.inkDark} style={{ marginRight: 8 }} />
+                  <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
+                    Continue with Google
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
                 <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
@@ -1609,35 +1571,39 @@ export function SettingsScreen() {
                 <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
               </View>
 
-              <View style={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}>
-                <TextInput
-                  style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
-                  value={authEmail}
-                  onChangeText={setAuthEmail}
-                  placeholder="Email"
-                  placeholderTextColor={colors.inkFaint}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="email"
-                />
-                <TextInput
-                  style={[modalStyles.codeInput, { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 15 }]}
-                  value={authPassword}
-                  onChangeText={setAuthPassword}
-                  placeholder="Password"
-                  placeholderTextColor={colors.inkFaint}
-                  secureTextEntry
-                  autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
-                  onSubmitEditing={handleEmailAuth}
-                />
-                {authMode === 'signin' && (
-                  <TouchableOpacity onPress={handleForgotPassword} disabled={authLoading} style={{ alignSelf: 'flex-end' }}>
-                    <Text style={{ color: colors.inkLight, fontFamily: fontFamily.regular, fontSize: 13 }}>
-                      Forgot password?
-                    </Text>
-                  </TouchableOpacity>
-                )}
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card, marginHorizontal: Spacing.lg }]}>
+                <View style={[styles.displayTileRow, { borderTopWidth: 0 }]}>
+                  <TextInput
+                    style={{ flex: 1, color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: 15 }}
+                    value={authEmail}
+                    onChangeText={setAuthEmail}
+                    placeholder="Email"
+                    placeholderTextColor={colors.inkFaint}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                  />
+                </View>
+                <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}>
+                  <TextInput
+                    style={{ flex: 1, color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: 15 }}
+                    value={authPassword}
+                    onChangeText={setAuthPassword}
+                    placeholder="Password"
+                    placeholderTextColor={colors.inkFaint}
+                    secureTextEntry
+                    autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
+                    onSubmitEditing={handleEmailAuth}
+                  />
+                </View>
               </View>
+              {authMode === 'signin' && (
+                <TouchableOpacity onPress={handleForgotPassword} disabled={authLoading} style={{ alignSelf: 'flex-end', marginHorizontal: Spacing.lg, marginTop: Spacing.xs }}>
+                  <Text style={{ color: colors.inkLight, fontFamily: fontFamily.regular, fontSize: 13 }}>
+                    Forgot password?
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               {authError ? (
                 <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, paddingHorizontal: Spacing.lg, marginTop: 4, marginBottom: -4 }}>
@@ -1645,13 +1611,18 @@ export function SettingsScreen() {
                 </Text>
               ) : null}
 
-              <TouchableOpacity
-                style={[modalStyles.codeButton, { backgroundColor: colors.accentRed, marginHorizontal: Spacing.lg, marginTop: Spacing.md, opacity: authLoading ? 0.6 : 1 }]}
-                onPress={handleEmailAuth}
-                disabled={authLoading}
-              >
-                <Text style={modalStyles.codeButtonText}>{authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}</Text>
-              </TouchableOpacity>
+              <View style={[modalStyles.glassPillShadow, { opacity: authLoading ? 0.6 : 1 }]}>
+                <TouchableOpacity
+                  style={[modalStyles.glassPillButton, { marginHorizontal: Spacing.lg, marginTop: Spacing.md, backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}
+                  onPress={handleEmailAuth}
+                  disabled={authLoading}
+                >
+                  <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} intensity={80} />
+                  <Text style={[modalStyles.glassPillText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+                    {authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 style={[modalStyles.cancel]}
@@ -1765,13 +1736,6 @@ export function SettingsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* ── Legal documents ── */}
-      <LegalDocModal
-        visible={legalDocVisible}
-        initialDoc={legalDocInitial}
-        onClose={closeLegalDoc}
-      />
 
     </SafeAreaView>
   );
@@ -1913,6 +1877,20 @@ const modalStyles = StyleSheet.create({
     paddingBottom: 34,
     maxHeight: SCREEN_HEIGHT * 0.68,
   },
+  glassPillShadow: {
+    borderRadius: 100,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 6,
+  },
+  glassPillButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 100,
+    overflow: 'hidden',
+  },
+  glassPillText: { fontSize: 16 },
   codeSheet: {
     margin: 32,
     borderRadius: 16,
@@ -2198,16 +2176,6 @@ const sheetStyles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 18,
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.sm,
-    paddingVertical: 12,
-    borderRadius: 100,
-    borderWidth: 1,
   },
   googleButtonText: {
     fontSize: 15,

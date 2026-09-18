@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, Component } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -55,6 +55,8 @@ import * as analytics from './src/services/analytics';
 import { initPurchases } from './src/services/purchases';
 import { startSubscriptionSync } from './src/store/useSubscriptionStore';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
+import { PaywallScreen } from './src/screens/PaywallScreen';
+import { SignInRequiredScreen } from './src/screens/SignInRequiredScreen';
 import { useStreakStore, getStreakSnapshot } from './src/store/useStreakStore';
 import { migrateAnonymousData, reconcileStreaks } from './src/services/streakSync';
 import { useAuthDeepLink } from './src/hooks/useAuthDeepLink';
@@ -103,12 +105,47 @@ const NIGHT_BG_MAP: Partial<Record<BackgroundKey, BackgroundKey>> = {
   cream: 'softGrey',
 };
 
+// Re-arms the morning brief + practice notifications against current settings.
+// Called on cold launch and on every foreground resume (see AppState effect
+// below) — scheduleMorningBriefNotification only ever schedules a one-shot for
+// the NEXT upcoming target time, so without a re-arm on every resume (not just
+// cold launch, which for a backgrounded-not-killed app may not happen for
+// days) the notification silently stops after firing once.
+// Free tier allows English + one other active language. A user who already
+// had several active before this restriction existed (or whose subscription
+// lapsed) keeps that extra state until this runs once at startup — it never
+// activates anything, only deactivates down to the first, so it can't
+// consume the free-tier switch cooldown or look like a user-initiated change.
+function enforceFreeLanguageCap() {
+  if (useSubscriptionStore.getState().isFullAccess()) return;
+  const activeNonEnglish = useSettingsStore.getState().languages.filter((l) => l.active && l.code !== 'en');
+  activeNonEnglish.slice(1).forEach((l) => useSettingsStore.getState().toggleLanguage(l.code));
+}
+
+function rearmNotifications() {
+  // Standard iOS app behavior: the badge clears when you open the app, same
+  // moment it re-arms the next notification.
+  Notifications.setBadgeCountAsync(0).catch(() => {});
+  const { briefingNotificationTime: time, topicOrder: order, topics: tpcs, languages } = useSettingsStore.getState();
+  const { lastReadDates: lrd } = useStreakStore.getState();
+  const activeLangs = languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name }));
+  scheduleAllNotifications({
+    briefingTime: time,
+    topicOrder: order ?? [],
+    topics: tpcs as Record<string, boolean>,
+    activeLanguages: activeLangs,
+    lastReadDates: lrd,
+  }).catch(() => {});
+  schedulePracticeNotification(useSettingsStore.getState().practiceNotificationTime).catch(() => {});
+}
+
 function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
           topics, topicOrder,
           autoNightMode, manualBackground, setEffectiveBackground,
-          appIcon } = useSettingsStore();
+          appIcon, hasSeenFirstBrief } = useSettingsStore();
   const lastReadDates = useStreakStore((s) => s.lastReadDates);
+  const session = useAuthStore((s) => s.session);
   const setSession = useAuthStore((s) => s.setSession);
 
   useAuthDeepLink();
@@ -205,20 +242,6 @@ function AppContent() {
   const [splashChecked, setSplashChecked] = useState(false);
 
   useEffect(() => {
-    function runScheduling() {
-      const { briefingNotificationTime: time, topicOrder: order, topics: tpcs, languages } = useSettingsStore.getState();
-      const { lastReadDates: lrd } = useStreakStore.getState();
-      const activeLangs = languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name }));
-      scheduleAllNotifications({
-        briefingTime: time,
-        topicOrder: order ?? [],
-        topics: tpcs as Record<string, boolean>,
-        activeLanguages: activeLangs,
-        lastReadDates: lrd,
-      }).catch(() => {});
-      schedulePracticeNotification(useSettingsStore.getState().practiceNotificationTime).catch(() => {});
-    }
-
     // Check synchronously first — if the store was already hydrated before this
     // effect ran (a common race on fast devices), we'd miss the callback otherwise.
     if (useSettingsStore.persist.hasHydrated()) {
@@ -226,7 +249,7 @@ function AppContent() {
         setShowSplash(show);
         setSplashChecked(true);
       }).catch(() => { setSplashChecked(true); });
-      runScheduling();
+      rearmNotifications();
       return;
     }
 
@@ -235,11 +258,39 @@ function AppContent() {
         setShowSplash(show);
         setSplashChecked(true);
       }).catch(() => { setSplashChecked(true); });
-      runScheduling();
+      rearmNotifications();
     });
 
     return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-arm on every foreground resume, not just cold launch — an iOS app left
+  // suspended in the background (not force-quit) can go days between cold
+  // launches, and scheduleMorningBriefNotification only ever books the next
+  // single upcoming slot, so without this the notification stops after one fire.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') rearmNotifications();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Waits for BOTH stores — checking isFullAccess() before the subscription
+  // store has hydrated could misread an actual premium user as free (still
+  // on its default) and wrongly trim their active languages.
+  useEffect(() => {
+    function tryEnforce() {
+      if (useSettingsStore.persist.hasHydrated() && useSubscriptionStore.persist.hasHydrated()) {
+        enforceFreeLanguageCap();
+        return true;
+      }
+      return false;
+    }
+    if (tryEnforce()) return;
+    const unsubSettings = useSettingsStore.persist.onFinishHydration(() => { tryEnforce(); });
+    const unsubSub = useSubscriptionStore.persist.onFinishHydration(() => { tryEnforce(); });
+    return () => { unsubSettings(); unsubSub(); };
   }, []);
 
 
@@ -288,7 +339,35 @@ function AppContent() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const paywallVisible = useSubscriptionStore((s) => s.paywallVisible);
+  const hidePaywall = useSubscriptionStore((s) => s.hidePaywall);
+  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
+
+  // "Auto premium sign in": the moment a gated user signs in, surface the
+  // trial-aware paywall right away. This lives here (not inside
+  // SignInRequiredScreen) because that screen unmounts in the SAME render
+  // pass where `session` first becomes truthy — its own effect would never
+  // see the null→session transition.
+  const wasGatedRef = useRef(false);
+  useEffect(() => {
+    const isGated = hasSeenFirstBrief && !session;
+    if (wasGatedRef.current && !isGated && session) showPaywall();
+    wasGatedRef.current = isGated;
+  }, [hasSeenFirstBrief, session, showPaywall]);
+
   if (!splashChecked) return <View style={{ flex: 1, backgroundColor: BG_COLORS[background] ?? '#F5F0E8' }} />;
+
+  // A user may read their first brief with no account; after that, sign-in is
+  // mandatory for anything further. Hard swap (not a dismissible modal, unlike
+  // the paywall below) — re-derives live, so signing out later re-triggers it.
+  if (hasSeenFirstBrief && !session) {
+    return (
+      <>
+        <StatusBar style={isNight ? 'light' : 'dark'} />
+        <SignInRequiredScreen />
+      </>
+    );
+  }
 
   return (
     <>
@@ -297,6 +376,7 @@ function AppContent() {
         <AppNavigator />
       </AppErrorBoundary>
       {showSplash && <SplashOverlay onDone={() => setShowSplash(false)} />}
+      <PaywallScreen visible={paywallVisible} onClose={hidePaywall} />
     </>
   );
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BackgroundKey, FontFamilyKey, FontSizeKey } from '../theme';
+import { useSubscriptionStore, FREE_MAX_LANGUAGES, FREE_TOPICS, FREE_READ_LENGTH } from './useSubscriptionStore';
 
 export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'pt' | 'tr' | 'hu' | 'ar';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
@@ -87,6 +88,10 @@ export interface Settings {
    * device (older days' cached words are cleared as new ones arrive) — saves
    * phone storage. When false, downloaded words accumulate (capped, LRU). */
   deleteOldDownloadedWords: boolean;
+  /** True once BriefingScreen has ever rendered real brief content. Gates
+   * mandatory sign-in (App.tsx) — a user may read their first brief with no
+   * account, but is required to sign in for anything after that. */
+  hasSeenFirstBrief: boolean;
 }
 
 interface SettingsStore extends Settings {
@@ -110,6 +115,7 @@ interface SettingsStore extends Settings {
   setUsername: (v: string) => void;
   setAutoDownloadWords: (v: boolean) => void;
   setDeleteOldDownloadedWords: (v: boolean) => void;
+  markFirstBriefSeen: () => void;
   activeLanguages: () => LanguagePreference[];
 }
 
@@ -155,6 +161,7 @@ const DEFAULT_SETTINGS: Settings = {
   username: '',
   autoDownloadWords: true,
   deleteOldDownloadedWords: false,
+  hasSeenFirstBrief: false,
 };
 
 const MAX_ACTIVE_LANGUAGES = 7;
@@ -171,8 +178,22 @@ export const useSettingsStore = create<SettingsStore>()(
         const target = languages.find((l) => l.code === code);
         if (!target) return;
 
-        const activeCount = languages.filter((l) => l.active).length;
-        if (!target.active && activeCount >= MAX_ACTIVE_LANGUAGES) return;
+        const fullAccess = useSubscriptionStore.getState().isFullAccess();
+
+        if (!target.active) {
+          if (fullAccess) {
+            const activeCount = languages.filter((l) => l.active).length;
+            if (activeCount >= MAX_ACTIVE_LANGUAGES) return;
+          } else if (code !== 'en') {
+            // Free tier: English is always included free; only one other
+            // language may be active at a time, and switching it is
+            // cooldown-gated (see useSubscriptionStore) so a free user can't
+            // cycle through every language to read everything for free.
+            const activeNonEnglish = languages.filter((l) => l.active && l.code !== 'en').length;
+            if (activeNonEnglish >= FREE_MAX_LANGUAGES) return;
+            if (!useSubscriptionStore.getState().canChangeFreeSlot()) return;
+          }
+        }
 
         const toggled = languages.map((l) =>
           l.code === code ? { ...l, active: !l.active } : l
@@ -195,8 +216,17 @@ export const useSettingsStore = create<SettingsStore>()(
             ? displayLanguage
             : firstActive?.code ?? displayLanguage,
         });
+
+        if (!fullAccess && !target.active && code !== 'en') {
+          useSubscriptionStore.getState().recordFreeSlotChange();
+        }
       },
 
+      // Note: level is freely adjustable within a free user's one active
+      // language — no cooldown here. Only which language occupies that slot
+      // is rate-limited (see toggleLanguage); gating level too would lock a
+      // free user out of setting it right after picking their language,
+      // since that pick already consumes the same cooldown window.
       setLanguageLevel: (code, level) =>
         set({
           languages: get().languages.map((l) =>
@@ -204,12 +234,15 @@ export const useSettingsStore = create<SettingsStore>()(
           ),
         }),
 
-      setLanguageReadLength: (code, readLength) =>
+      setLanguageReadLength: (code, readLength) => {
+        const fullAccess = useSubscriptionStore.getState().isFullAccess();
+        if (!fullAccess && readLength !== FREE_READ_LENGTH) return;
         set({
           languages: get().languages.map((l) =>
             l.code === code ? { ...l, readLength } : l
           ),
-        }),
+        });
+      },
 
       setLanguageShowNumberSpellouts: (code, showNumberSpellouts) =>
         set({
@@ -227,7 +260,12 @@ export const useSettingsStore = create<SettingsStore>()(
       },
 
       toggleTopic: (topic) => {
-        const newTopics = { ...get().topics, [topic]: !get().topics[topic] };
+        const current = get().topics;
+        const fullAccess = useSubscriptionStore.getState().isFullAccess();
+        // Free tier: weather/worldNews/business are always on the menu; the
+        // regional editions (UK/US/Europe) are premium-only to turn on.
+        if (!fullAccess && !current[topic] && !FREE_TOPICS.has(topic as string)) return;
+        const newTopics = { ...current, [topic]: !current[topic] };
         const currentOrder = get().topicOrder ?? DEFAULT_TOPIC_ORDER;
         // Active genres float to the top; inactive ones sink below.
         const active   = currentOrder.filter((k) => newTopics[k]);
@@ -255,6 +293,9 @@ export const useSettingsStore = create<SettingsStore>()(
       setUsername: (username) => set({ username }),
       setAutoDownloadWords: (autoDownloadWords) => set({ autoDownloadWords }),
       setDeleteOldDownloadedWords: (deleteOldDownloadedWords) => set({ deleteOldDownloadedWords }),
+      markFirstBriefSeen: () => {
+        if (!get().hasSeenFirstBrief) set({ hasSeenFirstBrief: true });
+      },
 
       activeLanguages: () => get().languages.filter((l) => l.active),
     }),
@@ -278,6 +319,7 @@ export const useSettingsStore = create<SettingsStore>()(
         username: state.username,
         autoDownloadWords: state.autoDownloadWords,
         deleteOldDownloadedWords: state.deleteOldDownloadedWords,
+        hasSeenFirstBrief: state.hasSeenFirstBrief,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

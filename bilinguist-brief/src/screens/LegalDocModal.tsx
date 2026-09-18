@@ -6,6 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '../hooks/useTheme';
 import Constants from 'expo-constants';
 
@@ -204,9 +205,9 @@ const DOCS: Record<LegalDoc, DocContent> = {
         heading: '5. Subscriptions & Billing',
         items: [
           { type: 'text', text: 'Bilinguist Brief offers a free tier and a paid subscription tier ("Premium").' },
-          { type: 'text', text: 'Free tier: includes one pre-selected language plus English, in short-form/global news briefings only; a second topic available in English only; access to all practice games (limited to a small number of games per day); and a limited number of daily word translations and saves.' },
-          { type: 'text', text: "Premium tier: £3.50 per month, unlocks full-length briefings, all CEFR proficiency levels, and unlocked topics across all your active languages. Streak tracking and streak freezes are free for all users regardless of tier." },
-          { type: 'text', text: 'New subscribers receive a 7-day free trial. If you do not cancel before the trial ends, your subscription will begin and payment will be charged to your Apple ID account.' },
+          { type: 'text', text: 'Free tier: includes English plus one language of your choice, at any level available for that language. You can change which language is active once a day (your level can be adjusted anytime). The daily weather strip is always included; from Global News, the first 2 stories each day are shown in full and the rest appear blurred; Business & Economy and regional editions (UK, US, Europe) are not available on the free tier. Articles are shown in Concise length only. Practice is limited to Flashcards, up to 4 rounds per day.' },
+          { type: 'text', text: 'Premium tier: £3.79 per month, unlocks every available language (up to 7 active at once, switched freely with no waiting period), every genre including Business & Economy and the UK, US and Europe editions, every Global News story, full-length articles, and all 5 practice games with unlimited play. Not all languages are available yet — some are shown as "Coming Soon" and are not accessible on any tier. Streak tracking and streak freezes are free for all users regardless of tier.' },
+          { type: 'text', text: 'New subscribers receive a 3-day free trial. If you do not cancel before the trial ends, your subscription will begin and payment will be charged to your Apple ID account.' },
           { type: 'text', text: "Subscriptions automatically renew each month unless cancelled at least 24 hours before the end of the current billing period. You can manage or cancel your subscription at any time via your Apple ID account settings. Cancellation takes effect at the end of the current billing period; we do not provide partial refunds for unused time." },
           { type: 'text', text: "We may change subscription pricing from time to time. Any price change will be communicated in advance in accordance with Apple's standard price-change notification process, and will not affect your current billing period." },
         ],
@@ -267,7 +268,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
       },
       {
         items: [
-          { type: 'text', text: 'Open items still to confirm before publishing: exact daily word-lookup and game limits (currently described in general terms so they can be tuned without a legal-doc update); Supabase hosting region reference if it needs to appear in a linked Privacy Policy; final review by a qualified solicitor before public launch.' },
+          { type: 'text', text: 'Open items still to confirm before publishing: Supabase hosting region reference if it needs to appear in a linked Privacy Policy; final review by a qualified solicitor before public launch.' },
         ],
       },
     ],
@@ -296,12 +297,6 @@ const DOC_OPTIONS: { key: LegalDoc; label: string }[] = [
 
 // ── Visual helpers (same as BriefingScreen) ───────────────────────────────────
 
-const MASTHEADS: Record<string, ReturnType<typeof require>> = {
-  cream:    require('../../assets/masthead-cream.png'),
-  softGrey: require('../../assets/masthead-navy.png'),
-  white:    require('../../assets/masthead-white.png'),
-  night:    require('../../assets/masthead-black.png'),
-};
 const CRESTS: Record<string, ReturnType<typeof require>> = {
   cream:    require('../../assets/splash-crest-cream.png'),
   softGrey: require('../../assets/splash-crest-navy.png'),
@@ -324,9 +319,6 @@ function hairlineColor(bg: string) {
 }
 
 const SW = Dimensions.get('window').width;
-const LOCKUP_PADDING = 4;
-const LOCKUP_W = SW - LOCKUP_PADDING * 2;
-const LOCKUP_H = Math.round(LOCKUP_W / 5.17);
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -340,7 +332,7 @@ interface Props {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
-  const { colors, fontFamily, fontSize, background } = useTheme();
+  const { colors, fontFamily, fontSize, background, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [activeDoc, setActiveDoc] = useState<LegalDoc>(initialDoc);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -364,15 +356,6 @@ export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
       statusBarTranslucent
     >
       <View style={[styles.container, { backgroundColor: colors.bg }]}>
-        {/* Back arrow — floats above masthead like BriefingScreen's page dots */}
-        <TouchableOpacity
-          onPress={onClose}
-          style={[styles.backButton, { top: insets.top + 4 }]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="chevron-back" size={24} color={chrome} />
-        </TouchableOpacity>
-
         <ScrollView
           style={{ flex: 1, backgroundColor: colors.bg }}
           contentContainerStyle={[
@@ -381,18 +364,10 @@ export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Masthead */}
-          <View style={styles.lockupWrap}>
-            <Image
-              key={background}
-              source={MASTHEADS[background] ?? MASTHEADS.cream}
-              style={styles.lockup}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Cities row — "LEGAL & SUPPORT" in place of city names */}
-          <View style={styles.citiesWrap}>
+          {/* Cities row — "LEGAL & SUPPORT" in place of city names. Extra top
+              padding here clears the floating back button now that the
+              masthead (which used to provide that clearance) is gone. */}
+          <View style={[styles.citiesWrap, { paddingTop: 40 }]}>
             <Text style={[styles.cities, { color: chrome, fontFamily: fontFamily.regular }]}>
               LEGAL & SUPPORT
             </Text>
@@ -410,9 +385,6 @@ export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
               {doc.subtitle}
             </Text>
           </View>
-
-          {/* Thick chrome rule */}
-          <View style={[styles.ruleOuterInset, { backgroundColor: chrome }]} />
 
           {/* Edition row: doc picker (left) · app version (right) */}
           <View style={styles.editionRow}>
@@ -492,6 +464,23 @@ export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
           style={[styles.statusFade, { height: insets.top + 28 }]}
         />
 
+        {/* Back arrow — built directly on BlurView rather than the shared
+            GlassButton: that component's native liquid-glass effect renders
+            as fully invisible inside this screen's opaque (non-transparent)
+            Modal, for reasons that don't reproduce in a transparent Modal
+            like the Paywall's. BlurView doesn't depend on that and is proven
+            reliable here. Rendered above the status-bar fade gradient. */}
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.backButton, { top: insets.top + 4 }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <View style={[styles.glassCircleBg, { backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}>
+            <BlurView intensity={isDark ? 60 : 70} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          </View>
+          <Ionicons name="chevron-back" size={18} color={colors.inkDark} style={styles.glassCircleIcon} />
+        </TouchableOpacity>
+
         {/* Doc picker modal */}
         <Modal
           visible={pickerVisible}
@@ -509,8 +498,11 @@ export function LegalDocModal({ visible, initialDoc, onClose }: Props) {
                 <Text style={[styles.pickerTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                   Documents
                 </Text>
-                <TouchableOpacity onPress={() => setPickerVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Ionicons name="close" size={20} color={colors.inkFaint} />
+                <TouchableOpacity onPress={() => setPickerVisible(false)} style={styles.pickerCloseButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <View style={[styles.glassCirclePickerBg, { backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}>
+                    <BlurView intensity={isDark ? 60 : 70} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  </View>
+                  <Ionicons name="close" size={16} color={colors.inkDark} style={styles.glassCircleIcon} />
                 </TouchableOpacity>
               </View>
               {DOC_OPTIONS.map((opt) => {
@@ -550,18 +542,41 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     zIndex: 20,
-    padding: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
   },
-
-  lockupWrap: {
-    width: SW,
-    paddingHorizontal: LOCKUP_PADDING,
-    paddingTop: 4,
-    paddingBottom: 2,
+  glassCircleBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  lockup: {
-    width: LOCKUP_W,
-    height: LOCKUP_H,
+  glassCircleIcon: {
+    zIndex: 1,
+  },
+  pickerCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  glassCirclePickerBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 15,
+    overflow: 'hidden',
   },
 
   citiesWrap: {
@@ -582,12 +597,6 @@ const styles = StyleSheet.create({
     height: 1,
     marginHorizontal: 8,
     marginVertical: 5,
-    borderRadius: 1,
-  },
-  ruleOuterInset: {
-    height: 1.5,
-    marginHorizontal: 8,
-    marginVertical: 2,
     borderRadius: 1,
   },
 

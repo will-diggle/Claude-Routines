@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bilinguistbrief.app",
-      "buildNumber": "141",
+      "buildNumber": "167",
       "usesAppleSignIn": true,
       "icon": {
         "light": "./assets/icon-white.png",
@@ -180,7 +180,8 @@
         }
       ],
       "./plugins/disable-hermes",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
     ]
   }
 }

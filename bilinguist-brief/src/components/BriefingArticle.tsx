@@ -1,5 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { BlurView } from 'expo-blur';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
@@ -18,6 +21,10 @@ import { playArticleAudio, pauseAudio, resumeAudio } from '../services/audioPlay
 // Same size as GameHeader's back/settings GlassButtons, so this reads as the
 // same "round button" throughout the app rather than its own one-off size.
 const AUDIO_BTN_SIZE = 40;
+
+// Matches styles.body's fixed lineHeight below — used to size the locked-
+// article blur ramp to "one line of body text" regardless of fontSize.body.
+const BODY_LINE_HEIGHT = 26;
 
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
@@ -70,11 +77,11 @@ interface Props {
   genre?: string;
   date: string;
   locked?: boolean;
-  onLockedWordPress?: () => void;
+  onLockedPress?: () => void;
 }
 
-export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedWordPress }: Props) {
-  const { colors, fontFamily, fontSize } = useTheme();
+export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedPress }: Props) {
+  const { colors, fontFamily, fontSize, isDark } = useTheme();
   // Drives both the headline's own lineHeight and the audio button's
   // vertical centering against the first line — kept as one value so the
   // two can never drift apart as fontSize.heading changes with the user's
@@ -121,6 +128,12 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     return map;
   }, [article.tokenMap]);
 
+  // Measured height of the headline row — used to size the locked-article
+  // blur ramp (see the `locked` block below) so it reaches full strength
+  // right around the first line of body text, regardless of how many lines
+  // the headline itself wraps to.
+  const [headlineHeight, setHeadlineHeight] = useState<number | null>(null);
+
   // Highlighted word positions (article-global) — supports non-adjacent tokens
   const [activePositions, setActivePositions] = useState<Set<number>>(new Set());
   // The surface word shown in the popup header
@@ -148,7 +161,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     word: string,
     sentence: string,
   ) => {
-    if (locked) { onLockedWordPress?.(); return; }
+    if (locked) { onLockedPress?.(); return; }
 
     if (!articleTappedRef.current) {
       articleTappedRef.current = true;
@@ -276,7 +289,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         }
       })().catch(() => {});
     }
-  }, [locked, onLockedWordPress, tokenByPosition, language, article, headlineWordCount]);
+  }, [locked, onLockedPress, tokenByPosition, language, article, headlineWordCount]);
 
   const handleClose = useCallback(() => {
     setActivePositions(new Set());
@@ -330,7 +343,10 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     <View style={[styles.container, isRTL && styles.containerRTL]}>
 
       {/* Headline */}
-      <View style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}>
+      <View
+        style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}
+        onLayout={locked ? (e) => setHeadlineHeight(e.nativeEvent.layout.height) : undefined}
+      >
         <TappableText
           text={displayHeadline}
           style={[
@@ -422,6 +438,51 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           onClose={handleClose}
         />
       )}
+
+      {locked && (() => {
+        // Same max blur used for the weather card's modal backdrop
+        // (intensity 10). A single flat full-intensity BlurView, revealed
+        // through a gradient MASK rather than faked with stacked bands at
+        // varying intensity — stacked thin bands each blur their own tiny
+        // slice independently, which reads as grain/noise rather than a
+        // smooth blur (tried 6 bands, then 24 — both visibly artifacted).
+        // A mask is a true continuous alpha ramp: transparent = blur hidden
+        // (sharp text shows through), opaque = blur fully revealed. Zone is
+        // sized to (measured headline height + one body line), below which
+        // the mask is solid and the blur is fully revealed.
+        const MAX_INTENSITY = 10;
+        const rampZoneHeight = (headlineHeight ?? 90) + BODY_LINE_HEIGHT + Spacing.sm;
+        return (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => onLockedPress?.()}
+            style={StyleSheet.absoluteFill}
+          >
+            <MaskedView
+              style={StyleSheet.absoluteFill}
+              maskElement={
+                <View style={{ flex: 1 }}>
+                  <LinearGradient
+                    colors={['transparent', '#000']}
+                    style={{ height: rampZoneHeight }}
+                  />
+                  <View style={{ flex: 1, backgroundColor: '#000' }} />
+                </View>
+              }
+            >
+              <BlurView intensity={MAX_INTENSITY} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            </MaskedView>
+            <View style={styles.lockedBadgeWrap} pointerEvents="none">
+              <View style={[styles.lockedBadge, { backgroundColor: 'rgba(0,0,0,0.94)' }]}>
+                <Ionicons name="lock-closed" size={16} color="#FFF" />
+                <Text style={[styles.lockedBadgeText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
+                  Unlock with Premium
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      })()}
     </View>
   );
 }
@@ -466,5 +527,26 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     marginTop: Spacing.md,
+  },
+  lockedBadgeWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  lockedBadgeText: {
+    fontSize: 14,
   },
 });
