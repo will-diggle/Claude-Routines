@@ -219,28 +219,30 @@ jobs:
         run: |
           DATE=${{ env.BRIEF_DATE }}
 
+          SRC="$GITHUB_WORKSPACE/bilinguist-brief/scripts/output"
+
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
           cd /tmp/bilinguist-data
           git checkout -B staging origin/main
 
           mkdir -p briefings reports
 
-          cp ../../bilinguist-brief/scripts/output/latest.json latest.json
-          cp ../../bilinguist-brief/scripts/output/${DATE}.json briefings/${DATE}.json
+          cp "$SRC/latest.json" latest.json
+          cp "$SRC/${DATE}.json" briefings/${DATE}.json
 
           # Structured report for the companion iOS app — written by
           # bilinguist_check.py (Stage 9 - Check & Publish, above). Not required: an older
           # bilinguist_check.py or a run where it failed to write its report
           # shouldn't block the actual briefing from publishing.
-          REPORT_JSON="../../bilinguist-brief/scripts/output/report_${DATE}.json"
+          REPORT_JSON="$SRC/report_${DATE}.json"
           if [ -f "$REPORT_JSON" ]; then
             cp "$REPORT_JSON" reports/${DATE}.json
             cp "$REPORT_JSON" reports/latest.json
           fi
 
-          COSTS_JSON="../../bilinguist-brief/scripts/output/costs_${DATE}.json"
+          COSTS_JSON="$SRC/costs_${DATE}.json"
           if [ -f "$COSTS_JSON" ]; then
-            python3 ../../bilinguist-brief/scripts/update_costs_csv.py "$COSTS_JSON" "costs.csv"
+            python3 "$GITHUB_WORKSPACE/bilinguist-brief/scripts/update_costs_csv.py" "$COSTS_JSON" "costs.csv"
           fi
 
           git config user.email "actions@github.com"
