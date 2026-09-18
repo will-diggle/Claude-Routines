@@ -14,7 +14,21 @@ name: Generate Audio (post fact-sweep)
 # output/latest.json and output/{date}.json (see its module docstring). Rather
 # than change that shared script's interface, this workflow just builds the
 # same directory shape it expects from a fresh bilinguist-data clone, runs it
-# as-is, then copies the result (now carrying audioKey) back and pushes it.
+# as-is, then MERGES just the resulting audioKey fields back into a freshly
+# re-fetched copy of main (merge_audio_keys.py) -- it does not push the
+# processed copy directly.
+#
+# That merge step exists because of a real incident on 2026-09-18: this job's
+# TTS run takes several minutes, and the original version of this workflow
+# cloned bilinguist-data once at job start, then blindly overwrote
+# latest.json/briefings/{date}.json with that stale snapshot at push time.
+# Twice that morning, the fact-sweep routine committed a real fix to main
+# *while this job was mid-run*, and this job's push silently reverted it --
+# confirmed via the fact-sweep's own follow-up investigation (see
+# Claude-Routines git history around 2026-09-18 11:05 UTC). Re-fetching main
+# immediately before pushing, and merging in only audioKey (never touching
+# body/headline/anything else), is what actually delivers the "purely
+# additive" guarantee bilinguist_audio.py's docstring already claims.
 
 on:
   workflow_dispatch:
@@ -76,22 +90,46 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: python bilinguist_audio.py
 
-      - name: Push audioKey update back to main
+      - name: Merge audioKey into fresh main and push (retries on concurrent pushes)
         env:
           DATA_REPO_TOKEN: ${{ secrets.DATA_REPO_TOKEN }}
         run: |
-          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
-          cp bilinguist-brief/scripts/output/${BRIEF_DATE}.json /tmp/bilinguist-data/briefings/${BRIEF_DATE}.json
-
           cd /tmp/bilinguist-data
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
-          git add latest.json briefings/${BRIEF_DATE}.json
 
-          if git diff --cached --quiet; then
-            echo "No audio changes to commit."
-          else
+          for attempt in 1 2 3 4 5; do
+            # Re-fetch main FRESH, right before merging -- this may have moved
+            # since the job started (a fact-sweep fix, another audio run, etc).
+            # merge_audio_keys.py only ever ADDS a missing audioKey field; it
+            # never overwrites body/headline/anything else in this fresh copy.
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
+            python3 "$GITHUB_WORKSPACE/bilinguist-brief/scripts/merge_audio_keys.py" \
+              latest.json "$GITHUB_WORKSPACE/bilinguist-brief/scripts/output/latest.json"
+            python3 "$GITHUB_WORKSPACE/bilinguist-brief/scripts/merge_audio_keys.py" \
+              briefings/${BRIEF_DATE}.json "$GITHUB_WORKSPACE/bilinguist-brief/scripts/output/${BRIEF_DATE}.json"
+
+            git add latest.json briefings/${BRIEF_DATE}.json
+
+            if git diff --cached --quiet; then
+              echo "No audio changes to commit (already covered by a previous run)."
+              break
+            fi
+
             git commit -m "Audio narration: ${BRIEF_DATE}"
-            git pull --rebase origin main
-            git push origin main
-          fi
+
+            if git push origin main; then
+              echo "Pushed on attempt ${attempt}."
+              break
+            fi
+
+            echo "Push rejected (attempt ${attempt}) -- likely a concurrent push landed. Retrying with a fresh fetch."
+            git reset --hard HEAD~1
+            if [ "$attempt" = "5" ]; then
+              echo "::error::Failed to push audioKey update after 5 attempts -- leaving audio ungenerated for ${BRIEF_DATE} rather than force-pushing over a concurrent change."
+              exit 1
+            fi
+          done
