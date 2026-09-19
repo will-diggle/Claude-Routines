@@ -206,8 +206,8 @@ export function BriefingScreen() {
   const { width: winW, height: winH } = useWindowDimensions();
   const lockupW = Math.round(winW * (winW >= 768 ? 0.38 : 1.18));
   const lockupH = Math.round(lockupW / 6.21);
-  const { languages, topics, setLanguageLevel, setLanguageReadLength, setLanguageShowNumberSpellouts, markFirstBriefSeen } = useSettingsStore(
-    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength, setLanguageShowNumberSpellouts: s.setLanguageShowNumberSpellouts, markFirstBriefSeen: s.markFirstBriefSeen }))
+  const { languages, topics, setLanguageLevel, setLanguageReadLength, setLanguageShowNumberSpellouts } = useSettingsStore(
+    useShallow((s) => ({ languages: s.languages, topics: s.topics, setLanguageLevel: s.setLanguageLevel, setLanguageReadLength: s.setLanguageReadLength, setLanguageShowNumberSpellouts: s.setLanguageShowNumberSpellouts }))
   );
   const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
   const showPaywall = useSubscriptionStore((s) => s.showPaywall);
@@ -228,13 +228,6 @@ export function BriefingScreen() {
   const activeLanguages = useMemo(() => languages.filter((l) => l.active), [languages]);
   const langCount = activeLanguages.length;
 
-  // Marks the mandatory-sign-in gate (App.tsx) as eligible to apply from the
-  // next app open onward — flips once real brief content has actually landed,
-  // not just on screen mount, so an empty/loading state doesn't count as
-  // "seen." One-way and idempotent (markFirstBriefSeen no-ops once true).
-  useEffect(() => {
-    if (Object.keys(briefings).length > 0) markFirstBriefSeen();
-  }, [briefings, markFirstBriefSeen]);
   const dictPrefetchByLanguage = useDictionaryPrefetchStore((s) => s.byLanguage);
 
   const { briefPageIndex, setBriefPageIndex, setBriefingScrolled } = useNavPillStore(

@@ -15,6 +15,7 @@ import { NATIVE_WRITING_LEVEL } from '../services/prompts';
 import type { WeatherData } from '../services/weather';
 import { WeatherCard, WeatherCardHandle, codeToIcon, codeToColor, codeToNightIcon, codeToNightColor } from './WeatherCard';
 import { useBriefingStore } from '../store/useBriefingStore';
+import { useSubscriptionStore, FREE_TOPICS, FREE_WORLDNEWS_ARTICLE_LIMIT } from '../store/useSubscriptionStore';
 
 // Maps the genre strings the API returns to settings topic keys.
 // UK/EU/US are the genre strings the pipeline actually emits as of
@@ -350,16 +351,24 @@ export function LanguageBriefingSection({
   const { colors, fontFamily, fontSize } = useTheme();
   const nativeGradeByLang = useBriefingStore((s) => s.nativeGradeByLang);
   const topicOrder = useSettingsStore((s) => s.topicOrder);
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
 
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isIPad = winWidth >= 768;
   const isLandscape = winWidth > winHeight;
 
-  // Filter articles by enabled topics (client-side — no extra API call needed)
+  // Filter articles by enabled topics (client-side — no extra API call needed).
+  // Premium-gated topics are NOT dropped here for free users — they stay
+  // visible with each article rendered locked (headline shown, body blurred;
+  // see the per-article `locked` computation below), matching the reference
+  // pattern of browsable-but-gated content instead of hiding whole sections.
   const visibleArticles = useMemo(() => (briefing?.articles.filter((a) => {
     const topicKey = GENRE_TO_TOPIC[a.genre.toUpperCase()];
     if (!topicKey) return true;
-    return topics[topicKey] !== false;
+    // The user's own "I turned this topic off" preference always fully
+    // removes it, regardless of premium status.
+    if (topics[topicKey] === false) return false;
+    return true;
   }) ?? []), [briefing?.articles, topics]);
 
   const hasContent = visibleArticles.length > 0;
@@ -492,20 +501,33 @@ export function LanguageBriefingSection({
                 />
 
                 <View style={isIPad ? { flexDirection: 'row', flexWrap: 'wrap' } : undefined}>
-                  {group.articles.map((article, articleIndex) => (
-                    <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
-                      <BriefingArticle
-                        article={article}
-                        isLast={!isIPad && articleIndex === group.articles.length - 1}
-                        language={langCode}
-                        level={level}
-                        genre={article.genre}
-                        date={briefing?.date ?? new Date().toISOString().split('T')[0]}
-                        locked={false}
-                        onLockedWordPress={() => {}}
-                      />
-                    </View>
-                  ))}
+                  {group.articles.map((article, articleIndex) => {
+                    // A topic absent from FREE_TOPICS is fully premium-gated:
+                    // every one of its articles is locked for a free user. A
+                    // topic IN FREE_TOPICS (today, only Global News produces
+                    // articles here — weather renders separately) keeps its
+                    // existing per-day free-article allowance instead of an
+                    // all-or-nothing lock.
+                    const topicKey = GENRE_TO_TOPIC[group.genre] as string | undefined;
+                    const isPremiumGatedTopic = !!topicKey && !FREE_TOPICS.has(topicKey);
+                    const locked = !fullAccess && (
+                      isPremiumGatedTopic || (isGlobalNews && articleIndex >= FREE_WORLDNEWS_ARTICLE_LIMIT)
+                    );
+                    return (
+                      <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
+                        <BriefingArticle
+                          article={article}
+                          isLast={!isIPad && articleIndex === group.articles.length - 1}
+                          language={langCode}
+                          level={level}
+                          genre={article.genre}
+                          date={briefing?.date ?? new Date().toISOString().split('T')[0]}
+                          locked={locked}
+                          onLockedPress={() => useSubscriptionStore.getState().showPaywall()}
+                        />
+                      </View>
+                    );
+                  })}
                 </View>
 
                 <TouchableOpacity

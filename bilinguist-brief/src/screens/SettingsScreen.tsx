@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
-import { useAuthFlows } from '../hooks/useAuthFlows';
+import { SignInRequiredScreen } from './SignInRequiredScreen';
 import { SectionHeader, SegmentedControl, TimeInput, DisplayPreview } from '../components/settings/SettingsControls';
 import { LanguageCard, nativeLabel, cardStyles, type LangCardProps } from '../components/settings/LanguageCard';
 
@@ -59,7 +59,6 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useStreakStore } from '../store/useStreakStore';
 import { useWordBankStore } from '../store/useWordBankStore';
 import { supabase } from '../services/supabase';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { StreakCalendar, FullStreakCalendar } from '../components/StreakCalendar';
@@ -372,23 +371,7 @@ export function SettingsScreen() {
   }
 
   const [signInModalVisible, setSignInModalVisible] = useState(false);
-  const [appleAvailable, setAppleAvailable] = useState(false);
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
-  const {
-    authMode, setAuthMode,
-    authEmail, setAuthEmail,
-    authPassword, setAuthPassword,
-    authLoading,
-    authError, setAuthError,
-    handleAppleSignIn,
-    handleGoogleSignIn,
-    handleEmailAuth,
-    handleForgotPassword,
-  } = useAuthFlows({ onDone: () => setSignInModalVisible(false) });
-
-  useEffect(() => {
-    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
-  }, []);
 
   function openSupportForm() {
     setSupportState('idle');
@@ -1271,12 +1254,7 @@ export function SettingsScreen() {
                     </Text>
                     <TouchableOpacity
                       style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
-                      onPress={() => {
-                        setAuthError(null);
-                        setAuthEmail('');
-                        setAuthPassword('');
-                        closeSheetThen(() => setSignInModalVisible(true));
-                      }}
+                      onPress={() => closeSheetThen(() => setSignInModalVisible(true))}
                     >
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                         Sign in / Create account
@@ -1529,131 +1507,10 @@ export function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Sign-in modal */}
-      <Modal
+      <SignInRequiredScreen
         visible={signInModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSignInModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <TouchableOpacity
-            style={modalStyles.overlay}
-            activeOpacity={1}
-            onPress={() => setSignInModalVisible(false)}
-          >
-            <TouchableOpacity activeOpacity={1} style={[modalStyles.sheet, { backgroundColor: colors.surface }]}>
-              <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                {authMode === 'signin' ? 'Sign in' : 'Create account'}
-              </Text>
-
-              {/* Social sign-in */}
-              {appleAvailable && (
-                <View style={{ paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm }}>
-                  <AppleAuthentication.AppleAuthenticationButton
-                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                    buttonStyle={isDark
-                      ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                      : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                    cornerRadius={22}
-                    style={{ height: 44 }}
-                    onPress={handleAppleSignIn}
-                  />
-                </View>
-              )}
-
-              <View style={modalStyles.glassPillShadow}>
-                <TouchableOpacity
-                  style={[modalStyles.glassPillButton, { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}
-                  onPress={handleGoogleSignIn}
-                  disabled={authLoading}
-                >
-                  <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} intensity={80} />
-                  <Ionicons name="logo-google" size={18} color={colors.inkDark} style={{ marginRight: 8 }} />
-                  <Text style={[sheetStyles.googleButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>
-                    Continue with Google
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
-                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-                <Text style={{ color: colors.inkFaint, fontFamily: fontFamily.regular, fontSize: 12, marginHorizontal: 10 }}>or</Text>
-                <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderMid }} />
-              </View>
-
-              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card, marginHorizontal: Spacing.lg }]}>
-                <View style={[styles.displayTileRow, { borderTopWidth: 0 }]}>
-                  <TextInput
-                    style={{ flex: 1, color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: 15 }}
-                    value={authEmail}
-                    onChangeText={setAuthEmail}
-                    placeholder="Email"
-                    placeholderTextColor={colors.inkFaint}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoComplete="email"
-                  />
-                </View>
-                <View style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}>
-                  <TextInput
-                    style={{ flex: 1, color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: 15 }}
-                    value={authPassword}
-                    onChangeText={setAuthPassword}
-                    placeholder="Password"
-                    placeholderTextColor={colors.inkFaint}
-                    secureTextEntry
-                    autoComplete={authMode === 'signup' ? 'new-password' : 'password'}
-                    onSubmitEditing={handleEmailAuth}
-                  />
-                </View>
-              </View>
-              {authMode === 'signin' && (
-                <TouchableOpacity onPress={handleForgotPassword} disabled={authLoading} style={{ alignSelf: 'flex-end', marginHorizontal: Spacing.lg, marginTop: Spacing.xs }}>
-                  <Text style={{ color: colors.inkLight, fontFamily: fontFamily.regular, fontSize: 13 }}>
-                    Forgot password?
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {authError ? (
-                <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, paddingHorizontal: Spacing.lg, marginTop: 4, marginBottom: -4 }}>
-                  {authError}
-                </Text>
-              ) : null}
-
-              <View style={[modalStyles.glassPillShadow, { opacity: authLoading ? 0.6 : 1 }]}>
-                <TouchableOpacity
-                  style={[modalStyles.glassPillButton, { marginHorizontal: Spacing.lg, marginTop: Spacing.md, backgroundColor: isDark ? 'rgba(40,40,40,0.80)' : 'rgba(255,255,255,0.80)' }]}
-                  onPress={handleEmailAuth}
-                  disabled={authLoading}
-                >
-                  <GlassSurface cornerRadius={100} colorScheme={isDark ? 'dark' : 'light'} intensity={80} />
-                  <Text style={[modalStyles.glassPillText, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-                    {authLoading ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[modalStyles.cancel]}
-                onPress={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-              >
-                <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
-                  {authMode === 'signin' ? "Don't have an account? Create one" : 'Already have an account? Sign in'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => setSignInModalVisible(false)}>
-                <Text style={[modalStyles.cancelText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Cancel</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={() => setSignInModalVisible(false)}
+      />
 
       {/* ── Support form ── */}
       <Modal

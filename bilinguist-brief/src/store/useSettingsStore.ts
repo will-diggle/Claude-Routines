@@ -88,10 +88,6 @@ export interface Settings {
    * device (older days' cached words are cleared as new ones arrive) — saves
    * phone storage. When false, downloaded words accumulate (capped, LRU). */
   deleteOldDownloadedWords: boolean;
-  /** True once BriefingScreen has ever rendered real brief content. Gates
-   * mandatory sign-in (App.tsx) — a user may read their first brief with no
-   * account, but is required to sign in for anything after that. */
-  hasSeenFirstBrief: boolean;
 }
 
 interface SettingsStore extends Settings {
@@ -115,7 +111,6 @@ interface SettingsStore extends Settings {
   setUsername: (v: string) => void;
   setAutoDownloadWords: (v: boolean) => void;
   setDeleteOldDownloadedWords: (v: boolean) => void;
-  markFirstBriefSeen: () => void;
   activeLanguages: () => LanguagePreference[];
 }
 
@@ -161,7 +156,6 @@ const DEFAULT_SETTINGS: Settings = {
   username: '',
   autoDownloadWords: true,
   deleteOldDownloadedWords: false,
-  hasSeenFirstBrief: false,
 };
 
 const MAX_ACTIVE_LANGUAGES = 7;
@@ -293,9 +287,6 @@ export const useSettingsStore = create<SettingsStore>()(
       setUsername: (username) => set({ username }),
       setAutoDownloadWords: (autoDownloadWords) => set({ autoDownloadWords }),
       setDeleteOldDownloadedWords: (deleteOldDownloadedWords) => set({ deleteOldDownloadedWords }),
-      markFirstBriefSeen: () => {
-        if (!get().hasSeenFirstBrief) set({ hasSeenFirstBrief: true });
-      },
 
       activeLanguages: () => get().languages.filter((l) => l.active),
     }),
@@ -319,7 +310,6 @@ export const useSettingsStore = create<SettingsStore>()(
         username: state.username,
         autoDownloadWords: state.autoDownloadWords,
         deleteOldDownloadedWords: state.deleteOldDownloadedWords,
-        hasSeenFirstBrief: state.hasSeenFirstBrief,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

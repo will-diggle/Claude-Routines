@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +29,12 @@ const APP_ICONS: Record<string, ReturnType<typeof require>> = {
   night:    require('../../assets/icon-black.png'),
 };
 
-export function SignInRequiredScreen() {
+interface Props {
+  visible: boolean;
+  onClose?: () => void;
+}
+
+export function SignInRequiredScreen({ visible, onClose }: Props) {
   const { colors, fontFamily, background, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [appleAvailable, setAppleAvailable] = React.useState(false);
@@ -38,27 +44,42 @@ export function SignInRequiredScreen() {
     authEmail, setAuthEmail,
     authPassword, setAuthPassword,
     authLoading,
-    authError,
+    authError, setAuthError,
     handleAppleSignIn,
     handleGoogleSignIn,
     handleEmailAuth,
     handleForgotPassword,
-  } = useAuthFlows();
+  } = useAuthFlows({ onDone: onClose });
 
   useEffect(() => {
     AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
   }, []);
 
-  // Note: triggering the trial-aware paywall on successful sign-in is NOT
-  // done here — App.tsx unmounts this screen in the same render pass where
-  // `session` first becomes truthy (the gate condition flips immediately),
-  // so an effect here would never see the transition. App.tsx owns that.
+  // Reset transient form state each time the sheet is (re)opened, so a
+  // previous failed attempt doesn't linger the next time it's shown.
+  useEffect(() => {
+    if (visible) {
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthError(null);
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {onClose && (
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.closeButton, { top: insets.top + 12 }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={22} color={colors.inkMid} />
+        </TouchableOpacity>
+      )}
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 96 }]}
         keyboardShouldPersistTaps="handled"
@@ -76,7 +97,7 @@ export function SignInRequiredScreen() {
           Sign in to continue
         </Text>
         <Text style={[styles.subtitle, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          Create a free account to keep reading — plus get 3 days of Premium on us.
+          Sync your reading streak, saved words, and preferences across every device.
         </Text>
 
         {appleAvailable && (
@@ -175,10 +196,20 @@ export function SignInRequiredScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  closeButton: {
+    position: 'absolute',
+    left: Spacing.md,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',

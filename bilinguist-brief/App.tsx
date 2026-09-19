@@ -57,10 +57,12 @@ import { initPurchases } from './src/services/purchases';
 import { startSubscriptionSync } from './src/store/useSubscriptionStore';
 import { useSubscriptionStore } from './src/store/useSubscriptionStore';
 import { PaywallScreen } from './src/screens/PaywallScreen';
-import { SignInRequiredScreen } from './src/screens/SignInRequiredScreen';
 import { useStreakStore, getStreakSnapshot } from './src/store/useStreakStore';
 import { migrateAnonymousData, reconcileStreaks } from './src/services/streakSync';
 import { useAuthDeepLink } from './src/hooks/useAuthDeepLink';
+import { useFriendInviteDeepLink } from './src/hooks/useFriendInviteDeepLink';
+import { FriendsScreen } from './src/screens/FriendsScreen';
+import { useFriendsStore } from './src/store/useFriendsStore';
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 // Catches any JS render errors so the app shows a meaningful screen
@@ -148,12 +150,13 @@ function AppContent() {
   const { background, briefingNotificationTime, practiceNotificationTime, activeLanguages,
           topics, topicOrder,
           autoNightMode, manualBackground, setEffectiveBackground,
-          appIcon, hasSeenFirstBrief } = useSettingsStore();
+          appIcon } = useSettingsStore();
   const lastReadDates = useStreakStore((s) => s.lastReadDates);
   const session = useAuthStore((s) => s.session);
   const setSession = useAuthStore((s) => s.setSession);
 
   useAuthDeepLink();
+  useFriendInviteDeepLink();
 
   // Deduplicate streak sync calls within this session (avoids double-sync on
   // getSession + INITIAL_SESSION both firing for the same persisted session).
@@ -346,33 +349,10 @@ function AppContent() {
 
   const paywallVisible = useSubscriptionStore((s) => s.paywallVisible);
   const hidePaywall = useSubscriptionStore((s) => s.hidePaywall);
-  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
-
-  // "Auto premium sign in": the moment a gated user signs in, surface the
-  // trial-aware paywall right away. This lives here (not inside
-  // SignInRequiredScreen) because that screen unmounts in the SAME render
-  // pass where `session` first becomes truthy — its own effect would never
-  // see the null→session transition.
-  const wasGatedRef = useRef(false);
-  useEffect(() => {
-    const isGated = hasSeenFirstBrief && !session;
-    if (wasGatedRef.current && !isGated && session) showPaywall();
-    wasGatedRef.current = isGated;
-  }, [hasSeenFirstBrief, session, showPaywall]);
+  const friendsVisible = useFriendsStore((s) => s.visible);
+  const hideFriends = useFriendsStore((s) => s.hide);
 
   if (!splashChecked) return <View style={{ flex: 1, backgroundColor: BG_COLORS[background] ?? '#F5F0E8' }} />;
-
-  // A user may read their first brief with no account; after that, sign-in is
-  // mandatory for anything further. Hard swap (not a dismissible modal, unlike
-  // the paywall below) — re-derives live, so signing out later re-triggers it.
-  if (hasSeenFirstBrief && !session) {
-    return (
-      <>
-        <StatusBar style={isNight ? 'light' : 'dark'} />
-        <SignInRequiredScreen />
-      </>
-    );
-  }
 
   return (
     <>
@@ -382,6 +362,9 @@ function AppContent() {
       </AppErrorBoundary>
       {showSplash && <SplashOverlay onDone={() => setShowSplash(false)} />}
       <PaywallScreen visible={paywallVisible} onClose={hidePaywall} />
+      {/* Rendered once here (not inside SettingsScreen) so useFriendInviteDeepLink
+          can open it from anywhere — same pattern as PaywallScreen above. */}
+      <FriendsScreen visible={friendsVisible} onClose={hideFriends} />
     </>
   );
 }

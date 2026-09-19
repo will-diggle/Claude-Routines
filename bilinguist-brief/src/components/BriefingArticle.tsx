@@ -476,7 +476,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
               <View style={[styles.lockedBadge, { backgroundColor: 'rgba(0,0,0,0.94)' }]}>
                 <Ionicons name="lock-closed" size={16} color="#FFF" />
                 <Text style={[styles.lockedBadgeText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
-                  Unlock with Premium
+                  Unlock more with Premium
                 </Text>
               </View>
             </View>
