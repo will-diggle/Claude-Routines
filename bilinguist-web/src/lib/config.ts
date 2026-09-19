@@ -136,6 +136,15 @@ export const PHRASE_POOL: Partial<Record<LanguageCode, string[]>> = {
   ar: ['مرحباً', 'صباح الخير', 'مساء الخير', 'أهلاً وسهلاً', 'أخبار اليوم', 'عاجل', 'آخر الأخبار', 'أهم الأخبار', 'عناوين اليوم'],
 };
 
+// Promo codes — mirrors useSubscriptionStore.ts's PROMO_CODES exactly.
+// Purely cosmetic on the site (matching the app, which also has no live
+// payment processing wired up yet): applying a code just shows the label.
+export const PROMO_CODES: Record<string, string> = {
+  EARLYBIRD: 'Early Bird',
+  FOUNDER: 'Founder',
+  BILINGUIST: 'Bilinguist',
+};
+
 // Cloudflare Worker — same content source the iOS app reads, filtered
 // server-side to a single language/level slice. Public, CORS-enabled, no key.
 export const WORKER_BASE = 'https://bilinguist-brief.williamdiggz.workers.dev';

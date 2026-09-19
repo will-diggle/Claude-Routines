@@ -1,0 +1,296 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Premium" description="Unlock the full Bilinguist Brief edition — every language, every level, the full daily briefing.">
+  <div class="wrap paywall">
+    <h1 class="paywall-headline">Unlock the full edition</h1>
+    <p class="tagline paywall-subhead">Read the news in any language. Learn without thinking about it.</p>
+
+    <div class="price-card">
+      <p class="price-amount">£3.50</p>
+      <p class="price-period">per month · cancel anytime</p>
+    </div>
+
+    <div class="comparison">
+      <div class="comparison-head">
+        <span class="micro-label comparison-head-free">Free</span>
+        <span class="micro-label comparison-head-full">Full</span>
+      </div>
+      <div class="comparison-body">
+        <ul class="feature-list feature-list-free">
+          <li><span class="check check-free">✓</span> 1 World News article daily</li>
+          <li><span class="check check-free">✓</span> 5 teaser headlines</li>
+          <li><span class="check check-free">✓</span> English only</li>
+        </ul>
+        <ul class="feature-list feature-list-full">
+          <li><span class="check check-full">✓</span> Full daily briefing (5–15 min read)</li>
+          <li><span class="check check-full">✓</span> French, German, Spanish, Italian</li>
+          <li><span class="check check-full">✓</span> Your chosen CEFR level</li>
+          <li><span class="check check-full">✓</span> Tap any word for instant translation</li>
+          <li><span class="check check-full">✓</span> Claude word explanations + IPA</li>
+          <li><span class="check check-full">✓</span> Word bank with spaced repetition</li>
+          <li><span class="check check-full">✓</span> Flashcards, games &amp; streak tracking</li>
+          <li><span class="check check-full">✓</span> Weather strip in your language</li>
+        </ul>
+      </div>
+    </div>
+
+    <button id="subscribe-btn" class="subscribe-btn" type="button">Subscribe — £3.50/month</button>
+    <p id="subscribe-note" class="meta-text subscribe-note" hidden>Subscriptions aren't live yet — check back when we launch.</p>
+
+    <button id="restore-btn" class="restore-link" type="button">Restore purchase</button>
+    <p id="restore-note" class="meta-text restore-note" hidden>Nothing to restore yet — subscriptions aren't live.</p>
+
+    <div class="promo-section">
+      <button id="promo-toggle" class="promo-toggle" type="button">Have a code?</button>
+      <div id="promo-form" class="promo-form" hidden>
+        <input id="promo-input" class="promo-input" type="text" placeholder="Enter code" autocapitalize="characters" maxlength="20" />
+        <button id="promo-apply" class="promo-apply" type="button">Apply</button>
+      </div>
+      <p id="promo-result" class="meta-text promo-result" hidden></p>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { PROMO_CODES } from '../lib/config';
+
+  const subscribeBtn = document.getElementById('subscribe-btn') as HTMLButtonElement;
+  const subscribeNote = document.getElementById('subscribe-note') as HTMLParagraphElement;
+  subscribeBtn.addEventListener('click', () => {
+    subscribeNote.hidden = false;
+  });
+
+  const restoreBtn = document.getElementById('restore-btn') as HTMLButtonElement;
+  const restoreNote = document.getElementById('restore-note') as HTMLParagraphElement;
+  restoreBtn.addEventListener('click', () => {
+    restoreNote.hidden = false;
+  });
+
+  const promoToggle = document.getElementById('promo-toggle') as HTMLButtonElement;
+  const promoForm = document.getElementById('promo-form') as HTMLDivElement;
+  const promoInput = document.getElementById('promo-input') as HTMLInputElement;
+  const promoApply = document.getElementById('promo-apply') as HTMLButtonElement;
+  const promoResult = document.getElementById('promo-result') as HTMLParagraphElement;
+
+  promoToggle.addEventListener('click', () => {
+    promoForm.hidden = false;
+    promoToggle.hidden = true;
+    promoInput.focus();
+  });
+
+  promoApply.addEventListener('click', () => {
+    const code = promoInput.value.trim().toUpperCase();
+    const label = PROMO_CODES[code];
+    promoResult.hidden = false;
+    promoResult.textContent = label
+      ? `Code applied: ${label} — thanks! We'll honor this when subscriptions go live.`
+      : "That code isn't valid — check it and try again.";
+  });
+</script>
+
+<style>
+  .paywall {
+    max-width: 480px;
+    padding-block: var(--space-xxl) var(--space-xxl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-lg);
+  }
+
+  .paywall-headline {
+    font-size: var(--font-headline);
+    line-height: var(--line-headline);
+    font-weight: 700;
+    color: var(--color-ink-dark);
+    margin: 0;
+  }
+
+  .paywall-subhead {
+    margin: calc(var(--space-lg) * -1) 0 0;
+  }
+
+  .price-card {
+    width: 100%;
+    background: var(--color-accent-gold);
+    border-radius: 12px;
+    padding-block: var(--space-lg);
+  }
+
+  .price-amount {
+    font-size: 40px;
+    line-height: 46px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+  }
+
+  .price-period {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+  }
+
+  .comparison {
+    width: 100%;
+    border: var(--hairline-width) solid var(--color-border-light);
+    border-radius: 10px;
+    overflow: hidden;
+    text-align: left;
+  }
+
+  .comparison-head {
+    display: flex;
+    background: var(--color-border-light);
+    border-bottom: var(--hairline-width) solid var(--color-hairline);
+  }
+
+  .comparison-head span {
+    flex: 1;
+    text-align: center;
+    padding-block: var(--space-sm);
+  }
+
+  .comparison-head-free {
+    color: var(--color-ink-mid);
+  }
+
+  .comparison-head-full {
+    color: var(--color-accent-gold);
+    font-weight: 700;
+  }
+
+  .comparison-body {
+    display: flex;
+  }
+
+  .feature-list {
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .feature-list-free {
+    color: var(--color-ink-light);
+    border-right: var(--hairline-width) solid var(--color-border-light);
+  }
+
+  .feature-list-full {
+    color: var(--color-ink-dark);
+  }
+
+  .feature-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .check {
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .check-free {
+    color: var(--color-ink-light);
+  }
+
+  .check-full {
+    color: var(--color-accent-gold);
+  }
+
+  .subscribe-btn {
+    width: 100%;
+    font-family: var(--font-body-family);
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--color-accent-gold);
+    border: none;
+    border-radius: 10px;
+    padding-block: var(--space-md);
+    cursor: pointer;
+  }
+
+  .subscribe-note,
+  .restore-note {
+    margin: calc(var(--space-md) * -1) 0 0;
+  }
+
+  .restore-link {
+    font-family: var(--font-body-family);
+    font-size: 13px;
+    color: var(--color-ink-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .promo-section {
+    width: 100%;
+    border-top: var(--hairline-width) solid var(--color-border-light);
+    padding-top: var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .promo-toggle {
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .promo-form {
+    gap: var(--space-sm);
+  }
+
+  /* [hidden] must win over display:flex — see the earlier ProfileButton /
+     coming-soon-form fix for why an unconditional display here would
+     otherwise beat the UA stylesheet's [hidden] rule. */
+  .promo-form:not([hidden]) {
+    display: flex;
+  }
+
+  .promo-input {
+    font-family: var(--font-body-family);
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--color-ink-dark);
+    background: var(--color-card);
+    border: var(--hairline-width) solid var(--color-border-mid);
+    border-radius: 8px;
+    padding: var(--space-sm) var(--space-md);
+    width: 160px;
+  }
+
+  .promo-apply {
+    font-family: var(--font-body-family);
+    font-size: 15px;
+    color: #fff;
+    background: var(--color-accent-gold);
+    border: none;
+    border-radius: 8px;
+    padding: var(--space-sm) var(--space-lg);
+    cursor: pointer;
+  }
+
+  .promo-result {
+    max-width: 320px;
+  }
+</style>

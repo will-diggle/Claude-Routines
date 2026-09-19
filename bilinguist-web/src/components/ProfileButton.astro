@@ -19,6 +19,12 @@ import { FONTS, THEMES } from '../lib/config';
     <hr class="hairline" />
 
     <div class="profile-section">
+      <a href="/premium" class="premium-link">Upgrade to Premium</a>
+    </div>
+
+    <hr class="hairline" />
+
+    <div class="profile-section">
       <span class="micro-label profile-label">Theme</span>
       <div class="theme-swatches" role="radiogroup" aria-label="Theme">
         {THEMES.map((t) => (
@@ -194,6 +200,19 @@ import { FONTS, THEMES } from '../lib/config';
 
   .login-note {
     margin: 0;
+  }
+
+  .premium-link {
+    display: block;
+    text-align: center;
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--color-accent-gold);
+    border-radius: 8px;
+    padding: var(--space-sm) var(--space-md);
+    text-decoration: none;
   }
 
   .theme-swatches {
