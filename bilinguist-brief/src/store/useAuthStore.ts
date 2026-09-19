@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 import { identifyUser, resetIdentity } from '../services/analytics';
 import { loginPurchasesUser, logoutPurchasesUser } from '../services/purchases';
+import { syncPushRegistration } from '../services/pushRegistration';
 import { useSubscriptionStore } from './useSubscriptionStore';
 import type { Session } from '@supabase/supabase-js';
 
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthStore>()(
           loginPurchasesUser(session.user.id).then((info) => {
             useSubscriptionStore.getState().syncFromCustomerInfo(info);
           });
+          syncPushRegistration(session);
         } else {
           resetIdentity();
         }

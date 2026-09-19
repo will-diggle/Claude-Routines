@@ -8,8 +8,8 @@ try {
       shouldShowAlert: true,
       shouldShowBanner: true,
       shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
     }),
   });
 } catch {}
@@ -23,8 +23,11 @@ const STREAK_NOTIFICATION_ID = 'streak-reminder';
 const STREAK_REMINDER_HOUR = 18;
 const STREAK_REMINDER_MINUTE = 0;
 
-// The pipeline reliably finishes by this time each morning (shown as a hint in Settings UI).
-export const PIPELINE_READY_TIME = '07:30';
+// The pipeline takes just over 45 minutes and starts at 06:00 UK time, so this
+// is the earliest the brief can possibly exist — used as the floor for the
+// notification-time picker (via getMinNotifTime) and in "not ready yet"
+// copy elsewhere in the app.
+export const PIPELINE_READY_TIME = '06:50';
 
 /**
  * Returns the earliest allowed notification time in the device's local timezone.
@@ -119,7 +122,7 @@ async function scheduleDaily(
     if (!time) return;
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: { title, body, data: { screen: 'Briefing' } },
+      content: { title, body, badge: 1, data: { screen: 'Briefing' } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: time.hour,
@@ -184,10 +187,22 @@ export async function scheduleMorningBriefNotification(
     // this is scheduled as a single fire and re-armed each time the app opens.
     const fireAt = new Date();
     fireAt.setHours(target.hour, target.minute, 0, 0);
-    // The slot has already passed today, so the earliest this could fire is
-    // tomorrow — by which point today's headlines are yesterday's. Send nothing:
-    // no notification beats one reporting news the reader has already had.
-    if (fireAt.getTime() <= Date.now()) return;
+    // The slot has already passed today. This is the COMMON case — most opens
+    // happen well after the morning target time, not specifically before it —
+    // so bailing out here (as this used to) meant the notification only ever
+    // got (re-)scheduled on days the app happened to be opened early, and
+    // silently stopped firing for everyone else. Roll to tomorrow's slot
+    // instead: today's real headline can't be used (tomorrow's brief doesn't
+    // exist yet), so this path uses a generic body rather than skipping.
+    if (fireAt.getTime() <= Date.now()) {
+      fireAt.setDate(fireAt.getDate() + 1);
+      await Notifications.scheduleNotificationAsync({
+        identifier: MORNING_NOTIFICATION_ID,
+        content: { title: 'Bilinguist Brief ☀️', body: "Today's briefing is ready to read.", data: { screen: 'Briefing' }, badge: 1 },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
+      });
+      return;
+    }
 
     const result = await fetchTodayBundle();
     if (!result.ok) return;
@@ -210,7 +225,7 @@ export async function scheduleMorningBriefNotification(
 
     await Notifications.scheduleNotificationAsync({
       identifier: MORNING_NOTIFICATION_ID,
-      content: { title: 'Bilinguist Brief ☀️', body, data: { screen: 'Briefing' } },
+      content: { title: 'Bilinguist Brief ☀️', body, badge: 1, data: { screen: 'Briefing' } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt },
     });
   } catch {}

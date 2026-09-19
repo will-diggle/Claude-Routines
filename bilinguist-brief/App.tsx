@@ -36,6 +36,7 @@ import { useWordBankStore } from './src/store/useWordBankStore';
 import { SplashOverlay, shouldShowSplash } from './src/components/SplashOverlay';
 import * as Notifications from 'expo-notifications';
 import { scheduleAllNotifications, schedulePracticeNotification } from './src/services/notifications';
+import { syncPushRegistration } from './src/services/pushRegistration';
 // expo-alternate-app-icons requires a native build — not available in Expo Go.
 // Check executionEnvironment before requiring so we never touch the native module
 // in a store-client (Expo Go) context.
@@ -137,6 +138,10 @@ function rearmNotifications() {
     lastReadDates: lrd,
   }).catch(() => {});
   schedulePracticeNotification(useSettingsStore.getState().practiceNotificationTime).catch(() => {});
+  // Backfills push registration for existing signed-in users (whose
+  // notification time/timezone have never reached the server) on their
+  // next app open after this ships, and keeps timezone fresh across travel.
+  syncPushRegistration(useAuthStore.getState().session);
 }
 
 function AppContent() {
@@ -433,6 +438,17 @@ export default function App() {
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // APNs occasionally reassigns a device's push token. The listener only
+  // carries the raw native token, not an Expo push token, so the simplest
+  // correct response is just re-running registration — it fetches a fresh
+  // Expo push token internally.
+  useEffect(() => {
+    const sub = Notifications.addPushTokenListener(() => {
+      syncPushRegistration(useAuthStore.getState().session);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem('bilinguist-settings').then((json) => {

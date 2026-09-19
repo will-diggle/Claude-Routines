@@ -70,9 +70,10 @@ const DOCS: Record<LegalDoc, DocContent> = {
           { type: 'bullet', text: 'Practice game scores and completion history.' },
           { type: 'bullet', text: 'Streak freeze usage.' },
           { type: 'bullet', text: 'Your language, level, and topic preferences.' },
+          { type: 'bullet', text: 'If you enable notifications: a push token identifying your device, your chosen notification time, and your device timezone — used only to deliver your daily briefing notification at the right local time.' },
           { type: 'text',   text: 'Words you look up or save (via our analytics provider — see Section 3) — including the specific word, the language, and your proficiency level.' },
           { type: 'text',   text: 'Location (optional): if you grant permission, we use your approximate location, in-memory only, to show local weather. This is never stored on our servers or your device beyond the current app session.' },
-          { type: 'text',   text: 'We do not collect your precise location for any other purpose, and we do not store your device timezone.' },
+          { type: 'text',   text: 'We do not collect your precise location for any other purpose.' },
         ],
       },
       {

@@ -32,7 +32,19 @@ verify_jwt = true
 # RC_WEBHOOK_SECRET shared secret validated inside the function body.
 verify_jwt = false
 
-[functions.word-lookup]
-# verify_jwt = false — word lookups happen before sign-in (anon users can look up words).
-# The Anthropic API key is held server-side as a Supabase secret.
+[functions.register-push-token]
+# verify_jwt = true — requires a signed-in user. The user ID is taken from the
+# JWT, not from the request body, so a user can only register a token/schedule
+# for their own account.
+verify_jwt = true
+
+[functions.send-morning-notifications]
+# verify_jwt = true — called only by the pg_cron job, whose Bearer token is the
+# service-role key (itself a valid signed JWT). Not user-facing.
+verify_jwt = true
+
+[functions.send-push]
+# verify_jwt = false — never called by the client. Invoked directly via
+# `supabase functions invoke`, which authenticates with the service-role key;
+# only whoever holds that key can call this.
 verify_jwt = false

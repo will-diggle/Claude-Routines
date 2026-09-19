@@ -43,6 +43,7 @@ import type { ArticleLength } from '../services/anthropic';
 import { useNavPillStore, type SettingsSection } from '../store/useNavPillStore';
 import { useTheme } from '../hooks/useTheme';
 import { scheduleAllNotifications, scheduleStreakReminder, schedulePracticeNotification, getMinNotifTime } from '../services/notifications';
+import { syncPushRegistration } from '../services/pushRegistration';
 import {
   FontFamilies,
   FontSizes,
@@ -1310,6 +1311,7 @@ export function SettingsScreen() {
                         activeLanguages: languages.filter((l) => l.active).map((l) => ({ code: l.code, name: l.name })),
                         lastReadDates,
                       });
+                      syncPushRegistration(session);
                     }}
                     colors={colors}
                     fontFamily={fontFamily}
