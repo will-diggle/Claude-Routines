@@ -79,6 +79,10 @@ import { useFriendsStore } from '../store/useFriendsStore';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
+// Friends is fully built and deployed, just not launched yet — flip this to
+// true when the user base is large enough for it to be worth surfacing.
+const FRIENDS_FEATURE_ENABLED = false;
+
 // Legal docs live on the website now, not in-app — opened via an in-app
 // browser sheet (WebBrowser.openBrowserAsync) rather than a native screen,
 // so there's one source of truth shared with the App Store listing.
@@ -686,10 +690,6 @@ export function SettingsScreen() {
                     <Text style={[profileStyles.usernameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{username ? `@${username}` : isSignedIn ? 'Tap to set username' : '@guest'}</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.displayTileOuter, profileStyles.settingsButton, { backgroundColor: colors.card, borderColor: colors.borderLight, marginBottom: Spacing.md }]} onPress={() => setSettingsSheetVisible(true)}>
-                  <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Account Settings</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                </TouchableOpacity>
                 {Object.keys(readingHistory).some(c => readingHistory[c].length > 0) && (
                   <View style={[styles.displayTileOuter, profileStyles.langFilterTile, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.langFilterContent}>
@@ -706,7 +706,7 @@ export function SettingsScreen() {
                     </ScrollView>
                   </View>
                 )}
-                <View style={[styles.displayTileOuter, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
+                <View style={[styles.displayTileOuter, { backgroundColor: colors.card, borderColor: colors.borderLight, marginBottom: Spacing.md }]}>
                   <View style={profileStyles.streakHeader}>
                     <View style={profileStyles.streakLeft}>
                       <Text style={[profileStyles.streakCount, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>{maxStreak}</Text>
@@ -720,6 +720,10 @@ export function SettingsScreen() {
                   </View>
                   <FullStreakCalendar readingHistory={readingHistory} filterLang={filterLang} activeLang={filterLang} onLangChange={setFilterLang} readingStreaks={readingStreaks} hideTabs headerStyle="subtle" hideStreakLabel />
                 </View>
+                <TouchableOpacity style={[styles.displayTileOuter, profileStyles.settingsButton, { backgroundColor: colors.card, borderColor: colors.borderLight }]} onPress={() => setSettingsSheetVisible(true)}>
+                  <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Account Settings</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
               </>
             )}
           </ScrollView>
@@ -1078,22 +1082,7 @@ export function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Account Settings button */}
-          <TouchableOpacity
-            style={[styles.displayTileOuter, profileStyles.settingsButton, {
-              backgroundColor: colors.card,
-              borderColor: colors.borderLight,
-              marginBottom: Spacing.md,
-            }]}
-            onPress={() => setSettingsSheetVisible(true)}
-          >
-            <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              Account Settings
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </TouchableOpacity>
-
-          {/* Language filter tile — between Account Settings and Daily Streaks */}
+          {/* Language filter tile — between the profile header and Daily Streaks */}
           {Object.keys(readingHistory).some(c => readingHistory[c].length > 0) && (
             <View style={[styles.displayTileOuter, profileStyles.langFilterTile, { backgroundColor: colors.card, borderColor: colors.borderLight }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={profileStyles.langFilterContent}>
@@ -1161,6 +1150,21 @@ export function SettingsScreen() {
               hideStreakLabel
             />
           </View>
+
+          {/* Account Settings button */}
+          <TouchableOpacity
+            style={[styles.displayTileOuter, profileStyles.settingsButton, {
+              backgroundColor: colors.card,
+              borderColor: colors.borderLight,
+              marginTop: Spacing.md,
+            }]}
+            onPress={() => setSettingsSheetVisible(true)}
+          >
+            <Text style={[profileStyles.settingsButtonText, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+              Account Settings
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+          </TouchableOpacity>
         </ScrollView>
       </ScrollView>
       )}
@@ -1368,25 +1372,30 @@ export function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Friends */}
-              <SectionHeader title="Friends" colors={colors} fontFamily={fontFamily} />
-              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
-                <TouchableOpacity
-                  style={[styles.displayTileRow, { borderTopWidth: 0 }]}
-                  onPress={() => closeSheetThen(() => {
-                    if (isSignedIn) useFriendsStore.getState().show();
-                    else setSignInModalVisible(true);
-                  })}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                      Friends
-                    </Text>
-                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Add friends by username and compare reading streaks</Text>
+              {/* Friends — built and deployed, held back from the UI until the
+                  user base justifies it. Flip FRIENDS_FEATURE_ENABLED to launch. */}
+              {FRIENDS_FEATURE_ENABLED && (
+                <>
+                  <SectionHeader title="Friends" colors={colors} fontFamily={fontFamily} />
+                  <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                    <TouchableOpacity
+                      style={[styles.displayTileRow, { borderTopWidth: 0 }]}
+                      onPress={() => closeSheetThen(() => {
+                        if (isSignedIn) useFriendsStore.getState().show();
+                        else setSignInModalVisible(true);
+                      })}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                          Friends
+                        </Text>
+                        <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Add friends by username and compare reading streaks</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                    </TouchableOpacity>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-                </TouchableOpacity>
-              </View>
+                </>
+              )}
 
               {/* Legal & Support */}
               <SectionHeader title="Legal & Support" colors={colors} fontFamily={fontFamily} />

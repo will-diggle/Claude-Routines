@@ -1,8 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { BlurView } from 'expo-blur';
-import MaskedView from '@react-native-masked-view/masked-view';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '../hooks/useTheme';
@@ -21,10 +18,6 @@ import { playArticleAudio, pauseAudio, resumeAudio } from '../services/audioPlay
 // Same size as GameHeader's back/settings GlassButtons, so this reads as the
 // same "round button" throughout the app rather than its own one-off size.
 const AUDIO_BTN_SIZE = 40;
-
-// Matches styles.body's fixed lineHeight below — used to size the locked-
-// article blur ramp to "one line of body text" regardless of fontSize.body.
-const BODY_LINE_HEIGHT = 26;
 
 // Unique prefixes present in the lookup table — used to scan sentences.
 const SEPARABLE_DE_PREFIXES = [...new Set(Object.values(SEPARABLE_DE))] as string[];
@@ -81,7 +74,7 @@ interface Props {
 }
 
 export function BriefingArticle({ article, isLast, language, level, genre, date, locked, onLockedPress }: Props) {
-  const { colors, fontFamily, fontSize, isDark } = useTheme();
+  const { colors, fontFamily, fontSize } = useTheme();
   // Drives both the headline's own lineHeight and the audio button's
   // vertical centering against the first line — kept as one value so the
   // two can never drift apart as fontSize.heading changes with the user's
@@ -127,12 +120,6 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     }
     return map;
   }, [article.tokenMap]);
-
-  // Measured height of the headline row — used to size the locked-article
-  // blur ramp (see the `locked` block below) so it reaches full strength
-  // right around the first line of body text, regardless of how many lines
-  // the headline itself wraps to.
-  const [headlineHeight, setHeadlineHeight] = useState<number | null>(null);
 
   // Highlighted word positions (article-global) — supports non-adjacent tokens
   const [activePositions, setActivePositions] = useState<Set<number>>(new Set());
@@ -343,10 +330,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
     <View style={[styles.container, isRTL && styles.containerRTL]}>
 
       {/* Headline */}
-      <View
-        style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}
-        onLayout={locked ? (e) => setHeadlineHeight(e.nativeEvent.layout.height) : undefined}
-      >
+      <View style={[styles.headlineRow, isRTL && styles.headlineRowRTL]}>
         <TappableText
           text={displayHeadline}
           style={[
@@ -383,8 +367,25 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         )}
       </View>
 
-      {/* Body — split on double newlines to render proper paragraphs (RTL stays as one block) */}
-      {isRTL ? (
+      {/* Body — split on double newlines to render proper paragraphs (RTL stays as one block).
+          Locked articles skip the body entirely rather than trying to visually
+          obscure it — a blurred-body treatment depends on BlurView's native
+          blur, which iOS silently disables (renders fully transparent, not
+          just less-blurred) under Low Power Mode or the Reduce Transparency
+          accessibility setting, both more common on older devices; that left
+          premium content fully readable on some real devices. */}
+      {locked ? (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => onLockedPress?.()}
+          style={[styles.lockedRow, { borderColor: colors.borderLight }]}
+        >
+          <Ionicons name="lock-closed" size={14} color={colors.inkFaint} />
+          <Text style={[styles.lockedRowText, { color: colors.inkFaint, fontFamily: fontFamily.bold }]}>
+            Unlock more with Premium
+          </Text>
+        </TouchableOpacity>
+      ) : isRTL ? (
         <TappableText
           text={displayBody}
           style={[styles.body, { color: colors.inkMid, fontFamily: arabicFontRegular, fontSize: fontSize.body }, styles.rtlText]}
@@ -423,7 +424,6 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
         })
       )}
 
-
       {activeWord && (
         <WordPopup
           word={activeWord}
@@ -438,51 +438,6 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
           onClose={handleClose}
         />
       )}
-
-      {locked && (() => {
-        // Same max blur used for the weather card's modal backdrop
-        // (intensity 10). A single flat full-intensity BlurView, revealed
-        // through a gradient MASK rather than faked with stacked bands at
-        // varying intensity — stacked thin bands each blur their own tiny
-        // slice independently, which reads as grain/noise rather than a
-        // smooth blur (tried 6 bands, then 24 — both visibly artifacted).
-        // A mask is a true continuous alpha ramp: transparent = blur hidden
-        // (sharp text shows through), opaque = blur fully revealed. Zone is
-        // sized to (measured headline height + one body line), below which
-        // the mask is solid and the blur is fully revealed.
-        const MAX_INTENSITY = 10;
-        const rampZoneHeight = (headlineHeight ?? 90) + BODY_LINE_HEIGHT + Spacing.sm;
-        return (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => onLockedPress?.()}
-            style={StyleSheet.absoluteFill}
-          >
-            <MaskedView
-              style={StyleSheet.absoluteFill}
-              maskElement={
-                <View style={{ flex: 1 }}>
-                  <LinearGradient
-                    colors={['transparent', '#000']}
-                    style={{ height: rampZoneHeight }}
-                  />
-                  <View style={{ flex: 1, backgroundColor: '#000' }} />
-                </View>
-              }
-            >
-              <BlurView intensity={MAX_INTENSITY} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            </MaskedView>
-            <View style={styles.lockedBadgeWrap} pointerEvents="none">
-              <View style={[styles.lockedBadge, { backgroundColor: 'rgba(0,0,0,0.94)' }]}>
-                <Ionicons name="lock-closed" size={16} color="#FFF" />
-                <Text style={[styles.lockedBadgeText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
-                  Unlock more with Premium
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      })()}
     </View>
   );
 }
@@ -528,25 +483,18 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     marginTop: Spacing.md,
   },
-  lockedBadgeWrap: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockedBadge: {
+  lockedRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 7,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: Spacing.xs,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  lockedBadgeText: {
-    fontSize: 14,
+  lockedRowText: {
+    fontSize: 13,
   },
 });

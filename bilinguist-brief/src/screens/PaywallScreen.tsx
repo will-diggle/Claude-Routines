@@ -168,6 +168,11 @@ export function PaywallScreen({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      {/* Solid scrim behind the blur — iOS renders BlurView fully transparent
+          (not just less-blurred) under Low Power Mode or the Reduce
+          Transparency accessibility setting, both more common on older
+          devices, which otherwise leaves the backdrop looking unstyled. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(20,18,16,0.55)' : 'rgba(245,240,232,0.6)' }]} pointerEvents="none" />
       <BlurView intensity={10} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} pointerEvents="none" />
       {/* Dismiss on tap OUTSIDE the card — sits behind the card in z-order */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />

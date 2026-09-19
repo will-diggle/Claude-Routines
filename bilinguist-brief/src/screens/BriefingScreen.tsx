@@ -1021,7 +1021,7 @@ export function BriefingScreen() {
                         key={len}
                         style={[
                           styles.lengthChip,
-                          { borderColor: isActive ? colors.inkDark : colors.borderMid, flexDirection: 'row', alignItems: 'center', gap: 4, opacity: locked ? 0.45 : 1 },
+                          { borderColor: isActive ? colors.inkDark : colors.borderMid, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, opacity: locked ? 0.45 : 1 },
                           isActive && {
                             backgroundColor: colors.inkDark,
                             shadowColor: '#000', shadowOffset: { width: 0, height: 2 },

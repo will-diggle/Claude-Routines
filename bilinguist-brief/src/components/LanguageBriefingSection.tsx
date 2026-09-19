@@ -288,8 +288,8 @@ function WeatherSectionHeader({ language, level, weatherCode, utcOffsetSeconds, 
 }
 
 function SectionHeader({
-  label, accent, language, level, genre, isFirst, publishedTs,
-}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string; isFirst?: boolean; publishedTs?: number | null }) {
+  label, accent, language, level, genre, isFirst, publishedTs, locked,
+}: { label: string; accent: string; language: LanguageCode; level: LanguageLevel; genre: string; isFirst?: boolean; publishedTs?: number | null; locked?: boolean }) {
   const { colors, fontFamily } = useTheme();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const briefDisclaimer = level === 'A1' ? GENRE_BRIEF_DISCLAIMER[genre.toUpperCase()] : undefined;
@@ -311,7 +311,18 @@ function SectionHeader({
             </Text>
           )}
         </View>
-        {isFirst && publishedTs ? (
+        {locked ? (
+          <TouchableOpacity
+            onPress={() => useSubscriptionStore.getState().showPaywall()}
+            style={[styles.sectionPremiumBadge, { borderColor: colors.borderMid }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+            <Text style={[styles.sectionPremiumBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Premium
+            </Text>
+          </TouchableOpacity>
+        ) : isFirst && publishedTs ? (
           <Text style={[styles.sectionDate, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
             {briefPublishedLabel(language, publishedTs)}
           </Text>
@@ -488,6 +499,14 @@ export function LanguageBriefingSection({
             const colCount = isIPad ? (isGlobalNews && isLandscape ? 3 : 2) : 1;
             const colPct = `${Math.floor(100 / colCount)}%` as `${number}%`;
 
+            // A topic absent from FREE_TOPICS is fully premium-gated. A topic
+            // IN FREE_TOPICS (today, only Global News produces articles here —
+            // weather renders separately) keeps its existing per-day
+            // free-article allowance instead of an all-or-nothing lock.
+            const topicKey = GENRE_TO_TOPIC[group.genre] as string | undefined;
+            const isPremiumGatedTopic = !!topicKey && !FREE_TOPICS.has(topicKey);
+            const topicLocked = !fullAccess && isPremiumGatedTopic;
+
             return (
               <View key={`${group.genre}-${groupIndex}`}>
                 <SectionHeader
@@ -498,48 +517,47 @@ export function LanguageBriefingSection({
                   genre={group.genre}
                   isFirst={isFirstItem}
                   publishedTs={bundleReceivedAt}
+                  locked={topicLocked}
                 />
 
-                <View style={isIPad ? { flexDirection: 'row', flexWrap: 'wrap' } : undefined}>
-                  {group.articles.map((article, articleIndex) => {
-                    // A topic absent from FREE_TOPICS is fully premium-gated:
-                    // every one of its articles is locked for a free user. A
-                    // topic IN FREE_TOPICS (today, only Global News produces
-                    // articles here — weather renders separately) keeps its
-                    // existing per-day free-article allowance instead of an
-                    // all-or-nothing lock.
-                    const topicKey = GENRE_TO_TOPIC[group.genre] as string | undefined;
-                    const isPremiumGatedTopic = !!topicKey && !FREE_TOPICS.has(topicKey);
-                    const locked = !fullAccess && (
-                      isPremiumGatedTopic || (isGlobalNews && articleIndex >= FREE_WORLDNEWS_ARTICLE_LIMIT)
-                    );
-                    return (
-                      <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
-                        <BriefingArticle
-                          article={article}
-                          isLast={!isIPad && articleIndex === group.articles.length - 1}
-                          language={langCode}
-                          level={level}
-                          genre={article.genre}
-                          date={briefing?.date ?? new Date().toISOString().split('T')[0]}
-                          locked={locked}
-                          onLockedPress={() => useSubscriptionStore.getState().showPaywall()}
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
+                {/* A locked topic shows only its header + Premium badge above —
+                    no teaser article, and nothing to share (the share text is
+                    built from the full unfiltered article bodies, which would
+                    otherwise leak locked content through the share sheet). */}
+                {!topicLocked && (
+                  <>
+                    <View style={isIPad ? { flexDirection: 'row', flexWrap: 'wrap' } : undefined}>
+                      {group.articles.map((article, articleIndex) => {
+                        const locked = !fullAccess && isGlobalNews && articleIndex >= FREE_WORLDNEWS_ARTICLE_LIMIT;
+                        return (
+                          <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
+                            <BriefingArticle
+                              article={article}
+                              isLast={!isIPad && articleIndex === group.articles.length - 1}
+                              language={langCode}
+                              level={level}
+                              genre={article.genre}
+                              date={briefing?.date ?? new Date().toISOString().split('T')[0]}
+                              locked={locked}
+                              onLockedPress={() => useSubscriptionStore.getState().showPaywall()}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
 
-                <TouchableOpacity
-                  onPress={() => Share.share({ message: shareMsg })}
-                  activeOpacity={0.6}
-                  style={styles.groupShareBtn}
-                >
-                  <Ionicons name="share-social-outline" size={13} color={colors.inkFaint} />
-                  <Text style={[styles.sectionShareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                    {SHARE_WORD[langCode] ?? 'Share'}
-                  </Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => Share.share({ message: shareMsg })}
+                      activeOpacity={0.6}
+                      style={styles.groupShareBtn}
+                    >
+                      <Ionicons name="share-social-outline" size={13} color={colors.inkFaint} />
+                      <Text style={[styles.sectionShareLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                        {SHARE_WORD[langCode] ?? 'Share'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             );
           })}
@@ -615,6 +633,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.6,
     paddingLeft: 8,
+  },
+  sectionPremiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  sectionPremiumBadgeText: {
+    fontSize: 11,
   },
   sectionShareLabel: {
     fontSize: 11,
