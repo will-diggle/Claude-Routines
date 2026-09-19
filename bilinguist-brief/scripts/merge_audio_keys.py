@@ -20,9 +20,20 @@ byte-for-byte as it was. This is what bilinguist_audio.py's own module
 docstring already promises ("adds an audioKey field ... nothing else") --
 this script is what actually makes that true at the git-push layer, not just
 within a single process.
+
+Also bumps the top-level `generatedAt` timestamp when it applies at least one
+audioKey. Added 2026-09-19 after the app team found the app's cache compares
+its stored `generatedAt` against the server's and skips refetching when they
+match -- since narration lands a few minutes after the text itself goes
+live, and this script previously left `generatedAt` untouched, the app would
+never notice narration had arrived and would serve the pre-narration copy
+for the rest of the day even after the real data caught up. Only the
+top-level bundle field is bumped; per-combo `briefings[lang][level][length].
+generatedAt` still reflects real article-write time and is left alone.
 """
 import json
 import sys
+import time
 
 
 def index_audio_keys(bundle):
@@ -74,11 +85,15 @@ def main():
                         a["audioKey"] = new_keys[key]
                         applied += 1
 
+    if applied:
+        fresh["generatedAt"] = int(time.time() * 1000)
+
     with open(fresh_path, "w", encoding="utf-8") as f:
         json.dump(fresh, f, ensure_ascii=False, indent=2)
 
-    print(f"[merge_audio_keys] applied {applied} audioKey field(s) into {fresh_path}; "
-          f"no other field touched")
+    print(f"[merge_audio_keys] applied {applied} audioKey field(s) into {fresh_path}"
+          + (f"; bumped top-level generatedAt to {fresh['generatedAt']}" if applied else "")
+          + "; no other field touched")
 
 
 if __name__ == "__main__":
