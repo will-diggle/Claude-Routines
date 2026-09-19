@@ -48,3 +48,23 @@ verify_jwt = true
 # `supabase functions invoke`, which authenticates with the service-role key;
 # only whoever holds that key can call this.
 verify_jwt = false
+
+[functions.search-username]
+# verify_jwt = true — requires a signed-in user. Excludes the caller's own
+# row from results; the caller's identity comes from the JWT, not the body.
+verify_jwt = true
+
+[functions.list-friends]
+# verify_jwt = true — requires a signed-in user. Returns only the caller's
+# own friendships/requests and their whitelisted columns, resolved from the JWT.
+verify_jwt = true
+
+[functions.create-friend-invite]
+# verify_jwt = true — requires a signed-in user. The invite is always issued
+# for the caller (from the JWT), never an arbitrary owner_id from the body.
+verify_jwt = true
+
+[functions.redeem-friend-invite]
+# verify_jwt = true — requires a signed-in user. The resulting friendship is
+# always addressed to the caller (from the JWT), never an arbitrary user.
+verify_jwt = true

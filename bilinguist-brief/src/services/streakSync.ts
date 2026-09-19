@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,11 @@ async function pushToSupabase(
       last_read_dates: snapshot.lastReadDates,
       freeze_dates_used: snapshot.freezeDatesUsed,
       full_sweep_date: snapshot.fullSweepDate ?? null,
+      // For the friends feature (007_friends.sql) — a friend may see which
+      // languages a user is currently active in, alongside their reading
+      // streaks. Read fresh each push rather than threaded through
+      // StreakSnapshot, since it's settings state, not streak state.
+      active_language_codes: useSettingsStore.getState().activeLanguages().map((l) => l.code),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' },

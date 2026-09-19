@@ -75,6 +75,7 @@ import * as analytics from '../services/analytics';
 import * as WebBrowser from 'expo-web-browser';
 import { GlassSurface } from '../components/GlassSurface';
 import { useSubscriptionStore, FREE_TOPICS } from '../store/useSubscriptionStore';
+import { useFriendsStore } from '../store/useFriendsStore';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0';
 
@@ -1362,6 +1363,26 @@ export function SettingsScreen() {
                       Bilinguist Premium
                     </Text>
                     <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Unlock all languages and unlimited word saves</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Friends */}
+              <SectionHeader title="Friends" colors={colors} fontFamily={fontFamily} />
+              <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
+                <TouchableOpacity
+                  style={[styles.displayTileRow, { borderTopWidth: 0 }]}
+                  onPress={() => closeSheetThen(() => {
+                    if (isSignedIn) useFriendsStore.getState().show();
+                    else setSignInModalVisible(true);
+                  })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                      Friends
+                    </Text>
+                    <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Add friends by username and compare reading streaks</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
                 </TouchableOpacity>

@@ -1,12 +1,20 @@
 // Supabase Edge Function: update-profile
 //
-// Upserts the calling user's `user_profiles.display_name` and/or `avatar_url`.
-// Distinct from
+// Upserts the calling user's `user_profiles.display_name`, `avatar_url`
+// and/or `username`. Distinct from
 // record-acceptance (which also writes user_profiles, but only as a
 // side-effect of stamping ToS/Privacy acceptance timestamps) — reusing that
 // function for a plain profile edit would incorrectly re-stamp acceptance
 // dates every time someone just changes their display name. This is the
 // only writer that touches display_name in isolation.
+//
+// `username` (added for the friends feature, 007_friends.sql) is a
+// separate, unique-per-account handle — NOT the same thing as displayName,
+// which is free text sourced from OAuth and shown nowhere friends-related.
+// The DB's `user_profiles_username_format` CHECK and the case-insensitive
+// unique index are the real enforcement; the regex/uniqueness handling
+// below exists only to turn a raw constraint violation into a response the
+// client can show as a friendly message.
 //
 // Requires a valid user JWT (verify_jwt = true in config.toml).
 //
@@ -27,6 +35,9 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Mirrors the DB's user_profiles_username_format CHECK constraint exactly.
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -62,7 +73,7 @@ serve(async (req) => {
     });
   }
 
-  let body: { displayName?: string; avatarUrl?: string };
+  let body: { displayName?: string; avatarUrl?: string; username?: string };
   try {
     body = await req.json();
   } catch {
@@ -74,8 +85,17 @@ serve(async (req) => {
 
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 60) : null;
   const avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim().slice(0, 500) : null;
-  if (!displayName && !avatarUrl) {
-    return new Response(JSON.stringify({ error: 'displayName or avatarUrl is required' }), {
+  const username = typeof body.username === 'string' ? body.username.trim() : null;
+
+  if (username && !USERNAME_RE.test(username)) {
+    return new Response(JSON.stringify({ error: 'Username must be 3-20 letters, numbers, or underscores.', code: 'invalid_format' }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!displayName && !avatarUrl && !username) {
+    return new Response(JSON.stringify({ error: 'displayName, avatarUrl, or username is required' }), {
       status: 400,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
@@ -94,6 +114,7 @@ serve(async (req) => {
   const row: Record<string, string> = { user_id: user.id };
   if (displayName) row.display_name = displayName;
   if (avatarUrl) row.avatar_url = avatarUrl;
+  if (username) row.username = username;
 
   const { error: upsertError } = await adminClient
     .from('user_profiles')
@@ -101,13 +122,22 @@ serve(async (req) => {
 
   if (upsertError) {
     console.error('update-profile upsert error:', upsertError);
+    // 23505 = unique_violation — the only constraint this row can hit is
+    // user_profiles_username_unique_ci (case-insensitive), since user_id is
+    // the upsert's own conflict target.
+    if (username && (upsertError as { code?: string }).code === '23505') {
+      return new Response(JSON.stringify({ error: 'That username is taken.', code: 'username_taken' }), {
+        status: 409,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      });
+    }
     return new Response(JSON.stringify({ error: 'Failed to update profile' }), {
       status: 500,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, displayName, avatarUrl }), {
+  return new Response(JSON.stringify({ ok: true, displayName, avatarUrl, username }), {
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   });
 });
