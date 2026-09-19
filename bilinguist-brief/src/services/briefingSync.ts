@@ -136,7 +136,17 @@ export async function applyBundleToCache(bundle: DailyBundle): Promise<void> {
       if (!Array.isArray(articles) || !articles.length) continue;
       const key = `briefing_${bundle.date}_${lang}_Native_${length}`;
       const briefing = {
-        articles: articles.map((a: any) => ({ genre: a.genre, headline: a.headline, body: a.body, audioKey: a.audioKey })),
+        articles: articles.map((a: any) => ({
+          genre: a.genre,
+          slug: a.slug,
+          headline: a.headline,
+          body: a.body,
+          headlineAudio: a.headlineAudio,
+          bodyAudio: a.bodyAudio,
+          wordCount: a.wordCount,
+          tokenMap: a.tokenMap,
+          audioKey: a.audioKey,
+        })),
         date: bundle.date,
         language: lang,
         level: 'Native',

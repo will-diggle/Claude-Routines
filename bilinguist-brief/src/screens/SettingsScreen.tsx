@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { FlagCircle, GlobeCircle } from '../components/FlagCircle';
 import { useScrollTabBar } from '../hooks/useScrollTabBar';
 import { useAuthFlows } from '../hooks/useAuthFlows';
@@ -72,7 +73,6 @@ try {
 import Constants from 'expo-constants';
 import * as analytics from '../services/analytics';
 import * as WebBrowser from 'expo-web-browser';
-import { GlassButton } from '../components/GlassButton';
 import { GlassSurface } from '../components/GlassSurface';
 import { useSubscriptionStore, FREE_TOPICS } from '../store/useSubscriptionStore';
 
@@ -215,6 +215,15 @@ export function SettingsScreen() {
       },
     })
   ).current;
+  // Closes the Settings sheet, then opens another Modal after its dismiss
+  // animation finishes. Two native Modal presentations changing visible in
+  // the same tick (close this one, open that one) can wedge iOS's modal
+  // presentation into an unresponsive state requiring a force-quit — this
+  // sequences them instead of racing.
+  function closeSheetThen(openNext: () => void) {
+    setSettingsSheetVisible(false);
+    setTimeout(openNext, 350);
+  }
   const [usernameModalVisible, setUsernameModalVisible] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [filterLang, setFilterLang] = useState<string>('all');
@@ -381,11 +390,10 @@ export function SettingsScreen() {
   }, []);
 
   function openSupportForm() {
-    setSettingsSheetVisible(false);
     setSupportState('idle');
     setSupportSubject('');
     setSupportBody('');
-    setSupportModalVisible(true);
+    closeSheetThen(() => setSupportModalVisible(true));
   }
 
   function closeSupportModal() {
@@ -1199,9 +1207,14 @@ export function SettingsScreen() {
                 style={[StyleSheet.absoluteFill, { borderTopLeftRadius: 28, borderTopRightRadius: 28 }]}
               />
               <View style={[sheetStyles.titleRow, { paddingTop: Spacing.md + 10, height: SETTINGS_HEADER_HEIGHT }]}>
-                <GlassButton onPress={() => setSettingsSheetVisible(false)} size={40}>
-                  <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-                </GlassButton>
+                <TouchableOpacity
+                  onPress={() => setSettingsSheetVisible(false)}
+                  style={sheetStyles.backCircle}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <BlurView intensity={isDark ? 60 : 70} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <Ionicons name="chevron-back" size={22} color={colors.inkDark} />
+                </TouchableOpacity>
                 <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold, fontSize: 23 }]}>
                   Settings
                 </Text>
@@ -1258,11 +1271,10 @@ export function SettingsScreen() {
                     <TouchableOpacity
                       style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
                       onPress={() => {
-                        setSettingsSheetVisible(false);
                         setAuthError(null);
                         setAuthEmail('');
                         setAuthPassword('');
-                        setSignInModalVisible(true);
+                        closeSheetThen(() => setSignInModalVisible(true));
                       }}
                     >
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
@@ -1363,7 +1375,7 @@ export function SettingsScreen() {
               <View style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card }]}>
                 <TouchableOpacity
                   style={[styles.displayTileRow, { borderTopWidth: 0 }]}
-                  onPress={() => showPaywall()}
+                  onPress={() => closeSheetThen(() => showPaywall())}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
@@ -1657,9 +1669,14 @@ export function SettingsScreen() {
               <View style={[sheetStyles.handle, { backgroundColor: colors.borderMid }]} />
             </View>
             <View style={sheetStyles.titleRow}>
-              <GlassButton onPress={closeSupportModal} size={40}>
-                <Ionicons name="chevron-back" size={24} color={colors.inkDark} />
-              </GlassButton>
+              <TouchableOpacity
+                onPress={closeSupportModal}
+                style={sheetStyles.backCircle}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <BlurView intensity={isDark ? 60 : 70} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                <Ionicons name="chevron-back" size={22} color={colors.inkDark} />
+              </TouchableOpacity>
               <Text style={[sheetStyles.sheetTitle, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
                 Contact Support
               </Text>
@@ -2173,6 +2190,14 @@ const sheetStyles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
+  },
+  backCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   sheetTitle: {
     fontSize: 18,
