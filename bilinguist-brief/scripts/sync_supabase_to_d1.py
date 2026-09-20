@@ -83,10 +83,72 @@ def fetch_all_rows(supa, lang):
     return rows
 
 
+# Pre-2026-09-18 batches wrote full case tables under "cases" (nouns) /
+# "case_declensions" (adjectives) instead of the "declensions" array the app
+# actually reads (entry.meta.declensions in WordPopup.tsx) — build_meta()
+# below used to just drop these keys, silently discarding real, already-
+# generated data for ~2,750 German words. This converts them into the same
+# shape the live pipeline produces, matching WordPopup.tsx's splitDeclTable:
+# a table whose keys end in " sg"/" pl" renders as a two-column singular/
+# plural view; any other shape renders as a flat list.
+_NOUN_CASE_KEYS = [
+    ("NOM sg", "nominative_singular"), ("NOM pl", "nominative_plural"),
+    ("AKK sg", "accusative_singular"), ("AKK pl", "accusative_plural"),
+    ("DAT sg", "dative_singular"),     ("DAT pl", "dative_plural"),
+    ("GEN sg", "genitive_singular"),   ("GEN pl", "genitive_plural"),
+]
+
+# case_declensions is strong-declension only (no weak/mixed, no plural) —
+# label by gender since there's no sg/pl axis to split on.
+_ADJ_CASE_KEYS = [
+    ("Nominative (m)", "nominative_masculine_strong"), ("Nominative (f)", "nominative_feminine_strong"), ("Nominative (n)", "nominative_neuter_strong"),
+    ("Accusative (m)", "accusative_masculine_strong"), ("Accusative (f)", "accusative_feminine_strong"), ("Accusative (n)", "accusative_neuter_strong"),
+    ("Dative (m)", "dative_masculine_strong"),         ("Dative (f)", "dative_feminine_strong"),         ("Dative (n)", "dative_neuter_strong"),
+    ("Genitive (m)", "genitive_masculine_strong"),     ("Genitive (f)", "genitive_feminine_strong"),     ("Genitive (n)", "genitive_neuter_strong"),
+]
+
+
+def _legacy_cases_to_declensions(data):
+    cases = data.get("cases")
+    if isinstance(cases, dict) and cases:
+        table = {label: cases[key] for label, key in _NOUN_CASE_KEYS if cases.get(key)}
+        if table:
+            return [{"label": "DEKLINIERT", "table": table}]
+    case_declensions = data.get("case_declensions")
+    if isinstance(case_declensions, dict) and case_declensions:
+        table = {label: case_declensions[key] for label, key in _ADJ_CASE_KEYS if case_declensions.get(key)}
+        if table:
+            return [{"label": "DEKLINIERT", "table": table}]
+    return None
+
+
 def build_meta(data, tenses_array=None):
     if not isinstance(data, dict):
         data = {}
-    meta = {k: v for k, v in data.items() if k not in ("tenses", "cases")}
+    # 2026-09-18: populate_word_workflow.js runs the app's own
+    # generateWordData() prompt verbatim, which already returns `meta` in
+    # exactly the shape the app expects (isRegular/auxiliary/verbClass/
+    # isSeparable) — stored under the distinct key "app_meta" (not "meta",
+    # to avoid any ambiguity with legacy rows' differently-shaped data) so
+    # it can be told apart from the pre-2026-09-18 flat-field rows. Prefer
+    # it outright when present; no reconstruction needed.
+    app_meta = data.get("app_meta")
+    if isinstance(app_meta, dict) and app_meta:
+        meta = dict(app_meta)
+        if tenses_array:
+            meta["tenses"] = tenses_array
+        declensions = data.get("declensions") or _legacy_cases_to_declensions(data)
+        if declensions:
+            meta["declensions"] = declensions
+        example_marked = data.get("exampleMarked")
+        if isinstance(example_marked, str) and example_marked:
+            meta["exampleMarked"] = example_marked
+        return meta if meta else None
+
+    meta = {k: v for k, v in data.items() if k not in ("tenses", "cases", "case_declensions")}
+    declensions = data.get("declensions") or _legacy_cases_to_declensions(data)
+    if declensions:
+        meta["declensions"] = declensions
     if tenses_array:
         meta["tenses"] = tenses_array
     return meta if meta else None
@@ -95,6 +157,13 @@ def build_meta(data, tenses_array=None):
 def build_forms(word_type, data):
     if not isinstance(data, dict):
         return None
+    # Same as build_meta() above — prefer the app-shaped `forms` object
+    # (already exactly {gender,plural,article,definite,indefinite} for a
+    # noun or {feminine,masculine,comparative,superlative} for an
+    # adjective) over reconstructing it from flat legacy fields.
+    app_forms = data.get("app_forms")
+    if isinstance(app_forms, dict) and app_forms:
+        return app_forms
     if word_type == "noun":
         cases = data.get("cases") or {}
         sv_forms = data.get("forms") if isinstance(data.get("forms"), dict) else {}
@@ -138,6 +207,15 @@ def extract_additional_forms(word_type, data):
         number combos), or nested forms{} (sv, same shape as sv adjectives)
     """
     forms = set()
+
+    # 2026-09-18: app-shaped `forms` (see build_forms() above) — every
+    # string value in it (plural, feminine, comparative, ...) is a real
+    # single-token surface form worth its own word_forms row, same as the
+    # legacy flat-field extraction below does for older rows.
+    app_forms = data.get("app_forms")
+    if isinstance(app_forms, dict):
+        forms.update(v for v in app_forms.values() if isinstance(v, str))
+
     if word_type == "verb":
         # Flat fields alongside `tenses` on every verb across all 6 languages
         # (e.g. fr "ajouter": past_participle="ajouté", present_participle=
@@ -184,6 +262,21 @@ def extract_additional_forms(word_type, data):
         nested = data.get("forms")
         if isinstance(nested, dict):
             forms.update(v for v in nested.values() if isinstance(v, str))
+
+    # 2026-09-18: `declensions` (the app's own [{label, table}, ...] shape —
+    # German noun/adjective case tables, French/Spanish/Italian/Swedish
+    # plural or comparison forms) replaces the old flat `cases`/
+    # `case_declensions` fields for newly-generated entries. Pull every
+    # table value out as a candidate surface form too, same as the old
+    # fields did, so e.g. a German genitive noun form still gets its own
+    # word_forms row and is tappable in running text.
+    declensions = data.get("declensions")
+    if isinstance(declensions, list):
+        for block in declensions:
+            table = block.get("table") if isinstance(block, dict) else None
+            if isinstance(table, dict):
+                forms.update(v for v in table.values() if isinstance(v, str))
+
     return forms
 
 
@@ -203,9 +296,18 @@ def rows_for_lemma(row):
     tip = row.get("tip")
     level = row.get("level")
 
-    tenses_array = None
-    if word_type == "verb" and isinstance(data.get("tenses"), dict):
-        tenses_array = tenses_dict_to_array(data["tenses"])
+    # 2026-09-18: the population prompt now asks Haiku for `tenses` already
+    # shaped as the app's own [{label, table}, ...] array (matching
+    # generateWordData()'s buildTensesInstruction verbatim) instead of the
+    # old flat {"PRESENT": {...}} dict. Handle both — old rows in Supabase
+    # still have the flat dict shape, new rows have the array shape.
+    raw_tenses = data.get("tenses")
+    if isinstance(raw_tenses, list) and raw_tenses:
+        tenses_array = raw_tenses
+    elif word_type == "verb" and isinstance(raw_tenses, dict):
+        tenses_array = tenses_dict_to_array(raw_tenses)
+    else:
+        tenses_array = None
 
     forms = build_forms(word_type, data)
     meta = build_meta(data, tenses_array)
