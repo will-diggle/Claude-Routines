@@ -41,6 +41,11 @@ EVENT_CONFIG = [
     ("user_signed_up", [], {}),
     ("paywall_shown", [], {}),
     ("subscription_started", [], {}),
+    ("topic_toggled", ["topic", "enabled"], {}),
+    # Per-article completion (≥90% of THIS article visible + ≥30s page dwell)
+    # — the signal that can answer "which genres get read to completion",
+    # unlike brief_completed, which is per-language-edition, not per-article.
+    ("article_read", ["language", "genre"], {}),
 ]
 
 
@@ -59,6 +64,33 @@ def query(hogql: str):
     except urllib.error.HTTPError as e:
         print(f"HogQL query failed ({e.code}) for: {hogql}\n{e.read().decode()[:500]}", file=sys.stderr)
         raise
+
+
+# Current-state design preferences (Part A of the analytics build spec, Sept
+# 2026) — set as person properties via setPersonProperties(), not just fired
+# as events, because "which font/background/icon do people currently use"
+# is a snapshot-of-current-state question, not an event-count one.
+PERSON_PROPERTIES = ["font_family", "manual_background", "auto_night_mode", "app_icon"]
+
+
+def fetch_person_property_breakdown(property_name):
+    # `persons` holds one row per person with their CURRENT (already
+    # deduplicated/merged-by-PostHog) properties — unlike `events`, an
+    # immutable log where getting "the current value" would need an
+    # argMax(value, timestamp)-style derivation, this table already IS the
+    # current-state snapshot, so a direct GROUP BY is enough.
+    hogql = (
+        f"SELECT properties.{property_name} AS value, count() AS n "
+        f"FROM persons WHERE properties.{property_name} IS NOT NULL "
+        f"GROUP BY value ORDER BY n DESC"
+    )
+    res = query(hogql)
+    cols = res.get("columns", [])
+    rows = []
+    for r in res.get("results", []):
+        row = dict(zip(cols, r))
+        rows.append({"value": row["value"], "count": row["n"]})
+    return rows
 
 
 def fetch_event(event_name, dims, extra):
@@ -110,6 +142,18 @@ def main():
         except Exception as e:
             print(f"WARNING: skipping {event_name} due to error: {e}", file=sys.stderr)
             out["events"][event_name] = []
+
+    # Separate top-level key from "events" — this is a snapshot of current
+    # person-property distribution, not a day-by-day series, so it has a
+    # fundamentally different shape and shouldn't be mixed into the same dict.
+    out["person_properties"] = {}
+    for prop in PERSON_PROPERTIES:
+        try:
+            out["person_properties"][prop] = fetch_person_property_breakdown(prop)
+            print(f"{prop}: {len(out['person_properties'][prop])} distinct values")
+        except Exception as e:
+            print(f"WARNING: skipping person property {prop} due to error: {e}", file=sys.stderr)
+            out["person_properties"][prop] = []
 
     from datetime import datetime, timezone
     out["generated_at"] = datetime.now(timezone.utc).isoformat()

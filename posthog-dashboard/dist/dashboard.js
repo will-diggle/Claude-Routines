@@ -10,10 +10,33 @@ const PALETTE = {
 const LANG_LABEL = { fr: "French", de: "German", it: "Italian", es: "Spanish", en: "English", sv: "Swedish", tr: "Turkish", hu: "Hungarian", ar: "Arabic" };
 const LANG_FLAG = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", es: "🇪🇸", en: "🇬🇧", sv: "🇸🇪", tr: "🇹🇷", hu: "🇭🇺", ar: "🇸🇦" };
 const ALL_LANGS = Object.keys(LANG_LABEL);
+
+// A flag emoji clipped into a small circular chip — replaces the old
+// "🇫🇷 French" emoji+name pairing everywhere it's rendered as a compact
+// marker (filter pills, chart legends). The language name moves to a
+// hover title instead of staying inline. Not usable inside a <select>
+// <option> — those only ever render plain text, no HTML/CSS — so the
+// language dropdown (langLevelPicker) keeps the old plain-text pairing.
+function flagChip(langCode) {
+  const flag = LANG_FLAG[langCode] || "";
+  const name = LANG_LABEL[langCode] || langCode;
+  return `<span class="flag-circle" title="${name}">${flag}</span>`;
+}
 const ALL_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"];
 const LEVEL_ORDINAL_PALETTE = {
   A1: "var(--lvl-a1)", A2: "var(--lvl-a2)", B1: "var(--lvl-b1)", B2: "var(--lvl-b2)",
   C1: "var(--lvl-c1)", C2: "var(--lvl-c2)", Native: "var(--lvl-native)",
+};
+const TOPIC_LABEL = {
+  weather: "Weather", worldNews: "World News", business: "Business & Economy",
+  uk: "UK", us: "US", europe: "Europe (EU)",
+};
+// Design-preference person properties (see analytics build spec, Sept 2026) —
+// raw stored values to display labels.
+const PROP_VALUE_LABEL = {
+  font_family: { lora: "Lora", garamond: "EB Garamond", playfair: "Playfair Display", times: "Times New Roman" },
+  manual_background: { white: "White", cream: "Cream", softGrey: "Soft Grey", night: "Night" },
+  app_icon: { White: "White", Black: "Black", Cream: "Cream", Navy: "Navy", Pride1: "Pride 1", Pride2: "Pride 2" },
 };
 
 let DATA = null;
@@ -67,7 +90,7 @@ function sumMetric(rows) {
 // ---------- generic small SVG helpers ----------
 function svgLineChart(seriesMap, opts = {}) {
   const w = opts.width || 640, h = opts.height || 220, padB = 26, padT = 10;
-  const labelFor = opts.labelFor || ((key) => (LANG_LABEL[key] ? `${LANG_FLAG[key]} ${LANG_LABEL[key]}` : key));
+  const labelFor = opts.labelFor || ((key) => (LANG_LABEL[key] ? flagChip(key) : key));
   const colorFor = opts.colorFor || ((key) => PALETTE[key] || "var(--series-1)");
   const allDays = [...new Set(Object.values(seriesMap).flatMap((s) => s.map((p) => p.day)))].sort();
   if (allDays.length === 0) return `<div class="empty-note">No data for this filter combination.</div>`;
@@ -128,21 +151,35 @@ function svgStackedBar(byDayThenKey, keys, opts = {}) {
   svg += `<text x="${w - 70}" y="${h - 4}" class="axis-label">${days[days.length - 1]}</text>`;
   svg += `</svg>`;
   svg += `<div class="legend">` + keys.map((k) =>
-    `<div class="legend-item"><span class="legend-swatch" style="background:${PALETTE[k] || "var(--series-1)"}"></span>${LANG_LABEL[k] ? LANG_FLAG[k] + " " + LANG_LABEL[k] : k}</div>`
+    `<div class="legend-item"><span class="legend-swatch" style="background:${PALETTE[k] || "var(--series-1)"}"></span>${LANG_LABEL[k] ? flagChip(k) : k}</div>`
   ).join("") + `</div>`;
   return svg;
 }
 
 function horizontalBars(items, opts = {}) {
-  // items: [{label, value}]
+  // items: [{label, value}]. opts.colorFor(item, index), if given, colors
+  // each bar individually — omitted, every bar stays the single default
+  // color (unchanged behavior for existing callers).
   if (items.length === 0) return `<div class="empty-note">No data for this filter combination.</div>`;
   const max = Math.max(1, ...items.map((i) => i.value));
-  return items.map((i) => `
+  return items.map((i, idx) => {
+    const color = opts.colorFor ? opts.colorFor(i, idx) : null;
+    return `
     <div class="hbar-row">
       <div class="hbar-label">${i.label}</div>
-      <div class="hbar-track"><div class="hbar-fill" style="width:${(i.value / max * 100).toFixed(1)}%"></div></div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${(i.value / max * 100).toFixed(1)}%${color ? `;background:${color}` : ""}"></div></div>
       <div class="hbar-value">${i.value.toLocaleString()}</div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
+}
+
+// Cycles through the existing 8 language-series tokens for any ≤8-category
+// axis that isn't itself a language (genre, font, theme, icon, …) — per the
+// analytics build spec's own note, reusing --series-1..8 is fine here rather
+// than declaring a parallel palette, since none of these axes exceed 8 values.
+const CATEGORICAL_PALETTE = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)", "var(--series-6)", "var(--series-7)", "var(--series-8)"];
+function categoricalColor(_item, idx) {
+  return CATEGORICAL_PALETTE[idx % CATEGORICAL_PALETTE.length];
 }
 
 function funnelChart(steps) {
@@ -201,7 +238,7 @@ function buildWordsSavedByLanguage(languages, levels) {
   for (const r of rows) byLang[r.language] = (byLang[r.language] || 0) + metric(r);
   const items = Object.entries(byLang)
     .sort((a, b) => b[1] - a[1])
-    .map(([lang, value]) => ({ label: `${LANG_FLAG[lang] || ""} ${LANG_LABEL[lang] || lang}`, value }));
+    .map(([lang, value]) => ({ label: flagChip(lang), value }));
   return horizontalBars(items);
 }
 
@@ -255,6 +292,64 @@ function buildStreakHealth() {
   return svgLineChart(series, { labelFor: (k) => labelMap[k], colorFor: (k) => colorMap[k] });
 }
 
+// topic_toggled has no language/level dims (genre selection is one global
+// preference, not per-language — see Topics in useSettingsStore.ts), so
+// this doesn't take languages/levels params, same as buildGameActivity above.
+function buildGenreSelection() {
+  const rows = rowsFor("topic_toggled", { languages: state.languages, levels: state.levels });
+  const enabledRows = rows.filter((r) => r.enabled === true || r.enabled === "true" || r.enabled === 1);
+  const byTopic = {};
+  for (const r of enabledRows) byTopic[r.topic] = (byTopic[r.topic] || 0) + metric(r);
+  const items = Object.entries(byTopic)
+    .sort((a, b) => b[1] - a[1])
+    .map(([topic, value]) => ({ label: TOPIC_LABEL[topic] || topic, value }));
+  return horizontalBars(items);
+}
+
+function buildGenreReading(languages, levels) {
+  const rows = rowsFor("article_read", { languages, levels });
+  const byGenre = {};
+  for (const r of rows) byGenre[r.genre] = (byGenre[r.genre] || 0) + metric(r);
+  const items = Object.entries(byGenre)
+    .sort((a, b) => b[1] - a[1])
+    .map(([genre, value]) => ({ label: genre || "(unknown)", value }));
+  return horizontalBars(items);
+}
+
+// ---------- person-property distribution charts ----------
+// These read DATA.person_properties directly rather than going through
+// rowsFor — it's a snapshot of CURRENT state (see fetch_data.py's
+// fetch_person_property_breakdown), not a day-by-day event series, so the
+// timeframe/language/level filters that apply to every chart above don't
+// apply to these four.
+function personPropertyItems(prop) {
+  const rows = (DATA.person_properties && DATA.person_properties[prop]) || [];
+  const labelMap = PROP_VALUE_LABEL[prop] || {};
+  return rows
+    .slice()
+    .sort((a, b) => b.count - a.count)
+    .map((r) => ({ label: labelMap[r.value] ?? String(r.value), value: r.count }));
+}
+
+function buildFontDistribution() {
+  return horizontalBars(personPropertyItems("font_family"), { colorFor: categoricalColor });
+}
+
+function buildBackgroundDistribution() {
+  return horizontalBars(personPropertyItems("manual_background"), { colorFor: categoricalColor });
+}
+
+function buildAppIconDistribution() {
+  return horizontalBars(personPropertyItems("app_icon"), { colorFor: categoricalColor });
+}
+
+function buildAutoNightModeUsage() {
+  const rows = (DATA.person_properties && DATA.person_properties.auto_night_mode) || [];
+  const on = rows.find((r) => r.value === true || r.value === "true")?.count || 0;
+  const off = rows.find((r) => r.value === false || r.value === "false")?.count || 0;
+  return horizontalBars([{ label: "On", value: on }, { label: "Off", value: off }], { colorFor: categoricalColor });
+}
+
 function buildSubscriptionFunnel() {
   const range = activeRange();
   const steps = [
@@ -294,6 +389,12 @@ const CHART_DEFS = {
   wordFunnel: { title: "Word engagement funnel", sub: "tapped → saved → tell me more → audio (unordered counts, see caveats)", build: buildWordFunnel, needsLangLevel: true },
   gameActivity: { title: "Game activity", sub: "game_opened vs game_completed by game", build: buildGameActivity, needsLangLevel: false },
   streakHealth: { title: "Streak health", sub: "increments vs losses vs freezes", build: buildStreakHealth, needsLangLevel: false },
+  genreSelection: { title: "Genre selection", sub: "topic_toggled (enabled), grouped by genre", build: buildGenreSelection, needsLangLevel: false },
+  genreReading: { title: "Genre reading", sub: "article_read — ≥90% of that article visible + ≥30s on the page, grouped by genre", build: buildGenreReading, needsLangLevel: true },
+  fontDistribution: { title: "Font", sub: "Current font_family across all users — a snapshot, not filtered by timeframe", build: buildFontDistribution, needsLangLevel: false },
+  backgroundDistribution: { title: "Background / theme", sub: "Current manual_background across all users — a snapshot, not filtered by timeframe", build: buildBackgroundDistribution, needsLangLevel: false },
+  autoNightModeUsage: { title: "Auto Night Mode", sub: "On vs. off across all users — a snapshot, not filtered by timeframe", build: buildAutoNightModeUsage, needsLangLevel: false },
+  appIconDistribution: { title: "App icon", sub: "Current app_icon across all users — a snapshot, not filtered by timeframe", build: buildAppIconDistribution, needsLangLevel: false },
 };
 
 function langLevelPicker(idPrefix, selectedLangs, selectedLevels) {
@@ -384,7 +485,7 @@ function wireGlobalFilters() {
   ALL_LANGS.forEach((l) => {
     const el = document.createElement("label");
     el.className = "check-pill";
-    el.innerHTML = `<input type="checkbox" value="${l}" checked> ${LANG_FLAG[l]} ${LANG_LABEL[l]}`;
+    el.innerHTML = `<input type="checkbox" value="${l}" checked> ${flagChip(l)}`;
     el.querySelector("input").addEventListener("change", (e) => {
       e.target.checked ? state.languages.add(l) : state.languages.delete(l);
       renderAll();

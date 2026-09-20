@@ -72,6 +72,14 @@
   .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--text-secondary); flex-wrap: wrap; margin-top: 10px; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .legend-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  /* Flag emoji glyphs run wider than tall, so a same-size circular crop
+     centers on the middle band of the flag rather than showing it whole —
+     the font-size is intentionally larger than the box to get a clean crop. */
+  .flag-circle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 50%; overflow: hidden;
+    font-size: 30px; line-height: 1; flex-shrink: 0; vertical-align: middle;
+  }
   .axis-label { font-size: 10px; fill: var(--text-muted); }
   .empty-note { font-size: 12px; color: var(--text-muted); padding: 30px 0; text-align: center; }
 
@@ -196,6 +204,52 @@
           <div><div class="panel-title">Streak health</div><div class="panel-sub">increments vs. losses vs. freeze usage</div></div>
         </div>
         <div id="chart-streakHealth"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Genre selection</div><div class="panel-sub">topic_toggled (enabled), grouped by genre</div></div>
+        </div>
+        <div id="chart-genreSelection"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Genre reading</div><div class="panel-sub">article_read — ≥90% of that article visible + ≥30s on the page</div></div>
+          <button class="btn" data-compare-toggle="genreReading">Compare</button>
+        </div>
+        <div id="chart-genreReading"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Font</div><div class="panel-sub">Current font across all users — a snapshot, not filtered by timeframe</div></div>
+        </div>
+        <div id="chart-fontDistribution"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Background / theme</div><div class="panel-sub">Current theme across all users — a snapshot, not filtered by timeframe</div></div>
+        </div>
+        <div id="chart-backgroundDistribution"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Auto Night Mode</div><div class="panel-sub">On vs. off across all users — a snapshot, not filtered by timeframe</div></div>
+        </div>
+        <div id="chart-autoNightModeUsage"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">App icon</div><div class="panel-sub">Current icon across all users — a snapshot, not filtered by timeframe</div></div>
+        </div>
+        <div id="chart-appIconDistribution"></div>
       </div>
     </div>
 
