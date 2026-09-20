@@ -323,11 +323,55 @@ function extractAdditionalForms(wordType: string | null, data: Record<string, un
 }
 
 /** Builds the D1 row for a Supabase lemma row's BASE form only (word === lemma) — used by the live read-through, which only ever checks an exact lemma match. */
+// Pre-2026-09-18 batches wrote full case tables under "cases" (nouns) /
+// "case_declensions" (adjectives) instead of the "declensions" array the
+// app actually reads — this mirrors sync_supabase_to_d1.py's
+// _legacy_cases_to_declensions() so both produce identical output for the
+// same input row. Table keys ending in " sg"/" pl" render as a two-column
+// singular/plural view in WordPopup.tsx; any other shape renders flat.
+const NOUN_CASE_KEYS: Array<[string, string]> = [
+  ['NOM sg', 'nominative_singular'], ['NOM pl', 'nominative_plural'],
+  ['AKK sg', 'accusative_singular'], ['AKK pl', 'accusative_plural'],
+  ['DAT sg', 'dative_singular'],     ['DAT pl', 'dative_plural'],
+  ['GEN sg', 'genitive_singular'],   ['GEN pl', 'genitive_plural'],
+];
+
+// case_declensions is strong-declension only (no weak/mixed, no plural) —
+// label by gender since there's no sg/pl axis to split on.
+const ADJ_CASE_KEYS: Array<[string, string]> = [
+  ['Nominative (m)', 'nominative_masculine_strong'], ['Nominative (f)', 'nominative_feminine_strong'], ['Nominative (n)', 'nominative_neuter_strong'],
+  ['Accusative (m)', 'accusative_masculine_strong'], ['Accusative (f)', 'accusative_feminine_strong'], ['Accusative (n)', 'accusative_neuter_strong'],
+  ['Dative (m)', 'dative_masculine_strong'],         ['Dative (f)', 'dative_feminine_strong'],         ['Dative (n)', 'dative_neuter_strong'],
+  ['Genitive (m)', 'genitive_masculine_strong'],     ['Genitive (f)', 'genitive_feminine_strong'],     ['Genitive (n)', 'genitive_neuter_strong'],
+];
+
+function legacyCasesToDeclensions(data: Record<string, unknown>): TenseTable[] | null {
+  const cases = data.cases;
+  if (cases && typeof cases === 'object') {
+    const c = cases as Record<string, string>;
+    const table: Record<string, string> = {};
+    for (const [label, key] of NOUN_CASE_KEYS) if (c[key]) table[label] = c[key];
+    if (Object.keys(table).length > 0) return [{ label: 'DEKLINIERT', table }];
+  }
+  const caseDeclensions = data.case_declensions;
+  if (caseDeclensions && typeof caseDeclensions === 'object') {
+    const c = caseDeclensions as Record<string, string>;
+    const table: Record<string, string> = {};
+    for (const [label, key] of ADJ_CASE_KEYS) if (c[key]) table[label] = c[key];
+    if (Object.keys(table).length > 0) return [{ label: 'DEKLINIERT', table }];
+  }
+  return null;
+}
+
 function d1RowFromSupabaseLemma(row: SupabaseWordRow): Partial<WordRow> {
   const data = row.data ?? {};
   const tenses = row.word_type === 'verb' ? tensesDictToArray(data.tenses) : null;
   const meta: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(data)) if (k !== 'tenses' && k !== 'cases') meta[k] = v;
+  for (const [k, v] of Object.entries(data)) if (k !== 'tenses' && k !== 'cases' && k !== 'case_declensions') meta[k] = v;
+  if (!meta.declensions) {
+    const declensions = legacyCasesToDeclensions(data);
+    if (declensions) meta.declensions = declensions;
+  }
   if (tenses) meta.tenses = tenses;
 
   return {
