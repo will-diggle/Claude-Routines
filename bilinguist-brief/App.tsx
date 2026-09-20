@@ -466,6 +466,17 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer
           ref={navRef}
+          // onStateChange (below) is explicitly skipped by React Navigation on the
+          // very first mount (see BaseNavigationContainer's isFirstMountRef check),
+          // so without onReady the app's first screen of every session — the one
+          // every cold launch actually lands on — was never sent to PostHog.
+          onReady={() => {
+            const routeName = (navRef.getCurrentRoute() as { name?: string } | undefined)?.name;
+            if (routeName && routeName !== lastTrackedRoute.current) {
+              lastTrackedRoute.current = routeName;
+              analytics.trackScreenView(routeName);
+            }
+          }}
           onStateChange={() => {
             const routeName = (navRef.getCurrentRoute() as { name?: string } | undefined)?.name;
             if (routeName && routeName !== lastTrackedRoute.current) {

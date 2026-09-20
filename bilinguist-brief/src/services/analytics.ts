@@ -5,7 +5,11 @@ import { Platform } from 'react-native';
 let _ph: PostHog | null = null;
 
 export function initAnalytics(): void {
-  const apiKey = process.env.EXPO_PUBLIC_POSTHOG_API_KEY;
+  // .trim() guards against a corrupted EAS env var value (e.g. a leading
+  // newline), which otherwise gets passed straight into `new PostHog(...)`
+  // and silently breaks auth — same defensive pattern already used for
+  // EXPO_PUBLIC_OWM_KEY in WeatherCard.tsx.
+  const apiKey = process.env.EXPO_PUBLIC_POSTHOG_API_KEY?.trim();
   if (!apiKey) return;
   try {
     _ph = new PostHog(apiKey, { host: 'https://eu.posthog.com' });

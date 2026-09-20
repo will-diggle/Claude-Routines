@@ -74,10 +74,20 @@ def fetch_event(event_name, dims, extra):
 
     group_parts = ["day"] + dims
 
+    # PostHog's HogQL Query API silently caps results at 100 rows when no
+    # LIMIT is given. With `ORDER BY day` ascending, that meant the OLDEST
+    # 100 (day × dims) combinations won and every recent day silently
+    # vanished from data.json — the actual cause of "Briefs completed"/
+    # "Active readers" reading 0 despite real usage, since those two are
+    # the highest-cardinality queries (grouped by day+language+level) and
+    # were the first to hit the cap. Fetch DESC (most recent first) with an
+    # explicit LIMIT well above any realistic cardinality (90 days x 9
+    # languages x 8 levels = 6,480 worst case), then re-sort ascending
+    # below so day order is unchanged for the dashboard's chart rendering.
     hogql = (
         f"SELECT {', '.join(select_parts)} FROM events "
         f"WHERE event = '{event_name}' AND timestamp > now() - INTERVAL {RANGE_DAYS} DAY "
-        f"GROUP BY {', '.join(group_parts)} ORDER BY day"
+        f"GROUP BY {', '.join(group_parts)} ORDER BY day DESC LIMIT 10000"
     )
 
     res = query(hogql)
@@ -87,6 +97,7 @@ def fetch_event(event_name, dims, extra):
         row = dict(zip(cols, r))
         row["day"] = str(row["day"])
         rows.append(row)
+    rows.sort(key=lambda row: row["day"])
     return rows
 
 
