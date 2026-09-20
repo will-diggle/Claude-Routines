@@ -81,6 +81,14 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
   // Preferences > Display font-size setting.
   const headlineLineHeight = Math.round(fontSize.heading * 1.25);
 
+  // Body lineHeight was a flat 26px regardless of fontSize.body — fine at
+  // the smaller sizes (ratio 1.6-1.86) but too tight at Large/Extra Large
+  // (ratio drops to 1.44/1.24), letting descenders and the italic number
+  // annotations (see TappableText's `annotation` style) get visually
+  // clipped on a paragraph's last line even though the word itself is still
+  // present and tappable. Floors at 26 so Small/Medium look unchanged.
+  const bodyLineHeight = Math.max(26, Math.round(fontSize.body * 1.6));
+
   // Word position of the first body word (= number of words in headline).
   // Always computed against the canonical (bracketed) headline — tokenMap
   // positions are fixed to that numbering regardless of the display toggle.
@@ -388,7 +396,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
       ) : isRTL ? (
         <TappableText
           text={displayBody}
-          style={[styles.body, { color: colors.inkMid, fontFamily: arabicFontRegular, fontSize: fontSize.body }, styles.rtlText]}
+          style={[styles.body, { color: colors.inkMid, fontFamily: arabicFontRegular, fontSize: fontSize.body, lineHeight: bodyLineHeight }, styles.rtlText]}
           activePositions={activePositions}
           wordPositionOffset={headlineWordCount}
           remapPosition={bodyRemap ? (idx) => headlineWordCount + bodyRemap(idx) : undefined}
@@ -413,7 +421,7 @@ export function BriefingArticle({ article, isLast, language, level, genre, date,
             <View key={i} style={i < arr.length - 1 ? styles.paragraphGap : undefined}>
               <TappableText
                 text={para.trim()}
-                style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}
+                style={[styles.body, { color: colors.inkMid, fontFamily: fontFamily.regular, fontSize: fontSize.body, lineHeight: bodyLineHeight }]}
                 activePositions={activePositions}
                 wordPositionOffset={offset}
                 remapPosition={bodyRemap ? (idx) => headlineWordCount + bodyRemap(idx + localOffset) : undefined}
@@ -469,7 +477,8 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   body: {
-    lineHeight: 26,
+    // lineHeight is set dynamically per render (see bodyLineHeight) —
+    // scales with fontSize.body instead of a flat value.
     textAlign: 'justify',
   },
   paragraphGap: {
