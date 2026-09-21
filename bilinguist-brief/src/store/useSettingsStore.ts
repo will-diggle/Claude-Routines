@@ -79,7 +79,13 @@ export interface Settings {
   fontFamily: FontFamilyKey;
   appIcon: string | null;
   appIconAuto: boolean;
-  username: string;
+  /** A free-text name shown on the profile screen, synced to
+   * user_profiles.display_name. Distinct from both the OAuth-provided name
+   * (session.user.user_metadata, never stored here) and the friends
+   * feature's real, unique username (user_profiles.username, claimed
+   * separately in useFriendsStore) — naming it "profileName" rather than
+   * "username" is deliberate, to not imply it's that same unique handle. */
+  profileName: string;
   /** Whether today's brief words are downloaded to the device automatically
    * in the background. When false, word popups are always fetched live on
    * tap instead — "fetch live only" mode. */
@@ -108,7 +114,7 @@ interface SettingsStore extends Settings {
   setFontFamily: (font: FontFamilyKey) => void;
   setAppIcon: (icon: string | null) => void;
   setAppIconAuto: (v: boolean) => void;
-  setUsername: (v: string) => void;
+  setProfileName: (v: string) => void;
   setAutoDownloadWords: (v: boolean) => void;
   setDeleteOldDownloadedWords: (v: boolean) => void;
   activeLanguages: () => LanguagePreference[];
@@ -153,7 +159,7 @@ const DEFAULT_SETTINGS: Settings = {
   fontFamily: 'lora',
   appIcon: null,
   appIconAuto: false,
-  username: '',
+  profileName: '',
   autoDownloadWords: true,
   deleteOldDownloadedWords: false,
 };
@@ -284,7 +290,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setFontFamily: (fontFamily) => set({ fontFamily }),
       setAppIcon: (appIcon) => set({ appIcon }),
       setAppIconAuto: (appIconAuto) => set({ appIconAuto }),
-      setUsername: (username) => set({ username }),
+      setProfileName: (profileName) => set({ profileName }),
       setAutoDownloadWords: (autoDownloadWords) => set({ autoDownloadWords }),
       setDeleteOldDownloadedWords: (deleteOldDownloadedWords) => set({ deleteOldDownloadedWords }),
 
@@ -307,7 +313,7 @@ export const useSettingsStore = create<SettingsStore>()(
         fontFamily: state.fontFamily,
         appIcon: state.appIcon,
         appIconAuto: state.appIconAuto,
-        username: state.username,
+        profileName: state.profileName,
         autoDownloadWords: state.autoDownloadWords,
         deleteOldDownloadedWords: state.deleteOldDownloadedWords,
       }),

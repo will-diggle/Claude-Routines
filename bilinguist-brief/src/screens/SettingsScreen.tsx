@@ -33,6 +33,7 @@ import {
   LayoutAnimation,
   KeyboardAvoidingView,
   PanResponder,
+  Appearance,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -229,8 +230,16 @@ export function SettingsScreen() {
     setSettingsSheetVisible(false);
     setTimeout(openNext, 350);
   }
-  const [usernameModalVisible, setUsernameModalVisible] = useState(false);
-  const [usernameInput, setUsernameInput] = useState('');
+  const [profileNameModalVisible, setProfileNameModalVisible] = useState(false);
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [changeEmailModalVisible, setChangeEmailModalVisible] = useState(false);
+  const [changeEmailInput, setChangeEmailInput] = useState('');
+  const [changeEmailLoading, setChangeEmailLoading] = useState(false);
+  const [changeEmailError, setChangeEmailError] = useState<string | null>(null);
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
   const [filterLang, setFilterLang] = useState<string>('all');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -239,9 +248,11 @@ export function SettingsScreen() {
   const readingHistory = useStreakStore((s) => s.readingHistory);
   const readingStreaks = useStreakStore((s) => s.readingStreaks);
 
-  // Username from settings
-  const username = useSettingsStore((s) => s.username);
-  const setUsername = useSettingsStore((s) => s.setUsername);
+  // Free-text profile name — see useSettingsStore's profileName doc comment
+  // for why this isn't called "username" (that's the separate, real, unique
+  // handle the friends feature owns).
+  const profileName = useSettingsStore((s) => s.profileName);
+  const setProfileName = useSettingsStore((s) => s.setProfileName);
 
   // Active languages for filter chips
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active)));
@@ -255,6 +266,10 @@ export function SettingsScreen() {
   const isSignedIn = !!session;
   const displayName = session?.user?.user_metadata?.full_name ?? session?.user?.user_metadata?.name ?? null;
   const userEmail = session?.user?.email ?? null;
+  // Only an email/password account has a Supabase-managed password or an
+  // email address the user controls directly — Apple/Google own both for an
+  // OAuth account, so changing either here wouldn't do anything meaningful.
+  const isEmailProvider = session?.user?.app_metadata?.provider === 'email';
   const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportBody, setSupportBody] = useState('');
@@ -268,7 +283,7 @@ export function SettingsScreen() {
   // one is switched (and the switch cooldown allows it).
   const activeFreeSlotCode = store.languages.find((l) => l.active && l.code !== 'en')?.code ?? null;
 
-  // Pushes the local username to user_profiles.display_name via the
+  // Pushes the local profile name to user_profiles.display_name via the
   // update-profile Edge Function (RLS has no client-side INSERT policy on
   // this table, so creating the row on first write needs the service role —
   // hence a function call rather than a direct client-side upsert).
@@ -289,11 +304,11 @@ export function SettingsScreen() {
     } catch { /* best-effort — see comment above */ }
   }
 
-  // Pulls the persisted username on sign-in — restores it on a fresh
+  // Pulls the persisted profile name on sign-in — restores it on a fresh
   // install/device (server value wins), or backfills the server from the
-  // local value for anyone who set a username before this sync existed.
+  // local value for anyone who set one before this sync existed.
   // Also pulls avatar_url — that one has no local-first fallback since a
-  // photo (unlike a typed username) never existed anywhere but the server.
+  // photo (unlike a typed name) never existed anywhere but the server.
   useEffect(() => {
     if (!supabase || !session?.user?.id) return;
     let cancelled = false;
@@ -306,9 +321,9 @@ export function SettingsScreen() {
       if (cancelled) return;
       const serverName = data?.display_name?.trim();
       if (serverName) {
-        if (serverName !== useSettingsStore.getState().username) setUsername(serverName);
+        if (serverName !== useSettingsStore.getState().profileName) setProfileName(serverName);
       } else {
-        const localName = useSettingsStore.getState().username;
+        const localName = useSettingsStore.getState().profileName;
         if (localName) syncDisplayNameToServer(localName);
       }
       setAvatarUrl(data?.avatar_url?.trim() || null);
@@ -423,6 +438,41 @@ export function SettingsScreen() {
         { text: 'Delete', style: 'destructive', onPress: performDeleteAccount },
       ]
     );
+  }
+
+  async function handleChangeEmail() {
+    const trimmed = changeEmailInput.trim();
+    if (!trimmed || !supabase) return;
+    setChangeEmailLoading(true);
+    setChangeEmailError(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmed });
+      if (error) throw error;
+      setChangeEmailModalVisible(false);
+      setChangeEmailInput('');
+      Alert.alert('Check your inbox', `We've sent a confirmation link to ${trimmed} — the change takes effect once you confirm it.`);
+    } catch (e: any) {
+      setChangeEmailError(e?.message ?? 'Could not update email. Please try again.');
+    } finally {
+      setChangeEmailLoading(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    if (!newPasswordInput || !supabase) return;
+    setChangePasswordLoading(true);
+    setChangePasswordError(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPasswordInput });
+      if (error) throw error;
+      setChangePasswordModalVisible(false);
+      setNewPasswordInput('');
+      Alert.alert('Password updated', 'Your password has been changed.');
+    } catch (e: any) {
+      setChangePasswordError(e?.message ?? 'Could not update password. Please try again.');
+    } finally {
+      setChangePasswordLoading(false);
+    }
   }
 
   async function handleSupportSubmit() {
@@ -606,7 +656,7 @@ export function SettingsScreen() {
                     {BACKGROUNDS.map((bg) => {
                       const selected = store.background === bg.key;
                       return (
-                        <TouchableOpacity key={bg.key} onPress={() => store.setBackground(bg.key)} activeOpacity={0.8} style={[styles.themeChip, { backgroundColor: bg.color, borderColor: selected ? bg.ink : bg.ink + '30', borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth }]}>
+                        <TouchableOpacity key={bg.key} onPress={() => { store.setBackground(bg.key); analytics.trackBackgroundChanged(bg.key); }} activeOpacity={0.8} style={[styles.themeChip, { backgroundColor: bg.color, borderColor: selected ? bg.ink : bg.ink + '30', borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth }]}>
                           <Text style={[styles.themeChipLabel, { color: bg.ink, fontFamily: selected ? fontFamily.bold : fontFamily.regular }]}>{bg.label}</Text>
                         </TouchableOpacity>
                       );
@@ -617,7 +667,7 @@ export function SettingsScreen() {
                       <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>Auto Night Mode</Text>
                       <Text style={[styles.rowSub, { color: colors.inkFaint }]}>Switches to a dark theme at night with iOS</Text>
                     </View>
-                    <Switch value={store.autoNightMode} onValueChange={store.setAutoNightMode} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
+                    <Switch value={store.autoNightMode} onValueChange={(value) => { store.setAutoNightMode(value); analytics.trackAutoNightModeChanged(value, Appearance.getColorScheme() ?? null); }} trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }} thumbColor="#FFF" />
                   </View>
                 </View>
                 <Text style={[styles.fieldLabel, { color: colors.inkDark, fontFamily: fontFamily.regular }]}>Font</Text>
@@ -626,7 +676,7 @@ export function SettingsScreen() {
                     const fam = FontFamilies[key];
                     const selected = store.fontFamily === key;
                     return (
-                      <TouchableOpacity key={key} style={[styles.displayTileRow, { borderTopColor: colors.borderLight }, i === 0 && { borderTopWidth: 0 }]} onPress={() => store.setFontFamily(key)}>
+                      <TouchableOpacity key={key} style={[styles.displayTileRow, { borderTopColor: colors.borderLight }, i === 0 && { borderTopWidth: 0 }]} onPress={() => { store.setFontFamily(key); analytics.trackFontChanged(key); }}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>{fam.label}</Text>
                           <Text style={[styles.fontPreview, { fontFamily: fam.italic, color: colors.inkLight }]}>The quick brown fox</Text>
@@ -653,7 +703,7 @@ export function SettingsScreen() {
                     {APP_ICONS.map((icon) => {
                       const active = store.appIcon === icon.name;
                       return (
-                        <TouchableOpacity key={icon.name ?? 'default'} style={styles.iconTile} onPress={() => { store.setAppIcon(icon.name); applyNativeIcon(icon.name); }} activeOpacity={0.8}>
+                        <TouchableOpacity key={icon.name ?? 'default'} style={styles.iconTile} onPress={() => { store.setAppIcon(icon.name); applyNativeIcon(icon.name); analytics.trackAppIconChanged(icon.name); }} activeOpacity={0.8}>
                           <View style={[styles.iconShadow, active && { shadowOpacity: 0.32, elevation: 8 }]}>
                             <View style={styles.iconFrame}><Image source={icon.image} style={styles.iconThumb} /></View>
                             <View style={[styles.iconRim, { borderColor: active ? colors.inkDark : 'rgba(255,255,255,0.42)' }]} pointerEvents="none" />
@@ -686,8 +736,8 @@ export function SettingsScreen() {
                   ) : (
                     <Text style={[profileStyles.displayName, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>Guest</Text>
                   )}
-                  <TouchableOpacity onPress={() => { if (isSignedIn) { setUsernameInput(username); setUsernameModalVisible(true); } }} disabled={!isSignedIn}>
-                    <Text style={[profileStyles.usernameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{username ? `@${username}` : isSignedIn ? 'Tap to set username' : '@guest'}</Text>
+                  <TouchableOpacity onPress={() => { if (isSignedIn) { setProfileNameInput(profileName); setProfileNameModalVisible(true); } }} disabled={!isSignedIn}>
+                    <Text style={[profileStyles.profileNameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>{profileName || (isSignedIn ? 'Tap to add a name' : 'Guest')}</Text>
                   </TouchableOpacity>
                 </View>
                 {Object.keys(readingHistory).some(c => readingHistory[c].length > 0) && (
@@ -924,7 +974,7 @@ export function SettingsScreen() {
                 return (
                   <TouchableOpacity
                     key={bg.key}
-                    onPress={() => store.setBackground(bg.key)}
+                    onPress={() => { store.setBackground(bg.key); analytics.trackBackgroundChanged(bg.key); }}
                     activeOpacity={0.8}
                     style={[styles.themeChip, {
                       backgroundColor: bg.color,
@@ -946,7 +996,7 @@ export function SettingsScreen() {
               </View>
               <Switch
                 value={store.autoNightMode}
-                onValueChange={store.setAutoNightMode}
+                onValueChange={(value) => { store.setAutoNightMode(value); analytics.trackAutoNightModeChanged(value, Appearance.getColorScheme() ?? null); }}
                 trackColor={{ false: isDark ? 'rgba(255,255,255,0.20)' : colors.borderMid, true: colors.chrome }}
                 thumbColor="#FFF"
               />
@@ -963,7 +1013,7 @@ export function SettingsScreen() {
                 <TouchableOpacity
                   key={key}
                   style={[styles.displayTileRow, { borderTopColor: colors.borderLight }, i === 0 && { borderTopWidth: 0 }]}
-                  onPress={() => store.setFontFamily(key)}
+                  onPress={() => { store.setFontFamily(key); analytics.trackFontChanged(key); }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.fontSample, { fontFamily: fam.regular, color: colors.inkDark }]}>{fam.label}</Text>
@@ -1006,6 +1056,7 @@ export function SettingsScreen() {
                     onPress={() => {
                       store.setAppIcon(icon.name);
                       applyNativeIcon(icon.name);
+                      analytics.trackAppIconChanged(icon.name);
                     }}
                     activeOpacity={0.8}
                   >
@@ -1070,14 +1121,14 @@ export function SettingsScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (isSignedIn) {
-                  setUsernameInput(username);
-                  setUsernameModalVisible(true);
+                  setProfileNameInput(profileName);
+                  setProfileNameModalVisible(true);
                 }
               }}
               disabled={!isSignedIn}
             >
-              <Text style={[profileStyles.usernameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
-                {username ? `@${username}` : isSignedIn ? 'Tap to set username' : '@guest'}
+              <Text style={[profileStyles.profileNameLabel, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+                {profileName || (isSignedIn ? 'Tap to add a name' : 'Guest')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1229,6 +1280,28 @@ export function SettingsScreen() {
                         ) : null}
                       </View>
                     </View>
+                    {isEmailProvider && (
+                      <>
+                        <TouchableOpacity
+                          style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                          onPress={() => { setChangeEmailInput(userEmail ?? ''); setChangeEmailError(null); setChangeEmailModalVisible(true); }}
+                        >
+                          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                            Change email
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
+                          onPress={() => { setNewPasswordInput(''); setChangePasswordError(null); setChangePasswordModalVisible(true); }}
+                        >
+                          <Text style={[styles.rowLabel, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                            Change password
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+                        </TouchableOpacity>
+                      </>
+                    )}
                     <TouchableOpacity
                       style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
                       onPress={() => {
@@ -1240,15 +1313,6 @@ export function SettingsScreen() {
                     >
                       <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
                         Sign out
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.displayTileRow, { borderTopColor: colors.borderLight }]}
-                      disabled={deleteAccountLoading}
-                      onPress={handleDeleteAccount}
-                    >
-                      <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body, opacity: deleteAccountLoading ? 0.5 : 1 }]}>
-                        {deleteAccountLoading ? 'Deleting…' : 'Delete account'}
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -1431,49 +1495,154 @@ export function SettingsScreen() {
               <Text style={[legalStyles.version, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
                 Bilinguist Brief · Version {APP_VERSION}
               </Text>
+
+              {/* Isolated at the very bottom, separate from everything else —
+                  standard placement for the one truly irreversible action. */}
+              {isSignedIn && (
+                <TouchableOpacity
+                  style={[styles.displayTileOuter, { borderColor: colors.borderLight, backgroundColor: colors.card, marginTop: Spacing.lg, alignItems: 'center', paddingVertical: 14 }]}
+                  disabled={deleteAccountLoading}
+                  onPress={handleDeleteAccount}
+                >
+                  <Text style={[styles.rowLabel, { color: '#E53935', fontFamily: fontFamily.regular, fontSize: fontSize.body, opacity: deleteAccountLoading ? 0.5 : 1 }]}>
+                    {deleteAccountLoading ? 'Deleting…' : 'Delete account'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
 
           </Animated.View>
         </View>
       </Modal>
 
-      {/* ── Username edit modal ── */}
+      {/* ── Profile name edit modal ── */}
       <Modal
-        visible={usernameModalVisible}
+        visible={profileNameModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setUsernameModalVisible(false)}
+        onRequestClose={() => setProfileNameModalVisible(false)}
       >
         <View style={modalStyles.overlay}>
           <View style={[modalStyles.codeSheet, { backgroundColor: colors.surface }]}>
             <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
-              Set Username
+              Your name
             </Text>
             <TextInput
               style={[
                 modalStyles.codeInput,
                 { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 16 },
               ]}
-              value={usernameInput}
-              onChangeText={setUsernameInput}
-              placeholder="username"
+              value={profileNameInput}
+              onChangeText={setProfileNameInput}
+              placeholder="Name"
               placeholderTextColor={colors.inkFaint}
-              autoCapitalize="none"
+              autoCapitalize="words"
               autoCorrect={false}
               autoFocus
             />
             <TouchableOpacity
               style={[modalStyles.codeButton, { backgroundColor: colors.chrome }]}
               onPress={() => {
-                const trimmed = usernameInput.trim();
-                setUsername(trimmed);
-                setUsernameModalVisible(false);
+                const trimmed = profileNameInput.trim();
+                setProfileName(trimmed);
+                setProfileNameModalVisible(false);
                 syncDisplayNameToServer(trimmed);
               }}
             >
               <Text style={modalStyles.codeButtonText}>Save</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={modalStyles.cancel} onPress={() => setUsernameModalVisible(false)}>
+            <TouchableOpacity style={modalStyles.cancel} onPress={() => setProfileNameModalVisible(false)}>
+              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Change email modal ── */}
+      <Modal
+        visible={changeEmailModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setChangeEmailModalVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.codeSheet, { backgroundColor: colors.surface }]}>
+            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              Change email
+            </Text>
+            <TextInput
+              style={[
+                modalStyles.codeInput,
+                { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 16 },
+              ]}
+              value={changeEmailInput}
+              onChangeText={(t) => { setChangeEmailInput(t); setChangeEmailError(null); }}
+              placeholder="Email"
+              placeholderTextColor={colors.inkFaint}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              autoCorrect={false}
+              autoFocus
+            />
+            {changeEmailError ? (
+              <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, marginTop: Spacing.xs }}>
+                {changeEmailError}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={[modalStyles.codeButton, { backgroundColor: colors.chrome, opacity: changeEmailLoading ? 0.6 : 1 }]}
+              disabled={changeEmailLoading}
+              onPress={handleChangeEmail}
+            >
+              <Text style={modalStyles.codeButtonText}>{changeEmailLoading ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={modalStyles.cancel} onPress={() => setChangeEmailModalVisible(false)}>
+              <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Change password modal ── */}
+      <Modal
+        visible={changePasswordModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setChangePasswordModalVisible(false)}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.codeSheet, { backgroundColor: colors.surface }]}>
+            <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
+              Change password
+            </Text>
+            <TextInput
+              style={[
+                modalStyles.codeInput,
+                { color: colors.inkDark, borderColor: colors.borderMid, fontFamily: fontFamily.regular, backgroundColor: colors.bg, letterSpacing: 0, fontSize: 16 },
+              ]}
+              value={newPasswordInput}
+              onChangeText={(t) => { setNewPasswordInput(t); setChangePasswordError(null); }}
+              placeholder="New password"
+              placeholderTextColor={colors.inkFaint}
+              secureTextEntry
+              autoComplete="new-password"
+              autoFocus
+              onSubmitEditing={handleChangePassword}
+            />
+            {changePasswordError ? (
+              <Text style={{ color: '#E53935', fontFamily: fontFamily.regular, fontSize: 13, marginTop: Spacing.xs }}>
+                {changePasswordError}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={[modalStyles.codeButton, { backgroundColor: colors.chrome, opacity: changePasswordLoading ? 0.6 : 1 }]}
+              disabled={changePasswordLoading}
+              onPress={handleChangePassword}
+            >
+              <Text style={modalStyles.codeButtonText}>{changePasswordLoading ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={modalStyles.cancel} onPress={() => setChangePasswordModalVisible(false)}>
               <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1930,7 +2099,7 @@ const profileStyles = StyleSheet.create({
     fontSize: 18,
     marginBottom: Spacing.xs,
   },
-  usernameLabel: {
+  profileNameLabel: {
     fontSize: 13,
   },
   settingsButton: {
