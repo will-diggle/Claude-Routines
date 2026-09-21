@@ -34,7 +34,17 @@ export interface WordEntry {
   tip: string | null;
   meta: WordMeta | null;
   level: string | null;
+  /** Server-side: did the Worker's own D1 cache have this, vs. generating it fresh on this request. */
   fromCache: boolean;
+  /**
+   * Client-side: did lookupWord() resolve this from the in-memory cache or the
+   * on-device prefetched dictionary, rather than a genuine network round trip?
+   * Both of those sources are themselves already sourced from Supabase (or a
+   * prior write-back of the same data), so re-uploading them via
+   * writeBackDictionary() would just be a redundant write, not new data. Callers
+   * that write back to Supabase should gate on `!resolvedFromLocalCache`.
+   */
+  resolvedFromLocalCache?: boolean;
 }
 
 // In-memory cache — keyed by word:language:level. Cleared when app restarts.
@@ -85,7 +95,7 @@ export async function lookupWord(
     const cached = lookupCache.get(cacheKey);
     if (cached) {
       console.log(`[lookupWord] "${word}" — in-memory hit, ${Date.now() - t0}ms`);
-      return cached;
+      return { ...cached, resolvedFromLocalCache: true };
     }
 
     // On-device dictionary prefetched for today's brief — skip the network
@@ -101,7 +111,7 @@ export async function lookupWord(
     if (persisted) {
       lookupCache.set(cacheKey, persisted);
       console.log(`[lookupWord] "${word}" — SOURCE=on-device cache, total ${Date.now() - t0}ms, NO network call`);
-      return persisted;
+      return { ...persisted, resolvedFromLocalCache: true };
     }
   }
 
@@ -113,7 +123,7 @@ export async function lookupWord(
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
-    const entry = await res.json() as WordEntry;
+    const entry = { ...(await res.json() as WordEntry), resolvedFromLocalCache: false };
     console.log(`[lookupWord] "${word}" — network resolved, total ${Date.now() - t0}ms, fromCache(server)=${entry.fromCache}`);
     // Don't cache verbs that came back without full tenses — next lookup will backfill via worker
     const isIncompleteVerb = entry.wordType === 'verb' && (!entry.tenses || entry.tenses.length < 3);

@@ -27,6 +27,7 @@ import * as Haptics from 'expo-haptics';
 import { GlassButton } from './GlassButton';
 import { GlassSurface } from './GlassSurface';
 import { WordAudioButton } from './WordAudioButton';
+import { sortPronounEntries } from '../utils/pronounOrder';
 
 // Expand abbreviated case labels to full words
 const CASE_EXPAND: Record<string, string> = {
@@ -268,7 +269,13 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, pos, se
         setEntry(finalResult);
         setIsLoading(false);
         if (finalResult) {
-          writeBackDictionary(currentLemma, currentLang, finalResult).catch(() => {});
+          // Only write back when this genuinely came over the network — a
+          // result resolved from the in-memory or on-device caches is already
+          // in Supabase (or was already written back once), so re-uploading
+          // it on every tap would be a pure-waste write at live-traffic scale.
+          if (!finalResult.resolvedFromLocalCache) {
+            writeBackDictionary(currentLemma, currentLang, finalResult).catch(() => {});
+          }
           const stored = useWordBankStore.getState().words.find(
             w => w.word.toLowerCase() === currentWord.toLowerCase() && w.language === currentLang
           );
@@ -821,7 +828,7 @@ export function WordPopup({ word, lemma, compoundLemma, separablePrefix, pos, se
                   </Text>
                 )}
               </View>
-              {Object.entries(activeTense.table).map(([pronoun, form]) => (
+              {sortPronounEntries(language, activeTense.table).map(([pronoun, form]) => (
                 <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
                   <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{pronoun}</Text>
                   <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{form}</Text>
