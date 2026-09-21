@@ -2,7 +2,8 @@
  * Bilinguist Brief — Cloudflare Worker
  *
  * Routes:
- *   GET  /latest                        → latest.json briefing bundle
+ *   GET  /latest                        → today's briefing bundle (briefings/<date>.json,
+ *                                          falls back to latest.json — see handleTodayBriefing)
  *   GET  /latest/meta                   → { date, generatedAt } only (~50 bytes)
  *   GET  /briefings/YYYY-MM-DD          → archived briefing bundle
  *   GET  /word?w={word}&lang={lang}     → word lookup (D1 cache → Claude + translate)
@@ -752,24 +753,30 @@ async function handleAudioStream(key: string, env: Env): Promise<Response> {
 const REPO   = 'will-diggle/bilinguist-data';
 const BRANCH = 'main';
 
+function todayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Fetches today's briefing bundle, preferring the dated archive file
+// (briefings/<date>.json) -- the exact file the fact-sweep correction routine
+// edits -- over the separately-written latest.json. Closes the class of bug
+// where a fact-sweep fix lands in the archive but latest.json (what every
+// /latest route used to serve unconditionally) never gets touched, so a real
+// correction never reaches the app. Falls back to latest.json only when
+// today's archive file can't be fetched (a date-rollover race right as
+// generation starts, or a day the fact-sweep routine never promotes staging
+// to main) -- kept as a safety net until latest.json stops being written by
+// generate-briefings.yml/generate-audio.yml entirely.
+async function handleTodayBriefing(env: Env): Promise<Response> {
+  const primary = await handleBriefing(`briefings/${todayUTC()}.json`, env);
+  if (primary.ok) return primary;
+  return handleBriefing('latest.json', env);
+}
+
 async function handleBriefingMeta(env: Env): Promise<Response> {
-  const upstream = `https://api.github.com/repos/${REPO}/contents/latest.json`;
-  const githubRes = await fetch(upstream, {
-    headers: {
-      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github.raw+json',
-      'User-Agent': 'Bilinguist-Brief-Worker/1.0',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-    cf: { cacheEverything: false },
-  } as RequestInit & { cf: { cacheEverything: boolean } });
-
-  if (!githubRes.ok) {
-    const status = githubRes.status === 404 ? 404 : 502;
-    return new Response(status === 404 ? 'Not found' : 'Upstream error', { status });
-  }
-
-  const bundle = await githubRes.json() as { date?: string; generatedAt?: number };
+  const briefRes = await handleTodayBriefing(env);
+  if (!briefRes.ok) return briefRes;
+  const bundle = await briefRes.json() as { date?: string; generatedAt?: number };
   return json({ date: bundle.date ?? null, generatedAt: bundle.generatedAt ?? null });
 }
 
@@ -812,23 +819,12 @@ async function handleBriefing(filePath: string, env: Env): Promise<Response> {
 interface NativeArticle { genre: string; headline: string; body: string; slug?: string }
 
 async function handleBriefingFiltered(env: Env, lang: string, level: string): Promise<Response> {
-  const upstream = `https://api.github.com/repos/${REPO}/contents/latest.json`;
-  const githubRes = await fetch(upstream, {
-    headers: {
-      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github.raw+json',
-      'User-Agent': 'Bilinguist-Brief-Worker/1.0',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-    cf: { cacheEverything: false },
-  } as RequestInit & { cf: { cacheEverything: boolean } });
-
-  if (!githubRes.ok) {
-    const status = githubRes.status === 404 ? 404 : 502;
-    return json({ error: status === 404 ? 'not_found' : 'upstream_error' }, status);
+  const briefRes = await handleTodayBriefing(env);
+  if (!briefRes.ok) {
+    return json({ error: briefRes.status === 404 ? 'not_found' : 'upstream_error' }, briefRes.status);
   }
 
-  const bundle = await githubRes.json() as {
+  const bundle = await briefRes.json() as {
     date: string;
     generatedAt: number;
     briefings?: Record<string, Record<string, Record<string, unknown>>>;
@@ -892,7 +888,7 @@ async function warmDb(env: Env): Promise<void> {
   const WORKER_BASE = 'https://bilinguist-brief.williamdiggz.workers.dev';
 
   // 1. Fetch today's brief via the internal handler
-  const briefRes = await handleBriefing('latest.json', env);
+  const briefRes = await handleTodayBriefing(env);
   if (!briefRes.ok) { console.error('[warm] failed to fetch brief:', briefRes.status); return; }
   const brief = await briefRes.json() as { date?: string; briefings?: Record<string, unknown> };
   const date = brief.date ?? 'unknown';
@@ -1010,7 +1006,7 @@ export default {
       const lang  = url.searchParams.get('lang');
       const level = url.searchParams.get('level');
       if (lang && level) return handleBriefingFiltered(env, lang, level);
-      return handleBriefing('latest.json', env);
+      return handleTodayBriefing(env);
     }
 
     const archive = pathname.match(/^\/briefings\/(\d{4}-\d{2}-\d{2})$/);
