@@ -535,6 +535,21 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "ar": [],  # temporarily disabled to cut prompt cost during testing
 }
 
+# GLOBAL_NEWS_EXTRA_LEVELS: added 2026-09-24 (Will's request). fr/es's LANGUAGE_LEVELS
+# entries above only cover one learner level each (fr: B1, es: A2) -- this adds the REST
+# of the CEFR range (A1-Native), but ONLY for GLOBAL NEWS genre stories, not UK/US/etc.
+# Each language's already-covered level (fr: B1, es: A2) is deliberately excluded here --
+# LANGUAGE_LEVELS' normal pass already writes it for every story including Global News,
+# so including it again here would generate it twice. "Native" is excluded too -- Stage 5
+# already covers it for both languages. This is a genre-scoped ADDITION on top of the
+# normal per-language pass, not a replacement: UK/US stories in fr/es still get only
+# their LANGUAGE_LEVELS entry, exactly as before. Keep each list in sync if the
+# corresponding LANGUAGE_LEVELS entry above ever changes which level it covers.
+GLOBAL_NEWS_EXTRA_LEVELS: dict[str, list[str]] = {
+    "fr": ["A1", "A2", "B2", "C1", "C2"],   # LANGUAGE_LEVELS["fr"] already covers B1
+    "es": ["A1", "B1", "B2", "C1", "C2"],   # LANGUAGE_LEVELS["es"] already covers A2
+}
+
 LANGUAGE_NAMES: dict[str, str] = {
     "fr": "French",
     "de": "German",
@@ -2096,6 +2111,39 @@ def run_writing_concurrent(
             max_output_tokens=32768, template=template, factbase=factbase,
             n_splits=n_splits,
         ))
+
+    # Extra levels for GLOBAL NEWS stories only (fr/es) -- see GLOBAL_NEWS_EXTRA_LEVELS
+    # above. Genre-scoped tasks built the same way as the normal ones, but against a
+    # factbase filtered down to GLOBAL NEWS stories only, so the resulting "articles"
+    # list only ever contains Global News stories at these levels -- UK/US stories never
+    # get written at these extra levels, matching the normal-pass behaviour for those
+    # genres unchanged above. Respects ACTIVE_LENGTHS the same way build_combinations()
+    # does, so this stays inert on "short" while that's cut for the testing phase.
+    global_news_factbase = [s for s in factbase if s.get("genre") == "GLOBAL NEWS"]
+    for lang, extra_levels in GLOBAL_NEWS_EXTRA_LEVELS.items():
+        if not global_news_factbase:
+            continue
+        skip_from_idx = len(CEFR_ORDER)
+        if native_grades and lang in native_grades and native_grades[lang] in CEFR_ORDER:
+            skip_from_idx = CEFR_ORDER.index(native_grades[lang])
+        for level in extra_levels:
+            if level not in CEFR_ORDER or CEFR_ORDER.index(level) >= skip_from_idx:
+                continue  # at or above native grade -- Stage 5 already covers it
+            is_beginner = level in ("A1", "A2")
+            for length in ACTIVE_LENGTHS:
+                stage = "2B" if is_beginner else ("2S" if length == "short" else "2M")
+                model = _resolve_model(MODEL_BEGINNER if is_beginner else
+                                        (MODEL_2S if length == "short" else MODEL_2M),
+                                        is_beginner)
+                template = PROMPT_2S_HEADER if (is_beginner or length == "short") else PROMPT_2M_HEADER
+                prompt = build_writing_prompt(template, lang, level, length, global_news_factbase)
+                tasks.append(_WriteTask(
+                    stage=stage, lang=lang, level=level, length=length,
+                    model=model, prompt=prompt, schema=_SCHEMA_WRITING,
+                    max_output_tokens=32768 if not is_beginner and length == "longer" else 16384,
+                    template=template, factbase=global_news_factbase,
+                    n_splits=1,  # Global News subset is small (usually 1-3 stories) -- no need to split
+                ))
 
     if not tasks:
         print("[write] No CEFR level combos to generate (all skipped by P4a grades)")
