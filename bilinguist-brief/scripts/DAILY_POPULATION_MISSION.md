@@ -6,6 +6,59 @@ this references.
 
 **Working directory**: `/Users/willdiggle/claude-routines/bilinguist-brief/scripts`
 
+**Hard constraint, no exceptions, this is the most important rule in this
+document**: NEVER write fabricated, placeholder, or "representative" data to
+Supabase. Not to "demonstrate the pipeline end-to-end," not as a fallback
+when a tool won't cooperate, not for any reason. On 2026-09-17 an unattended
+run of this mission hit repeated errors trying to invoke the Workflow tool,
+tried many workarounds, eventually gave up and wrote 541 fake entries
+straight to `word_forms`/`word_dictionary` via an ad-hoc script (not
+`consolidate_and_write.py`) — `word_type: "noun"` for every entry regardless
+of actual type, `translation: "[word]"`, `explanation: "Common word"` — then
+reported this as a mostly-successful run with a footnote about "placeholder
+results." Real users saw this garbage as real dictionary entries until it
+was caught and deleted the same day. If the Workflow tool (or any step in
+this pipeline) will not run correctly after a couple of genuine retries:
+STOP. Write nothing to Supabase. Report exactly what failed, what you tried,
+and that zero words were populated this run. A skipped day is completely
+fine and expected occasionally; fabricated data reaching real users is not
+recoverable by "it'll get regenerated later" — someone has to notice and
+clean it up by hand, which is what happened here. Only ever use
+`consolidate_and_write.py` to write generated entries — never a one-off
+script that bypasses its safety gates.
+
+**Hard constraint, no exceptions, second-most-important rule in this
+document**: `output/populate_word_workflow.js` is the ONLY generation
+template — one `agent()` call per WORD (never a batch of several words in
+one call), running the app's own `generateWordData()` prompt
+(`bilinguist-worker/src/index.ts`) verbatim, character for character. This
+is a deliberate instruction from Will, not a style preference: treat every
+subagent call as standing in for exactly one real user's tap on exactly one
+word — same prompt text, same JSON shape back (`lemma`, `translation`,
+`wordType`, `explanation`, `example`, `exampleMarked`, `pronunciation`,
+`tenses`, `declensions`, `forms`, `tip`, `meta`, `level`) — the only thing
+that differs from a live tap is that a subagent runs it instead of a
+fetch() to the Anthropic API, so bulk population rides the Claude Code
+subscription instead of a metered per-token bill. If `generateWordData()`'s
+prompt text changes in the worker source, copy the change into
+`populate_word_workflow.js` character for character — do not rephrase,
+"improve," or re-batch it. Two earlier templates
+(`populate_0911_workflow.js` / `populate_pn_0911_workflow.js`, batched 5
+words per call with hand-rolled prompt wording) were retired and deleted on
+2026-09-18 — they had silently drifted from the app's real prompt since
+2026-09-11 (made-up English-ish tense labels instead of the app's real
+per-language ones, no `declensions` field at all — German noun/adjective
+case tables were silently dropped — and no `exampleMarked`, so no
+batch-populated word's example sentence had the tap word bolded). Don't
+recreate anything like them. See `populate_word_workflow.js`'s own header
+comment and `sync_supabase_to_d1.py`'s `build_forms()`/`build_meta()` for
+the mapping from the app's field names into `word_dictionary`'s columns —
+`adapt_word_results.py` does that translation, it's the only place it
+happens. A regenerated backfill of everything populated 2026-09-11 through
+2026-09-17 (wrong tense labels, missing declensions, no exampleMarked) was
+NOT done as part of this fix — it's a known, separate, larger follow-up,
+not yet scheduled.
+
 **Hard constraint, no exceptions**: every `agent()` call inside any Workflow
 script you write or launch MUST set `model: 'claude-haiku-4-5-20251001'`
 explicitly. Omitting it silently inherits this session's own (expensive)
@@ -48,48 +101,57 @@ confirm every `agent(` call has it.
    languages). For each language, read `output/brief_{tag}.json`, walk every
    article's `tokenMap`, collect surface forms tagged `PROPN`, and intersect
    with that language's `final{tag}_{lang}.json` word list. Move any match
-   into its own `output/final_pn_{tag}_{lang}.json` batch file (same 25-word
-   batching), and rebuild `output/final{tag}_{lang}.json` / `jobs_{tag}.json`
-   to exclude those words. Write `output/pn_jobs_{tag}.json` for the
-   proper-noun batches. (See `output/populate_pn_0911_workflow.js`'s
-   docstring-style comments for the exact prompt shape to reuse — don't
-   reinvent it, copy the pattern and just swap in the new tag.)
+   into its own `output/final_pn_{tag}_{lang}.json` file, and rebuild
+   `output/final{tag}_{lang}.json` to exclude those words. This split still
+   matters for the day's reporting (vocab vs. proper-noun counts), but NOT
+   for generation — step 3 runs every candidate, vocab or proper noun,
+   through the exact same prompt, because the app itself has no separate
+   lightweight path for names either.
 
-3. **Launch two Workflows** (Haiku, per the hard constraint above):
-   - Main vocabulary: reuse the pattern in
-     `output/populate_0911_workflow.js` (copy it to
-     `output/populate_{tag}_workflow.js`, updating the file paths it reads
-     from `final0911_{lang}.json` to `final{tag}_{lang}.json`), with
-     `args` = the contents of `output/jobs_{tag}.json`. That template's
-     `lemma` field instruction was tightened on 2026-09-12 to explicitly
-     reject participle/inflected forms as their own lemma (e.g. French
-     "adoptée"/"allés"/"atteint" must resolve to "adopter"/"aller"/
-     "atteindre") — ~1.6% of the whole dictionary was duplicate/collided
-     lemma entries from Haiku treating an inflected surface form as if it
-     were its own citation form. Keep this instruction when copying the
-     template; don't simplify it back down.
-   - Proper nouns: same pattern from `output/populate_pn_0911_workflow.js`,
-     `args` = `output/pn_jobs_{tag}.json`.
-   Wait for both to complete (the Workflow tool call blocks/notifies on
-   completion within a session — just await them normally).
-
-4. **Consolidate and write**, for each completed Workflow. Each Workflow call's
-   own return value (the `result` field of the tool result, not the journal)
-   is already an array of `{"lang": ..., "idx": ..., "entries": [...]}`
-   objects — write that straight to a file and pass it as `--result-json`:
+3. **Launch ONE Workflow, one `agent()` call per word** (Haiku, per the hard
+   constraint above). Read `output/final{tag}_{lang}.json` and
+   `output/final_pn_{tag}_{lang}.json` for every language YOURSELF (you have
+   filesystem access; the Workflow script does not) and flatten every
+   candidate word into a single flat list:
+   ```json
+   [{"lang": "fr", "word": "chaise", "level": "B1"}, {"lang": "de", "word": "Tisch", "level": "B1"}, ...]
    ```
+   `level` is always the fixed default `"B1"` — see `populate_word_workflow.js`'s
+   note on why (there's no single requesting learner to personalize for; the
+   word's own real level comes back from Haiku's `level` field regardless).
+   Launch:
+   ```
+   Workflow({
+     scriptPath: "output/populate_word_workflow.js",
+     args: <that flattened list>,
+   })
+   ```
+   Do NOT copy this file per-tag the way the old templates were copied —
+   there is nothing in it that needs today's date, it takes the word list
+   via `args`. Just point at it directly. Wait for it to complete (the
+   Workflow tool call blocks/notifies on completion within a session — just
+   await it normally).
+
+4. **Adapt, then consolidate and write.** The Workflow's own return value
+   (the `result` field of the tool result, not the journal) is an array of
+   `{"lang", "word", "entry"}` objects in the app's own field names
+   (`wordType`, `example`, `pronunciation`, ...) — write that straight to a
+   file, then translate it into `word_dictionary`'s column shape with
+   `adapt_word_results.py` (the only place that translation happens — see
+   its docstring) before writing:
+   ```
+   python3 adapt_word_results.py output/raw_result_{tag}.json --out output/result_{tag}.json
    python3 consolidate_and_write.py \
-     --result-json output/result_{tag}_vocab.json \
+     --result-json output/result_{tag}.json \
      --out output/consolidated_{tag}.json \
      --write
    ```
-   (repeat for the proper-noun Workflow's own result -> `output/result_{tag}_pn.json`
-   -> `output/consolidated_pn_{tag}.json`). This is IMPORTANT: consolidate_and_write.py
-   also supports a `--journal`/`--batch-glob` fallback mode that recovers
-   language by word-overlap against the input batch files, but that fails
-   for any batch of 1-3 words (routinely happens on a near-100%-coverage
-   day) and silently drops them — always prefer `--result-json`, which
-   carries the language directly and never has this failure mode.
+   This is IMPORTANT: consolidate_and_write.py also supports a
+   `--journal`/`--batch-glob` fallback mode that recovers language by
+   word-overlap against the input batch files, but that fails for any batch
+   of 1-3 words (routinely happens on a near-100%-coverage day) and
+   silently drops them — always prefer `--result-json`, which carries the
+   language directly and never has this failure mode.
    Then run `backfill_requested_forms.py` — every population round generates
    entries keyed by LEMMA, but the exact requested surface form (elisions,
    clitic-attached verb forms, German case/gender-declined forms, etc.) is
@@ -115,12 +177,27 @@ confirm every `agent(` call has it.
    lemma's row — re-run `backfill_requested_forms.py` once more after the
    sync completes to pick up the rest.
 
-5. **Report**: how many words were newly populated today (sum of both
-   Workflows' written counts), the day's total/unique/truly-new stats from
-   `output/summary_{tag}.json`, and confirm `word_forms` sync succeeded with
-   0 failures. If anything failed partway (a script error, a Workflow with
-   errored agents, a sync failure), say exactly what failed and where things
-   were left — don't silently retry indefinitely or guess at a fix.
+5. **Report**: this is a standing requirement, not optional. Every run must
+   end with, in this order:
+   - **Unique words in today's brief** — `grand_unique` from
+     `output/summary_{tag}.json` (sum across languages).
+   - **New words found** — `grand_truly_new` from the same file (words not
+     already in `word_forms`, i.e. needed generation today), broken down
+     per-language.
+   - **% translated** — of `grand_truly_new`, what fraction actually ended
+     up with a row in `word_forms` by the end of this run. Compute it by
+     re-running `python3 daily_extract.py --tag {tag}` one more time AFTER
+     the sync step (this is the same "coverage re-check" step 5 already
+     implied) and comparing its fresh `grand_truly_new` (the remaining gap)
+     against the ORIGINAL `grand_truly_new` from step 1, i.e.
+     `pct = 100 * (original_truly_new - remaining_truly_new) / original_truly_new`.
+     **Target is 100%.** If it's not 100%, say exactly how many words are
+     still missing and for which languages — don't round up or gloss over a
+     shortfall.
+   - Confirm `word_forms` sync succeeded with 0 failures.
+   If anything failed partway (a script error, a Workflow with errored
+   agents, a sync failure), say exactly what failed and where things were
+   left — don't silently retry indefinitely or guess at a fix.
 
    **Specifically call out the `auto_resolved` count** (in `summary_{tag}.json`
    and the console output) — this is the fix added 2026-09-12 that resolves
@@ -136,10 +213,10 @@ confirm every `agent(` call has it.
    Also worth a quick spot-check every few days (not necessarily every
    single run): re-run `python3 merge_lemma_collisions.py --dry-run` and
    see if the "safe collisions to merge" count is climbing again — that
-   would mean the tightened lemma-field prompt (in
-   `output/populate_0911_workflow.js`, copied into each day's version) isn't
-   actually preventing new duplicate lemma entries, and the fix needs
-   revisiting rather than just re-running the merge on autopilot.
+   would mean `generateWordData()`'s own lemma instruction (which
+   `populate_word_workflow.js` runs verbatim) isn't actually preventing new
+   duplicate lemma entries, and the fix needs revisiting rather than just
+   re-running the merge on autopilot.
 
 ## What NOT to do
 

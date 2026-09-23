@@ -51,7 +51,15 @@ SENT_SPLIT = re.compile(r"(?<=[.!?»])\s+")
 # treated as truly-new vocabulary.
 CORRUPTION_RE = re.compile(r"\nH\n")
 CHUNK = 150
-BATCH_SIZE = 25
+# 2026-09-18, explicit instruction: each subagent call should be treated
+# exactly like one real user's tap on one word in the app — that's the whole
+# point of matching the population prompt to generateWordData()'s prompt
+# (see DAILY_POPULATION_MISSION.md). A "batch" of several words in one
+# Haiku call is a different shape of request than a single tap ever is, so
+# BATCH_SIZE stays at 1 even though it costs more agent() calls — this was
+# previously 5 for per-call efficiency, deliberately traded away for
+# fidelity to the real app behavior instead.
+BATCH_SIZE = 1
 
 
 def _load_env_file(path: Path) -> None:
