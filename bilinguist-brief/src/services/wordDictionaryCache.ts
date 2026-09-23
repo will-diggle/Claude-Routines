@@ -211,10 +211,15 @@ export async function prefetchDictionaryForArticles(
   level: LanguageLevel,
   articles: { headline: string; body: string }[],
 ): Promise<void> {
+  const callId = Math.random().toString(36).slice(2, 8);
+  console.log(`[prefetch:${callId}] ENTER lang=${lang} level=${level} articles=${articles.length} headlines=${JSON.stringify(articles.map((a) => a.headline.slice(0, 30)))}`);
   // "Fetch live only" mode — the user turned auto-download off. Every tap
   // still works, just goes through the live per-word path instead.
   const settings = useSettingsStore.getState();
-  if (!settings.autoDownloadWords) return;
+  if (!settings.autoDownloadWords) {
+    console.log(`[prefetch:${callId}] ABORT autoDownloadWords=false — store not touched`);
+    return;
+  }
 
   const dict = await loadDict(lang, level);
   const today = new Date().toISOString().slice(0, 10);
@@ -257,15 +262,21 @@ export async function prefetchDictionaryForArticles(
       return sensesFor(dict, cw).length > 0 || newlyFoundWords.has(cw);
     }).length;
 
+  console.log(`[prefetch:${callId}] computed total=${total} missingCheckWords=${missingCheckWords.length} dictOrderLen=${dict.order.length} storeBefore=${JSON.stringify(store.byLanguage[lang])}`);
+
   if (missingCheckWords.length === 0) {
     await saveDict(lang, level, dict); // persist lastPrefetchDate even when nothing new to fetch
-    store.setDone(lang, countFound(new Set()));
+    const found = countFound(new Set());
+    console.log(`[prefetch:${callId}] FAST-PATH (fully cached) setDone(${lang}, found=${found}) — total NOT updated here, stays whatever it last was`);
+    store.setDone(lang, found);
     return;
   }
+  console.log(`[prefetch:${callId}] setLoading(${lang}, total=${total})`);
   store.setLoading(lang, total);
 
   try {
     const entries = await fetchWordFormsFromSupabase(lang, missingCheckWords);
+    console.log(`[prefetch:${callId}] fetched ${entries.length}/${missingCheckWords.length} entries from Supabase`);
     for (const entry of entries) {
       const key = entryKey(entry.word, entry.wordType);
       if (!(key in dict.entries)) dict.order.push(key);
@@ -281,8 +292,11 @@ export async function prefetchDictionaryForArticles(
     // nouns, gaps) genuinely aren't in the dictionary at all. That's honest
     // signal, not a bug to hide.
     const newlyFoundWords = new Set(entries.map((e) => e.word.toLowerCase()));
-    store.setDone(lang, countFound(newlyFoundWords));
-  } catch {
+    const found = countFound(newlyFoundWords);
+    console.log(`[prefetch:${callId}] DONE setDone(${lang}, found=${found}) total=${total} storeAfter-about-to-be=${JSON.stringify({ total, found })}`);
+    store.setDone(lang, found);
+  } catch (err) {
+    console.log(`[prefetch:${callId}] ERROR caught, setError(${lang}):`, err);
     store.setError(lang);
     // Background prefetch only — silent failure, per-tap lookupWord() still works
   }

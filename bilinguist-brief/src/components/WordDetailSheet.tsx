@@ -14,6 +14,7 @@ import type { LanguageCode, LanguageLevel } from '../store/useSettingsStore';
 import { verifyTenses } from '../services/wordLookup';
 import { lookupWord, type TenseTable } from '../services/wordService';
 import { translateWord } from '../services/deepl';
+import { sortPronounEntries } from '../utils/pronounOrder';
 
 const PAST_TENSE_LABEL: Partial<Record<LanguageCode, string>> = {
   fr: 'PASSÉ COMPOSÉ', de: 'PRÄTERITUM', es: 'PRETÉRITO',
@@ -427,7 +428,7 @@ export function WordDetailSheet({ word, onClose, onMovePile }: Props) {
                   </Text>
                 )}
               </View>
-              {Object.entries(activeTense.table).map(([pronoun, form]) => (
+              {sortPronounEntries(lang, activeTense.table).map(([pronoun, form]) => (
                 <View key={pronoun} style={[styles.conjRow, { borderTopColor: colors.borderLight }]}>
                   <Text style={[styles.conjPronoun, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>{pronoun}</Text>
                   <Text style={[styles.conjForm, { color: colors.accentRed, fontFamily: fontFamily.bold }]}>{form}</Text>

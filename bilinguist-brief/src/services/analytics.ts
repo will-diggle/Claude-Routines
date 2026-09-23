@@ -39,6 +39,16 @@ export function setSuperProperties(props: Record<string, unknown>): void {
   ph()?.register(props as any);
 }
 
+/** Unlike setSuperProperties (attached to every future EVENT sent from this
+ *  device), this updates the PERSON profile itself — what "which font/
+ *  background/icon do people currently use across the whole user base"
+ *  needs: a snapshot of current state, queryable directly off the person,
+ *  not derived by counting change-events. reloadFeatureFlags is off since
+ *  these are incidental settings taps, not moments where fresh flags matter. */
+export function setPersonProperties(props: Record<string, unknown>): void {
+  ph()?.setPersonProperties(props as any, undefined, false);
+}
+
 /** Fired on every navigation state change whose active route name differs
  *  from the previous one — PostHog's dedicated screen-view event, distinct
  *  from capture(). @react-navigation/native v7 removed the auto-tracking
@@ -175,6 +185,43 @@ export function trackLevelSelected(language: string, level: string): void {
   ph()?.capture('level_selected', { language, level });
 }
 
+// ── Design preferences ───────────────────────────────────────────────────────
+// These four were previously untracked entirely. Each pairs a change-event
+// (so change frequency is visible) with a person property (so current
+// distribution across the whole user base is visible without waiting for
+// someone to touch the setting again) — see setPersonProperties above.
+
+/** Fired when the user changes their reading font. */
+export function trackFontChanged(fontFamily: string): void {
+  ph()?.capture('font_changed', { font_family: fontFamily });
+  setPersonProperties({ font_family: fontFamily });
+}
+
+/** Fired when the user changes their background/theme. Takes
+ *  manualBackground — the user's actual choice — not the transient
+ *  `background` value Auto Night Mode may currently have it overridden to.
+ *  See useSettingsStore's manualBackground doc comment. */
+export function trackBackgroundChanged(manualBackground: string): void {
+  ph()?.capture('background_changed', { manual_background: manualBackground });
+  setPersonProperties({ manual_background: manualBackground });
+}
+
+/** Fired when the user toggles Auto Night Mode. Also captures the iOS
+ *  system color scheme alongside it, since the feature follows iOS
+ *  appearance, not a sunrise/sunset schedule. */
+export function trackAutoNightModeChanged(enabled: boolean, systemColorScheme: 'light' | 'dark' | null): void {
+  ph()?.capture('auto_night_mode_changed', { enabled, system_color_scheme: systemColorScheme });
+  setPersonProperties({ auto_night_mode: enabled, system_color_scheme: systemColorScheme });
+}
+
+/** Fired when the user changes their app icon. appIcon is null for the
+ *  default ("White") icon. */
+export function trackAppIconChanged(appIcon: string | null): void {
+  const value = appIcon ?? 'White';
+  ph()?.capture('app_icon_changed', { app_icon: value });
+  setPersonProperties({ app_icon: value });
+}
+
 // ── Kept for backward compatibility / internal uses ───────────────────────────
 
 export function trackLanguageAdded(language: string): void {
@@ -200,6 +247,16 @@ export function trackWrittenNumbersChanged(language: string, enabled: boolean): 
  *  which are per-language/level and know nothing about genre mix. */
 export function trackArticleTapped(language: string, genre?: string): void {
   ph()?.capture('article_tapped', { language, genre: genre ?? null });
+}
+
+/** Fired once per article per session when that SPECIFIC article (not the
+ *  whole brief) has been ≥90% visible on screen at some point, gated by the
+ *  same ≥30s reading-time-on-page threshold trackBriefCompleted uses — see
+ *  BriefingScreen's maybeCredit. brief_completed is a whole-language-edition
+ *  event and can't answer "which genres actually get read to completion";
+ *  this is the per-article signal that can. */
+export function trackArticleRead(language: string, genre?: string): void {
+  ph()?.capture('article_read', { language, genre: genre ?? null });
 }
 
 /** Fired when the user opens the weather detail modal — the only tracked

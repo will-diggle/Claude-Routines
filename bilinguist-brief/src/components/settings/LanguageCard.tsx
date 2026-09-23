@@ -5,6 +5,7 @@ import { FlagCircle } from '../FlagCircle';
 import { Spacing } from '../../theme';
 import type { LanguageLevel } from '../../store/useSettingsStore';
 import { NATIVE_WRITING_LEVEL } from '../../services/prompts';
+import { useSubscriptionStore, FREE_READ_LENGTH } from '../../store/useSubscriptionStore';
 
 const LENGTH_LABELS: Record<string, readonly [string, string]> = {
   fr: ['Concis',  'Long'],
@@ -43,11 +44,16 @@ export interface LangCardProps {
   onSetShowNumberSpellouts: (val: boolean) => void;
   isDraggable?: boolean;
   comingSoon?: boolean;
+  /** True when this language can't currently be activated on the free tier
+   *  (another language already occupies the one free slot, or the switch
+   *  cooldown hasn't elapsed) — shows the same "Premium" badge as Genres. */
+  premiumLocked?: boolean;
 }
 
-export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, onSetShowNumberSpellouts, isDraggable = true, comingSoon = false }: LangCardProps) {
+export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, fontSize, nativeGradeByLang, onToggle, onSetLength, onPressLevel, onSetShowNumberSpellouts, isDraggable = true, comingSoon = false, premiumLocked = false }: LangCardProps) {
   const anim = useRef(new Animated.Value(lang.active ? 1 : 0)).current;
   const [expandedHeight, setExpandedHeight] = useState(0);
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -92,6 +98,16 @@ export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, 
               Coming soon
             </Text>
           </View>
+        ) : premiumLocked ? (
+          <TouchableOpacity
+            onPress={() => useSubscriptionStore.getState().showPaywall()}
+            style={[cardStyles.premiumBadge, { borderColor: colors.borderMid }]}
+          >
+            <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+            <Text style={[cardStyles.premiumBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
+              Premium
+            </Text>
+          </TouchableOpacity>
         ) : (
           <Switch
             value={lang.active}
@@ -124,15 +140,20 @@ export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, 
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {(['short', 'longer'] as const).map((val, i) => {
                 const active = (lang.readLength ?? 'medium') === val;
+                const locked = !fullAccess && val !== FREE_READ_LENGTH;
                 return (
                   <TouchableOpacity
                     key={val}
-                    onPress={() => onSetLength(val)}
+                    onPress={() => locked ? useSubscriptionStore.getState().showPaywall() : onSetLength(val)}
                     style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
                       paddingHorizontal: 10,
                       paddingVertical: 4,
                       borderRadius: 12,
                       borderWidth: 1,
+                      opacity: locked ? 0.45 : 1,
                       borderColor: active
                         ? (isDark ? colors.inkFaint : colors.inkDark)
                         : colors.borderMid,
@@ -141,6 +162,7 @@ export function LanguageCard({ lang, isAnyDragging, isDark, colors, fontFamily, 
                         : 'transparent',
                     }}
                   >
+                    {locked && <Ionicons name="lock-closed" size={9} color={colors.inkLight} />}
                     <Text style={{ fontSize: 12, color: active ? colors.bg : colors.inkLight, fontFamily: fontFamily.regular }}>
                       {langLabels[i]}
                     </Text>
@@ -217,4 +239,15 @@ export const cardStyles = StyleSheet.create({
     paddingVertical: 3,
   },
   comingSoonText: { fontSize: 11, letterSpacing: 0.3, opacity: 0.7 },
+  // Matches the Genres list's "Premium" badge exactly.
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  premiumBadgeText: { fontSize: 11, letterSpacing: 0.3, opacity: 0.7 },
 });

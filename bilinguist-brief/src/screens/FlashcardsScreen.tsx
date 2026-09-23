@@ -13,6 +13,7 @@ import { useWordBankStore, type SavedWord } from '../store/useWordBankStore';
 import { lookupWord } from '../services/wordService';
 import { useStreakStore } from '../store/useStreakStore';
 import { useSettingsStore } from '../store/useSettingsStore';
+import { useSubscriptionStore, FREE_FLASHCARD_DAILY_LIMIT } from '../store/useSubscriptionStore';
 import { useTheme } from '../hooks/useTheme';
 import { GameHeader } from '../components/GameHeader';
 import { GameEndScreen } from '../components/GameEndScreen';
@@ -111,6 +112,11 @@ export function FlashcardsScreen() {
   const { words, recordPractice, backfillWord } = useWordBankStore();
   const { recordSession } = useStreakStore();
   const activeLanguages = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
+  const canPlayToday = useSubscriptionStore((s) => s.canPlayFlashcardsToday());
+  const playsRemainingToday = useSubscriptionStore((s) => s.flashcardPlaysRemainingToday());
+  const recordFlashcardPlay = useSubscriptionStore((s) => s.recordFlashcardPlay);
+  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
   const activeCodes = new Set(activeLanguages);
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
 
@@ -160,6 +166,19 @@ export function FlashcardsScreen() {
         })
         .catch(() => {});
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Count this mount as one of today's free plays — but only once, and only
+  // if there's actually a session to play and the free cap isn't already hit
+  // (the locked-state screen below handles that case without starting anything).
+  const recordedPlayRef = useRef(false);
+  useEffect(() => {
+    if (recordedPlayRef.current) return;
+    if (sessionWords.length === 0) return;
+    if (!fullAccess && !canPlayToday) return;
+    recordedPlayRef.current = true;
+    recordFlashcardPlay();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -293,6 +312,23 @@ export function FlashcardsScreen() {
     );
   }
 
+  if (!fullAccess && !canPlayToday) {
+    return (
+      <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+        <GameHeader title="Flashcards" current={0} total={0} />
+        <View style={styles.center}>
+          <Ionicons name="lock-closed-outline" size={28} color={colors.inkFaint} />
+          <Text style={[styles.emptyText, { color: colors.inkFaint, fontFamily: fontFamily.italic }]}>
+            {`You've used today's ${FREE_FLASHCARD_DAILY_LIMIT} free flashcard rounds. Come back tomorrow, or upgrade for unlimited practice.`}
+          </Text>
+          <TouchableOpacity onPress={() => showPaywall()} style={[styles.doneBtn, { backgroundColor: colors.accentGold }]}>
+            <Text style={[styles.doneBtnText, { fontFamily: fontFamily.bold }]}>Upgrade to Premium</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   // ── Done screen ───────────────────────────────────────────────────────────────
 
   function playAgain() {
@@ -302,6 +338,12 @@ export function FlashcardsScreen() {
     setResults([]);
     setDone(null);
     resetCard();
+  }
+
+  function handlePlayAgainPress() {
+    if (!fullAccess && !canPlayToday) { showPaywall(); return; }
+    recordFlashcardPlay();
+    playAgain();
   }
 
   if (done) {
@@ -316,7 +358,7 @@ export function FlashcardsScreen() {
           { icon: 'checkmark-circle-outline', tint: '#43A047', label: 'Got it',  value: done.correct },
           { icon: 'close-circle-outline',     tint: '#E53935', label: 'No idea', value: done.missed },
         ]}
-        onPlayAgain={playAgain}
+        onPlayAgain={handlePlayAgainPress}
         onBack={() => navigation.goBack()}
       />
     );
@@ -736,6 +778,7 @@ export function FlashcardsScreen() {
       <View style={[styles.remainingRow, { paddingBottom: insets.bottom + Spacing.md }]}>
         <Text style={[styles.remainingText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>
           {remaining} {remaining === 1 ? 'card' : 'cards'} remaining
+          {!fullAccess ? `  ·  ${playsRemainingToday} of ${FREE_FLASHCARD_DAILY_LIMIT} free rounds left today` : ''}
         </Text>
       </View>
 

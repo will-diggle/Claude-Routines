@@ -36,8 +36,12 @@ function pickPhrases(langs: string[]): string[] {
 }
 
 const SW = Dimensions.get('window').width;
-const LOGO_W = SW - 32;
-const LOGO_H = Math.round(LOGO_W / 6.21);
+const LOGO_W = SW - 60;
+// masthead-compact-*.png files are 3271x646 (~5.06:1) — matching this ratio
+// matters because the Image below uses resizeMode="contain": a mismatched
+// ratio here silently height-constrains the render, so the logo stops
+// growing with LOGO_W well before it reaches the box's actual width.
+const LOGO_H = Math.round(LOGO_W / 5.06);
 
 const FADE_MS  = 160;
 const HOLD_MS  = 260;

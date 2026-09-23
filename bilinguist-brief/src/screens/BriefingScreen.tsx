@@ -262,6 +262,19 @@ export function BriefingScreen() {
   const sessionTimeRef = useRef<Record<string, number>>({});
   // Interval ref for the 1-second reading timer
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Per-language: each article's own scroll-content bounds (y/height, from
+  // measureLayout) and genre, registered once each article lays out — lets
+  // per-article completion be checked independently of the whole-brief gate.
+  const articleBoundsRef = useRef<Record<string, Record<string, { y: number; height: number; genre?: string }>>>({});
+  // Per-language: article keys already credited with article_read this
+  // session. A lighter in-memory-only dedupe than readTrackedRef's
+  // persisted, date-aware one — this drives an analytics event, not streak
+  // state, so it doesn't need to survive an app restart.
+  const articleReadTrackedRef = useRef<Record<string, Set<string>>>({});
+
+  const registerArticleBounds = useCallback((langCode: string, articleKey: string, y: number, height: number, genre?: string) => {
+    (articleBoundsRef.current[langCode] ??= {})[articleKey] = { y, height, genre };
+  }, []);
 
   // ── Scroll indicator state ──────────────────────────────────────────────────
 
@@ -474,25 +487,40 @@ export function BriefingScreen() {
     activeLanguages.map((l) => `${l.code}:${l.level ?? 'B1'}:${resolveLength(l.level ?? 'B1', effectiveReadLength(l.readLength, fullAccess))}`).join(',');
 
   const runSync = useCallback(async (force = false) => {
+    const syncId = Math.random().toString(36).slice(2, 8);
     try {
       lastSyncRef.current = Date.now();
       const langs = useSettingsStore.getState().languages.filter((l) => l.active);
+      console.log(`[runSync:${syncId}] START force=${force} langs=${JSON.stringify(langs.map((l) => ({ code: l.code, level: l.level, readLength: l.readLength })))}`);
       const syncFullAccess = useSubscriptionStore.getState().isFullAccess();
+      console.log(`[runSync:${syncId}] syncFullAccess=${syncFullAccess} perLangLengths=${JSON.stringify(langs.map((l) => ({
+        code: l.code,
+        rawReadLength: l.readLength,
+        syncFromServerWouldUse: l.readLength === 'short' ? 'short' : 'longer',
+        loadBriefingWillUse: resolveLength(l.level ?? 'B1', effectiveReadLength(l.readLength, syncFullAccess)),
+      })))}`);
       await syncFromServer(force);
       await Promise.all(langs.map((lang) => {
         const level = lang.level ?? 'B1';
-        return loadBriefing(lang.code, level, resolveLength(level, effectiveReadLength(lang.readLength, syncFullAccess)), true);
+        const length = resolveLength(level, effectiveReadLength(lang.readLength, syncFullAccess));
+        console.log(`[runSync:${syncId}] loadBriefing(${lang.code}, ${level}, ${length}) briefings[${lang.code}]-before=${JSON.stringify(useBriefingStore.getState().briefings[lang.code] && { date: useBriefingStore.getState().briefings[lang.code]!.date, level: useBriefingStore.getState().briefings[lang.code]!.level, length: useBriefingStore.getState().briefings[lang.code]!.length })}`);
+        return loadBriefing(lang.code, level, length, true);
       }));
       // Fire-and-forget: pull every word in each freshly-loaded brief into the
       // on-device dictionary cache so tapping any of them works instantly,
       // even offline. Never awaited — must not block weather loading or stall
       // on network latency; text is already on screen by this point.
       for (const lang of langs) {
-        const articles = useBriefingStore.getState().briefings[lang.code]?.articles;
+        const briefing = useBriefingStore.getState().briefings[lang.code];
+        const articles = briefing?.articles;
+        console.log(`[runSync:${syncId}] prefetch-loop lang=${lang.code} configLevel=${lang.level} briefing.level=${briefing?.level} briefing.date=${briefing?.date} articles=${articles?.length ?? 0}`);
         if (articles?.length) prefetchDictionaryForArticles(lang.code, lang.level ?? 'B1', articles);
       }
       await Promise.all(langs.map((lang) => loadWeather(lang.code)));
-    } catch {}
+      console.log(`[runSync:${syncId}] END`);
+    } catch (err) {
+      console.log(`[runSync:${syncId}] CAUGHT`, err);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLangKey]);
 
@@ -721,6 +749,27 @@ export function BriefingScreen() {
                     maybeCredit(lang.code);
                   }
                 }
+                // Per-article completion — independent of the whole-brief
+                // gate above, since a single article can cross 90% visible
+                // well before the whole page does. Reuses the same page-
+                // dwell time signal maybeCredit uses (persisted + session)
+                // rather than a separate timer per article.
+                const bounds = articleBoundsRef.current[lang.code];
+                if (bounds) {
+                  const tracked = articleReadTrackedRef.current[lang.code] ??= new Set();
+                  const viewTop = y;
+                  const viewBottom = y + layoutMeasurement.height;
+                  for (const [articleKey, b] of Object.entries(bounds)) {
+                    if (tracked.has(articleKey) || b.height <= 0) continue;
+                    const overlap = Math.min(viewBottom, b.y + b.height) - Math.max(viewTop, b.y);
+                    if (overlap / b.height < 0.9) continue;
+                    const persisted = getReadingTimeToday(lang.code);
+                    const session = sessionTimeRef.current[lang.code] ?? 0;
+                    if (persisted + session < 30) continue;
+                    tracked.add(articleKey);
+                    analytics.trackArticleRead(lang.code, b.genre);
+                  }
+                }
                 handleScrollIndicator(lang.code, y, contentSize.height, layoutMeasurement.height);
               }}
               refreshControl={
@@ -866,6 +915,8 @@ export function BriefingScreen() {
                 isTransitioning={isTransitioning}
                 hideEditionHeader
                 bundleReceivedAt={bundleReceivedAt}
+                scrollViewRefMap={langScrollRefs}
+                onArticleLayout={registerArticleBounds}
                 onRetry={() => {
                   clearError(lang.code);
                   loadBriefing(lang.code, level, length, true);

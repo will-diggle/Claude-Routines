@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, Component } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme, AppState } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, useColorScheme, AppState, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
@@ -125,6 +125,22 @@ function enforceFreeLanguageCap() {
   activeNonEnglish.slice(1).forEach((l) => useSettingsStore.getState().toggleLanguage(l.code));
 }
 
+// Registers current design-preference values as person properties on
+// identify, alongside the active_languages/subscription_status registration
+// below — lets "which font/background/icon do people currently use across
+// the whole user base" be answered from the person profile directly,
+// without waiting for someone to touch the setting again after this ships.
+function registerDesignPreferences() {
+  const { fontFamily, manualBackground, autoNightMode, appIcon } = useSettingsStore.getState();
+  analytics.setPersonProperties({
+    font_family: fontFamily,
+    manual_background: manualBackground,
+    auto_night_mode: autoNightMode,
+    system_color_scheme: Appearance.getColorScheme() ?? null,
+    app_icon: appIcon ?? 'White',
+  });
+}
+
 function rearmNotifications() {
   // Standard iOS app behavior: the badge clears when you open the app, same
   // moment it re-arms the next notification.
@@ -197,6 +213,7 @@ function AppContent() {
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
+        registerDesignPreferences();
         // Existing session on app open — reconcile (not a fresh sign-in)
         runStreakSync(data.session.user.id, false).catch(() => {});
       } else {
@@ -213,6 +230,7 @@ function AppContent() {
           active_languages: useSettingsStore.getState().languages.filter(l => l.active).map(l => l.code),
           subscription_status: useSubscriptionStore.getState().isFullAccess() ? 'pro' : 'free',
         });
+        registerDesignPreferences();
         // SIGNED_IN = user just authenticated; INITIAL_SESSION = persisted session on startup
         const isNewSignIn = _event === 'SIGNED_IN';
         runStreakSync(session.user.id, isNewSignIn).catch(() => {});

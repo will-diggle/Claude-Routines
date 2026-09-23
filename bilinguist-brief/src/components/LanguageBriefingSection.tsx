@@ -1,5 +1,6 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, useWindowDimensions, ScrollView } from 'react-native';
+import type { NativeMethods } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { BriefingArticle } from './BriefingArticle';
@@ -132,6 +133,11 @@ interface Props {
   bundleReceivedAt?: number | null;
   onRetry: () => void;
   onVisibleWordCount?: (count: number) => void;
+  // Lets each article report its own scroll-content bounds up to
+  // BriefingScreen, which owns the scroll position and does the actual
+  // per-article visibility/completion check — see trackArticleRead.
+  scrollViewRefMap?: React.RefObject<Map<string, ScrollView>>;
+  onArticleLayout?: (langCode: string, articleKey: string, y: number, height: number, genre?: string) => void;
 }
 
 const LANG_LOCALE: Partial<Record<LanguageCode, string>> = {
@@ -358,6 +364,8 @@ export function LanguageBriefingSection({
   bundleReceivedAt,
   onRetry,
   onVisibleWordCount,
+  scrollViewRefMap,
+  onArticleLayout,
 }: Props) {
   const { colors, fontFamily, fontSize } = useTheme();
   const nativeGradeByLang = useBriefingStore((s) => s.nativeGradeByLang);
@@ -529,8 +537,38 @@ export function LanguageBriefingSection({
                     <View style={isIPad ? { flexDirection: 'row', flexWrap: 'wrap' } : undefined}>
                       {group.articles.map((article, articleIndex) => {
                         const locked = !fullAccess && isGlobalNews && articleIndex >= FREE_WORLDNEWS_ARTICLE_LIMIT;
+                        const articleKey = `${article.genre}-${groupIndex}-${articleIndex}`;
+                        // Plain closure var, not useRef — this runs inside
+                        // .map(), where hooks can't be called. The ref
+                        // callback attaches it before onLayout fires, so
+                        // it's always set by the time onLayout reads it.
+                        let articleNode: View | null = null;
                         return (
-                          <View key={`${article.genre}-${groupIndex}-${articleIndex}`} style={isIPad ? { width: colPct } : undefined}>
+                          <View
+                            key={articleKey}
+                            style={isIPad ? { width: colPct } : undefined}
+                            ref={(el) => { articleNode = el; }}
+                            onLayout={() => {
+                              // measureLayout relative to the language page's
+                              // own ScrollView gives content-space bounds —
+                              // stable regardless of current scroll position
+                              // (unlike measure(), which is viewport/screen
+                              // relative) — the same technique RN's own
+                              // "scroll to this input" pattern uses.
+                              const scrollView = scrollViewRefMap?.current?.get(langCode);
+                              if (!scrollView || !articleNode) return;
+                              // ScrollView's ref type doesn't declare the
+                              // imperative native methods it forwards at
+                              // runtime (measure/measureLayout) — RN's own
+                              // docs confirm a plain ScrollView ref supports
+                              // them; this cast bridges that typing gap.
+                              articleNode.measureLayout(
+                                scrollView as unknown as NativeMethods,
+                                (_x, y, _width, height) => onArticleLayout?.(langCode, articleKey, y, height, article.genre),
+                                () => {}
+                              );
+                            }}
+                          >
                             <BriefingArticle
                               article={article}
                               isLast={!isIPad && articleIndex === group.articles.length - 1}

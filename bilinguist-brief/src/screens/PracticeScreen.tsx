@@ -11,6 +11,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type Pile, type SavedWord } from '../store/useWordBankStore';
 import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
 import { useStreakStore } from '../store/useStreakStore';
+import { useSubscriptionStore, FREE_GAME_KEY } from '../store/useSubscriptionStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
 import { FLOAT_TAB_INSET } from '../components/FloatingTabBar';
@@ -52,6 +53,8 @@ export function PracticeScreen() {
   const words = useWordBankStore(useShallow((s) => s.words));
   const { streak, freezeDatesUsed } = useStreakStore(useShallow((s) => ({ streak: s.streak, freezeDatesUsed: s.freezeDatesUsed })));
   const activeLanguageCodes = useSettingsStore(useShallow((s) => s.languages.filter((l) => l.active).map((l) => l.code)));
+  const fullAccess = useSubscriptionStore((s) => s.isFullAccess());
+  const showPaywall = useSubscriptionStore((s) => s.showPaywall);
   const selectedLang = useNavPillStore((s) => s.practiceLang);
   const setPracticeScrolled = useNavPillStore((s) => s.setPracticeScrolled);
 
@@ -217,38 +220,58 @@ export function PracticeScreen() {
         PRACTICE GAMES
       </Text>
 
-      {GAMES.map((game) => (
-        <SpringButton
-          key={game.key}
-          style={[styles.gameRow, {
-            backgroundColor: colors.card,
-            borderColor: colors.borderLight,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.13,
-            shadowRadius: 6,
-            elevation: 3,
-            opacity: hasWords ? 1 : 0.45,
-          }]}
-          disabled={!hasWords}
-          activeOpacity={hasWords ? 0.7 : 1}
-          onPress={() => hasWords && navigation.navigate(game.key as any, { language: selectedLang })}
-        >
-          <View style={[styles.gameIcon, { backgroundColor: hasWords ? game.tint + '1a' : colors.borderLight }]}>
-            <Ionicons name={game.icon} size={20} color={hasWords ? game.tint : colors.inkLight} />
-          </View>
-          <View style={styles.gameText}>
-            <Text style={[styles.gameName, { color: hasWords ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-              {game.label}
-            </Text>
-            <Text style={[styles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
-          </View>
-          {hasWords
-            ? <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-            : <Ionicons name="lock-closed-outline" size={16} color={colors.inkFaint} />
-          }
-        </SpringButton>
-      ))}
+      {GAMES.map((game) => {
+        const premiumLocked = !fullAccess && game.key !== FREE_GAME_KEY;
+        const playable = hasWords && !premiumLocked;
+        // Matches the Genres list's premium-lock treatment exactly: keep the
+        // game's own tint (so it still reads as "Speed Snap", "Translation",
+        // etc.), dim the row slightly, and swap the trailing chevron for the
+        // same bordered "Premium" pill used there.
+        const showTint = playable || premiumLocked;
+        return (
+          <SpringButton
+            key={game.key}
+            style={[styles.gameRow, {
+              backgroundColor: colors.card,
+              borderColor: colors.borderLight,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: premiumLocked ? 0 : 2 },
+              shadowOpacity: premiumLocked ? 0 : 0.13,
+              shadowRadius: premiumLocked ? 0 : 6,
+              elevation: premiumLocked ? 0 : 3,
+              opacity: playable ? 1 : 0.45,
+            }]}
+            disabled={!hasWords && !premiumLocked}
+            activeOpacity={playable || premiumLocked ? 0.7 : 1}
+            onPress={() => {
+              if (premiumLocked) { showPaywall(); return; }
+              if (hasWords) navigation.navigate(game.key as any, { language: selectedLang });
+            }}
+          >
+            <View style={[styles.gameIcon, { backgroundColor: showTint ? game.tint + '1a' : colors.borderLight }]}>
+              <Ionicons name={game.icon} size={20} color={showTint ? game.tint : colors.inkLight} />
+            </View>
+            <View style={styles.gameText}>
+              <Text style={[styles.gameName, { color: playable ? colors.inkDark : colors.inkFaint, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                {game.label}
+              </Text>
+              <Text style={[styles.gameDesc, { color: colors.inkFaint }]} numberOfLines={1}>
+                {game.description}
+              </Text>
+            </View>
+            {premiumLocked ? (
+              <View style={[styles.premiumBadge, { borderColor: colors.borderMid }]}>
+                <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+                <Text style={[styles.premiumBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Premium</Text>
+              </View>
+            ) : playable ? (
+              <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+            ) : (
+              <Ionicons name="lock-closed-outline" size={16} color={colors.inkFaint} />
+            )}
+          </SpringButton>
+        );
+      })}
 
       {/* Recent words preview */}
       {hasWords && (
@@ -334,27 +357,40 @@ export function PracticeScreen() {
         <Text style={[modalStyles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>
           {selectedLang !== 'all' ? `Practice · ${LANG_NATIVE[selectedLang as LanguageCode]}` : 'Choose a game'}
         </Text>
-        {GAMES.map((game) => (
-          <SpringButton
-            key={game.key}
-            style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight }]}
-            onPress={() => {
-              setGameModalVisible(false);
-              navigation.navigate(game.key as any, { language: selectedLang });
-            }}
-          >
-            <View style={[modalStyles.gameIcon, { backgroundColor: game.tint + '1a' }]}>
-              <Ionicons name={game.icon} size={20} color={game.tint} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[modalStyles.gameName, { color: colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
-                {game.label}
-              </Text>
-              <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]}>{game.description}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
-          </SpringButton>
-        ))}
+        {GAMES.map((game) => {
+          const premiumLocked = !fullAccess && game.key !== FREE_GAME_KEY;
+          return (
+            <SpringButton
+              key={game.key}
+              style={[modalStyles.gameRow, { borderBottomColor: colors.borderLight, opacity: premiumLocked ? 0.45 : 1 }]}
+              onPress={() => {
+                setGameModalVisible(false);
+                if (premiumLocked) { showPaywall(); return; }
+                navigation.navigate(game.key as any, { language: selectedLang });
+              }}
+            >
+              <View style={[modalStyles.gameIcon, { backgroundColor: game.tint + '1a' }]}>
+                <Ionicons name={game.icon} size={20} color={game.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[modalStyles.gameName, { color: premiumLocked ? colors.inkFaint : colors.inkDark, fontFamily: fontFamily.regular, fontSize: fontSize.body }]}>
+                  {game.label}
+                </Text>
+                <Text style={[modalStyles.gameDesc, { color: colors.inkFaint }]} numberOfLines={1}>
+                  {game.description}
+                </Text>
+              </View>
+              {premiumLocked ? (
+                <View style={[styles.premiumBadge, { borderColor: colors.borderMid }]}>
+                  <Ionicons name="lock-closed" size={10} color={colors.inkFaint} />
+                  <Text style={[styles.premiumBadgeText, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Premium</Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
+              )}
+            </SpringButton>
+          );
+        })}
         <SpringButton style={modalStyles.cancel} onPress={() => setGameModalVisible(false)}>
           <Text style={[modalStyles.cancelText, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>Cancel</Text>
         </SpringButton>
@@ -499,6 +535,17 @@ const styles = StyleSheet.create({
   gameText: { flex: 1 },
   gameName: { lineHeight: 22 },
   gameDesc: { fontSize: 12, marginTop: 1 },
+  // Matches SettingsScreen's Genres-list "Premium" badge exactly.
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  premiumBadgeText: { fontSize: 11, letterSpacing: 0.3, opacity: 0.7 },
   wordRow: {
     flexDirection: 'row',
     alignItems: 'center',

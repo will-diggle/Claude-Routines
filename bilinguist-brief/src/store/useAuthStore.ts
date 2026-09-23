@@ -8,6 +8,32 @@ import { syncPushRegistration } from '../services/pushRegistration';
 import { useSubscriptionStore } from './useSubscriptionStore';
 import type { Session } from '@supabase/supabase-js';
 
+// Bumped whenever the legal draft's substance materially changes — see
+// scripts/legal-draft-privacy-terms.md. Recorded (with a timestamp) against
+// every session so there's an actual audit trail of what a user agreed to,
+// rather than nothing at all — record-acceptance existed but nothing called it.
+const TERMS_VERSION = '2026-09-17';
+const PRIVACY_VERSION = '2026-09-19';
+
+// Fire-and-forget — must never block sign-in on a network call, and a failure
+// here (offline, function cold-start) shouldn't surface as a sign-in error.
+function recordLegalAcceptance(session: Session): void {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl || !session.access_token) return;
+  fetch(`${supabaseUrl}/functions/v1/record-acceptance`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
+      displayName: sessionDisplayName(session),
+    }),
+  }).catch(() => {});
+}
+
 function generateAnonymousId(): string {
   return 'anon-' + 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -40,6 +66,7 @@ export const useAuthStore = create<AuthStore>()(
           loginPurchasesUser(session.user.id).then((info) => {
             useSubscriptionStore.getState().syncFromCustomerInfo(info);
           });
+          recordLegalAcceptance(session);
           syncPushRegistration(session);
         } else {
           resetIdentity();

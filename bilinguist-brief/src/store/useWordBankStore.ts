@@ -49,6 +49,8 @@ interface WordBankStore {
   counts: () => Record<Pile, number>;
   /** Fill in missing translation/explanation/rich-data for a word saved before lookup completed. */
   backfillWord: (word: string, language: LanguageCode, data: BackfillData) => void;
+  /** Wipes the local word bank — used on account deletion, which promises this in its confirmation copy. */
+  clearAll: () => void;
 }
 
 
@@ -123,6 +125,8 @@ export const useWordBankStore = create<WordBankStore>()(
             };
           }),
         }),
+
+      clearAll: () => set({ words: [] }),
 
       counts: () => {
         const words = get().words;

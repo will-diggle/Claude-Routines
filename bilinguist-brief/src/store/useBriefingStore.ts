@@ -456,7 +456,9 @@ export const useBriefingStore = create<BriefingStore>()(
         // rather than falling through to the error path below.
         {
           const fresh = get().briefings[language];
+          console.log(`[loadBriefing] ${language} wants {today=${today},level=${level},length=${length}} — store has ${fresh ? JSON.stringify({ date: fresh.date, level: fresh.level, length: fresh.length }) : 'nothing'}`);
           if (fresh && fresh.date === today && fresh.language === language && fresh.level === level && fresh.length === length) {
+            console.log(`[loadBriefing] ${language} step2.5 MATCH — using what's already in the store`);
             set((s) => ({ generatingFor: s.generatingFor.filter((l) => l !== language) }));
             return;
           }
@@ -469,6 +471,7 @@ export const useBriefingStore = create<BriefingStore>()(
         {
           const previous = await loadNewestCached(language, level, length);
           if (previous) {
+            console.log(`[loadBriefing] ${language} step2.6 FALLBACK to newest cached ${level}/${length} brief — date=${previous.date} (OVERWRITING whatever step 2.5 saw, even if it was today's real content under a different length)`);
             set((s) => ({
               briefings: { ...s.briefings, [language]: previous },
               errorsFor: { ...s.errorsFor, [language]: undefined },
@@ -476,6 +479,7 @@ export const useBriefingStore = create<BriefingStore>()(
             }));
             return;
           }
+          console.log(`[loadBriefing] ${language} step2.6 found NOTHING cached for ${level}/${length} either`);
         }
 
         // ── 3. No cache — show spinner while server sync is in progress ───────

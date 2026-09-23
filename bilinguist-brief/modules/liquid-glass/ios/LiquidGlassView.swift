@@ -4,6 +4,7 @@ import UIKit
 public class LiquidGlassView: ExpoView {
   private var effectView: UIVisualEffectView?
   private var currentCornerRadius: CGFloat = 100
+  private var currentIntensity: CGFloat = 1
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -39,7 +40,8 @@ public class LiquidGlassView: ExpoView {
   }
 
   func setIntensity(_ intensity: Double) {
-    effectView?.alpha = CGFloat(intensity)
+    currentIntensity = CGFloat(intensity)
+    effectView?.alpha = currentIntensity
   }
 
   func setColorScheme(_ scheme: String) {
@@ -48,6 +50,17 @@ public class LiquidGlassView: ExpoView {
     case "light": overrideUserInterfaceStyle = .light
     default:      overrideUserInterfaceStyle = .unspecified
     }
+    // UIVisualEffectView's material can lag behind an overrideUserInterfaceStyle
+    // change on the view hosting it — it only reliably picks up the new
+    // appearance once the view is recreated (e.g. navigating away and back),
+    // which is exactly the "eventually correct" symptom this was reported as.
+    // Recreating the effect here forces it to resolve fresh against the
+    // current trait collection immediately instead of waiting on that.
+    effectView?.removeFromSuperview()
+    effectView = nil
+    setupGlass()
+    effectView?.alpha = currentIntensity
+    updateCornerRadius()
   }
 
   private func setupGlass() {
