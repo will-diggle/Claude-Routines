@@ -88,6 +88,18 @@ function owmTileUrl(layer: Layer): string {
   return `https://tile.openweathermap.org/map/${OWM_PARAM[layer]}/{z}/{x}/{y}.png?appid=${OWM_KEY}`;
 }
 
+// RainViewer's radar tiles only actually exist up to z=7 — verified by
+// fetching real tiles directly: z=7 returns real radar imagery, z=8 and
+// every zoom above it returns an identical 1370-byte placeholder PNG with
+// "Zoom Level Not Supported" baked into it as text. The map's own zoom
+// (and Leaflet's maxZoom on this layer) can go higher — maxNativeZoom just
+// tells Leaflet to stop requesting new tiles past z=7 and upscale the last
+// real one instead, which reads as soft/blurry rather than a broken error
+// tile. That softness is the radar source data's real resolution ceiling,
+// not something a different number here can sharpen — do not "fix" the
+// blur by raising this without re-verifying against the live tile server.
+const RAINVIEWER_MAX_NATIVE_ZOOM = 7;
+
 function rainviewerTileUrl(path: string): string {
   return `https://tilecache.rainviewer.com${path}/256/{z}/{x}/{y}/2/1_1.png`;
 }
@@ -439,7 +451,17 @@ function tempCol(t){
 
 window.setLayer=function(url,maxNative){
   if(weatherLayer){map.removeLayer(weatherLayer);weatherLayer=null;}
-  if(url){weatherLayer=L.tileLayer(url,{opacity:0.65,maxZoom:19,maxNativeZoom:maxNative||19,minZoom:0});weatherLayer.addTo(map);}
+  if(url){
+    weatherLayer=L.tileLayer(url,{opacity:0.65,maxZoom:19,maxNativeZoom:maxNative||19,minZoom:0});
+    weatherLayer.addTo(map);
+    // Keep the map from being zoomed past what this overlay actually has
+    // native detail for — one level of headroom beyond that so it isn't
+    // razor-capped, instead of letting it stretch a low-res tile across
+    // the map's full zoom range.
+    map.setMaxZoom(maxNative?maxNative+1:19);
+  } else {
+    map.setMaxZoom(19);
+  }
 };
 
 window.setVelocity=function(g){
@@ -850,7 +872,10 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
   const [windGrid, setWindGrid]         = useState<WindGrid | null>(null);
   const [mapCenter, setMapCenter]       = useState<{ lat: number; lng: number } | null>(null);
 
-  const mapStyleKey: MapStyleKey = 'carto_voy';
+  // Carto Voyager now requires an API key we don't have — it still renders,
+  // but with a diagonal "API key required" watermark across every tile.
+  // OSM's tiles are free and unauthenticated, and render cleanly.
+  const mapStyleKey: MapStyleKey = 'osm';
 
   const webViewRef = useRef<WebView>(null);
   const playRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -905,7 +930,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
       if (frames.length === 0) return; // wait for frames to arrive
       const safeIdx = Math.min(idx, frames.length - 1);
       const url = rainviewerTileUrl(frames[safeIdx].path);
-      webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
+      webViewRef.current?.injectJavaScript(`window.setLayer('${url}',${RAINVIEWER_MAX_NATIVE_ZOOM}); true;`);
     } else {
       const url = owmTileUrl(layer); // clouds only
       webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
@@ -1119,7 +1144,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
                         if (activeLayer === 'precipitation' && frames.length > 0) {
                           const safeIdx = Math.min(frameIdx, frames.length - 1);
                           const url = rainviewerTileUrl(frames[safeIdx].path);
-                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
+                          webViewRef.current?.injectJavaScript(`window.setLayer('${url}',${RAINVIEWER_MAX_NATIVE_ZOOM}); true;`);
                         } else if (activeLayer === 'clouds') {
                           const url = owmTileUrl('clouds');
                           webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
@@ -1230,7 +1255,7 @@ export const WeatherCard = forwardRef<WeatherCardHandle, WeatherCardProps>(funct
                           if (activeLayer === 'precipitation' && frames.length > 0) {
                             const safeIdx = Math.min(frameIdx, frames.length - 1);
                             const url = rainviewerTileUrl(frames[safeIdx].path);
-                            webViewRef.current?.injectJavaScript(`window.setLayer('${url}',12); true;`);
+                            webViewRef.current?.injectJavaScript(`window.setLayer('${url}',${RAINVIEWER_MAX_NATIVE_ZOOM}); true;`);
                           } else if (activeLayer === 'clouds') {
                             const url = owmTileUrl('clouds');
                             webViewRef.current?.injectJavaScript(`window.setLayer('${url}'); true;`);
