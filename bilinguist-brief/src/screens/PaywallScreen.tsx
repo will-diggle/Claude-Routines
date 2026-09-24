@@ -64,8 +64,7 @@ function hairlineColor(bg: string) {
 const { width: SW, height: SH } = Dimensions.get('window');
 const CARD_RADIUS = 20;
 const CARD_W = SW - 40;
-// Kept compact — this now lives inside a popup card, not a full page.
-const LOCKUP_W = Math.round(CARD_W * 0.6);
+const LOCKUP_W = Math.round(CARD_W * 0.72);
 const LOCKUP_H = Math.round(LOCKUP_W / 5.06); // masthead-compact-*.png is 3271×646
 
 interface Props {
@@ -190,7 +189,12 @@ export function PaywallScreen({ visible, onClose }: Props) {
           style={[
             styles.modalInner,
             {
-              backgroundColor: colors.card,
+              // The true theme background, not colors.card (a distinct,
+              // slightly different "elevated surface" shade meant for
+              // smaller nested elements) — this card fills nearly the
+              // whole screen, so it should read as the actual theme
+              // background, not an off-tone surface colour.
+              backgroundColor: colors.bg,
               borderColor: colors.borderLight,
             },
           ]}
@@ -406,14 +410,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   cardContent: {
-    paddingBottom: 20,
+    paddingBottom: 28,
   },
 
   lockupWrap: {
     width: CARD_W,
     alignItems: 'center',
-    paddingTop: 18,
-    paddingBottom: 2,
+    paddingTop: 26,
+    paddingBottom: 8,
   },
   lockup: {
     width: LOCKUP_W,
@@ -426,14 +430,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
-    paddingTop: 2,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
 
   ruleInset: {
     height: 1,
     marginHorizontal: 16,
-    marginVertical: 5,
+    marginVertical: 10,
     borderRadius: 1,
   },
 
@@ -443,8 +447,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 5,
-    paddingBottom: 6,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   metaDate: {
     flex: 1,
@@ -460,15 +464,15 @@ const styles = StyleSheet.create({
 
   titleWrap: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   docTitle: { textAlign: 'center', lineHeight: 30 },
   subhead: { textAlign: 'center', lineHeight: 19, marginTop: 4, fontSize: 13 },
 
   bodyWrap: {
     paddingHorizontal: 20,
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
 
   comparisonShadow: {
@@ -490,12 +494,12 @@ const styles = StyleSheet.create({
   comparisonTitle: {
     flex: 1,
     textAlign: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     fontSize: 12,
     letterSpacing: 1,
   },
   comparisonBody: { flexDirection: 'row' },
-  comparisonCol: { flex: 1, padding: Spacing.sm, gap: 9 },
+  comparisonCol: { flex: 1, padding: Spacing.md, gap: 12 },
   dividerV: { width: StyleSheet.hairlineWidth },
   featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   featureText: { flex: 1, fontSize: 13, lineHeight: 17 },
@@ -512,7 +516,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 17,
     borderRadius: 100,
     overflow: 'hidden',
   },
