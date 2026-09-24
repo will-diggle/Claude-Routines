@@ -329,10 +329,10 @@ STEP 2 — Build a complete dictionary entry. Return ONLY valid JSON — no mark
   "lemma": "the base dictionary form identified in step 1",
   "word": "{surface_form}",
   "word_type": "verb" | "noun" | "adjective" | "adverb" | "other",
-  "translation": "primary English meaning, 1-5 words",
+  "translation": "primary meaning, 1-5 words of ENGLISH — written in English, NOT in {language}, even when the word is abstract or the English gloss feels imprecise",
   "level": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
   "ipa": "IPA pronunciation of the LEMMA",
-  "explanation": "Meaning and usage in English, 1-2 sentences",
+  "explanation": "Meaning and usage, 1-2 sentences of ENGLISH prose — must be in English, NOT in {language}, even though the word and example sentence are in {language}",
   "example_sentence": "A natural {language} sentence using the LEMMA",
   "example_translation": "English translation of the example",
   "tip": "Etymology, common learner mistake, or memory hook — or null",
@@ -377,6 +377,8 @@ STEP 2 — Build a complete dictionary entry. Return ONLY valid JSON — no mark
     // For Swedish: "common_singular": "...", "neuter_singular": "...", "plural_definite": "..."
   }}
 }}
+
+Reminder: "translation" and "explanation" are the two fields an English-speaking learner reads to understand the {language} word — write both of them in English, never in {language}, no matter how naturally {language} suggests itself from the rest of the entry. Every other field (the word itself, "example_sentence", tense/case tables) stays in {language} as instructed above.
 
 Language-specific tense names to use for {language}:
 - German:  PRÄSENS, PRÄTERITUM, PERFEKT, PLUSQUAMPERFEKT, FUTUR I, FUTUR II, KONJUNKTIV I, KONJUNKTIV II, KONDITIONALIS

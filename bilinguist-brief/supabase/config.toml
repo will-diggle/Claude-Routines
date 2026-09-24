@@ -44,9 +44,11 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.send-push]
-# verify_jwt = false — never called by the client. Invoked directly via
-# `supabase functions invoke`, which authenticates with the service-role key;
-# only whoever holds that key can call this.
+# verify_jwt = false — never called by the client, and the caller isn't
+# presenting an end-user session to verify. Instead, the function itself
+# checks the Authorization header against SUPABASE_SERVICE_ROLE_KEY (same
+# pattern as revenuecat-webhook's shared-secret check) — this used to be
+# claimed here as already true without actually being enforced in code.
 verify_jwt = false
 
 [functions.search-username]

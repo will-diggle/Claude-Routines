@@ -8,8 +8,11 @@
 // each of them their real daily_notification text via Expo push.
 //
 // Not a user-facing function — invoked with the service-role key as its
-// own bearer token (itself a valid signed JWT), so verify_jwt = true in
-// config.toml is sufficient with no custom secret scheme.
+// own bearer token. verify_jwt = true in config.toml only confirms the
+// caller presented SOME validly-signed project JWT though — that includes
+// any ordinary signed-in user's session token, not specifically the
+// service-role key, so any account could trigger a mass send. Checked
+// explicitly below, same pattern as send-push.
 //
 // Setup required (one-time, outside this file):
 //   - DATA_WORKER_URL secret: supabase secrets set DATA_WORKER_URL=https://bilinguist-brief.williamdiggz.workers.dev
@@ -31,7 +34,18 @@ interface DailyBundle {
   daily_notification?: string;
 }
 
-serve(async (_req) => {
+serve(async (req) => {
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY is not set — send-morning-notifications rejected until configured');
+    return new Response(JSON.stringify({ error: 'Server misconfigured' }), { status: 500 });
+  }
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const presented = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (presented !== SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('send-morning-notifications: rejected — Authorization did not match the service-role key');
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
   const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   const { data: claimed, error: claimError } = await adminClient.rpc('claim_due_notification_users', { window_minutes: 15 });

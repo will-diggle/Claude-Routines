@@ -216,7 +216,6 @@ jobs:
           mkdir -p /tmp/bilinguist-data/briefings
           mkdir -p /tmp/bilinguist-data/reports
 
-          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
 
           # Structured report for the companion iOS app — written by
@@ -237,7 +236,7 @@ jobs:
           cd /tmp/bilinguist-data
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
-          git add latest.json briefings/${DATE}.json
+          git add briefings/${DATE}.json
           [ -f reports/${DATE}.json ] && git add reports/${DATE}.json reports/latest.json || true
           [ -f costs.csv ] && git add costs.csv || true
 

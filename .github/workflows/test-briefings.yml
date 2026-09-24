@@ -190,7 +190,6 @@ jobs:
           git clone https://x-access-token:${DATA_REPO_TOKEN}@github.com/will-diggle/bilinguist-data.git /tmp/bilinguist-data
           mkdir -p /tmp/bilinguist-data/briefings
 
-          cp bilinguist-brief/scripts/output/latest.json /tmp/bilinguist-data/latest.json
           cp bilinguist-brief/scripts/output/${DATE}.json /tmp/bilinguist-data/briefings/${DATE}.json
 
           COSTS_JSON="bilinguist-brief/scripts/output/costs_${DATE}.json"
@@ -201,7 +200,7 @@ jobs:
           cd /tmp/bilinguist-data
           git config user.email "actions@github.com"
           git config user.name "Bilinguist Brief Bot"
-          git add latest.json briefings/${DATE}.json
+          git add briefings/${DATE}.json
           [ -f costs.csv ] && git add costs.csv || true
 
           if git diff --cached --quiet; then

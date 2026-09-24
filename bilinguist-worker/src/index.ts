@@ -608,9 +608,9 @@ async function generateWordData(
 Identify the word type and reply ONLY with a JSON object — no markdown, no preamble:
 {
   "lemma": "the base dictionary form — for a verb the infinitive (e.g. 'haben' for 'hätte'), for a noun the nominative singular, for an adjective the masculine base form. If '${word}' IS already the base form, repeat it here exactly.",
-  "translation": "the primary English meaning in 1-5 words — the most natural translation",
+  "translation": "the primary meaning in 1-5 words of ENGLISH — the most natural translation. Written in English, NOT in ${langName}, even when the word is abstract or the English gloss feels imprecise.",
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other",
-  "explanation": "Meaning in English, 1-2 sentences, suited to ${level} level",
+  "explanation": "Meaning and usage, written in 1-2 sentences of ENGLISH prose, suited to ${level} level. The explanation itself must be in English, NOT in ${langName} — do not slip into ${langName} just because the word and example sentence are in ${langName}.",
   "example": "A ${langName} example sentence using this word naturally",
   "exampleMarked": "the SAME sentence as \"example\", character for character, with every word belonging to this entry wrapped in double asterisks. For a separable verb mark BOTH pieces where they sit — e.g. 'Die Behörde **gab** **an**, dass ...'. Mark the inflected form actually used, not the dictionary form. If only one word belongs, mark only that one.",
   "pronunciation": "IPA pronunciation of the lemma form",
@@ -620,7 +620,9 @@ Identify the word type and reply ONLY with a JSON object — no markdown, no pre
   "tip": a short memorable tip — etymology, common learner mistake, or memory hook — or null,
   "meta": if verb {"isRegular": true/false, "auxiliary": the auxiliary verb e.g. "haben"/"sein"/"avoir"/"être" (null if not applicable), "verbClass": verb group e.g. "-er"/"-ir" for French, "Group 1" for Swedish (null if not applicable), "isSeparable": true/false for German separable verbs (null for other languages)} — otherwise null,
   "level": CEFR level of this word: "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
-}`;
+}
+
+Reminder: "translation" and "explanation" are the two fields an English-speaking learner reads to understand the ${langName} word — write both of them in English, never in ${langName}, no matter how naturally ${langName} suggests itself from the rest of the entry. Every other field (the word itself, "example", tense/declension tables) stays in ${langName} as instructed above.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -709,11 +711,26 @@ async function handleVerifyTenses(request: Request, env: Env): Promise<Response>
   catch { return json({ tenses: null }); }
 
   const tenses   = Array.isArray(body.tenses) ? body.tenses : null;
-  const lemma    = body.lemma?.trim();
-  const language = body.language?.trim();
+  const lemma    = body.lemma?.trim().toLowerCase();
+  const language = body.language?.trim().toLowerCase();
   if (!tenses || !tenses.length || !lemma || !language) {
     return json({ tenses: null });
   }
+
+  // This route is genuinely client-facing (WordPopup/WordDetailSheet call
+  // it to double-check a verb's own already-fetched tenses), so it can't
+  // be locked behind admin auth — but it was reachable with zero checks,
+  // meaning anyone could submit arbitrary junk and spend an Anthropic
+  // call. Requiring the lemma to already exist in D1 keeps the real
+  // feature working while closing off pure made-up-data abuse. This
+  // doesn't rate-limit a real known lemma being hammered repeatedly — a
+  // Cloudflare rate-limit rule on this route is still worth adding at the
+  // dashboard/wrangler.toml level for that.
+  const existing = await env.WORDS_DB
+    .prepare('SELECT 1 FROM words WHERE language = ?1 AND lemma = ?2 LIMIT 1')
+    .bind(language, lemma)
+    .first();
+  if (!existing) return json({ tenses: null });
 
   const langName = LANGUAGE_NAMES[language] ?? language;
   const prompt = `You are a ${langName} grammar expert. Below are the conjugation tables for the verb "${lemma}". Verify every form and correct any errors. Return ONLY the corrected JSON array — same structure, same tenses in the same order, same pronouns as keys. Fix wrong forms silently. If everything is correct, return the data unchanged. No explanation, no markdown, no preamble.
@@ -878,10 +895,12 @@ async function getContextualExplanation(
 
 Reply ONLY with a JSON object — no markdown, no preamble:
 {
-  "translation": "the correct English translation of '${word}' AS USED IN THIS SENTENCE, 1-5 words",
-  "explanation": "what '${word}' means in this specific context, 1-2 sentences at ${level} level",
+  "translation": "the correct English translation of '${word}' AS USED IN THIS SENTENCE, 1-5 words. Written in English, NOT in ${langName}.",
+  "explanation": "what '${word}' means in this specific context, 1-2 sentences of ENGLISH prose at ${level} level. Write this explanation in English, NOT in ${langName}, even though '${word}' and the sentence are in ${langName}.",
   "wordType": one of "verb" | "noun" | "adjective" | "adverb" | "phrase" | "other"
-}`;
+}
+
+Reminder: both "translation" and "explanation" must be in English, never in ${langName}.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1133,7 +1152,10 @@ async function handleWordStats(env: Env): Promise<Response> {
 // Admin-only: returns the full D1 word library as JSON (protected by WORKER_ADMIN_KEY)
 
 async function handleWordExport(request: Request, env: Env): Promise<Response> {
-  const adminKey = new URL(request.url).searchParams.get('key');
+  // Header, not a ?key= query param — a query string is far more likely to
+  // land in Cloudflare/proxy access logs, browser history, or a Referer
+  // header than a header value is. Matches handleWordPost's pattern.
+  const adminKey = request.headers.get('X-Admin-Key');
   if (!env.WORKER_ADMIN_KEY || adminKey !== env.WORKER_ADMIN_KEY) {
     return json({ error: 'unauthorized' }, 401);
   }

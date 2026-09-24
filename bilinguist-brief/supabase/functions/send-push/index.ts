@@ -3,8 +3,15 @@
 // General-purpose push send — breaking news, re-engagement, anything
 // beyond the morning digest. Not a client-facing function: invoked via
 // `supabase functions invoke send-push` (authenticates with the
-// service-role key), so no additional access control is needed beyond
-// "only whoever holds the service-role key can call this."
+// service-role key).
+//
+// verify_jwt is false (see supabase/config.toml) because the caller isn't
+// presenting an end-user session — so, same as revenuecat-webhook, this
+// function must check the caller itself rather than trust the gateway.
+// Previously it didn't: the comment above used to claim "only whoever
+// holds the service-role key can call this" without ever checking the
+// Authorization header, so the function was reachable by anyone with the
+// public URL. Now it actually requires the service-role key.
 //
 // Body: { userIds?: string[]; all?: boolean; title: string; body: string; data?: object }
 // Exactly one of userIds or all: true is required.
@@ -24,6 +31,17 @@ function json(body: unknown, status = 200) {
 
 serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('SUPABASE_SERVICE_ROLE_KEY is not set — send-push rejected until configured');
+    return json({ error: 'Server misconfigured' }, 500);
+  }
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const presented = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (presented !== SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('send-push: rejected — Authorization did not match the service-role key');
+    return json({ error: 'Unauthorized' }, 401);
+  }
 
   let body: { userIds?: string[]; all?: boolean; title?: string; body?: string; data?: Record<string, unknown> };
   try {
