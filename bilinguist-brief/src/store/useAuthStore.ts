@@ -17,10 +17,13 @@ const PRIVACY_VERSION = '2026-09-19';
 
 // Fire-and-forget — must never block sign-in on a network call, and a failure
 // here (offline, function cold-start) shouldn't surface as a sign-in error.
-function recordLegalAcceptance(session: Session): void {
+// Resolves true only on a real 2xx response, so the caller can gate the
+// locally-persisted "already recorded" flag on actual success, not just on
+// having attempted the call.
+function recordLegalAcceptance(session: Session): Promise<boolean> {
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl || !session.access_token) return;
-  fetch(`${supabaseUrl}/functions/v1/record-acceptance`, {
+  if (!supabaseUrl || !session.access_token) return Promise.resolve(false);
+  return fetch(`${supabaseUrl}/functions/v1/record-acceptance`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -31,7 +34,7 @@ function recordLegalAcceptance(session: Session): void {
       privacyVersion: PRIVACY_VERSION,
       displayName: sessionDisplayName(session),
     }),
-  }).catch(() => {});
+  }).then((res) => res.ok).catch(() => false);
 }
 
 function generateAnonymousId(): string {
@@ -45,6 +48,13 @@ function generateAnonymousId(): string {
 interface AuthStore {
   session: Session | null;
   anonymousId: string;
+  // Per-user-id record of the (terms, privacy) version pair last
+  // successfully recorded on THIS device — gates recordLegalAcceptance so
+  // it only fires on a genuine new acceptance (new sign-in, or a version
+  // bump), not on every token refresh / app relaunch, which previously
+  // re-stamped the audit timestamp to "now" every time and likely
+  // re-sent the acceptance confirmation email on every app open.
+  acceptedLegalVersions: Record<string, { terms: string; privacy: string }>;
   setSession: (session: Session | null) => void;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -52,9 +62,10 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       session: null,
       anonymousId: generateAnonymousId(),
+      acceptedLegalVersions: {},
 
       setSession: (session) => {
         set({ session });
@@ -66,7 +77,19 @@ export const useAuthStore = create<AuthStore>()(
           loginPurchasesUser(session.user.id).then((info) => {
             useSubscriptionStore.getState().syncFromCustomerInfo(info);
           });
-          recordLegalAcceptance(session);
+          const userId = session.user.id;
+          const recorded = get().acceptedLegalVersions[userId];
+          if (recorded?.terms !== TERMS_VERSION || recorded?.privacy !== PRIVACY_VERSION) {
+            recordLegalAcceptance(session).then((ok) => {
+              if (!ok) return;
+              set((s) => ({
+                acceptedLegalVersions: {
+                  ...s.acceptedLegalVersions,
+                  [userId]: { terms: TERMS_VERSION, privacy: PRIVACY_VERSION },
+                },
+              }));
+            });
+          }
           syncPushRegistration(session);
         } else {
           resetIdentity();
@@ -89,7 +112,7 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'bilinguist-auth',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ session: s.session, anonymousId: s.anonymousId }),
+      partialize: (s) => ({ session: s.session, anonymousId: s.anonymousId, acceptedLegalVersions: s.acceptedLegalVersions }),
     }
   )
 );
