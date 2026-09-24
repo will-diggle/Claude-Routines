@@ -54,6 +54,7 @@ interface SubscriptionStore {
   status: SubscriptionStatus;
   promoLabel: string | null;
   packages: PurchasesPackage[];
+  packagesLoading: boolean;
   purchaseInProgress: boolean;
 
   isFullAccess: () => boolean;
@@ -96,6 +97,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       status: 'free',
       promoLabel: null,
       packages: [],
+      packagesLoading: false,
       purchaseInProgress: false,
 
       isFullAccess: () => get().status !== 'free',
@@ -110,8 +112,21 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       },
 
       loadPackages: async () => {
-        const packages = await fetchPackages();
-        set({ packages });
+        set({ packagesLoading: true });
+        try {
+          // RevenueCat's offering can take a moment to reflect the App
+          // Store product right after it's submitted — retry briefly
+          // rather than stranding the paywall on the fallback price from
+          // one empty result.
+          let packages = await fetchPackages();
+          for (let attempt = 0; packages.length === 0 && attempt < 2; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            packages = await fetchPackages();
+          }
+          set({ packages });
+        } finally {
+          set({ packagesLoading: false });
+        }
       },
 
       purchase: async (pkg) => {

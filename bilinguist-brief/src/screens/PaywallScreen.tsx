@@ -75,7 +75,7 @@ interface Props {
 
 export function PaywallScreen({ visible, onClose }: Props) {
   const { colors, fontFamily, fontSize, background, isDark } = useTheme();
-  const { applyPromoCode, purchase, restore, loadPackages, packages, purchaseInProgress } = useSubscriptionStore();
+  const { applyPromoCode, purchase, restore, loadPackages, packages, packagesLoading, purchaseInProgress } = useSubscriptionStore();
   const chrome = chromeColor(background);
   const hairline = hairlineColor(background);
 
@@ -99,9 +99,13 @@ export function PaywallScreen({ visible, onClose }: Props) {
   const monthlyPackage = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
   // StoreKit/RevenueCat returns priceString localized to the user's own App
   // Store storefront whenever the real product has loaded — this fallback
-  // only shows before that resolves (or if it never does), so it should
-  // track the actual configured price (£3.79/month), not a placeholder.
-  const priceValue = monthlyPackage?.product.priceString ?? '£3.79';
+  // only shows if that never resolves, so it must track the actual
+  // configured price (£3.99/month), not a stale placeholder.
+  const priceValue = monthlyPackage?.product.priceString ?? '£3.99';
+  // While the real price is still in flight, show a neutral loading state
+  // rather than risk displaying (or screenshotting) the fallback as if it
+  // were live.
+  const priceLoading = packagesLoading && !monthlyPackage;
 
   // A free trial is a $0 introductory offer — check the user hasn't already
   // used it (per their App Store account) before showing trial copy.
@@ -234,7 +238,11 @@ export function PaywallScreen({ visible, onClose }: Props) {
             {/* Meta row: price (left) · cancel-anytime tagline (right) */}
             <View style={styles.metaRow}>
               <Text style={[styles.metaDate, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-                {showTrialCopy ? `${trialLengthText} free, then ${priceValue} / month` : `${priceValue} / month`}
+                {priceLoading
+                  ? 'Loading price…'
+                  : showTrialCopy
+                  ? `${trialLengthText} free, then ${priceValue} / month`
+                  : `${priceValue} / month`}
               </Text>
               <Text style={[styles.tagline, { color: colors.inkMid, fontFamily: fontFamily.italic }]}>
                 Cancel anytime
@@ -297,6 +305,8 @@ export function PaywallScreen({ visible, onClose }: Props) {
                   <Text style={[styles.glassPillText, { color: '#FFF', fontFamily: fontFamily.bold }]}>
                     {purchaseInProgress
                       ? 'Processing…'
+                      : priceLoading
+                      ? 'Subscribe'
                       : showTrialCopy
                       ? `Start ${trialLengthText} free trial`
                       : `Subscribe — ${priceValue}/month`}
