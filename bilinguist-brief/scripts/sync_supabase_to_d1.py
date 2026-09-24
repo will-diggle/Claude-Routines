@@ -59,17 +59,26 @@ def sql_json(obj):
     return f"'{s}'"
 
 
-def fetch_all_rows(supa, lang):
+def fetch_all_rows(supa, lang, since=None):
+    """Fetch word_dictionary rows for a language. `since` (an ISO timestamp)
+    restricts to rows touched after that time — via the table's own
+    auto-updated `updated_at` trigger, so this catches edits to existing
+    lemmas (e.g. a collision merge), not just new inserts. Callers that
+    don't pass it get the full table, exactly as before."""
     rows = []
     page_size = 1000
     start = 0
     while True:
-        r = (
+        q = (
             supa.table("word_dictionary")
             .select("language,word,lemma,word_type,translation,level,ipa,"
-                    "explanation,example_sentence,tip,data")
+                    "explanation,example_sentence,tip,data,updated_at")
             .eq("language", lang)
-            .order("id")
+        )
+        if since:
+            q = q.gt("updated_at", since)
+        r = (
+            q.order("id")
             .range(start, start + page_size - 1)
             .execute()
         )
