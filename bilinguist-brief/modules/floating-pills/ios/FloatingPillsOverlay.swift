@@ -120,11 +120,17 @@ class FloatingPillsOverlay: UIView {
     container.layer.cornerRadius = FLAG_D / 2
     container.clipsToBounds = true
 
-    let lbl = UILabel(frame: container.bounds)
+    let lbl = UILabel()
     lbl.text          = FLAG_EMOJI[code] ?? "🌐"
     lbl.font          = .systemFont(ofSize: 20)
     lbl.textAlignment = .center
     lbl.isUserInteractionEnabled = false
+    // UILabel's default vertical centering is based on the font's line
+    // metrics, which sit visibly above an emoji glyph's actual visual
+    // center — sizeToFit measures the real glyph bounds so `center` lands
+    // on the circle's true visual center instead.
+    lbl.sizeToFit()
+    lbl.center = CGPoint(x: container.bounds.midX, y: container.bounds.midY)
     container.addSubview(lbl)
 
     // Subtle inner border (matches FlagCircle ring style)

@@ -24,19 +24,19 @@ public class FloatingPillsModule: Module {
     }
 
     Function("setLanguages") { [weak self] (codes: [String]) in
-      DispatchQueue.main.async { self?.overlay?.setLanguages(codes) }
+      onMain { self?.overlay?.setLanguages(codes) }
     }
 
     Function("setActiveTab") { [weak self] (tab: String) in
-      DispatchQueue.main.async { self?.overlay?.setActiveTab(tab) }
+      onMain { self?.overlay?.setActiveTab(tab) }
     }
 
     Function("setBottomInset") { [weak self] (inset: Double) in
-      DispatchQueue.main.async { self?.overlay?.setBottomInset(CGFloat(inset)) }
+      onMain { self?.overlay?.setBottomInset(CGFloat(inset)) }
     }
 
     Function("setDark") { [weak self] (isDark: Bool) in
-      DispatchQueue.main.async { self?.overlay?.setDark(isDark) }
+      onMain { self?.overlay?.setDark(isDark) }
     }
   }
 
@@ -57,5 +57,18 @@ public class FloatingPillsModule: Module {
     }
     window.addSubview(ov)
     overlay = ov
+  }
+}
+
+// Runs synchronously when already on the main thread, otherwise dispatches.
+// The unconditional DispatchQueue.main.async these functions used before
+// always deferred to the next run-loop tick, even from calls that already
+// arrived on main — during a screen transition that queued behind other
+// main-thread work and showed up as a visible delay in the pill icons.
+private func onMain(_ block: @escaping () -> Void) {
+  if Thread.isMainThread {
+    block()
+  } else {
+    DispatchQueue.main.async(execute: block)
   }
 }
