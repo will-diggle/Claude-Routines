@@ -49,6 +49,9 @@ interface StreakStore {
   fullSweepShownToday: () => boolean;
   // Apply a merged snapshot from Supabase reconciliation (does not trigger a write-behind push)
   applyMergedState: (merged: StreakSnapshot) => void;
+  /** Wipes all local reading history/streak state — used on account deletion,
+   *  which promises "reading history, streaks" in its confirmation copy. */
+  resetAll: () => void;
   // Transient UI state — not persisted
   confettiActive: boolean;
   setConfettiActive: (v: boolean) => void;
@@ -322,6 +325,26 @@ export const useStreakStore = create<StreakStore>()(
           fullSweepDate: merged.fullSweepDate,
         });
         // No scheduleStreakSync here — we just pulled this from Supabase.
+      },
+
+      resetAll: () => {
+        set({
+          streak: 0,
+          lastPracticedDate: null,
+          totalSessionsCompleted: 0,
+          speedSnapHighScore: 0,
+          readingStreaks: {},
+          lastReadDates: {},
+          readingHistory: {},
+          countedBriefDates: {},
+          readingTimeSecs: {},
+          wordsReadByDay: {},
+          freezeDatesUsed: {},
+          fullSweepDate: null,
+        });
+        // No scheduleStreakSync — the account-deletion Edge Function already
+        // deletes reading_history and user_streaks server-side; this is
+        // purely wiping what's left on this device.
       },
     }),
     {

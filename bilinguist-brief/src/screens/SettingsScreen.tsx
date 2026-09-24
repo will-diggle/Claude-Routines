@@ -419,6 +419,9 @@ export function SettingsScreen() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       useWordBankStore.getState().clearAll();
+      // The confirmation copy above also promises "reading history,
+      // streaks" — clearAll() only ever covered the word bank itself.
+      useStreakStore.getState().resetAll();
       await signOut();
       setSettingsSheetVisible(false);
       Alert.alert('Account deleted', 'Your account and data have been permanently deleted.');
