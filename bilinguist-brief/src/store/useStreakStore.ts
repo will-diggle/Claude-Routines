@@ -54,15 +54,44 @@ interface StreakStore {
   setConfettiActive: (v: boolean) => void;
 }
 
+// Local calendar-day string — deliberately NOT toISOString(), which converts
+// to UTC first and can return the wrong date right around local midnight in
+// any timezone offset from UTC (the bug this replaces).
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function todayString() {
-  return new Date().toISOString().split('T')[0];
+  return localDateString(new Date());
 }
 
 function yesterdayString() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  return localDateString(d);
 }
+
+function daysAgoString(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return localDateString(d);
+}
+
+// Whole calendar days from local-date string `a` to local-date string `b`.
+function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const msPerDay = 86_400_000;
+  return Math.round((new Date(by, bm - 1, bd).getTime() - new Date(ay, am - 1, ad).getTime()) / msPerDay);
+}
+
+// A freeze covers exactly one missed day. Exported so every place that
+// displays "freezes remaining" (PracticeScreen, etc.) enforces the same
+// cap as the store instead of re-declaring the number.
+export const FREEZES_PER_WEEK = 2;
 
 // Returns a plain snapshot of the current store state for sync operations.
 export function getStreakSnapshot(): StreakSnapshot {
@@ -173,10 +202,7 @@ export const useStreakStore = create<StreakStore>()(
         const key = `${langCode}_${todayString()}`;
         const { readingTimeSecs } = get();
         // Prune keys older than 7 days to keep storage small
-        const cutoff = (() => {
-          const d = new Date(); d.setDate(d.getDate() - 7);
-          return d.toISOString().split('T')[0];
-        })();
+        const cutoff = daysAgoString(7);
         const pruned: Record<string, number> = {};
         for (const [k, v] of Object.entries(readingTimeSecs)) {
           const date = k.split('_').slice(1).join('_');
@@ -207,10 +233,7 @@ export const useStreakStore = create<StreakStore>()(
 
       getWordsLast7Days: (langCode: string) => {
         const { wordsReadByDay } = get();
-        const cutoff = (() => {
-          const d = new Date(); d.setDate(d.getDate() - 7);
-          return d.toISOString().split('T')[0];
-        })();
+        const cutoff = daysAgoString(7);
         return Object.entries(wordsReadByDay)
           .filter(([k]) => k.startsWith(`${langCode}_`) && k.split('_')[1] >= cutoff)
           .reduce((sum, [, v]) => sum + v, 0);
@@ -223,24 +246,37 @@ export const useStreakStore = create<StreakStore>()(
         const lastRead = lastReadDates[langCode];
         const currentStreak = readingStreaks[langCode] ?? 0;
 
-        // Only apply freeze if: streak is active, yesterday was missed, today not yet read
-        if (currentStreak === 0) return false;
+        // Only relevant if there's an active streak and today hasn't been read yet.
+        if (currentStreak === 0 || !lastRead) return false;
         if (lastRead === today || lastRead === yesterday) return false;
 
-        // Count freezes used in the rolling 7-day window
-        const cutoff = (() => {
-          const d = new Date(); d.setDate(d.getDate() - 7);
-          return d.toISOString().split('T')[0];
-        })();
-        const used = (freezeDatesUsed[langCode] ?? []).filter(d => d >= cutoff);
-        if (used.length >= 2) return false; // freeze exhausted
+        // Exact number of days missed between the last read and today —
+        // e.g. lastRead = today-3 means today-2 and today-1 were both
+        // missed (2 days), not just "1 day, whatever the gap".
+        const missedDays = daysBetween(lastRead, today) - 1;
+        if (missedDays < 1) return false; // shouldn't happen given the checks above, but guards against clock/date drift
 
-        // Consume freeze: set lastReadDate to yesterday so next read continues streak
+        const cutoff = daysAgoString(7);
+        const used = (freezeDatesUsed[langCode] ?? []).filter(d => d >= cutoff);
+        const remaining = FREEZES_PER_WEEK - used.length;
+
+        // A freeze covers exactly ONE missed day, so a multi-day gap needs
+        // one freeze per missed day. If there aren't enough left to cover
+        // the whole gap, don't partially freeze it — the streak breaks and
+        // recordRead() will correctly restart it at 1 on the next read.
+        if (remaining < missedDays) return false;
+
+        // Charge one freeze per missed day, recorded against its real
+        // date (not just "yesterday") so the weekly cap reflects actual
+        // usage even across multi-day gaps.
+        const newlyFrozen: string[] = [];
+        for (let i = missedDays; i >= 1; i--) newlyFrozen.push(daysAgoString(i));
+
         set({
           lastReadDates: { ...lastReadDates, [langCode]: yesterday },
           freezeDatesUsed: {
             ...freezeDatesUsed,
-            [langCode]: [...used, yesterday],
+            [langCode]: [...(freezeDatesUsed[langCode] ?? []), ...newlyFrozen],
           },
         });
         scheduleStreakSync(get());

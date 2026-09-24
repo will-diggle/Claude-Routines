@@ -325,14 +325,7 @@ export function BriefingScreen() {
   const checkFreezes = useCallback(() => {
     for (const lang of activeLanguages) {
       const froze = checkAndConsumeFreeze(lang.code);
-      if (froze) {
-        const cutoff = (() => {
-          const d = new Date(); d.setDate(d.getDate() - 7);
-          return d.toISOString().split('T')[0];
-        })();
-        const used = (useStreakStore.getState().freezeDatesUsed[lang.code] ?? []).filter(d => d >= cutoff);
-        analytics.trackStreakFreezeUsed(lang.code);
-      }
+      if (froze) analytics.trackStreakFreezeUsed(lang.code);
     }
   }, [activeLanguages, checkAndConsumeFreeze]);
 

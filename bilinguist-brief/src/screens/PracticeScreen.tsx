@@ -10,7 +10,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useShallow } from 'zustand/react/shallow';
 import { useWordBankStore, type Pile, type SavedWord } from '../store/useWordBankStore';
 import { useSettingsStore, type LanguageCode } from '../store/useSettingsStore';
-import { useStreakStore } from '../store/useStreakStore';
+import { useStreakStore, FREEZES_PER_WEEK } from '../store/useStreakStore';
 import { useSubscriptionStore, FREE_GAME_KEY } from '../store/useSubscriptionStore';
 import { useNavPillStore } from '../store/useNavPillStore';
 import { Spacing } from '../theme';
@@ -75,9 +75,10 @@ export function PracticeScreen() {
   }, [onScrollTabBar, setPracticeScrolled]);
 
   const freezesRemaining = useMemo(() => {
-    const cutoff = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();
+    const cutoffDate = new Date(); cutoffDate.setDate(cutoffDate.getDate() - 7);
+    const cutoff = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
     const used = activeLanguageCodes.reduce((sum, code) => sum + (freezeDatesUsed[code] ?? []).filter((d) => d >= cutoff).length, 0);
-    return Math.max(0, activeLanguageCodes.length * 2 - used);
+    return Math.max(0, activeLanguageCodes.length * FREEZES_PER_WEEK - used);
   }, [activeLanguageCodes, freezeDatesUsed]);
 
   const [gameModalVisible, setGameModalVisible] = useState(false);

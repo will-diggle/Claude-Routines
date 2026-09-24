@@ -39,24 +39,45 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function computeAllStreak(readingHistory: Record<string, string[]>): number {
+// Local calendar-day string — NOT toISOString(), which converts to UTC
+// first and can return the wrong date right around local midnight.
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// The "All languages" streak is a running total of days on which at least
+// one language was read — one Monday-only German read plus a Tuesday-only
+// French read is 2 days here, even though each language's own streak is
+// only 1. A day frozen for any language must count the same way a real
+// read does, or a freeze that correctly saves one language's own streak
+// would still (incorrectly) break this combined total.
+function computeAllStreak(
+  readingHistory: Record<string, string[]>,
+  freezeDatesUsed: Record<string, string[]> = {},
+): number {
   const allDates = new Set<string>();
   for (const dates of Object.values(readingHistory)) {
+    for (const d of dates) allDates.add(d);
+  }
+  for (const dates of Object.values(freezeDatesUsed)) {
     for (const d of dates) allDates.add(d);
   }
   const sorted = [...allDates].sort().reverse();
   if (sorted.length === 0) return 0;
 
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const yest = new Date(now.getTime() - 86400000).toISOString().split('T')[0];
+  const todayStr = localDateString(now);
+  const yest = localDateString(new Date(now.getTime() - 86400000));
   if (sorted[0] !== todayStr && sorted[0] !== yest) return 0;
 
   let streak = 0;
   const start = new Date(sorted[0]);
   for (const dateStr of sorted) {
     const expected = new Date(start.getTime() - streak * 86400000);
-    const expectedStr = expected.toISOString().split('T')[0];
+    const expectedStr = localDateString(expected);
     if (dateStr === expectedStr) {
       streak++;
     } else {
@@ -273,9 +294,9 @@ export function FullStreakCalendar({
   const canGoBack = monthOffset > -12;
 
   const currentStreak = useMemo(() => {
-    if (activeLang === 'all') return computeAllStreak(readingHistory);
+    if (activeLang === 'all') return computeAllStreak(readingHistory, freezeDatesUsed);
     return readingStreaks[activeLang] ?? 0;
-  }, [activeLang, readingHistory, readingStreaks]);
+  }, [activeLang, readingHistory, readingStreaks, freezeDatesUsed]);
 
   const streakLabel = currentStreak === 0
     ? 'No streak yet'
