@@ -316,7 +316,7 @@
       },
       {
         "day": "2026-07-15",
-        "language": "de",
+        "language": "ar",
         "level": "A1",
         "event_count": 1,
         "unique_users": 1,
@@ -324,8 +324,8 @@
       },
       {
         "day": "2026-07-15",
-        "language": "ar",
-        "level": "A1",
+        "language": "en",
+        "level": "Native",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 30.0
@@ -372,8 +372,8 @@
       },
       {
         "day": "2026-07-15",
-        "language": "en",
-        "level": "Native",
+        "language": "de",
+        "level": "A1",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 30.0
@@ -404,6 +404,14 @@
       },
       {
         "day": "2026-07-16",
+        "language": "sv",
+        "level": "B2",
+        "event_count": 1,
+        "unique_users": 1,
+        "sum_time_spent_seconds": 30.0
+      },
+      {
+        "day": "2026-07-16",
         "language": "tr",
         "level": "A1",
         "event_count": 1,
@@ -414,14 +422,6 @@
         "day": "2026-07-16",
         "language": "en",
         "level": "Native",
-        "event_count": 1,
-        "unique_users": 1,
-        "sum_time_spent_seconds": 30.0
-      },
-      {
-        "day": "2026-07-16",
-        "language": "sv",
-        "level": "B2",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 30.0
@@ -508,19 +508,19 @@
       },
       {
         "day": "2026-07-21",
+        "language": "de",
+        "level": "A1",
+        "event_count": 1,
+        "unique_users": 1,
+        "sum_time_spent_seconds": 30.0
+      },
+      {
+        "day": "2026-07-21",
         "language": "en",
         "level": "B2",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 41.0
-      },
-      {
-        "day": "2026-07-21",
-        "language": "en",
-        "level": "Native",
-        "event_count": 1,
-        "unique_users": 1,
-        "sum_time_spent_seconds": 33.0
       },
       {
         "day": "2026-07-21",
@@ -540,19 +540,19 @@
       },
       {
         "day": "2026-07-21",
-        "language": "de",
-        "level": "A1",
+        "language": "en",
+        "level": "Native",
         "event_count": 1,
         "unique_users": 1,
-        "sum_time_spent_seconds": 30.0
+        "sum_time_spent_seconds": 33.0
       },
       {
         "day": "2026-07-22",
-        "language": "en",
-        "level": "B2",
+        "language": "it",
+        "level": "A1",
         "event_count": 2,
         "unique_users": 2,
-        "sum_time_spent_seconds": 1759.0
+        "sum_time_spent_seconds": 60.0
       },
       {
         "day": "2026-07-22",
@@ -604,19 +604,19 @@
       },
       {
         "day": "2026-07-22",
-        "language": "it",
-        "level": "A1",
-        "event_count": 2,
-        "unique_users": 2,
-        "sum_time_spent_seconds": 60.0
-      },
-      {
-        "day": "2026-07-22",
         "language": "fr",
         "level": "A2",
         "event_count": 2,
         "unique_users": 2,
         "sum_time_spent_seconds": 780.0
+      },
+      {
+        "day": "2026-07-22",
+        "language": "en",
+        "level": "B2",
+        "event_count": 2,
+        "unique_users": 2,
+        "sum_time_spent_seconds": 1759.0
       },
       {
         "day": "2026-07-22",
@@ -636,19 +636,19 @@
       },
       {
         "day": "2026-07-23",
-        "language": "es",
-        "level": "A2",
-        "event_count": 2,
-        "unique_users": 2,
-        "sum_time_spent_seconds": 60.0
-      },
-      {
-        "day": "2026-07-23",
         "language": "it",
         "level": "B1",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 42.0
+      },
+      {
+        "day": "2026-07-23",
+        "language": "es",
+        "level": "A2",
+        "event_count": 2,
+        "unique_users": 2,
+        "sum_time_spent_seconds": 60.0
       },
       {
         "day": "2026-07-23",
@@ -693,34 +693,18 @@
       {
         "day": "2026-07-24",
         "language": "fr",
-        "level": "A2",
-        "event_count": 1,
-        "unique_users": 1,
-        "sum_time_spent_seconds": 38440.0
-      },
-      {
-        "day": "2026-07-24",
-        "language": "fr",
         "level": "Native",
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 160.0
       },
       {
-        "day": "2026-07-25",
-        "language": "en",
-        "level": "Native",
+        "day": "2026-07-24",
+        "language": "fr",
+        "level": "A2",
         "event_count": 1,
         "unique_users": 1,
-        "sum_time_spent_seconds": 30.0
-      },
-      {
-        "day": "2026-07-25",
-        "language": "de",
-        "level": "Native",
-        "event_count": 1,
-        "unique_users": 1,
-        "sum_time_spent_seconds": 940.0
+        "sum_time_spent_seconds": 38440.0
       },
       {
         "day": "2026-07-25",
@@ -747,12 +731,20 @@
         "sum_time_spent_seconds": 30.0
       },
       {
-        "day": "2026-07-26",
-        "language": "fr",
-        "level": "A2",
+        "day": "2026-07-25",
+        "language": "de",
+        "level": "Native",
         "event_count": 1,
         "unique_users": 1,
-        "sum_time_spent_seconds": 656.0
+        "sum_time_spent_seconds": 940.0
+      },
+      {
+        "day": "2026-07-25",
+        "language": "en",
+        "level": "Native",
+        "event_count": 1,
+        "unique_users": 1,
+        "sum_time_spent_seconds": 30.0
       },
       {
         "day": "2026-07-26",
@@ -769,6 +761,14 @@
         "event_count": 1,
         "unique_users": 1,
         "sum_time_spent_seconds": 258.0
+      },
+      {
+        "day": "2026-07-26",
+        "language": "fr",
+        "level": "A2",
+        "event_count": 1,
+        "unique_users": 1,
+        "sum_time_spent_seconds": 656.0
       },
       {
         "day": "2026-07-26",
@@ -995,15 +995,15 @@
       },
       {
         "day": "2026-07-05",
-        "language": "es",
-        "level": "A2",
+        "language": "it",
+        "level": "A1",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-05",
-        "language": "it",
-        "level": "A1",
+        "language": "es",
+        "level": "A2",
         "event_count": 1,
         "unique_users": 1
       },
@@ -1072,16 +1072,16 @@
       },
       {
         "day": "2026-07-12",
-        "language": "it",
-        "level": "A1",
-        "event_count": 17,
+        "language": "fr",
+        "level": "A2",
+        "event_count": 28,
         "unique_users": 1
       },
       {
         "day": "2026-07-12",
-        "language": "fr",
-        "level": "A2",
-        "event_count": 28,
+        "language": "it",
+        "level": "A1",
+        "event_count": 17,
         "unique_users": 1
       },
       {
@@ -1089,6 +1089,20 @@
         "language": "de",
         "level": "A2",
         "event_count": 6,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-15",
+        "language": "en",
+        "level": "Native",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-15",
+        "language": "tr",
+        "level": "A1",
+        "event_count": 1,
         "unique_users": 1
       },
       {
@@ -1107,9 +1121,9 @@
       },
       {
         "day": "2026-07-15",
-        "language": "en",
+        "language": "it",
         "level": "Native",
-        "event_count": 1,
+        "event_count": 3,
         "unique_users": 1
       },
       {
@@ -1117,20 +1131,6 @@
         "language": "es",
         "level": "A2",
         "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-15",
-        "language": "tr",
-        "level": "A1",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-15",
-        "language": "it",
-        "level": "Native",
-        "event_count": 3,
         "unique_users": 1
       },
       {
@@ -1157,13 +1157,6 @@
       {
         "day": "2026-07-21",
         "language": "de",
-        "level": "Native",
-        "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-21",
-        "language": "de",
         "level": "A2",
         "event_count": 1,
         "unique_users": 1
@@ -1171,6 +1164,27 @@
       {
         "day": "2026-07-21",
         "language": "it",
+        "level": "A1",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-21",
+        "language": "de",
+        "level": "Native",
+        "event_count": 2,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-22",
+        "language": "de",
+        "level": "Native",
+        "event_count": 3,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-22",
+        "language": "tr",
         "level": "A1",
         "event_count": 1,
         "unique_users": 1
@@ -1184,9 +1198,16 @@
       },
       {
         "day": "2026-07-22",
-        "language": "tr",
-        "level": "A1",
-        "event_count": 1,
+        "language": "en",
+        "level": "B2",
+        "event_count": 4,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-07-22",
+        "language": "fr",
+        "level": "Native",
+        "event_count": 2,
         "unique_users": 1
       },
       {
@@ -1205,30 +1226,9 @@
       },
       {
         "day": "2026-07-22",
-        "language": "de",
-        "level": "Native",
-        "event_count": 3,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-22",
         "language": "fr",
         "level": "A2",
         "event_count": 5,
-        "unique_users": 2
-      },
-      {
-        "day": "2026-07-22",
-        "language": "fr",
-        "level": "Native",
-        "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-22",
-        "language": "en",
-        "level": "B2",
-        "event_count": 4,
         "unique_users": 2
       },
       {
@@ -1240,15 +1240,29 @@
       },
       {
         "day": "2026-07-23",
-        "language": "es",
+        "language": "fr",
         "level": "A2",
+        "event_count": 11,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-23",
+        "language": "de",
+        "level": "A2",
+        "event_count": 22,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-23",
+        "language": "it",
+        "level": "A1",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-23",
-        "language": "en",
-        "level": "B2",
+        "language": "it",
+        "level": "B1",
         "event_count": 1,
         "unique_users": 1
       },
@@ -1261,30 +1275,16 @@
       },
       {
         "day": "2026-07-23",
-        "language": "it",
-        "level": "A1",
+        "language": "es",
+        "level": "A2",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-23",
-        "language": "fr",
-        "level": "A2",
-        "event_count": 11,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-23",
-        "language": "it",
-        "level": "B1",
+        "language": "en",
+        "level": "B2",
         "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-23",
-        "language": "de",
-        "level": "A2",
-        "event_count": 22,
         "unique_users": 1
       },
       {
@@ -1296,16 +1296,16 @@
       },
       {
         "day": "2026-07-24",
-        "language": "fr",
+        "language": "es",
         "level": "A2",
-        "event_count": 9,
+        "event_count": 4,
         "unique_users": 1
       },
       {
         "day": "2026-07-24",
-        "language": "es",
+        "language": "fr",
         "level": "A2",
-        "event_count": 4,
+        "event_count": 9,
         "unique_users": 1
       },
       {
@@ -1331,16 +1331,16 @@
       },
       {
         "day": "2026-07-26",
-        "language": "fr",
+        "language": "de",
         "level": "A2",
-        "event_count": 22,
+        "event_count": 47,
         "unique_users": 1
       },
       {
         "day": "2026-07-26",
-        "language": "de",
+        "language": "fr",
         "level": "A2",
-        "event_count": 47,
+        "event_count": 22,
         "unique_users": 1
       },
       {
@@ -1366,9 +1366,9 @@
       },
       {
         "day": "2026-07-28",
-        "language": "it",
-        "level": "A1",
-        "event_count": 3,
+        "language": "sv",
+        "level": "B2",
+        "event_count": 5,
         "unique_users": 1
       },
       {
@@ -1380,16 +1380,16 @@
       },
       {
         "day": "2026-07-28",
-        "language": "sv",
-        "level": "B2",
-        "event_count": 5,
+        "language": "en",
+        "level": "Native",
+        "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-28",
-        "language": "en",
-        "level": "Native",
-        "event_count": 1,
+        "language": "it",
+        "level": "A1",
+        "event_count": 3,
         "unique_users": 1
       },
       {
@@ -1401,16 +1401,23 @@
       },
       {
         "day": "2026-07-29",
-        "language": "de",
+        "language": "es",
         "level": "A2",
-        "event_count": 2,
+        "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-29",
-        "language": "es",
+        "language": "fr",
         "level": "A2",
-        "event_count": 1,
+        "event_count": 12,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-07-29",
+        "language": "de",
+        "level": "A2",
+        "event_count": 2,
         "unique_users": 1
       },
       {
@@ -1421,11 +1428,11 @@
         "unique_users": 2
       },
       {
-        "day": "2026-07-29",
-        "language": "fr",
-        "level": "A2",
-        "event_count": 12,
-        "unique_users": 2
+        "day": "2026-07-30",
+        "language": "de",
+        "level": "Native",
+        "event_count": 25,
+        "unique_users": 1
       },
       {
         "day": "2026-07-30",
@@ -1439,13 +1446,6 @@
         "language": "fr",
         "level": "A2",
         "event_count": 4,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-30",
-        "language": "de",
-        "level": "Native",
-        "event_count": 25,
         "unique_users": 1
       },
       {
@@ -1930,16 +1930,16 @@
     "game_opened": [
       {
         "day": "2026-06-28",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "all",
-        "event_count": 3,
+        "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-06-28",
-        "game_name": "matching",
+        "game_name": "flashcards",
         "language": "all",
-        "event_count": 1,
+        "event_count": 3,
         "unique_users": 1
       },
       {
@@ -1965,13 +1965,6 @@
       },
       {
         "day": "2026-06-30",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 4,
-        "unique_users": 2
-      },
-      {
-        "day": "2026-06-30",
         "game_name": "translation",
         "language": "all",
         "event_count": 3,
@@ -1993,9 +1986,23 @@
       },
       {
         "day": "2026-06-30",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 4,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-06-30",
         "game_name": "fill_blank",
         "language": "all",
         "event_count": 5,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-07-01",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 2,
         "unique_users": 2
       },
       {
@@ -2011,13 +2018,6 @@
         "language": "all",
         "event_count": 1,
         "unique_users": 1
-      },
-      {
-        "day": "2026-07-01",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 2,
-        "unique_users": 2
       },
       {
         "day": "2026-07-12",
@@ -2042,37 +2042,16 @@
       },
       {
         "day": "2026-07-14",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-14",
         "game_name": "matching",
         "language": "all",
         "event_count": 4,
         "unique_users": 1
       },
       {
-        "day": "2026-07-15",
-        "game_name": "matching",
-        "language": "it",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-15",
-        "game_name": "fill_blank",
+        "day": "2026-07-14",
+        "game_name": "flashcards",
         "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-15",
-        "game_name": "matching",
-        "language": "de",
-        "event_count": 1,
+        "event_count": 2,
         "unique_users": 1
       },
       {
@@ -2084,6 +2063,20 @@
       },
       {
         "day": "2026-07-15",
+        "game_name": "multiple_choice",
+        "language": "all",
+        "event_count": 3,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-15",
+        "game_name": "matching",
+        "language": "de",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-15",
         "game_name": "matching",
         "language": "all",
         "event_count": 3,
@@ -2091,9 +2084,16 @@
       },
       {
         "day": "2026-07-15",
-        "game_name": "multiple_choice",
-        "language": "all",
-        "event_count": 3,
+        "game_name": "matching",
+        "language": "it",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-15",
+        "game_name": "flashcards",
+        "language": "de",
+        "event_count": 1,
         "unique_users": 1
       },
       {
@@ -2105,8 +2105,8 @@
       },
       {
         "day": "2026-07-15",
-        "game_name": "flashcards",
-        "language": "de",
+        "game_name": "fill_blank",
+        "language": "all",
         "event_count": 1,
         "unique_users": 1
       },
@@ -2119,14 +2119,14 @@
       },
       {
         "day": "2026-07-21",
-        "game_name": "matching",
+        "game_name": "flashcards",
         "language": "all",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-21",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "all",
         "event_count": 1,
         "unique_users": 1
@@ -2147,17 +2147,17 @@
       },
       {
         "day": "2026-07-22",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 6,
-        "unique_users": 4
-      },
-      {
-        "day": "2026-07-22",
         "game_name": "matching",
         "language": "all",
         "event_count": 2,
         "unique_users": 2
+      },
+      {
+        "day": "2026-07-22",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 6,
+        "unique_users": 4
       },
       {
         "day": "2026-07-23",
@@ -2168,9 +2168,9 @@
       },
       {
         "day": "2026-07-23",
-        "game_name": "multiple_choice",
-        "language": "all",
-        "event_count": 2,
+        "game_name": "matching",
+        "language": "fr",
+        "event_count": 1,
         "unique_users": 1
       },
       {
@@ -2178,6 +2178,13 @@
         "game_name": "flashcards",
         "language": "all",
         "event_count": 3,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-23",
+        "game_name": "multiple_choice",
+        "language": "all",
+        "event_count": 2,
         "unique_users": 1
       },
       {
@@ -2190,29 +2197,8 @@
       {
         "day": "2026-07-23",
         "game_name": "matching",
-        "language": "fr",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-23",
-        "game_name": "matching",
         "language": "de",
         "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-24",
-        "game_name": "multiple_choice",
-        "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-24",
-        "game_name": "translation",
-        "language": "all",
-        "event_count": 1,
         "unique_users": 1
       },
       {
@@ -2224,7 +2210,7 @@
       },
       {
         "day": "2026-07-24",
-        "game_name": "fill_blank",
+        "game_name": "translation",
         "language": "all",
         "event_count": 1,
         "unique_users": 1
@@ -2237,6 +2223,20 @@
         "unique_users": 2
       },
       {
+        "day": "2026-07-24",
+        "game_name": "fill_blank",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-24",
+        "game_name": "multiple_choice",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
         "day": "2026-07-25",
         "game_name": "matching",
         "language": "all",
@@ -2245,14 +2245,14 @@
       },
       {
         "day": "2026-07-26",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "all",
         "event_count": 2,
         "unique_users": 1
       },
       {
         "day": "2026-07-26",
-        "game_name": "matching",
+        "game_name": "flashcards",
         "language": "all",
         "event_count": 2,
         "unique_users": 1
@@ -2287,17 +2287,17 @@
       },
       {
         "day": "2026-07-28",
-        "game_name": "translation",
-        "language": "all",
-        "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-28",
         "game_name": "multiple_choice",
         "language": "all",
         "event_count": 16,
         "unique_users": 3
+      },
+      {
+        "day": "2026-07-28",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 11,
+        "unique_users": 2
       },
       {
         "day": "2026-07-28",
@@ -2308,9 +2308,9 @@
       },
       {
         "day": "2026-07-28",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "all",
-        "event_count": 11,
+        "event_count": 9,
         "unique_users": 2
       },
       {
@@ -2323,12 +2323,47 @@
       {
         "day": "2026-07-28",
         "game_name": "matching",
-        "language": "all",
-        "event_count": 9,
-        "unique_users": 2
+        "language": "fr",
+        "event_count": 1,
+        "unique_users": 1
       },
       {
         "day": "2026-07-28",
+        "game_name": "translation",
+        "language": "all",
+        "event_count": 2,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-29",
+        "game_name": "matching",
+        "language": "es",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-29",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 5,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-07-29",
+        "game_name": "flashcards",
+        "language": "fr",
+        "event_count": 2,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-29",
+        "game_name": "fill_blank",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-29",
         "game_name": "matching",
         "language": "fr",
         "event_count": 1,
@@ -2351,13 +2386,6 @@
       {
         "day": "2026-07-29",
         "game_name": "flashcards",
-        "language": "all",
-        "event_count": 5,
-        "unique_users": 2
-      },
-      {
-        "day": "2026-07-29",
-        "game_name": "flashcards",
         "language": "it",
         "event_count": 1,
         "unique_users": 1
@@ -2370,30 +2398,9 @@
         "unique_users": 1
       },
       {
-        "day": "2026-07-29",
-        "game_name": "matching",
-        "language": "fr",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-29",
-        "game_name": "flashcards",
-        "language": "fr",
-        "event_count": 2,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-29",
+        "day": "2026-07-31",
         "game_name": "fill_blank",
         "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-29",
-        "game_name": "matching",
-        "language": "es",
         "event_count": 1,
         "unique_users": 1
       },
@@ -2412,13 +2419,6 @@
         "unique_users": 1
       },
       {
-        "day": "2026-07-31",
-        "game_name": "fill_blank",
-        "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
         "day": "2026-08-03",
         "game_name": "matching",
         "language": "all",
@@ -2427,16 +2427,16 @@
       },
       {
         "day": "2026-08-10",
-        "game_name": "matching",
+        "game_name": "flashcards",
         "language": "all",
-        "event_count": 2,
+        "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-08-10",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "all",
-        "event_count": 1,
+        "event_count": 2,
         "unique_users": 1
       },
       {
@@ -2462,14 +2462,14 @@
       },
       {
         "day": "2026-08-21",
-        "game_name": "matching",
+        "game_name": "flashcards",
         "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-08-21",
-        "game_name": "flashcards",
+        "game_name": "matching",
         "language": "it",
         "event_count": 1,
         "unique_users": 1
@@ -2477,34 +2477,6 @@
       {
         "day": "2026-08-24",
         "game_name": "matching",
-        "language": "fr",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-08-24",
-        "game_name": "flashcards",
-        "language": "fr",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-08-24",
-        "game_name": "matching",
-        "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-08-24",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-08-24",
-        "game_name": "fill_blank",
         "language": "all",
         "event_count": 1,
         "unique_users": 1
@@ -2517,6 +2489,34 @@
         "unique_users": 1
       },
       {
+        "day": "2026-08-24",
+        "game_name": "flashcards",
+        "language": "fr",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-08-24",
+        "game_name": "matching",
+        "language": "fr",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-08-24",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-08-24",
+        "game_name": "fill_blank",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
         "day": "2026-08-28",
         "game_name": "matching",
         "language": "all",
@@ -2532,6 +2532,13 @@
       },
       {
         "day": "2026-08-31",
+        "game_name": "multiple_choice",
+        "language": "all",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-08-31",
         "game_name": "fill_blank",
         "language": "all",
         "event_count": 1,
@@ -2539,7 +2546,7 @@
       },
       {
         "day": "2026-08-31",
-        "game_name": "multiple_choice",
+        "game_name": "matching",
         "language": "all",
         "event_count": 1,
         "unique_users": 1
@@ -2549,13 +2556,6 @@
         "game_name": "translation",
         "language": "all",
         "event_count": 3,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-08-31",
-        "game_name": "matching",
-        "language": "all",
-        "event_count": 1,
         "unique_users": 1
       },
       {
@@ -2588,6 +2588,13 @@
       },
       {
         "day": "2026-09-03",
+        "game_name": "flashcards",
+        "language": "all",
+        "event_count": 28,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-09-03",
         "game_name": "matching",
         "language": "all",
         "event_count": 2,
@@ -2599,13 +2606,6 @@
         "language": "all",
         "event_count": 5,
         "unique_users": 1
-      },
-      {
-        "day": "2026-09-03",
-        "game_name": "flashcards",
-        "language": "all",
-        "event_count": 28,
-        "unique_users": 2
       },
       {
         "day": "2026-09-04",
@@ -3027,13 +3027,13 @@
       },
       {
         "day": "2026-07-15",
-        "language": "tr",
+        "language": "sv",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-15",
-        "language": "sv",
+        "language": "tr",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3063,7 +3063,7 @@
       },
       {
         "day": "2026-07-16",
-        "language": "tr",
+        "language": "hu",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3111,7 +3111,7 @@
       },
       {
         "day": "2026-07-16",
-        "language": "hu",
+        "language": "tr",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3177,15 +3177,15 @@
       },
       {
         "day": "2026-07-22",
-        "language": "it",
-        "event_count": 3,
-        "unique_users": 3
-      },
-      {
-        "day": "2026-07-22",
         "language": "fr",
         "event_count": 4,
         "unique_users": 4
+      },
+      {
+        "day": "2026-07-22",
+        "language": "it",
+        "event_count": 3,
+        "unique_users": 3
       },
       {
         "day": "2026-07-22",
@@ -3671,24 +3671,12 @@
       },
       {
         "day": "2026-09-08",
-        "language": "de",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-09-08",
         "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
       {
-        "day": "2026-09-13",
-        "language": "en",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-09-13",
+        "day": "2026-09-08",
         "language": "de",
         "event_count": 1,
         "unique_users": 1
@@ -3696,6 +3684,18 @@
       {
         "day": "2026-09-13",
         "language": "fr",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-09-13",
+        "language": "de",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-09-13",
+        "language": "en",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3739,7 +3739,7 @@
     "streak_freeze_used": [
       {
         "day": "2026-06-28",
-        "language": "tr",
+        "language": "es",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3752,6 +3752,12 @@
       {
         "day": "2026-06-28",
         "language": "en",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-06-28",
+        "language": "tr",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3770,12 +3776,6 @@
       {
         "day": "2026-06-28",
         "language": "it",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-06-28",
-        "language": "es",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3811,15 +3811,21 @@
       },
       {
         "day": "2026-07-01",
-        "language": "en",
-        "event_count": 2,
-        "unique_users": 2
-      },
-      {
-        "day": "2026-07-01",
         "language": "fr",
         "event_count": 1,
         "unique_users": 1
+      },
+      {
+        "day": "2026-07-01",
+        "language": "hu",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-01",
+        "language": "en",
+        "event_count": 2,
+        "unique_users": 2
       },
       {
         "day": "2026-07-01",
@@ -3828,8 +3834,8 @@
         "unique_users": 1
       },
       {
-        "day": "2026-07-01",
-        "language": "hu",
+        "day": "2026-07-03",
+        "language": "sv",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3847,12 +3853,24 @@
       },
       {
         "day": "2026-07-03",
-        "language": "sv",
+        "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
       {
-        "day": "2026-07-03",
+        "day": "2026-07-05",
+        "language": "en",
+        "event_count": 2,
+        "unique_users": 2
+      },
+      {
+        "day": "2026-07-05",
+        "language": "fr",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-05",
         "language": "it",
         "event_count": 1,
         "unique_users": 1
@@ -3870,24 +3888,6 @@
         "unique_users": 1
       },
       {
-        "day": "2026-07-05",
-        "language": "fr",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-05",
-        "language": "it",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-05",
-        "language": "en",
-        "event_count": 2,
-        "unique_users": 2
-      },
-      {
         "day": "2026-07-06",
         "language": "en",
         "event_count": 1,
@@ -3895,13 +3895,13 @@
       },
       {
         "day": "2026-07-07",
-        "language": "it",
+        "language": "de",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-07",
-        "language": "de",
+        "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3913,13 +3913,13 @@
       },
       {
         "day": "2026-07-10",
-        "language": "it",
+        "language": "de",
         "event_count": 1,
         "unique_users": 1
       },
       {
         "day": "2026-07-10",
-        "language": "de",
+        "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
@@ -3943,12 +3943,6 @@
       },
       {
         "day": "2026-07-13",
-        "language": "it",
-        "event_count": 1,
-        "unique_users": 1
-      },
-      {
-        "day": "2026-07-13",
         "language": "fr",
         "event_count": 1,
         "unique_users": 1
@@ -3956,6 +3950,12 @@
       {
         "day": "2026-07-13",
         "language": "en",
+        "event_count": 1,
+        "unique_users": 1
+      },
+      {
+        "day": "2026-07-13",
+        "language": "it",
         "event_count": 1,
         "unique_users": 1
       },
@@ -4888,5 +4888,5 @@
       }
     ]
   },
-  "generated_at": "2026-09-25T16:21:13.988985+00:00"
+  "generated_at": "2026-09-25T21:01:10.488911+00:00"
 }
