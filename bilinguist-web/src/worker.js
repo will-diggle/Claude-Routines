@@ -4,9 +4,34 @@
    Die Kartoffel-Regatta at /api/race/<CODE>.
    ============================================================ */
 
+// EU member states — priced in euros. GB gets pounds, everyone else (US
+// included) gets dollars as the catch-all.
+const EUR_COUNTRIES = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
+  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
+  "SI", "ES", "SE",
+]);
+
+function priceForCountry(country) {
+  if (country === "GB") return { currency: "GBP", symbol: "£", amount: "3.99" };
+  if (EUR_COUNTRIES.has(country)) return { currency: "EUR", symbol: "€", amount: "3.99" };
+  return { currency: "USD", symbol: "$", amount: "4.99" };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/locale-price") {
+      const country = (request.cf && request.cf.country) || "GB";
+      const price = priceForCountry(country);
+      return new Response(JSON.stringify({ country, ...price }), {
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "public, max-age=3600",
+        },
+      });
+    }
 
     if (url.pathname.startsWith("/api/race/")) {
       const code = (url.pathname.split("/")[3] || "").toUpperCase();

@@ -7,6 +7,9 @@ node_modules/
 # generated types
 .astro/
 
+# local wrangler dev cache
+.wrangler/
+
 # environment variables
 .env
 .env.production

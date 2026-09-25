@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { DEFAULT_PRICE } from '../lib/config';
 ---
 <Layout title="Premium" description="Unlock the full Bilinguist Brief edition — every language, every level, the full daily briefing.">
   <div class="wrap paywall">
@@ -7,7 +8,7 @@ import Layout from '../layouts/Layout.astro';
     <p class="tagline paywall-subhead">Read the news in any language. Learn without thinking about it.</p>
 
     <div class="price-card">
-      <p class="price-amount">£3.50</p>
+      <p id="price-amount" class="price-amount">{DEFAULT_PRICE.symbol}{DEFAULT_PRICE.amount}</p>
       <p class="price-period">per month · cancel anytime</p>
     </div>
 
@@ -35,7 +36,7 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </div>
 
-    <button id="subscribe-btn" class="subscribe-btn" type="button">Subscribe — £3.50/month</button>
+    <button id="subscribe-btn" class="subscribe-btn" type="button">Subscribe — <span id="subscribe-price">{DEFAULT_PRICE.symbol}{DEFAULT_PRICE.amount}</span>/month</button>
     <p id="subscribe-note" class="meta-text subscribe-note" hidden>Subscriptions aren't live yet — check back when we launch.</p>
 
     <button id="restore-btn" class="restore-link" type="button">Restore purchase</button>
@@ -54,6 +55,23 @@ import Layout from '../layouts/Layout.astro';
 
 <script>
   import { PROMO_CODES } from '../lib/config';
+
+  const priceAmountEl = document.getElementById('price-amount') as HTMLParagraphElement;
+  const subscribePriceEl = document.getElementById('subscribe-price') as HTMLSpanElement;
+
+  // The Worker reads the visitor's country at the edge (Cloudflare's `cf`
+  // object) and returns the right currency — no geolocation prompt needed.
+  // Falls back silently to the page's static default price if unreachable
+  // (e.g. local `astro preview`, which doesn't run the Worker).
+  fetch('/api/locale-price')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((price) => {
+      if (!price || !price.symbol || !price.amount) return;
+      const text = `${price.symbol}${price.amount}`;
+      priceAmountEl.textContent = text;
+      subscribePriceEl.textContent = text;
+    })
+    .catch(() => {});
 
   const subscribeBtn = document.getElementById('subscribe-btn') as HTMLButtonElement;
   const subscribeNote = document.getElementById('subscribe-note') as HTMLParagraphElement;
