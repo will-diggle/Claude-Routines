@@ -148,3 +148,8 @@ export const PROMO_CODES: Record<string, string> = {
 // Cloudflare Worker — same content source the iOS app reads, filtered
 // server-side to a single language/level slice. Public, CORS-enabled, no key.
 export const WORKER_BASE = 'https://bilinguist-brief.williamdiggz.workers.dev';
+
+// Fallback subscription price shown before /api/locale-price resolves (or if
+// it's unreachable, e.g. local `astro preview` without the Worker running).
+// The Worker picks the real one from the visitor's country at the edge.
+export const DEFAULT_PRICE = { currency: 'GBP', symbol: '£', amount: '3.99' };
