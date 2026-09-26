@@ -21,10 +21,11 @@ export const APP_STORE_URL = APP_STORE_ID ? `https://apps.apple.com/app/id${APP_
 export const APPLE_SIGN_IN_ON_WEB = false;
 
 // Versions of the Terms of Service and Privacy Policy a new account agrees
-// to, sent to the app's record-acceptance function. The documents are still
-// drafts without version numbers in the app, so this is the website's own
-// label — keep it in step with whatever versions the app records.
-export const LEGAL_VERSIONS = { terms: 'draft-2026-09-26', privacy: 'draft-2026-09-26' };
+// to, sent to the app's record-acceptance function. Must equal TERMS_VERSION /
+// PRIVACY_VERSION in bilinguist-brief/src/store/useAuthStore.ts, and change
+// whenever src/content/legal.json (identical to the app's copy) changes in
+// substance.
+export const LEGAL_VERSIONS = { terms: '2026-09-26', privacy: '2026-09-26' };
 
 // The app's URL scheme (app.json "scheme") — opens the installed app.
 export const APP_SCHEME_URL = 'bilinguistbrief://';

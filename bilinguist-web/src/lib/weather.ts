@@ -76,6 +76,10 @@ async function getCityInLanguage(lat: number, lon: number, lang: LanguageCode): 
   }
 }
 
+function roundCoord(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 export function getBrowserLocation(): Promise<{ latitude: number; longitude: number } | null> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -83,7 +87,9 @@ export function getBrowserLocation(): Promise<{ latitude: number; longitude: num
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      // Rounded to 2 decimal places (~1 km) before it goes to Nominatim or
+      // Open-Meteo — the privacy policy says "approximate location".
+      (pos) => resolve({ latitude: roundCoord(pos.coords.latitude), longitude: roundCoord(pos.coords.longitude) }),
       () => resolve(null),
       { timeout: 5000, maximumAge: 30 * 60 * 1000 },
     );
