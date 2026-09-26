@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { DEFAULT_PRICE } from '../lib/config';
+import AppStoreBadge from '../components/AppStoreBadge.astro';
+import { APP_STORE_URL, DEFAULT_PRICE } from '../lib/config';
 ---
 <Layout title="Premium" description="Unlock the full Bilinguist Brief edition — every language, every level, the full daily briefing.">
   <div class="wrap paywall">
@@ -38,11 +39,22 @@ import { DEFAULT_PRICE } from '../lib/config';
       </div>
     </div>
 
-    <button id="subscribe-btn" class="subscribe-btn" type="button">Subscribe — <span id="subscribe-price">{DEFAULT_PRICE.symbol}{DEFAULT_PRICE.amount}</span>/month</button>
-    <p id="subscribe-note" class="meta-text subscribe-note" hidden>Subscriptions aren't live yet — check back when we launch.</p>
+    {/* Subscriptions are sold in the iPhone app (App Store billing via
+        RevenueCat); the website unlocks for the same account automatically. */}
+    {APP_STORE_URL ? (
+      <a id="subscribe-btn" class="subscribe-btn" href={APP_STORE_URL} rel="noopener">Subscribe in the app — <span id="subscribe-price">{DEFAULT_PRICE.symbol}{DEFAULT_PRICE.amount}</span>/month</a>
+    ) : (
+      <button id="subscribe-btn" class="subscribe-btn" type="button">Subscribe in the app — <span id="subscribe-price">{DEFAULT_PRICE.symbol}{DEFAULT_PRICE.amount}</span>/month</button>
+    )}
+    <p id="subscribe-note" class="meta-text subscribe-note" hidden={!APP_STORE_URL}>
+      {APP_STORE_URL
+        ? 'Subscribe in the Bilinguist Brief iPhone app, then sign in here with the same account — the full edition unlocks on the website too.'
+        : "Subscriptions are taken in the Bilinguist Brief iPhone app, coming soon to the App Store. Once you've subscribed there, sign in here with the same account and the full edition unlocks on the website too."}
+    </p>
 
-    <button id="restore-btn" class="restore-link" type="button">Restore purchase</button>
-    <p id="restore-note" class="meta-text restore-note" hidden>Nothing to restore yet — subscriptions aren't live.</p>
+    <AppStoreBadge height={44} />
+
+    <a class="restore-link" href="/login">Already subscribed in the app? Sign in with the same account</a>
 
     <div class="promo-section">
       <button id="promo-toggle" class="promo-toggle" type="button">Have a code?</button>
@@ -75,17 +87,14 @@ import { DEFAULT_PRICE } from '../lib/config';
     })
     .catch(() => {});
 
-  const subscribeBtn = document.getElementById('subscribe-btn') as HTMLButtonElement;
+  // Before the App Store listing exists the button explains where to subscribe.
+  const subscribeBtn = document.getElementById('subscribe-btn') as HTMLElement;
   const subscribeNote = document.getElementById('subscribe-note') as HTMLParagraphElement;
-  subscribeBtn.addEventListener('click', () => {
-    subscribeNote.hidden = false;
-  });
-
-  const restoreBtn = document.getElementById('restore-btn') as HTMLButtonElement;
-  const restoreNote = document.getElementById('restore-note') as HTMLParagraphElement;
-  restoreBtn.addEventListener('click', () => {
-    restoreNote.hidden = false;
-  });
+  if (subscribeBtn.tagName === 'BUTTON') {
+    subscribeBtn.addEventListener('click', () => {
+      subscribeNote.hidden = false;
+    });
+  }
 
   const promoToggle = document.getElementById('promo-toggle') as HTMLButtonElement;
   const promoForm = document.getElementById('promo-form') as HTMLDivElement;
@@ -104,7 +113,7 @@ import { DEFAULT_PRICE } from '../lib/config';
     const label = PROMO_CODES[code];
     promoResult.hidden = false;
     promoResult.textContent = label
-      ? `Code applied: ${label} — thanks! We'll honor this when subscriptions go live.`
+      ? `${code} (${label}) is a valid code — enter it on the paywall in the iPhone app to unlock the full edition.`
       : "That code isn't valid — check it and try again.";
   });
 </script>
@@ -240,6 +249,13 @@ import { DEFAULT_PRICE } from '../lib/config';
     cursor: pointer;
   }
 
+  a.subscribe-btn {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    box-sizing: border-box;
+  }
+
   .subscribe-note,
   .restore-note {
     margin: calc(var(--space-md) * -1) 0 0;
@@ -248,7 +264,8 @@ import { DEFAULT_PRICE } from '../lib/config';
   .restore-link {
     font-family: var(--font-body-family);
     font-size: 13px;
-    color: var(--color-ink-faint);
+    color: var(--color-ink-light);
+    text-underline-offset: 3px;
     background: none;
     border: none;
     cursor: pointer;
