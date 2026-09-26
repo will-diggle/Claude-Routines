@@ -12,6 +12,12 @@ import { PIPELINE_READY_TIME } from '../services/notifications';
 // Cached user GPS coords for the session — undefined = not yet fetched, null = denied/failed
 let _userCoords: { latitude: number; longitude: number; cityName?: string } | null | undefined = undefined;
 
+// 2 decimal places ≈ 1.1 km — Apple's "coarse location" threshold is fewer
+// than 3 decimal places.
+function roundCoord(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 // Briefings are generated server-side at 04:30 UTC and delivered via the
 // Cloudflare Worker. The app never calls Anthropic directly — no API key
 // is stored in or shipped with the app.
@@ -391,12 +397,16 @@ export const useBriefingStore = create<BriefingStore>()(
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status === 'granted') {
               const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-              const geo = await Location.reverseGeocodeAsync({
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-              });
+              // Round to 2 decimal places (~1 km) before the position goes
+              // anywhere — Apple's geocoder, Nominatim, Open-Meteo, the map
+              // tiles and the persisted weather cache all get this coarse
+              // value. The privacy policy and App Store answers declare
+              // "approximate location" on that basis; don't pass raw coords.
+              const latitude = roundCoord(pos.coords.latitude);
+              const longitude = roundCoord(pos.coords.longitude);
+              const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
               const cityName = geo[0]?.city ?? geo[0]?.district ?? geo[0]?.region ?? undefined;
-              _userCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, cityName };
+              _userCoords = { latitude, longitude, cityName };
             } else {
               _userCoords = null; // permission denied — fall back to capital city
             }

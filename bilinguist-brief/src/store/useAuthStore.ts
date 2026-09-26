@@ -4,16 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 import { identifyUser, resetIdentity } from '../services/analytics';
 import { loginPurchasesUser, logoutPurchasesUser } from '../services/purchases';
-import { syncPushRegistration } from '../services/pushRegistration';
+import { syncPushRegistration, unregisterPushToken } from '../services/pushRegistration';
 import { useSubscriptionStore } from './useSubscriptionStore';
 import type { Session } from '@supabase/supabase-js';
 
-// Bumped whenever the legal draft's substance materially changes — see
-// scripts/legal-draft-privacy-terms.md. Recorded (with a timestamp) against
-// every session so there's an actual audit trail of what a user agreed to,
-// rather than nothing at all — record-acceptance existed but nothing called it.
-const TERMS_VERSION = '2026-09-17';
-const PRIVACY_VERSION = '2026-09-19';
+// Bumped whenever the substance of the Terms / Privacy Policy changes — the
+// text lives in src/content/legal.json (identical copy published on the
+// website). Must equal LEGAL_VERSIONS in bilinguist-web/src/lib/config.ts,
+// which website sign-ups record. Recorded (with a timestamp) by
+// record-acceptance so there's an audit trail of what a user agreed to.
+const TERMS_VERSION = '2026-09-26';
+const PRIVACY_VERSION = '2026-09-26';
 
 // Fire-and-forget — must never block sign-in on a network call, and a failure
 // here (offline, function cold-start) shouldn't surface as a sign-in error.
@@ -79,7 +80,15 @@ export const useAuthStore = create<AuthStore>()(
           });
           const userId = session.user.id;
           const recorded = get().acceptedLegalVersions[userId];
-          if (recorded?.terms !== TERMS_VERSION || recorded?.privacy !== PRIVACY_VERSION) {
+          // Record only when this device has never recorded an acceptance for
+          // this account — i.e. the user just came through the sign-in screen,
+          // which shows the Terms/Privacy acknowledgement. A version bump for
+          // an already-signed-in user must NOT be silently recorded as
+          // accepted: they haven't seen the new text. That needs an in-app
+          // "we've updated our terms" notice (not built yet) to record it.
+          // record-acceptance is idempotent server-side, so a reinstall
+          // re-sending the same versions changes nothing.
+          if (!recorded) {
             recordLegalAcceptance(session).then((ok) => {
               if (!ok) return;
               set((s) => ({
@@ -97,6 +106,10 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       signOut: async () => {
+        // Detach this device's push token first — it needs the still-valid
+        // session, and a signed-out device shouldn't keep getting this
+        // account's notifications. Best-effort, capped at a few seconds.
+        await unregisterPushToken(get().session);
         if (supabase) await supabase.auth.signOut().catch(() => {});
         set({ session: null });
         resetIdentity();

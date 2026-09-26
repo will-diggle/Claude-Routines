@@ -33,6 +33,11 @@ interface FunctionError extends Error {
   status?: number;
 }
 
+// search-username returns nothing for shorter queries (so prefixes can't be
+// used to list every user) — skip the round trip. Keep in step with
+// MIN_QUERY_LENGTH in supabase/functions/search-username.
+export const MIN_USERNAME_QUERY = 3;
+
 function functionsUrl(name: string): string {
   return `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/${name}`;
 }
@@ -139,7 +144,7 @@ export const useFriendsStore = create<FriendsStore>()((set, get) => ({
   searchError: null,
   searchUsernames: async (query) => {
     const trimmed = query.trim();
-    if (!trimmed) {
+    if (trimmed.length < MIN_USERNAME_QUERY) {
       set({ searchResults: [], searchLoading: false, searchError: null });
       return;
     }

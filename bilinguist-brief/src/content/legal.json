@@ -1,0 +1,772 @@
+{
+  "privacy": {
+    "title": "Privacy Policy",
+    "subtitle": "Bilinguist Brief",
+    "effectiveDate": "Last updated: 26 September 2026",
+    "sections": [
+      {
+        "heading": "The short version",
+        "items": [
+          {
+            "type": "bullet",
+            "text": "We collect what we need to run your account, your streaks and your daily briefing. We don't sell your data and we don't show adverts."
+          },
+          {
+            "type": "bullet",
+            "text": "You can read briefings without an account. If you sign in, we store your email address and reading streaks, plus a username and profile photo if you add them."
+          },
+          {
+            "type": "bullet",
+            "text": "When you tap a word, the word and its sentence are sent to an AI service to explain it. Nothing that identifies you is sent with it."
+          },
+          {
+            "type": "bullet",
+            "text": "Location is optional and only used to show local weather. It never reaches our servers."
+          },
+          {
+            "type": "bullet",
+            "text": "We use analytics to see how the app is used. You can turn this off in Settings."
+          },
+          {
+            "type": "bullet",
+            "text": "You can delete your account in the app at any time."
+          }
+        ]
+      },
+      {
+        "heading": "1. Who we are",
+        "items": [
+          {
+            "type": "text",
+            "text": "Bilinguist Brief (the iOS app and the website bilinguistbrief.com) is run by William Diggle, a sole trader based in the United Kingdom (\"we\", \"us\", \"our\"). We decide how and why your personal data is used, which makes us the \"controller\" under data protection law."
+          },
+          {
+            "type": "bullet",
+            "text": "Postal address: [TO ADD: postal address]"
+          },
+          {
+            "type": "bullet",
+            "text": "Privacy questions and requests: privacy@bilinguistbrief.com"
+          },
+          {
+            "type": "bullet",
+            "text": "Everything else: support@bilinguistbrief.com"
+          },
+          {
+            "type": "bullet",
+            "text": "Registered with the UK Information Commissioner's Office: [TO ADD: ICO registration number]"
+          }
+        ]
+      },
+      {
+        "heading": "2. What we collect and why",
+        "items": [
+          {
+            "type": "label",
+            "text": "If you use the app without an account"
+          },
+          {
+            "type": "bullet",
+            "text": "A random identifier created on your device, used for analytics (see \"Analytics\" below). It isn't linked to your name or email address."
+          },
+          {
+            "type": "bullet",
+            "text": "Your settings, saved words, streak progress and downloaded briefings. These stay on your device."
+          },
+          {
+            "type": "label",
+            "text": "Your account"
+          },
+          {
+            "type": "text",
+            "text": "When you create an account, we receive:"
+          },
+          {
+            "type": "bullet",
+            "text": "Email sign-up: your email address and a password. The password is stored in scrambled (hashed) form by our sign-in provider. We can't read it."
+          },
+          {
+            "type": "bullet",
+            "text": "Sign in with Apple: your email address, or a private relay address if you choose \"Hide My Email\". We don't store the name Apple offers to share."
+          },
+          {
+            "type": "bullet",
+            "text": "Sign in with Google: your name, email address and a link to your Google profile picture."
+          },
+          {
+            "type": "bullet",
+            "text": "An account ID that we generate."
+          },
+          {
+            "type": "text",
+            "text": "We use these to create and secure your account, sign you in, and send you account emails: for example to confirm your email address, reset your password, or confirm which version of our Terms and this policy you accepted, and when."
+          },
+          {
+            "type": "label",
+            "text": "Your profile (optional)"
+          },
+          {
+            "type": "bullet",
+            "text": "Display name and username. Other signed-in users can find your username by searching for it (at least three characters), so they can send you a friend request."
+          },
+          {
+            "type": "bullet",
+            "text": "Profile photo. Only the one photo you pick is uploaded, resized to a small square. It isn't shown to other users."
+          },
+          {
+            "type": "label",
+            "text": "Reading activity (if you're signed in)"
+          },
+          {
+            "type": "text",
+            "text": "For each language: your reading streak, the days you read, how long you read for and how many words, streak freezes you've used, your practice streak, number of sessions and best game score, and which languages you're learning. We use this to keep your streaks and progress the same on all your devices, and to show your friends your streaks."
+          },
+          {
+            "type": "label",
+            "text": "Friends (optional)"
+          },
+          {
+            "type": "text",
+            "text": "We store your friend requests, your friendships and any invite links you create. Each invite link works once, within 7 days."
+          },
+          {
+            "type": "text",
+            "text": "Accepted friends can see your username, your reading streak in each language and which languages you're learning. They can't see your email address, name, photo, reading history or saved words. There is no messaging between users."
+          },
+          {
+            "type": "label",
+            "text": "Notifications (optional)"
+          },
+          {
+            "type": "text",
+            "text": "If you allow notifications while signed in, we store a push token for your device, your device type, the notification time you chose and your time zone. We use these only to send your daily briefing notification at the right local time."
+          },
+          {
+            "type": "label",
+            "text": "Subscriptions"
+          },
+          {
+            "type": "text",
+            "text": "If you subscribe to Premium, Apple handles the payment and we never see your card details. Our subscription provider, RevenueCat, tells us whether your subscription is active and when it started, renews or ends. This is linked to your account ID."
+          },
+          {
+            "type": "label",
+            "text": "Support messages"
+          },
+          {
+            "type": "text",
+            "text": "If you contact us through the app or by email, we receive your email address, your message, and your app version and device type. We use these to reply to you."
+          },
+          {
+            "type": "label",
+            "text": "Location (optional)"
+          },
+          {
+            "type": "text",
+            "text": "If you allow location access, the app uses your approximate location, to within about a kilometre, to show local weather and the name of your town. Your location is sent to the weather and map services listed in section 4. It never goes to our own servers. Your device keeps your most recent weather, including this approximate position, so it can show it quickly next time. You can switch location off at any time in your iPhone's Settings; the app then shows weather for a capital city instead."
+          },
+          {
+            "type": "label",
+            "text": "Words you look up"
+          },
+          {
+            "type": "text",
+            "text": "When you tap a word, the app sends the word, its language, your level and the sentence around it to our server to get a translation and explanation. Usually the sentence is from an article; if you tap a word in the weather line, it may include your town's name. No account ID, email address or other identifier is sent with it."
+          },
+          {
+            "type": "label",
+            "text": "Analytics"
+          },
+          {
+            "type": "text",
+            "text": "We use PostHog to understand how the app is used so we can improve it: screens viewed, briefings opened and finished, reading time, words tapped and saved, games played and scores, streak events, the settings you choose and whether you have Premium, along with your device model, operating system, app version, language and time zone. This is linked to your account ID if you're signed in, or to the random identifier above if you're not. We don't send your email address or name to PostHog, and PostHog is set not to store your IP address. We don't use analytics for advertising."
+          },
+          {
+            "type": "text",
+            "text": "Analytics is on by default. You can turn it off at any time in Settings > Account Settings > Privacy."
+          },
+          {
+            "type": "label",
+            "text": "Permissions that don't send any data"
+          },
+          {
+            "type": "bullet",
+            "text": "Motion: used only for the tilt effect in celebration animations, on your device."
+          },
+          {
+            "type": "bullet",
+            "text": "Photos: used only to pick a profile photo. Only the photo you choose is uploaded."
+          }
+        ]
+      },
+      {
+        "heading": "3. Our legal reasons for using your data",
+        "items": [
+          {
+            "type": "text",
+            "text": "Under UK GDPR and EU GDPR we rely on:"
+          },
+          {
+            "type": "bullet",
+            "text": "Our contract with you (our Terms of Service): running your account, syncing streaks, the friends feature, notifications, your subscription, and replying to support requests."
+          },
+          {
+            "type": "bullet",
+            "text": "Legitimate interests: analytics to improve the app, keeping the app secure and preventing abuse, fixing problems, keeping a record of which Terms and privacy policy you accepted, and saving word explanations so they load faster for everyone. We have weighed these against your rights, taking extra care for users under 18. You can object at any time (section 8)."
+          },
+          {
+            "type": "bullet",
+            "text": "Your consent, given through your device's permission prompts: location and notifications. You can withdraw it at any time in your device settings."
+          },
+          {
+            "type": "bullet",
+            "text": "Legal obligations: for example, responding to lawful requests from authorities."
+          }
+        ]
+      },
+      {
+        "heading": "4. Who we share data with",
+        "items": [
+          {
+            "type": "text",
+            "text": "We don't sell your personal data, and we don't share it for advertising."
+          },
+          {
+            "type": "label",
+            "text": "Service providers"
+          },
+          {
+            "type": "text",
+            "text": "These providers act on our instructions under data processing contracts:"
+          },
+          {
+            "type": "bullet",
+            "text": "Supabase: database, sign-in, file storage and server functions for your account, profile, profile photo, streaks, friends, notification settings and subscription status. Data held in the EU (Frankfurt, Germany)."
+          },
+          {
+            "type": "bullet",
+            "text": "Cloudflare: domain name, website and content-server hosting, and forwarding email sent to our support and privacy addresses. Receives your IP address and requests to our website and servers, including words you look up. Worldwide network."
+          },
+          {
+            "type": "bullet",
+            "text": "Anthropic: writes word explanations with AI. Receives the word, its language, your level and the sentence around it, with no identifiers. United States."
+          },
+          {
+            "type": "bullet",
+            "text": "PostHog: analytics, as described in section 2. EU (Frankfurt, Germany)."
+          },
+          {
+            "type": "bullet",
+            "text": "RevenueCat: manages subscriptions. Receives your account ID and your purchase and subscription records from Apple. United States."
+          },
+          {
+            "type": "bullet",
+            "text": "Expo: sends notifications through Apple's push notification service. Receives your push token and the notification text. United States."
+          },
+          {
+            "type": "bullet",
+            "text": "Resend: sends our emails, such as sign-up confirmations, password resets and acceptance confirmations, and passes on messages from the in-app support form. Receives your email address, display name and the content of those emails. We don't track whether you open or click them. EU (Ireland)."
+          },
+          {
+            "type": "bullet",
+            "text": "[TO ADD: the provider of the inbox our support and privacy addresses forward to]: receives emails you send us."
+          },
+          {
+            "type": "label",
+            "text": "Independent services"
+          },
+          {
+            "type": "text",
+            "text": "These services use data under their own privacy policies:"
+          },
+          {
+            "type": "bullet",
+            "text": "Apple: Sign in with Apple, App Store payments, delivering notifications, and turning your location into a town name."
+          },
+          {
+            "type": "bullet",
+            "text": "Google: Sign in with Google; translations and word pronunciation (receives the word or sentence you look up and your device's IP address); and fonts on our website (receives your IP address)."
+          },
+          {
+            "type": "bullet",
+            "text": "Weather and maps: Open-Meteo (weather) and OpenStreetMap's Nominatim service (town names) receive your approximate location. The weather map loads map images from Esri, CARTO, OpenStreetMap, OpenWeatherMap and RainViewer, and map software from unpkg, which receive the map area you view and your IP address."
+          },
+          {
+            "type": "label",
+            "text": "Other disclosures"
+          },
+          {
+            "type": "text",
+            "text": "We may also disclose data if the law requires it, to protect our rights or someone's safety, or to a buyer if Bilinguist Brief is ever sold, in which case this policy would continue to apply to your data."
+          },
+          {
+            "type": "label",
+            "text": "How the daily briefings are made"
+          },
+          {
+            "type": "text",
+            "text": "The briefings are written with the help of AI models from Google (Gemini) and Anthropic, using publicly reported news. No user data is used to write them."
+          }
+        ]
+      },
+      {
+        "heading": "5. International transfers",
+        "items": [
+          {
+            "type": "text",
+            "text": "Supabase, PostHog and Resend hold your data in the EU, which UK law recognises as giving adequate protection. Some of our other providers are in the United States or process data worldwide. When personal data leaves the UK or the European Economic Area, we rely on the UK Extension to the EU-US Data Privacy Framework where the provider is certified, or on the European Commission's Standard Contractual Clauses together with the UK's International Data Transfer Addendum, which form part of our providers' data processing terms. You can ask us for more detail."
+          }
+        ]
+      },
+      {
+        "heading": "6. How long we keep your data",
+        "items": [
+          {
+            "type": "bullet",
+            "text": "Account, profile, streaks, reading history, friends and notification settings: until you delete your account."
+          },
+          {
+            "type": "bullet",
+            "text": "Friend requests: until they're accepted, declined or cancelled. Invite links stop working once used, or after 7 days."
+          },
+          {
+            "type": "bullet",
+            "text": "Push token: until you sign out, turn off notifications or delete your account."
+          },
+          {
+            "type": "bullet",
+            "text": "Analytics: 12 months."
+          },
+          {
+            "type": "bullet",
+            "text": "Support emails: 2 years after our last message to you."
+          },
+          {
+            "type": "bullet",
+            "text": "Technical logs kept by our providers: usually up to 30 days."
+          },
+          {
+            "type": "bullet",
+            "text": "Word explanations we generate: indefinitely, stored without any link to you."
+          },
+          {
+            "type": "bullet",
+            "text": "On your device: until you delete the app. Signing out doesn't remove saved words or settings from your device."
+          },
+          {
+            "type": "text",
+            "text": "Apple keeps its own purchase records for as long as tax and accounting law requires."
+          }
+        ]
+      },
+      {
+        "heading": "7. Deleting your account",
+        "items": [
+          {
+            "type": "text",
+            "text": "You can delete your account in the app: Settings > Account Settings > Delete account. You can also email privacy@bilinguistbrief.com from the address on your account."
+          },
+          {
+            "type": "text",
+            "text": "Deleting your account immediately and permanently removes your account and profile, your profile photo, your streaks and reading history, your friendships and invite links, your notification settings and push tokens, your subscription status, your analytics data in PostHog and your customer record at RevenueCat. Deleted data may remain in our providers' backups for up to 30 days before it's overwritten."
+          },
+          {
+            "type": "text",
+            "text": "Deleting your account does not cancel an App Store subscription. Cancel it first in your Apple ID settings (see our Terms of Service)."
+          }
+        ]
+      },
+      {
+        "heading": "8. Your rights",
+        "items": [
+          {
+            "type": "text",
+            "text": "Under UK GDPR and EU GDPR you have the right to:"
+          },
+          {
+            "type": "bullet",
+            "text": "see the personal data we hold about you and get a copy;"
+          },
+          {
+            "type": "bullet",
+            "text": "correct data that's wrong;"
+          },
+          {
+            "type": "bullet",
+            "text": "have your data deleted;"
+          },
+          {
+            "type": "bullet",
+            "text": "limit how we use it;"
+          },
+          {
+            "type": "bullet",
+            "text": "receive it in a portable format;"
+          },
+          {
+            "type": "bullet",
+            "text": "object to how we use it, including analytics;"
+          },
+          {
+            "type": "bullet",
+            "text": "withdraw consent where we rely on it."
+          },
+          {
+            "type": "text",
+            "text": "We don't make decisions about you using only automated processing that have legal or similarly significant effects."
+          },
+          {
+            "type": "text",
+            "text": "To use any of these rights, email privacy@bilinguistbrief.com. It's free, and we'll reply within one month. We may ask you to confirm your identity, for example by writing from the email address on your account."
+          },
+          {
+            "type": "text",
+            "text": "If you're unhappy with how we've handled your data, you can complain to the Information Commissioner's Office (ico.org.uk, 0303 123 1113) or, in the EU, your local data protection authority. We'd appreciate the chance to put things right first."
+          },
+          {
+            "type": "label",
+            "text": "US state privacy rights"
+          },
+          {
+            "type": "text",
+            "text": "If you live in a US state with a consumer privacy law, such as California: we don't sell your personal information or share it for cross-context behavioural advertising, and we don't use sensitive personal information to infer things about you. You can ask to know, correct or delete the personal information we hold, and we won't treat you differently for doing so. The categories we collect are identifiers (email address, account ID, push token), commercial information (subscription status), app activity (analytics) and approximate location (used on your device and sent to weather services), for the purposes described in section 2."
+          }
+        ]
+      },
+      {
+        "heading": "9. Children and teenagers",
+        "items": [
+          {
+            "type": "text",
+            "text": "You must be 13 or older to use Bilinguist Brief. If you're under 18, you need a parent or guardian's permission to accept our Terms of Service."
+          },
+          {
+            "type": "text",
+            "text": "We don't show adverts, sell data or profile anyone for marketing. Location and notifications stay off unless you turn them on. There's no messaging, and friends only see your username, streaks and languages."
+          },
+          {
+            "type": "text",
+            "text": "If we learn that someone under 13 has created an account, we'll delete it. Parents and guardians can contact privacy@bilinguistbrief.com."
+          }
+        ]
+      },
+      {
+        "heading": "10. Our website",
+        "items": [
+          {
+            "type": "text",
+            "text": "bilinguistbrief.com doesn't use advertising or analytics cookies and doesn't run analytics tools."
+          },
+          {
+            "type": "bullet",
+            "text": "It saves your display choices (theme, language, level, font and article length) in your browser's local storage so they're remembered."
+          },
+          {
+            "type": "bullet",
+            "text": "If you sign in, your sign-in session is saved in your browser's local storage until you sign out, and the site checks with RevenueCat, using your account ID, whether you have Premium."
+          },
+          {
+            "type": "bullet",
+            "text": "If you allow location in your browser, the site sends your approximate location to Open-Meteo and OpenStreetMap's Nominatim service to show weather. We don't receive it."
+          },
+          {
+            "type": "bullet",
+            "text": "We use your country, which Cloudflare works out from your IP address, to show prices in your currency."
+          },
+          {
+            "type": "bullet",
+            "text": "Cloudflare may set strictly necessary cookies to protect the site from attacks."
+          }
+        ]
+      },
+      {
+        "heading": "11. Security",
+        "items": [
+          {
+            "type": "text",
+            "text": "Data is encrypted in transit (HTTPS) and at rest by our providers. Database access rules mean each account can only read its own data, and access to our systems is limited to us. No system is perfectly secure; if a data breach puts you at risk, we'll tell you and the ICO where the law requires."
+          }
+        ]
+      },
+      {
+        "heading": "12. Changes to this policy",
+        "items": [
+          {
+            "type": "text",
+            "text": "If we change this policy, we'll update the date at the top. If a change is significant, we'll tell you in the app or by email before it takes effect."
+          }
+        ]
+      },
+      {
+        "heading": "13. Contact",
+        "items": [
+          {
+            "type": "text",
+            "text": "privacy@bilinguistbrief.com. William Diggle (Bilinguist Brief), [TO ADD: postal address]."
+          }
+        ]
+      }
+    ]
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "subtitle": "Bilinguist Brief",
+    "effectiveDate": "Last updated: 26 September 2026",
+    "sections": [
+      {
+        "heading": "1. About these Terms",
+        "items": [
+          {
+            "type": "text",
+            "text": "These Terms apply to the Bilinguist Brief iOS app and the website bilinguistbrief.com (together, \"Bilinguist Brief\"). Bilinguist Brief is run by William Diggle, a sole trader based in the United Kingdom (\"we\", \"us\", \"our\"). Address: [TO ADD: postal address]. Email: support@bilinguistbrief.com."
+          },
+          {
+            "type": "text",
+            "text": "Your licence to use the app comes from Apple's standard Licensed Application End User License Agreement (https://www.apple.com/legal/internet-services/itunes/dev/stdeula/). These Terms add to it. If the two conflict about your licence to use the app, Apple's agreement applies."
+          },
+          {
+            "type": "text",
+            "text": "Our Privacy Policy (https://bilinguistbrief.com/privacy/) explains how we use your personal data."
+          },
+          {
+            "type": "text",
+            "text": "By creating an account or using Bilinguist Brief, you agree to these Terms. If you don't agree, please don't use it."
+          }
+        ]
+      },
+      {
+        "heading": "2. Who can use Bilinguist Brief",
+        "items": [
+          {
+            "type": "text",
+            "text": "You must be 13 or older. If you're under 18, you need permission from a parent or guardian, and they should read these Terms with you."
+          }
+        ]
+      },
+      {
+        "heading": "3. What Bilinguist Brief is",
+        "items": [
+          {
+            "type": "text",
+            "text": "Bilinguist Brief gives you a daily news briefing written in the languages you're learning, at the level you choose, with tools such as tap-to-translate, word explanations, pronunciation, saved words, practice games, streaks and a friends feature."
+          },
+          {
+            "type": "text",
+            "text": "We may add, change or remove features over time. If a change significantly reduces what you get from a paid subscription, we'll tell you in advance and you can cancel (see section 5)."
+          }
+        ]
+      },
+      {
+        "heading": "4. AI-generated content",
+        "items": [
+          {
+            "type": "text",
+            "text": "The briefings, word explanations and some translations are produced by artificial intelligence. They may contain mistakes, including factual errors, wrong translations, wrong grammar or wrong pronunciation."
+          },
+          {
+            "type": "bullet",
+            "text": "Bilinguist Brief is a language-learning tool, not a news service of record. Don't rely on it as your only source of news, or as professional, medical, legal or financial advice."
+          },
+          {
+            "type": "bullet",
+            "text": "The briefings are original summaries based on publicly reported news. They are not copies of any publisher's articles, and we are not affiliated with or endorsed by any news organisation."
+          },
+          {
+            "type": "bullet",
+            "text": "The briefings cover real events, which can include distressing subjects such as war, disasters and loss of life."
+          },
+          {
+            "type": "bullet",
+            "text": "Weather information comes from third-party services and may be inaccurate."
+          },
+          {
+            "type": "text",
+            "text": "If you spot a mistake, please tell us at support@bilinguistbrief.com."
+          }
+        ]
+      },
+      {
+        "heading": "5. Premium subscription",
+        "items": [
+          {
+            "type": "text",
+            "text": "Bilinguist Brief is free to download. Some features need a Premium subscription. The subscription screen in the app shows exactly what Premium includes before you buy."
+          },
+          {
+            "type": "bullet",
+            "text": "Price and billing period: Premium is a monthly, auto-renewing subscription. It costs £3.99 a month in the UK, €3.99 a month in the EU and US$4.99 a month in most other countries. The App Store shows the exact price in your currency, including any applicable tax, before you confirm."
+          },
+          {
+            "type": "bullet",
+            "text": "Payment: payment is taken from your Apple ID account when you confirm the purchase."
+          },
+          {
+            "type": "bullet",
+            "text": "Automatic renewal: your subscription renews every month unless you turn off auto-renew at least 24 hours before the end of the current period. Your Apple ID account is charged for renewal within the 24 hours before the current period ends."
+          },
+          {
+            "type": "bullet",
+            "text": "Free trials: if a free trial is offered, its length is shown before you subscribe. When the trial ends it becomes a paid subscription unless you cancel at least 24 hours before the end of the trial. If you buy a subscription during a free trial, any unused part of the trial ends."
+          },
+          {
+            "type": "bullet",
+            "text": "Managing and cancelling: you can manage or cancel your subscription at any time in your iPhone's Settings (tap your name, then Subscriptions). Cancelling stops the next renewal; you keep Premium until the end of the period you've paid for. Deleting the app or your Bilinguist Brief account does not cancel your subscription."
+          },
+          {
+            "type": "bullet",
+            "text": "Refunds: Apple handles all payments and refunds for App Store purchases under its own terms, so we can't issue refunds ourselves. To request one, go to reportaproblem.apple.com. This doesn't affect your legal rights as a consumer."
+          },
+          {
+            "type": "bullet",
+            "text": "Price changes: if the price changes, Apple will tell you in advance and, where required, ask for your agreement before charging the new price."
+          },
+          {
+            "type": "bullet",
+            "text": "Restoring purchases: if you reinstall the app or use another device with the same Apple ID, tap \"Restore purchase\" on the subscription screen."
+          },
+          {
+            "type": "bullet",
+            "text": "Where to buy: Premium can only be bought through the App Store. We don't sell subscriptions on our website."
+          }
+        ]
+      },
+      {
+        "heading": "6. Your account",
+        "items": [
+          {
+            "type": "bullet",
+            "text": "Keep your sign-in details secure, and tell us if you think someone else has used your account."
+          },
+          {
+            "type": "bullet",
+            "text": "Give accurate information, and don't create an account for someone else."
+          },
+          {
+            "type": "bullet",
+            "text": "You can delete your account at any time in the app (Settings > Account Settings > Delete account). The Privacy Policy explains what's deleted."
+          }
+        ]
+      },
+      {
+        "heading": "7. Friends, usernames and profile photos",
+        "items": [
+          {
+            "type": "text",
+            "text": "You can add friends by searching for their username or by sharing an invite link. Friends can see your username, your reading streaks and which languages you're learning. There is no messaging, and you can remove a friend or decline a request at any time."
+          },
+          {
+            "type": "text",
+            "text": "Your username and profile photo must not be offensive, sexual, hateful or threatening, impersonate anyone, include someone else's personal information or infringe anyone's rights. We may change or remove a username or photo that breaks these rules."
+          }
+        ]
+      },
+      {
+        "heading": "8. Things you must not do",
+        "items": [
+          {
+            "type": "text",
+            "text": "You must not:"
+          },
+          {
+            "type": "bullet",
+            "text": "harass, bully or repeatedly contact another user against their wishes;"
+          },
+          {
+            "type": "bullet",
+            "text": "copy, scrape, resell or republish the briefings or other content, except for your own personal learning (sharing a briefing with the app's share button is fine);"
+          },
+          {
+            "type": "bullet",
+            "text": "use bots, scripts or other automated means to access Bilinguist Brief;"
+          },
+          {
+            "type": "bullet",
+            "text": "reverse engineer the app, or try to extract its source code, prompts or data, except where the law allows;"
+          },
+          {
+            "type": "bullet",
+            "text": "try to get into accounts, systems or data you're not allowed to access, or interfere with how Bilinguist Brief works;"
+          },
+          {
+            "type": "bullet",
+            "text": "try to get Premium features without paying for them."
+          },
+          {
+            "type": "text",
+            "text": "We may suspend or close your account if you break these rules. Where it's reasonable, we'll tell you why first."
+          }
+        ]
+      },
+      {
+        "heading": "9. Our content",
+        "items": [
+          {
+            "type": "text",
+            "text": "Bilinguist Brief, including its design, software, briefings and other content, belongs to us or our licensors. We give you a personal, non-transferable right to use it for your own non-commercial language learning."
+          }
+        ]
+      },
+      {
+        "heading": "10. Availability",
+        "items": [
+          {
+            "type": "text",
+            "text": "We work to keep Bilinguist Brief running, but it may sometimes be unavailable: for example during maintenance, if a news source, AI provider or other service we rely on fails, or if the daily briefing is late. If we decide to close Bilinguist Brief entirely, we'll give you reasonable notice in the app."
+          }
+        ]
+      },
+      {
+        "heading": "11. Our responsibility to you",
+        "items": [
+          {
+            "type": "text",
+            "text": "If we break these Terms or fail to use reasonable care and skill, we're responsible for loss or damage you suffer that is a foreseeable result. Loss or damage is foreseeable if it's obvious it will happen, or if we both knew it might happen when you started using Bilinguist Brief."
+          },
+          {
+            "type": "text",
+            "text": "Bilinguist Brief is for personal, non-commercial use, so we're not responsible for business losses, such as lost profits or lost business opportunities."
+          },
+          {
+            "type": "text",
+            "text": "If defective digital content we supply damages a device or other digital content belonging to you, we'll repair the damage or pay you compensation. This doesn't apply if you could have avoided the damage by installing a free update we recommended, or if your device didn't meet the app's minimum requirements."
+          },
+          {
+            "type": "text",
+            "text": "We don't exclude or limit our liability where it would be unlawful to do so. This includes liability for death or personal injury caused by our negligence, for fraud, and for breaching your legal rights as a consumer, including your right to digital content that is as described, fit for purpose and of satisfactory quality."
+          }
+        ]
+      },
+      {
+        "heading": "12. Changes to these Terms",
+        "items": [
+          {
+            "type": "text",
+            "text": "We may update these Terms, for example when we add features or the law changes. If a change is significant, we'll tell you in the app or by email before it takes effect, and may ask you to accept the new Terms. If you don't agree, you can stop using Bilinguist Brief and cancel any subscription."
+          }
+        ]
+      },
+      {
+        "heading": "13. Law and disputes",
+        "items": [
+          {
+            "type": "text",
+            "text": "These Terms are governed by the law of England and Wales. You can bring legal proceedings in the courts of England and Wales; if you live in Scotland or Northern Ireland, you can also bring them in your local courts. If you live in the EU, you keep the protection of the mandatory consumer laws of your country and can bring proceedings there."
+          },
+          {
+            "type": "text",
+            "text": "If you have a problem, please contact us first at support@bilinguistbrief.com and we'll try to sort it out."
+          }
+        ]
+      },
+      {
+        "heading": "14. Contact",
+        "items": [
+          {
+            "type": "text",
+            "text": "support@bilinguistbrief.com. William Diggle (Bilinguist Brief), [TO ADD: postal address]."
+          }
+        ]
+      }
+    ]
+  }
+}
