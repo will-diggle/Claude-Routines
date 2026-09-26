@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
-import { useFriendsStore } from '../store/useFriendsStore';
+import { useFriendsStore, MIN_USERNAME_QUERY } from '../store/useFriendsStore';
 import { Spacing } from '../theme';
 
 // Rendered as one of FriendsScreen's internal views (not its own <Modal>) —
@@ -76,7 +76,11 @@ export function FriendSearchScreen() {
           <Text style={[styles.helper, { color: colors.accentRed, fontFamily: fontFamily.regular }]}>{searchError}</Text>
         ) : null}
 
-        {!searchLoading && queryInput.trim().length > 0 && searchResults.length === 0 && !searchError ? (
+        {queryInput.trim().length > 0 && queryInput.trim().length < MIN_USERNAME_QUERY ? (
+          <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>Type at least {MIN_USERNAME_QUERY} characters.</Text>
+        ) : null}
+
+        {!searchLoading && queryInput.trim().length >= MIN_USERNAME_QUERY && searchResults.length === 0 && !searchError ? (
           <Text style={[styles.helper, { color: colors.inkFaint, fontFamily: fontFamily.regular }]}>No one found with that username.</Text>
         ) : null}
 

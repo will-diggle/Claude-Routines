@@ -25,6 +25,7 @@ const CORS_HEADERS = {
 };
 
 const RESULT_LIMIT = 20;
+const MIN_QUERY_LENGTH = 3;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
@@ -59,7 +60,10 @@ serve(async (req) => {
   }
 
   const query = typeof body.query === 'string' ? body.query.trim().slice(0, 20) : '';
-  if (!query) return json({ results: [] });
+  // Minimum 3 characters, so short prefixes ("a", "b", …) can't be used to
+  // page through every username on the service. Keep in step with
+  // MIN_USERNAME_QUERY in src/store/useFriendsStore.ts.
+  if (query.length < MIN_QUERY_LENGTH) return json({ results: [] });
 
   // Service-role client — user_profiles only has a select-own RLS policy,
   // and this needs to read other users' rows (whitelisted to two columns).

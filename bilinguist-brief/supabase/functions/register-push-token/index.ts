@@ -4,6 +4,11 @@
 // notification-time preference and IANA timezone. Called on every sign-in
 // and whenever the user changes their briefing notification time.
 //
+// With { unregister: true } it instead deletes that token from the caller's
+// account — called just before sign-out, so a signed-out device stops
+// receiving the account's notifications (privacy policy: the push token is
+// kept "until you sign out").
+//
 // Requires a valid user JWT (verify_jwt = true in config.toml).
 //
 // Deploy: supabase functions deploy register-push-token
@@ -42,7 +47,7 @@ serve(async (req) => {
   const { data: { user }, error: userError } = await userClient.auth.getUser();
   if (userError || !user) return json({ error: 'Unauthorized' }, 401);
 
-  let body: { expoPushToken?: string; platform?: string; notificationTime?: string; timezone?: string };
+  let body: { expoPushToken?: string; platform?: string; notificationTime?: string; timezone?: string; unregister?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -51,6 +56,22 @@ serve(async (req) => {
 
   const expoPushToken = typeof body.expoPushToken === 'string' ? body.expoPushToken.trim() : '';
   if (!TOKEN_RE.test(expoPushToken)) return json({ error: 'Invalid expoPushToken' }, 400);
+
+  if (body.unregister === true) {
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+    // Scoped to the caller's own row — a token registered to another account
+    // is left alone.
+    const { error: deleteError } = await adminClient
+      .from('push_tokens')
+      .delete()
+      .eq('expo_push_token', expoPushToken)
+      .eq('user_id', user.id);
+    if (deleteError) {
+      console.error('register-push-token: push_tokens delete error', deleteError);
+      return json({ error: 'Failed to unregister push token' }, 500);
+    }
+    return json({ ok: true });
+  }
 
   const platform = body.platform;
   if (platform !== 'ios' && platform !== 'android') return json({ error: 'platform must be ios or android' }, 400);

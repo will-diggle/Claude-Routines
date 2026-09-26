@@ -35,7 +35,7 @@ export function FriendInviteScreen() {
       <Ionicons name="link" size={30} color={colors.inkFaint} style={{ marginBottom: Spacing.md }} />
       <Text style={[styles.title, { color: colors.inkDark, fontFamily: fontFamily.bold }]}>Invite a friend</Text>
       <Text style={[styles.subtitle, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-        Share this link — opening it on their device adds you as friends right away. Anyone who opens it within 7 days can use it.
+        Share this link with one friend — opening it on their device adds you as friends right away. It works once, within 7 days.
       </Text>
 
       {inviteLoading ? (

@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as WebBrowser from 'expo-web-browser';
 import { useTheme } from '../hooks/useTheme';
 import { useAuthFlows } from '../hooks/useAuthFlows';
 import { GlassSurface } from '../components/GlassSurface';
@@ -28,6 +29,11 @@ const APP_ICONS: Record<string, ReturnType<typeof require>> = {
   white:    require('../../assets/icon-white.png'),
   night:    require('../../assets/icon-black.png'),
 };
+
+// Same pages Settings links to — the website is the single published copy
+// of both documents.
+const TERMS_OF_SERVICE_URL = 'https://bilinguistbrief.com/terms/';
+const PRIVACY_POLICY_URL = 'https://bilinguistbrief.com/privacy/';
 
 interface Props {
   visible: boolean;
@@ -97,7 +103,7 @@ export function SignInRequiredScreen({ visible, onClose }: Props) {
           Sign in to continue
         </Text>
         <Text style={[styles.subtitle, { color: colors.inkMid, fontFamily: fontFamily.regular }]}>
-          Sync your reading streak, saved words, and preferences across every device.
+          Keep your reading streaks and progress in sync across your devices.
         </Text>
 
         {appleAvailable && (
@@ -127,6 +133,29 @@ export function SignInRequiredScreen({ visible, onClose }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Shown above every sign-in route (Apple, Google, email) so the
+            acknowledgement is on screen before any of them is tapped.
+            useAuthStore records the acceptance once the session arrives. */}
+        <Text style={[styles.legalNote, { color: colors.inkLight, fontFamily: fontFamily.regular }]}>
+          By continuing, you confirm you're 13 or older, agree to our{' '}
+          <Text
+            style={[styles.legalLink, { color: colors.inkMid }]}
+            onPress={() => WebBrowser.openBrowserAsync(TERMS_OF_SERVICE_URL)}
+            accessibilityRole="link"
+          >
+            Terms of Service
+          </Text>
+          {' '}and have read our{' '}
+          <Text
+            style={[styles.legalLink, { color: colors.inkMid }]}
+            onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
+            accessibilityRole="link"
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
 
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: colors.borderMid }]} />
@@ -263,6 +292,17 @@ const styles = StyleSheet.create({
   },
   glassPillText: {
     fontSize: 16,
+  },
+  legalNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.sm,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  legalLink: {
+    textDecorationLine: 'underline',
   },
   dividerRow: {
     flexDirection: 'row',

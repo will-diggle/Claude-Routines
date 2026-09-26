@@ -100,7 +100,8 @@ serve(async (req) => {
     : null;
 
   if (!eventType || !appUserId) {
-    console.warn('Webhook missing event.type or app_user_id:', JSON.stringify(payload));
+    // Don't log the payload itself — it can carry subscriber attributes.
+    console.warn(`Webhook missing event.type or app_user_id (type=${eventType ?? 'none'})`);
     return new Response('Missing required fields', { status: 400 });
   }
 
@@ -133,6 +134,17 @@ serve(async (req) => {
     );
 
   if (error) {
+    // 23503 = no such auth user (account deleted — delete-account also removes
+    // the RevenueCat customer, but Apple can still send renewals/expiries for
+    // it). 22P02 = not a UUID (an anonymous $RCAnonymousID purchase made before
+    // sign-in). Neither can ever succeed, so acknowledge rather than have
+    // RevenueCat retry indefinitely.
+    if (error.code === '23503' || error.code === '22P02') {
+      console.log(`RC event ${eventType} ignored: no matching account (${error.code})`);
+      return new Response(JSON.stringify({ ok: true, ignored: true }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     console.error(`user_subscriptions upsert error for ${appUserId}:`, error.message);
     return new Response('Database error', { status: 500 });
   }

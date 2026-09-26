@@ -74,7 +74,7 @@ serve(async (req) => {
   }
   if (!invite) return fail('invalid_token', 'This invite link is invalid.', 404);
   if (invite.revoked_at || new Date(invite.expires_at as string) < new Date()) {
-    return fail('expired', 'This invite link has expired.', 410);
+    return fail('expired', 'This invite link has already been used or has expired.', 410);
   }
   if (invite.owner_id === user.id) {
     return fail('self_invite', "You can't redeem your own invite link.", 400);
@@ -99,11 +99,35 @@ serve(async (req) => {
     return fail('already_pending', 'A friend request is already pending with this user.', 409);
   }
 
+  // Invite links are single-use: claim this one atomically before creating
+  // the friendship, so a forwarded or leaked link can't be redeemed by anyone
+  // else (the owner only agreed to befriend whoever they sent it to).
+  // create-friend-invite issues a fresh token once this one is used.
+  const nowIso = new Date().toISOString();
+  const { data: claimed, error: claimError } = await adminClient
+    .from('friend_invites')
+    .update({ revoked_at: nowIso })
+    .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', nowIso)
+    .select('token');
+
+  if (claimError) {
+    console.error('redeem-friend-invite: claim error', claimError);
+    return json({ error: 'Failed to redeem invite' }, 500);
+  }
+  if (!claimed?.length) {
+    // Someone else redeemed it between the lookup above and this claim.
+    return fail('expired', 'This invite link has already been used or has expired.', 410);
+  }
+
   const { error: insertError } = await adminClient
     .from('friendships')
     .insert({ requester_id: invite.owner_id, addressee_id: user.id, status: 'accepted' });
 
   if (insertError) {
+    // Give the link back — the friendship wasn't created, so it wasn't used.
+    await adminClient.from('friend_invites').update({ revoked_at: null }).eq('token', token);
     console.error('redeem-friend-invite: insert error', insertError);
     // Race: a concurrent redemption/request landed between the check above and this insert.
     if ((insertError as { code?: string }).code === '23505') {
