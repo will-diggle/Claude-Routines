@@ -1,15 +1,25 @@
 ---
 import '../styles/global.css';
 import { BOOTSTRAP_SCRIPT } from '../lib/preferences';
+import { AUTH_GATE_SCRIPT } from '../lib/auth';
 import Masthead from '../components/Masthead.astro';
 import Footer from '../components/Footer.astro';
 
 interface Props {
   title: string;
   description?: string;
+  /** Omit the masthead and footer (the login page draws its own chrome). */
+  bare?: boolean;
+  /** Send signed-out visitors to /login before first paint. */
+  gated?: boolean;
 }
 
-const { title, description = 'Bilinguist Brief — a daily multilingual news briefing, in your language and level.' } = Astro.props;
+const {
+  title,
+  description = 'Bilinguist Brief — a daily multilingual news briefing, in your language and level.',
+  bare = false,
+  gated = false,
+} = Astro.props;
 ---
 <!doctype html>
 <html lang="en">
@@ -30,13 +40,14 @@ const { title, description = 'Bilinguist Brief — a daily multilingual news bri
 
     <!-- Applies stored theme/font before first paint to avoid a flash of defaults. -->
     <script is:inline set:html={BOOTSTRAP_SCRIPT} />
+    {gated && <script is:inline set:html={AUTH_GATE_SCRIPT} />}
   </head>
   <body>
-    <Masthead />
+    {!bare && <Masthead />}
     <main>
       <slot />
     </main>
-    <Footer />
+    {!bare && <Footer />}
   </body>
 </html>
 

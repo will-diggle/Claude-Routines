@@ -12,17 +12,18 @@ import { FONTS, THEMES } from '../lib/config';
   <div id="profile-panel" class="profile-panel" hidden>
     <div class="profile-section">
       <span class="micro-label profile-label">Account</span>
-      <button id="login-stub" class="login-stub" type="button">Sign in</button>
-      <p class="meta-text login-note">Accounts are coming in a future update.</p>
+      <p id="account-email" class="account-email">…</p>
+      <p id="account-tier" class="meta-text account-tier"></p>
+      <button id="sign-out" class="login-stub" type="button">Sign out</button>
     </div>
 
     <hr class="hairline" />
 
-    <div class="profile-section">
+    <div id="upgrade-section" class="profile-section">
       <a href="/premium" class="premium-link">Upgrade to Premium</a>
     </div>
 
-    <hr class="hairline" />
+    <hr id="upgrade-rule" class="hairline" />
 
     <div class="profile-section">
       <span class="micro-label profile-label">Theme</span>
@@ -53,13 +54,34 @@ import { FONTS, THEMES } from '../lib/config';
 <script>
   import { THEME_SWATCH_COLORS_JS } from '../lib/theme-colors';
   import { applyPreferences, loadPreferences, savePreferences } from '../lib/preferences';
+  import { accountReady } from '../lib/account';
+  import { signOut } from '../lib/auth';
 
   const prefs = loadPreferences();
+
+  const emailEl = document.getElementById('account-email') as HTMLParagraphElement;
+  const tierEl = document.getElementById('account-tier') as HTMLParagraphElement;
+  const signOutBtn = document.getElementById('sign-out') as HTMLButtonElement;
+
+  accountReady.then(({ session, tier }) => {
+    if (!session) {
+      emailEl.textContent = 'Not signed in';
+      signOutBtn.textContent = 'Sign in';
+      signOutBtn.addEventListener('click', () => window.location.assign('/login'));
+      return;
+    }
+    emailEl.textContent = session.user.email ?? 'Signed in';
+    tierEl.textContent = tier === 'premium' ? 'Full edition' : 'Free edition';
+    signOutBtn.addEventListener('click', () => signOut());
+    if (tier === 'premium') {
+      (document.getElementById('upgrade-section') as HTMLDivElement).hidden = true;
+      (document.getElementById('upgrade-rule') as HTMLHRElement).hidden = true;
+    }
+  });
 
   const toggle = document.getElementById('profile-toggle') as HTMLButtonElement;
   const panel = document.getElementById('profile-panel') as HTMLDivElement;
   const fontSelect = document.getElementById('font-select') as HTMLSelectElement;
-  const loginStub = document.getElementById('login-stub') as HTMLButtonElement;
   const swatches = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-theme-choice]'));
 
   function syncSwatches(theme: string) {
@@ -108,11 +130,6 @@ import { FONTS, THEMES } from '../lib/config';
     savePreferences(prefs);
     applyPreferences(prefs);
     dispatchChange();
-  });
-
-  loginStub.addEventListener('click', () => {
-    loginStub.textContent = 'Accounts coming soon';
-    setTimeout(() => { loginStub.textContent = 'Sign in'; }, 1800);
   });
 
   // Other components (language/level/length selectors) hold their own
@@ -177,8 +194,11 @@ import { FONTS, THEMES } from '../lib/config';
     display: flex;
   }
 
-  .profile-section {
+  .profile-section:not([hidden]) {
     display: flex;
+  }
+
+  .profile-section {
     flex-direction: column;
     gap: var(--space-sm);
   }
@@ -198,8 +218,19 @@ import { FONTS, THEMES } from '../lib/config';
     cursor: pointer;
   }
 
-  .login-note {
+  .account-email {
     margin: 0;
+    font-size: 14px;
+    color: var(--color-ink-dark);
+    overflow-wrap: anywhere;
+  }
+
+  .account-tier {
+    margin: 0;
+  }
+
+  .account-tier:empty {
+    display: none;
   }
 
   .premium-link {

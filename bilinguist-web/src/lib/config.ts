@@ -7,10 +7,20 @@ export type ThemeKey = 'white' | 'cream' | 'softGrey' | 'night';
 export type FontKey = 'lora' | 'garamond' | 'playfair' | 'times';
 export type ReadLength = 'short' | 'longer';
 
-// Pre-launch gate: blurs the brief text behind a "Coming Soon" notice with a
-// name field (cosmetic only — nothing is stored or sent anywhere). Flip to
-// false once the site is ready to show real content to the public.
-export const COMING_SOON = true;
+// App Store listing for the iPhone app. Empty until the listing is live —
+// the login page shows a "Coming soon" badge instead of a link meanwhile.
+export const APP_STORE_URL = '';
+
+// What a signed-in free account reads, matching the paywall's Free column:
+// English only, one World News article in full, plus five teaser headlines.
+// B2 / short is what the app itself opens on by default.
+export const FREE_EDITION = {
+  language: 'en' as const,
+  level: 'B2' as const,
+  length: 'short' as const,
+  fullGenre: 'GLOBAL NEWS',
+  teasers: 5,
+};
 
 export interface LanguageInfo {
   code: LanguageCode;
@@ -112,6 +122,7 @@ export const GENRE_COLORS: Record<string, string> = {
   'MIDDLE EAST': '#8B5E3C',
   'AFRICA': '#9B6B0C',
   'GOOD NEWS': '#2E7D32',
+  'SPORT': '#4A3B8F',
 };
 
 export function translateGenre(genre: string, lang: LanguageCode): string {

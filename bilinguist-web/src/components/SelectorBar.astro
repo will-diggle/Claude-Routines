@@ -4,7 +4,13 @@ import ProfileButton from './ProfileButton.astro';
 ---
 <div class="selector-bar">
   <div class="wrap selector-row">
-    <div class="selector-group">
+    <div id="free-strip" class="free-strip" hidden>
+      <span class="free-strip-edition">English · B2</span>
+      <span class="free-strip-badge">Free edition</span>
+      <a href="/premium" class="free-strip-link">Unlock all languages →</a>
+    </div>
+
+    <div id="selector-controls" class="selector-group">
       <label class="visually-hidden" for="language-select">Language</label>
       <select id="language-select" class="selector-select">
         {LANGUAGES.map((l) => (<option value={l.code}>{l.flag} {l.name}</option>))}
@@ -32,8 +38,17 @@ import ProfileButton from './ProfileButton.astro';
 <script>
   import { LENGTH_LABELS, LEVELS_BY_LANG, type LanguageCode } from '../lib/config';
   import { loadPreferences, savePreferences } from '../lib/preferences';
+  import { accountReady } from '../lib/account';
 
   const prefs = loadPreferences();
+
+  // Free accounts read a fixed English edition, so swap the pickers for a
+  // plain edition label with an upgrade link.
+  accountReady.then(({ tier }) => {
+    if (tier === 'premium') return;
+    (document.getElementById('selector-controls') as HTMLDivElement).hidden = true;
+    (document.getElementById('free-strip') as HTMLDivElement).hidden = false;
+  });
 
   const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
   const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
@@ -128,11 +143,45 @@ import ProfileButton from './ProfileButton.astro';
     padding-block: var(--space-md);
   }
 
-  .selector-group {
-    display: flex;
+  .selector-group,
+  .free-strip {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-md);
+  }
+
+  /* :not([hidden]) so the hidden attribute still wins over display:flex. */
+  .selector-group:not([hidden]),
+  .free-strip:not([hidden]) {
+    display: flex;
+  }
+
+  .free-strip-edition {
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--color-ink-dark);
+  }
+
+  .free-strip-badge {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-accent-gold);
+    border: var(--hairline-width) solid var(--color-accent-gold);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .free-strip-link {
+    font-size: 13px;
+    color: var(--color-accent-gold);
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  .free-strip-link:hover {
+    text-decoration: underline;
   }
 
   .selector-select {

@@ -4,20 +4,18 @@
   <div class="wrap">
     <div id="brief-loading" class="brief-loading" role="status" aria-live="polite">
       <p id="loading-phrase" class="tagline loading-phrase"></p>
-      <div class="skeleton-block">
-        <div class="skeleton-line" style="width:30%;height:10px;" data-delay="0"></div>
-        <div class="skeleton-line" style="width:90%;height:24px;margin-top:12px;" data-delay="120"></div>
-        <div class="skeleton-line" style="width:70%;height:24px;margin-top:8px;" data-delay="240"></div>
-        <div class="skeleton-line" style="width:100%;height:16px;margin-top:20px;" data-delay="360"></div>
-        <div class="skeleton-line" style="width:100%;height:16px;margin-top:8px;" data-delay="480"></div>
-        <div class="skeleton-line" style="width:85%;height:16px;margin-top:8px;" data-delay="600"></div>
-      </div>
-      <div class="skeleton-block">
-        <div class="skeleton-line" style="width:30%;height:10px;" data-delay="200"></div>
-        <div class="skeleton-line" style="width:80%;height:24px;margin-top:12px;" data-delay="320"></div>
-        <div class="skeleton-line" style="width:100%;height:16px;margin-top:20px;" data-delay="440"></div>
-        <div class="skeleton-line" style="width:100%;height:16px;margin-top:8px;" data-delay="560"></div>
-        <div class="skeleton-line" style="width:60%;height:16px;margin-top:8px;" data-delay="680"></div>
+      <div class="skeleton-lead">
+        <div class="skeleton-line" style="width:18%;height:12px;" data-delay="0"></div>
+        <div class="skeleton-line" style="width:72%;height:40px;margin-top:16px;" data-delay="120"></div>
+        <div class="skeleton-cols">
+          {[0, 1, 2].map((c) => (
+            <div>
+              {[100, 100, 92, 100, 64].map((w, i) => (
+                <div class="skeleton-line" style={`width:${w}%;height:14px;margin-top:10px;`} data-delay={String(200 + c * 80 + i * 60)}></div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
 
@@ -29,23 +27,24 @@
   </div>
 </section>
 
-<template id="coming-soon-template">
-  <div class="coming-soon-overlay">
-    <p class="micro-label coming-soon-label">Coming Soon</p>
-    <h2 class="coming-soon-heading">Bilinguist Brief</h2>
-    <p class="tagline coming-soon-tagline">We're putting the finishing touches on things — leave your name and we'll let you know the moment it's ready.</p>
-    <form class="coming-soon-form">
-      <input type="text" class="coming-soon-input" placeholder="Your name" autocomplete="name" required />
-      <button type="submit" class="coming-soon-submit">Notify me</button>
-    </form>
-    <p class="meta-text coming-soon-thanks" hidden>Thanks — we'll be in touch when we launch.</p>
-  </div>
-</template>
-
 <script>
+  import { accountReady } from '../lib/account';
   import { loadPreferences } from '../lib/preferences';
   import { fetchBrief, type BriefArticle } from '../lib/brief';
-  import { langInfo, translateGenre, genreColor, PHRASE_POOL, COMING_SOON, type LanguageCode } from '../lib/config';
+  import {
+    FREE_EDITION,
+    PHRASE_POOL,
+    THEMES,
+    genreColor,
+    langInfo,
+    translateGenre,
+    type LanguageCode,
+  } from '../lib/config';
+
+  interface Group {
+    genre: string;
+    articles: BriefArticle[];
+  }
 
   const loadingEl = document.getElementById('brief-loading') as HTMLDivElement;
   const statusEl = document.getElementById('brief-status') as HTMLDivElement;
@@ -54,7 +53,7 @@
 
   let phraseTimer: ReturnType<typeof setInterval> | null = null;
 
-  function escapeHtml(s: string): string {
+  function esc(s: string): string {
     return s
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -64,10 +63,10 @@
   }
 
   function startPhraseCycle(language: LanguageCode) {
+    stopPhraseCycle();
     const pool = PHRASE_POOL[language] ?? PHRASE_POOL.en ?? ['Loading…'];
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     let i = 0;
-
     const show = () => {
       phraseEl.style.opacity = '0';
       setTimeout(() => {
@@ -76,7 +75,6 @@
         i++;
       }, 160);
     };
-
     show();
     phraseTimer = setInterval(show, 1600);
   }
@@ -101,129 +99,230 @@
     statusEl.querySelector('p')!.textContent = message;
   }
 
-  function formatDate(dateStr: string): string {
-    try {
-      const d = new Date(`${dateStr}T00:00:00Z`);
-      return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-    } catch {
-      return dateStr;
-    }
+  function toDate(generatedAt: number): Date {
+    // The pipeline has written both seconds and milliseconds over time.
+    return new Date(generatedAt < 1e12 ? generatedAt * 1000 : generatedAt);
   }
 
-  function renderArticle(article: BriefArticle, language: LanguageCode, index: number, total: number): string {
-    const paragraphs = article.body
+  function hhmm(d: Date): string {
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function longDate(dateStr: string): string {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }
+
+  // "Brief published 26 Sept · 07:12" — same wording as the app's section header.
+  function publishedLabel(d: Date): string {
+    const month = d.toLocaleDateString('en-GB', { month: 'short' });
+    return `Brief published ${d.getDate()} ${month} · ${hhmm(d)}`;
+  }
+
+  // Consecutive articles of the same genre share one section header, as in the app.
+  function groupByGenre(articles: BriefArticle[]): Group[] {
+    const groups: Group[] = [];
+    for (const a of articles) {
+      const genre = (a.genre || '').toUpperCase();
+      const last = groups[groups.length - 1];
+      if (last && last.genre === genre) last.articles.push(a);
+      else groups.push({ genre, articles: [a] });
+    }
+    return groups;
+  }
+
+  function paragraphs(body: string): string {
+    return body
       .split(/\n\n+/)
-      .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => `<p>${esc(p)}</p>`)
+      .join('');
+  }
+
+  function sectionHead(genre: string, language: LanguageCode, published?: string): string {
+    return `
+      <header class="section-head" style="--genre:${genreColor(genre)}">
+        <span class="section-bar" aria-hidden="true"></span>
+        <h2 class="section-label">${esc(translateGenre(genre, language))}</h2>
+        ${published ? `<span class="section-published">${esc(published)}</span>` : ''}
+      </header>`;
+  }
+
+  function story(a: BriefArticle, variant: 'lead' | 'standard'): string {
+    return `
+      <article class="story story--${variant}">
+        <h3 class="story-headline">${esc(a.headline)}</h3>
+        <div class="story-body">${paragraphs(a.body)}</div>
+      </article>`;
+  }
+
+  function editionRow(language: LanguageCode, level: string, date: string): string {
+    return `
+      <div class="edition-row">
+        <span class="edition-lang">${esc(langInfo(language).name)} · ${esc(level)}</span>
+        <span class="edition-date">${esc(longDate(date))}</span>
+      </div>`;
+  }
+
+  function pageFooter(published: Date): string {
+    const crests = THEMES.map(
+      (t) => `<img src="/crest/${t.key}.png" alt="" class="brief-crest" data-crest-theme="${t.key}" width="44" height="44" loading="lazy" />`,
+    ).join('');
+    const day = published.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return `
+      <footer class="brief-footer">
+        <hr class="brief-footer-rule" />
+        <p class="brief-footer-date">Published ${esc(day)} · ${esc(hhmm(published))}</p>
+        <p class="brief-footer-tagline">Your daily brief</p>
+        ${crests}
+      </footer>`;
+  }
+
+  function renderFull(articles: BriefArticle[], language: LanguageCode, published: Date): string {
+    const groups = groupByGenre(articles);
+    const [first, ...rest] = groups;
+    if (!first) return '';
+
+    const [leadArticle, ...leadRemainder] = first.articles;
+    const restGroups = leadRemainder.length ? [{ genre: first.genre, articles: leadRemainder }, ...rest] : rest;
+
+    const lead = `
+      <section class="group group--lead" data-genre="${esc(first.genre)}">
+        ${sectionHead(first.genre, language, publishedLabel(published))}
+        ${story(leadArticle, 'lead')}
+      </section>`;
+
+    const restHtml = restGroups
+      .map(
+        (g) => `
+        <section class="group" data-genre="${esc(g.genre)}">
+          ${sectionHead(g.genre, language)}
+          ${g.articles.map((a) => story(a, 'standard')).join('')}
+        </section>`,
+      )
       .join('');
 
-    const genreKey = article.genre.toUpperCase();
-    const label = translateGenre(article.genre, language);
-    const accent = genreColor(article.genre);
+    return `${lead}<div class="front-rest">${restHtml}</div>`;
+  }
 
-    const genreTag = article.genre
-      ? `<p class="micro-label article-genre" style="color:${accent}">${escapeHtml(label)}</p>`
+  function renderFree(articles: BriefArticle[], published: Date): string {
+    const leadArticle = articles.find((a) => a.genre.toUpperCase() === FREE_EDITION.fullGenre) ?? articles[0];
+    if (!leadArticle) return '';
+    const teasers = articles.filter((a) => a !== leadArticle).slice(0, FREE_EDITION.teasers);
+
+    const lead = `
+      <section class="group group--lead" data-genre="${esc(leadArticle.genre.toUpperCase())}">
+        ${sectionHead(leadArticle.genre, 'en', publishedLabel(published))}
+        ${story(leadArticle, 'lead')}
+      </section>`;
+
+    const cards = teasers
+      .map((a) => {
+        const firstPara = a.body.split(/\n\n+/)[0]?.trim() ?? '';
+        return `
+          <a class="teaser" href="/premium" style="--genre:${genreColor(a.genre)}">
+            <span class="teaser-genre"><span class="section-bar" aria-hidden="true"></span>${esc(translateGenre(a.genre, 'en'))}</span>
+            <span class="teaser-headline">${esc(a.headline)}</span>
+            <span class="teaser-excerpt">${esc(firstPara)}</span>
+            <span class="teaser-lock">
+              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 0 1 4 0v2h-4V7Z"/></svg>
+              Full edition
+            </span>
+          </a>`;
+      })
+      .join('');
+
+    const teaserSection = teasers.length
+      ? `
+        <section class="teasers" aria-labelledby="teasers-title">
+          <h2 id="teasers-title" class="teasers-title">Also in today's full edition</h2>
+          <div class="teaser-grid">${cards}</div>
+        </section>`
       : '';
 
-    const divider = index < total - 1 ? '<hr class="hairline article-divider" />' : '';
+    const upgrade = `
+      <aside class="upgrade-band">
+        <div>
+          <p class="upgrade-eyebrow">You're reading the free edition</p>
+          <p class="upgrade-copy">Get every story, in French, German, Spanish or Italian, at your level — with tap-to-translate and your word bank.</p>
+        </div>
+        <a class="upgrade-cta" href="/premium">Unlock the full edition</a>
+      </aside>`;
 
-    return `
-      <article class="article" data-genre="${escapeHtml(genreKey)}">
-        ${genreTag}
-        <h2 class="article-headline">${escapeHtml(article.headline)}</h2>
-        <div class="article-body">${paragraphs}</div>
-      </article>
-      ${divider}
-    `;
+    return lead + teaserSection + upgrade;
   }
 
   function applyGenreFilter(genre: string) {
-    const articles = contentEl.querySelectorAll<HTMLElement>('.article');
-    for (const el of articles) {
-      el.style.display = genre === 'all' || el.dataset.genre === genre ? '' : 'none';
-    }
-
-    // Dividers sit between two .article elements — hide any divider whose
-    // neighbor on either side just got filtered out, so filtering to one
-    // genre doesn't leave an orphaned rule with nothing above or below it.
-    const dividers = contentEl.querySelectorAll<HTMLElement>('.article-divider');
-    for (const hr of dividers) {
-      const prev = hr.previousElementSibling as HTMLElement | null;
-      const next = hr.nextElementSibling as HTMLElement | null;
-      const prevVisible = !!prev && prev.style.display !== 'none';
-      const nextVisible = !!next && next.style.display !== 'none';
-      hr.style.display = prevVisible && nextVisible ? '' : 'none';
+    for (const el of contentEl.querySelectorAll<HTMLElement>('.group')) {
+      el.hidden = !(genre === 'all' || el.dataset.genre === genre);
     }
   }
 
-  function setUpComingSoonGate() {
-    const wrap = contentEl.querySelector('.columns-wrap') as HTMLDivElement;
-    const template = document.getElementById('coming-soon-template') as HTMLTemplateElement;
-    wrap.appendChild(template.content.cloneNode(true));
-
-    const form = wrap.querySelector('.coming-soon-form') as HTMLFormElement;
-    const thanks = wrap.querySelector('.coming-soon-thanks') as HTMLParagraphElement;
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      form.hidden = true;
-      thanks.hidden = false;
-    });
-  }
+  let renderToken = 0;
 
   async function loadAndRender() {
-    const prefs = loadPreferences();
-    showLoading(prefs.language);
+    const token = ++renderToken;
+    const { tier } = await accountReady;
+    const free = tier !== 'premium';
 
-    const result = await fetchBrief(prefs.language, prefs.level, prefs.length);
+    const prefs = loadPreferences();
+    const language: LanguageCode = free ? FREE_EDITION.language : prefs.language;
+    const level = free ? FREE_EDITION.level : prefs.level;
+    const length = free ? FREE_EDITION.length : prefs.length;
+
+    showLoading(language);
+    const result = await fetchBrief(language, level, length);
+    if (token !== renderToken) return;
 
     if (!result.ok) {
-      const message =
+      setStatus(
         result.reason === 'not_found'
-          ? `No brief available yet for ${langInfo(prefs.language).name} at ${prefs.level} level. Try another language or level from the selectors above.`
-          : "Couldn't load today's brief — check your connection and try again.";
-      setStatus(message);
+          ? `No brief available yet for ${langInfo(language).name} at ${level} level. Try another language or level from the selectors above.`
+          : "Couldn't load today's brief — check your connection and try again.",
+      );
       return;
     }
 
     const { brief, date } = result;
+    const published = toDate(brief.generatedAt);
+
     stopPhraseCycle();
     loadingEl.hidden = true;
     statusEl.hidden = true;
     contentEl.hidden = false;
 
-    const edition = `
-      <div class="edition-row">
-        <span class="micro-label">${escapeHtml(langInfo(prefs.language).name)} · ${escapeHtml(prefs.level)}</span>
-        <span class="meta-text">${escapeHtml(formatDate(date))}</span>
-      </div>
-    `;
+    const body = free
+      ? renderFree(brief.articles, published)
+      : renderFull(brief.articles, language, published);
+    contentEl.innerHTML = editionRow(language, level, date) + body + pageFooter(published);
 
-    const articlesHtml = brief.articles
-      .map((a, i) => renderArticle(a, prefs.language, i, brief.articles.length))
-      .join('');
-
-    const columnsHtml = `<div class="columns${COMING_SOON ? ' columns-gated' : ''}">${articlesHtml}</div>`;
-    contentEl.innerHTML = COMING_SOON
-      ? edition + `<div class="columns-wrap">${columnsHtml}</div>`
-      : edition + columnsHtml;
-
-    if (COMING_SOON) setUpComingSoonGate();
-
-    // Tell the selector bar which genres are actually present today.
-    const seen = new Set<string>();
-    const genres: { key: string; label: string }[] = [];
-    for (const a of brief.articles) {
-      const key = a.genre.toUpperCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      genres.push({ key, label: translateGenre(a.genre, prefs.language) });
+    if (!free) {
+      const seen = new Set<string>();
+      const genres: { key: string; label: string }[] = [];
+      for (const a of brief.articles) {
+        const key = a.genre.toUpperCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        genres.push({ key, label: translateGenre(a.genre, language) });
+      }
+      window.dispatchEvent(new CustomEvent('bilinguist:brief-genres', { detail: { genres } }));
     }
-    window.dispatchEvent(new CustomEvent('bilinguist:brief-genres', { detail: { genres } }));
   }
 
+  const contentKey = (p: { language: string; level: string; length: string }) =>
+    `${p.language}|${p.level}|${p.length}`;
+  let lastContentKey = contentKey(loadPreferences());
+
   loadAndRender();
-  window.addEventListener('bilinguist:preferences-changed', () => {
+  window.addEventListener('bilinguist:preferences-changed', ((e: CustomEvent) => {
+    // Theme/font changes restyle in place; only content prefs need a refetch.
+    const key = contentKey(e.detail ?? loadPreferences());
+    if (key === lastContentKey) return;
+    lastContentKey = key;
     loadAndRender();
-  });
+  }) as EventListener);
   window.addEventListener('bilinguist:genre-filter-changed', ((e: CustomEvent<{ genre: string }>) => {
     applyGenreFilter(e.detail.genre);
   }) as EventListener);
@@ -232,10 +331,12 @@
 <style>
   .brief-shell {
     padding-block: var(--space-lg) var(--space-xxl);
+    --story-size: clamp(16px, 0.3vw + 12.5px, 17.5px);
+    --story-line: 1.65;
   }
 
   .brief-loading {
-    padding-block: var(--space-xl);
+    padding-block: var(--space-lg);
   }
 
   .loading-phrase {
@@ -245,10 +346,15 @@
     min-height: 1.4em;
   }
 
-  .skeleton-block {
-    margin-bottom: var(--space-xl);
-    padding-bottom: var(--space-lg);
-    border-bottom: var(--hairline-width) solid var(--color-hairline);
+  .skeleton-cols {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+    margin-top: var(--space-md);
+  }
+
+  @media (min-width: 760px) {
+    .skeleton-cols { grid-template-columns: repeat(3, 1fr); }
   }
 
   .skeleton-line {
@@ -278,137 +384,313 @@
     color: var(--color-ink-light);
   }
 
-  .edition-row {
+  /* ── Edition row — "ENGLISH · B2" left, date right, as in the app ── */
+  :global(.edition-row) {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: baseline;
-    gap: var(--space-md);
+    gap: var(--space-sm) var(--space-md);
     padding-bottom: var(--space-md);
-    border-bottom: var(--hairline-width) solid var(--color-hairline);
+    margin-bottom: var(--space-xs);
+  }
+
+  :global(.edition-lang) {
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-ink-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+
+  :global(.edition-date) {
+    font-style: italic;
+    font-size: 14px;
+    color: var(--color-ink-faint);
+  }
+
+  /* ── Section header — colour bar + bold genre label ── */
+  :global(.section-head) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding-bottom: 6px;
+    border-bottom: var(--hairline-width) solid var(--color-border-light);
+    margin-bottom: var(--space-md);
+    break-after: avoid;
+  }
+
+  :global(.section-bar) {
+    flex-shrink: 0;
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--genre);
+  }
+
+  :global(.section-label) {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--genre);
+  }
+
+  :global(.section-published) {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--color-ink-faint);
+    opacity: 0.8;
+  }
+
+  /* ── Stories ── */
+  :global(.story-headline) {
+    margin: 0 0 var(--space-sm);
+    font-weight: 700;
+    color: var(--color-ink-dark);
+    break-after: avoid;
+    text-wrap: balance;
+  }
+
+  :global(.story-body p) {
+    margin: 0 0 1.1em;
+    font-size: var(--story-size);
+    line-height: var(--story-line);
+    text-align: justify;
+    hyphens: auto;
+    color: var(--color-ink-mid);
+  }
+
+  :global(.story-body p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :global(.group) {
     margin-bottom: var(--space-lg);
+  }
+
+  :global(.group--lead) {
+    margin: var(--space-md) 0 0;
+    padding-bottom: var(--space-xl);
+    border-bottom: var(--chrome-width) solid var(--color-chrome);
+  }
+
+  :global(.story--lead .story-headline) {
+    font-size: clamp(28px, 2.4vw + 10px, 48px);
+    line-height: 1.12;
+    letter-spacing: -0.3px;
+    max-width: 34ch;
+    margin-bottom: var(--space-lg);
+  }
+
+  :global(.story--lead .story-body) {
+    column-gap: var(--space-xl);
+    column-rule: var(--hairline-width) solid var(--color-hairline);
+  }
+
+  :global(.story--standard) {
+    margin-bottom: var(--space-lg);
+  }
+
+  :global(.story--standard .story-headline) {
+    font-size: 26px;
+    line-height: 33px;
+  }
+
+  :global(.front-rest) {
+    column-gap: var(--space-xl);
+    column-rule: var(--hairline-width) solid var(--color-hairline);
+  }
+
+  /* Top padding on the container, not margins on the first group: a margin
+     only survives at the top of the first column, which misaligns the rest. */
+  :global(.front-rest) {
+    padding-top: var(--space-xl);
+  }
+
+  @media (min-width: 760px) {
+    :global(.story--lead .story-body) { column-count: 2; }
+    :global(.front-rest) { column-count: 2; }
+  }
+
+  @media (min-width: 1100px) {
+    :global(.story--lead .story-body) { column-count: 3; }
+    :global(.front-rest) { column-count: 3; }
+  }
+
+  /* ── Free edition: locked teasers + upgrade band ── */
+  :global(.teasers) {
+    margin-top: var(--space-xl);
+  }
+
+  :global(.teasers-title) {
+    margin: 0 0 var(--space-md);
+    font-size: var(--font-micro);
+    letter-spacing: var(--letter-micro);
+    text-transform: uppercase;
+    font-weight: 400;
     color: var(--color-ink-light);
   }
 
-  :global(.columns) {
-    column-count: 1;
-    column-gap: var(--space-xl);
+  :global(.teaser-grid) {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
   }
 
-  @media (min-width: 700px) {
-    :global(.columns) {
-      column-count: 2;
-      column-rule: var(--hairline-width) solid var(--color-hairline);
-    }
+  @media (min-width: 760px) {
+    :global(.teaser-grid) { grid-template-columns: repeat(2, 1fr); }
   }
 
-  :global(.article) {
-    margin-bottom: var(--space-lg);
-    break-inside: avoid-column;
+  @media (min-width: 1100px) {
+    :global(.teaser-grid) { grid-template-columns: repeat(3, 1fr); }
   }
 
-  :global(.article-genre) {
-    margin: 0 0 var(--space-xs);
-  }
-
-  :global(.article-headline) {
-    font-size: var(--font-headline);
-    line-height: var(--line-headline);
-    font-weight: 700;
-    color: var(--color-ink-dark);
-    margin: 0 0 var(--space-sm);
-    break-after: avoid-column;
-  }
-
-  :global(.article-body p) {
-    font-size: var(--font-body);
-    line-height: var(--line-body);
-    text-align: justify;
-    color: var(--color-ink-mid);
-    margin: 0 0 var(--space-md);
-    hyphens: auto;
-  }
-
-  :global(.article-divider) {
-    margin: var(--space-lg) 0;
-    break-inside: avoid;
-  }
-
-  :global(.columns-wrap) {
-    position: relative;
-  }
-
-  :global(.columns-gated) {
-    filter: blur(6px);
-    user-select: none;
-    pointer-events: none;
-  }
-
-  :global(.coming-soon-overlay) {
-    position: absolute;
-    inset: 0;
+  :global(.teaser) {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
     gap: var(--space-sm);
-    padding: var(--space-lg);
-    background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+    padding: var(--space-md) var(--space-md) var(--space-sm);
+    background: var(--color-card);
+    border: var(--hairline-width) solid var(--color-border-light);
+    border-radius: 10px;
+    text-decoration: none;
+    transition: border-color 0.15s ease, transform 0.15s ease;
   }
 
-  :global(.coming-soon-label) {
+  :global(.teaser:hover) {
+    border-color: var(--color-border-mid);
+    transform: translateY(-2px);
+  }
+
+  :global(.teaser-genre) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--genre);
+  }
+
+  :global(.teaser-headline) {
+    font-size: 19px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--color-ink-dark);
+  }
+
+  :global(.teaser-excerpt) {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--color-ink-mid);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
+    mask-image: linear-gradient(180deg, #000 30%, transparent);
+  }
+
+  :global(.teaser-lock) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: var(--space-sm);
+    border-top: var(--hairline-width) solid var(--color-border-light);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
     color: var(--color-accent-gold);
   }
 
-  :global(.coming-soon-heading) {
-    font-size: var(--font-headline);
-    color: var(--color-ink-dark);
-    margin: 0;
-  }
-
-  :global(.coming-soon-tagline) {
-    max-width: 360px;
-    color: var(--color-ink-light);
-    margin: 0 0 var(--space-sm);
-  }
-
-  :global(.coming-soon-form) {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--space-sm);
-  }
-
-  /* .coming-soon-form[hidden] must win over display:flex below — see the
-     ProfileButton panel fix for why an unconditional display here would
-     otherwise beat the UA stylesheet's [hidden] rule regardless of the
-     hidden property being set from JS. */
-  :global(.coming-soon-form:not([hidden])) {
+  :global(.upgrade-band) {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md) var(--space-xl);
+    margin-top: var(--space-xl);
+    padding: var(--space-lg) var(--space-xl);
+    border-radius: 12px;
+    background: var(--color-accent-gold);
+    color: #fff;
   }
 
-  :global(.coming-soon-input) {
-    font-family: var(--font-body-family);
-    font-size: 14px;
-    color: var(--color-ink-dark);
-    background: var(--color-card);
-    border: var(--hairline-width) solid var(--color-border-mid);
-    padding: var(--space-sm) var(--space-md);
-    min-width: 200px;
+  :global(.upgrade-eyebrow) {
+    margin: 0 0 4px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.8;
   }
 
-  :global(.coming-soon-submit) {
-    font-family: var(--font-body-family);
-    font-size: 13px;
-    letter-spacing: 0.5px;
-    color: var(--color-bg);
-    background: var(--color-ink-dark);
-    border: none;
-    padding: var(--space-sm) var(--space-lg);
-    cursor: pointer;
-  }
-
-  :global(.coming-soon-thanks) {
+  :global(.upgrade-copy) {
     margin: 0;
+    max-width: 60ch;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+
+  :global(.upgrade-cta) {
+    flex-shrink: 0;
+    padding: 12px 22px;
+    border-radius: 10px;
+    background: #fff;
+    color: var(--color-accent-gold);
+    font-weight: 700;
+    font-size: 15px;
+    text-decoration: none;
+  }
+
+  /* ── Page footer — rule, publish time, tagline, crest ── */
+  :global(.brief-footer) {
+    margin-top: var(--space-xxl);
+    text-align: center;
+  }
+
+  :global(.brief-footer-rule) {
+    border: none;
+    border-top: 1px solid var(--color-chrome);
+    opacity: 0.35;
+    margin: 0;
+  }
+
+  :global(.brief-footer-date) {
+    margin: 14px 0 0;
+    font-size: 11px;
+    font-style: italic;
+    color: var(--color-ink-faint);
+    opacity: 0.7;
+  }
+
+  :global(.brief-footer-tagline) {
+    margin: 6px 0 0;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--color-ink-light);
+    opacity: 0.7;
+  }
+
+  :global(.brief-crest) {
+    display: none;
+    width: 44px;
+    height: 44px;
+    margin: 12px auto 0;
+    opacity: 0.45;
+  }
+
+  :global([data-theme='white'] .brief-crest[data-crest-theme='white']),
+  :global([data-theme='cream'] .brief-crest[data-crest-theme='cream']),
+  :global([data-theme='softGrey'] .brief-crest[data-crest-theme='softGrey']),
+  :global([data-theme='night'] .brief-crest[data-crest-theme='night']) {
+    display: block;
   }
 </style>
 
