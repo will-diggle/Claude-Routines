@@ -1,4 +1,5 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
+import { LEGAL_VERSIONS } from './config';
 
 // Same Supabase project as the iPhone app, so one account works in both.
 // These are the public URL + anon key (already shipped inside the app
@@ -97,6 +98,62 @@ export async function updatePassword(password: string) {
   if (!supabase) throw new Error('Sign-in is not configured yet.');
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw error;
+}
+
+// ── Terms & Privacy acceptance ───────────────────────────────────────────
+// Agreement is given on the login page, but a new account may not have a
+// session until the confirmation email is clicked (or the Google redirect
+// returns), so it's noted in the browser and recorded once signed in.
+
+const PENDING_ACCEPTANCE_KEY = 'bilinguist-web-pending-acceptance';
+
+export function noteAgreement(): void {
+  try {
+    localStorage.setItem(PENDING_ACCEPTANCE_KEY, JSON.stringify({ ...LEGAL_VERSIONS, at: Date.now() }));
+  } catch {
+    // storage unavailable — nothing to record later
+  }
+}
+
+// Records the noted agreement via the app's record-acceptance function
+// (stamps user_profiles and emails a confirmation), unless this account has
+// already accepted — e.g. an app user signing in with Google for the first
+// time on the web.
+export async function recordPendingAcceptance(session: Session): Promise<void> {
+  if (!supabase) return;
+  let pending: { terms: string; privacy: string } | null = null;
+  try {
+    pending = JSON.parse(localStorage.getItem(PENDING_ACCEPTANCE_KEY) ?? 'null');
+  } catch {
+    return;
+  }
+  if (!pending?.terms || !pending?.privacy) return;
+
+  const { data: profile, error } = await supabase
+    .from('user_profiles')
+    .select('terms_accepted_at')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+  if (error) return; // try again next visit
+
+  if (!profile?.terms_accepted_at) {
+    const res = await fetch(`${url}/functions/v1/record-acceptance`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${session.access_token}`,
+        apikey: anonKey,
+      },
+      body: JSON.stringify({ termsVersion: pending.terms, privacyVersion: pending.privacy }),
+    }).catch(() => null);
+    if (!res?.ok) return; // keep it pending and retry next visit
+  }
+
+  try {
+    localStorage.removeItem(PENDING_ACCEPTANCE_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export async function signOut() {

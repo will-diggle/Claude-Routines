@@ -1,0 +1,108 @@
+---
+// Renders one of the app's legal documents (copied from LegalDocModal.tsx
+// into src/content/legal.json) with the same heading / text / bullet / label
+// structure the app uses.
+import legal from '../content/legal.json';
+
+interface Props {
+  doc: 'privacy' | 'terms';
+}
+
+type Item = { type: string; text: string };
+type Section = { heading?: string; items: Item[] };
+
+const { doc } = Astro.props;
+const content = legal[doc] as { title: string; subtitle: string; effectiveDate: string; sections: Section[] };
+---
+<article class="wrap legal">
+  <h1 class="legal-title">{content.title}</h1>
+  <div class="legal-meta">
+    <span>{content.effectiveDate}</span>
+    <span class="legal-subtitle">{content.subtitle}</span>
+  </div>
+  <hr class="chrome-rule legal-rule" />
+
+  {content.sections.map((section) => (
+    <section class="legal-section">
+      {section.heading && <h2 class="legal-heading">{section.heading}</h2>}
+      {section.items.map((item) =>
+        item.type === 'bullet' ? (
+          <p class="legal-bullet">{item.text}</p>
+        ) : item.type === 'label' ? (
+          <p class="legal-label">{item.text}</p>
+        ) : (
+          <p class="legal-text">{item.text}</p>
+        ),
+      )}
+    </section>
+  ))}
+</article>
+
+<style>
+  .legal {
+    max-width: 760px;
+    padding-block: var(--space-xxl);
+  }
+
+  .legal-title {
+    margin: 0 0 var(--space-sm);
+    font-size: var(--font-headline);
+    color: var(--color-ink-dark);
+  }
+
+  .legal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    font-size: 13px;
+    color: var(--color-ink-light);
+  }
+
+  .legal-subtitle {
+    font-style: italic;
+  }
+
+  .legal-rule {
+    margin: var(--space-md) 0 var(--space-lg);
+  }
+
+  .legal-section {
+    margin-bottom: var(--space-lg);
+  }
+
+  .legal-heading {
+    margin: 0 0 var(--space-sm);
+    font-size: 18px;
+    line-height: 1.35;
+    color: var(--color-ink-dark);
+  }
+
+  .legal-text,
+  .legal-bullet,
+  .legal-label {
+    margin: 0 0 var(--space-sm);
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--color-ink-mid);
+  }
+
+  .legal-bullet {
+    position: relative;
+    padding-left: 1.4em;
+  }
+
+  .legal-bullet::before {
+    content: '•';
+    position: absolute;
+    left: 0.4em;
+    color: var(--color-ink-light);
+  }
+
+  .legal-label {
+    margin-top: var(--space-md);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-ink-dark);
+  }
+</style>
