@@ -1,7 +1,7 @@
 // Mirrors bilinguist-brief/src/store/useSettingsStore.ts — single source of
 // truth for language/level/font options, kept in sync with the app.
 
-export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'tr' | 'hu' | 'ar';
+export type LanguageCode = 'fr' | 'de' | 'en' | 'sv' | 'it' | 'es' | 'pt' | 'tr' | 'hu' | 'ar';
 export type LanguageLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Native';
 export type ThemeKey = 'white' | 'cream' | 'softGrey' | 'night';
 export type FontKey = 'lora' | 'garamond' | 'playfair' | 'times';
@@ -14,17 +14,32 @@ export type ReadLength = 'short' | 'longer';
 export const APP_STORE_ID = '';
 export const APP_STORE_URL = APP_STORE_ID ? `https://apps.apple.com/app/id${APP_STORE_ID}` : '';
 
+// Sign in with Apple on the web needs an Apple "Services ID" set up in the
+// Apple Developer account and in Supabase's Apple provider. The app only has
+// the native iOS setup today, so the website's Apple button stays hidden
+// until this is switched on.
+export const APPLE_SIGN_IN_ON_WEB = false;
+
 // The app's URL scheme (app.json "scheme") — opens the installed app.
 export const APP_SCHEME_URL = 'bilinguistbrief://';
 
-// What a signed-in free account reads, matching the paywall's Free column:
-// English only, one World News article in full, plus five teaser headlines.
-// B2 / short is what the app itself opens on by default.
+// What a signed-in free account reads, matching the app's current free tier
+// (PaywallScreen): English plus one language of their choice (which can only
+// be changed once the cooldown has passed), at any level, concise length
+// only — two Global News stories plus one story from a section of their
+// choice. Everything else shows as locked teasers.
+// secondLanguageCooldownDays is a placeholder until it's confirmed against
+// the app's own value.
 export const FREE_EDITION = {
-  language: 'en' as const,
-  level: 'B2' as const,
   length: 'short' as const,
-  fullGenre: 'GLOBAL NEWS',
+  globalNewsStories: 2,
+  extraSections: [
+    { key: 'BUSINESS & ECONOMY', label: 'Business' },
+    { key: 'UK', label: 'UK' },
+    { key: 'US', label: 'US' },
+    { key: 'EUROPE', label: 'Europe' },
+  ],
+  secondLanguageCooldownDays: 7,
   teasers: 5,
 };
 
@@ -40,25 +55,13 @@ export const LANGUAGES: LanguageInfo[] = [
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
   { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷' },
   { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
   { code: 'sv', name: 'Swedish', nativeName: 'Svenska', flag: '🇸🇪' },
   { code: 'tr', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
   { code: 'hu', name: 'Hungarian', nativeName: 'Magyar', flag: '🇭🇺' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
 ];
-
-// Levels available per language — must match the content pipeline exactly.
-export const LEVELS_BY_LANG: Record<LanguageCode, LanguageLevel[]> = {
-  en: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  fr: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  de: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  sv: ['B2', 'Native'],
-  it: ['A1', 'A2', 'B1', 'B2', 'C1', 'Native'],
-  es: ['A2'],
-  tr: ['A1'],
-  hu: ['Native'],
-  ar: ['A1', 'A2'],
-};
 
 export const THEMES: { key: ThemeKey; label: string }[] = [
   { key: 'white', label: 'Press White' },
@@ -77,9 +80,9 @@ export const FONTS: { key: FontKey; label: string; cssVar: string }[] = [
 export const DEFAULTS = {
   theme: 'white' as ThemeKey,
   language: 'en' as LanguageCode,
-  level: 'A2' as LanguageLevel,
+  level: 'B2' as LanguageLevel,
   font: 'lora' as FontKey,
-  length: 'longer' as ReadLength,
+  length: 'short' as ReadLength,
 };
 
 export function langInfo(code: string): LanguageInfo {

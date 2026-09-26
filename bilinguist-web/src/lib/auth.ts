@@ -3,7 +3,7 @@ import { createClient, type Session, type SupabaseClient } from '@supabase/supab
 // Same Supabase project as the iPhone app, so one account works in both.
 // These are the public URL + anon key (already shipped inside the app
 // bundle) and are injected at build time from Cloudflare build variables.
-const url = import.meta.env.PUBLIC_SUPABASE_URL ?? '';
+const url = import.meta.env.PUBLIC_SUPABASE_URL || 'https://llkufcnkpgynwkgmoxmb.supabase.co';
 const anonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export const supabase: SupabaseClient | null =
@@ -25,10 +25,28 @@ export async function getSession(): Promise<Session | null> {
   return data.session;
 }
 
-// Mirrors how revenuecat-webhook writes user_subscriptions: tier 'premium'
-// covers active/trial/cancelled-until-expiry/paused; expiry flips tier to 'free'.
-// No row, or a read the table's RLS refuses, means free.
-export async function getTier(userId: string): Promise<Tier> {
+// Paid status comes from RevenueCat, like the app, via the site's Worker
+// (/api/entitlement keeps the RevenueCat secret server-side). If the Worker
+// can't answer — no RevenueCat key set yet, or local preview — fall back to
+// user_subscriptions, which the revenuecat-webhook maintains.
+export async function getTier(session: Session): Promise<Tier> {
+  try {
+    const res = await fetch('/api/entitlement', {
+      headers: { authorization: `Bearer ${session.access_token}`, apikey: anonKey },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.tier === 'premium' || data?.tier === 'free') return data.tier;
+    }
+  } catch {
+    // fall through to the table
+  }
+  return tierFromTable(session.user.id);
+}
+
+// tier 'premium' covers active/trial/cancelled-until-expiry/paused;
+// expiry flips it to 'free'. No row, or a read RLS refuses, means free.
+async function tierFromTable(userId: string): Promise<Tier> {
   if (!supabase) return 'free';
   const { data, error } = await supabase
     .from('user_subscriptions')
@@ -116,5 +134,5 @@ export async function requireSession(): Promise<Account> {
     window.location.replace('/login');
     return new Promise(() => {});
   }
-  return { session, tier: await getTier(session.user.id) };
+  return { session, tier: await getTier(session) };
 }

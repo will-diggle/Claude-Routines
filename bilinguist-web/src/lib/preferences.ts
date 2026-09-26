@@ -1,7 +1,6 @@
 import {
   DEFAULTS,
   FONTS,
-  LEVELS_BY_LANG,
   type FontKey,
   type LanguageCode,
   type LanguageLevel,
@@ -37,11 +36,8 @@ export function loadPreferences(): Preferences {
     if (!raw) return { ...DEFAULTS };
     const parsed = JSON.parse(raw);
     if (!isValidPrefs(parsed)) return { ...DEFAULTS };
-    // Guard against a stored level that's no longer valid for the stored language.
-    const validLevels = LEVELS_BY_LANG[parsed.language as LanguageCode];
-    if (!validLevels || !validLevels.includes(parsed.level as LanguageLevel)) {
-      parsed.level = validLevels?.[0] ?? DEFAULTS.level;
-    }
+    // Which levels exist changes daily with the pipeline, so the stored level
+    // is checked against today's availability where it's used, not here.
     if (parsed.length !== 'short' && parsed.length !== 'longer') {
       parsed.length = DEFAULTS.length;
     }

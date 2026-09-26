@@ -30,6 +30,9 @@
 <script>
   import { accountReady } from '../lib/account';
   import { loadPreferences } from '../lib/preferences';
+  import { languagesToday, loadAvailability, pickLevel } from '../lib/availability';
+  import { canReadLanguage, loadFreePicks, type FreePicks } from '../lib/free-picks';
+  import type { AppLang } from '../lib/app-locale';
   import { fetchBrief, type BriefArticle } from '../lib/brief';
   import {
     FREE_EDITION,
@@ -180,6 +183,14 @@
       </footer>`;
   }
 
+  // The pipeline renamed "UK POLITICS" to "UK"; treat older bundles the same.
+  function sectionKey(genre: string): string {
+    const g = genre.toUpperCase();
+    if (g === 'UK POLITICS') return 'UK';
+    if (g === 'US POLITICS') return 'US';
+    return g;
+  }
+
   function renderFull(articles: BriefArticle[], language: LanguageCode, published: Date): string {
     const groups = groupByGenre(articles);
     const [first, ...rest] = groups;
@@ -207,23 +218,21 @@
     return `${lead}<div class="front-rest">${restHtml}</div>`;
   }
 
-  function renderFree(articles: BriefArticle[], published: Date): string {
-    const leadArticle = articles.find((a) => a.genre.toUpperCase() === FREE_EDITION.fullGenre) ?? articles[0];
-    if (!leadArticle) return '';
-    const teasers = articles.filter((a) => a !== leadArticle).slice(0, FREE_EDITION.teasers);
-
-    const lead = `
-      <section class="group group--lead" data-genre="${esc(leadArticle.genre.toUpperCase())}">
-        ${sectionHead(leadArticle.genre, 'en', publishedLabel(published))}
-        ${story(leadArticle, 'lead')}
-      </section>`;
+  function renderFree(articles: BriefArticle[], language: LanguageCode, published: Date, picks: FreePicks): string {
+    const globalNews = articles
+      .filter((a) => sectionKey(a.genre) === 'GLOBAL NEWS')
+      .slice(0, FREE_EDITION.globalNewsStories);
+    const extra = articles.find((a) => sectionKey(a.genre) === picks.extraSection);
+    const full = [...globalNews, ...(extra ? [extra] : [])];
+    if (!full.length && articles[0]) full.push(articles[0]);
+    const teasers = articles.filter((a) => !full.includes(a)).slice(0, FREE_EDITION.teasers);
 
     const cards = teasers
       .map((a) => {
         const firstPara = a.body.split(/\n\n+/)[0]?.trim() ?? '';
         return `
           <a class="teaser" href="/premium" style="--genre:${genreColor(a.genre)}">
-            <span class="teaser-genre"><span class="section-bar" aria-hidden="true"></span>${esc(translateGenre(a.genre, 'en'))}</span>
+            <span class="teaser-genre"><span class="section-bar" aria-hidden="true"></span>${esc(translateGenre(a.genre, language))}</span>
             <span class="teaser-headline">${esc(a.headline)}</span>
             <span class="teaser-excerpt">${esc(firstPara)}</span>
             <span class="teaser-lock">
@@ -246,12 +255,12 @@
       <aside class="upgrade-band">
         <div>
           <p class="upgrade-eyebrow">You're reading the free edition</p>
-          <p class="upgrade-copy">Get every story, in French, German, Spanish or Italian, at your level — with tap-to-translate and your word bank.</p>
+          <p class="upgrade-copy">Get every story, in every language, at full length — with tap-to-translate and your word bank.</p>
         </div>
         <a class="upgrade-cta" href="/premium">Unlock the full edition</a>
       </aside>`;
 
-    return lead + teaserSection + upgrade;
+    return renderFull(full, language, published) + teaserSection + upgrade;
   }
 
   function applyGenreFilter(genre: string) {
@@ -264,16 +273,23 @@
 
   async function loadAndRender() {
     const token = ++renderToken;
-    const { tier } = await accountReady;
+    const [{ tier }, info] = await Promise.all([accountReady, loadAvailability()]);
     const free = tier !== 'premium';
 
+    // Same rules as the selector bar: something published today, readable
+    // on this account, at a level that exists at this length.
     const prefs = loadPreferences();
-    const language: LanguageCode = free ? FREE_EDITION.language : prefs.language;
-    const level = free ? FREE_EDITION.level : prefs.level;
+    const picks = loadFreePicks();
+    const langs = languagesToday(info.languages);
+    let language: LanguageCode = prefs.language;
+    if (!langs.includes(language as AppLang) || (free && !canReadLanguage(picks, language))) {
+      language = langs.includes('en') ? 'en' : (langs[0] as LanguageCode);
+    }
     const length = free ? FREE_EDITION.length : prefs.length;
+    const level = pickLevel(info.languages, language as AppLang, length, prefs.level) as typeof prefs.level;
 
     showLoading(language);
-    const result = await fetchBrief(language, level, length);
+    const result = await fetchBrief(language, level, length, { strictLength: free });
     if (token !== renderToken) return;
 
     if (!result.ok) {
@@ -294,7 +310,7 @@
     contentEl.hidden = false;
 
     const body = free
-      ? renderFree(brief.articles, published)
+      ? renderFree(brief.articles, language, published, picks)
       : renderFull(brief.articles, language, published);
     contentEl.innerHTML = editionRow(language, level, date) + body + pageFooter(published);
 
@@ -323,6 +339,7 @@
     lastContentKey = key;
     loadAndRender();
   }) as EventListener);
+  window.addEventListener('bilinguist:free-picks-changed', () => loadAndRender());
   window.addEventListener('bilinguist:genre-filter-changed', ((e: CustomEvent<{ genre: string }>) => {
     applyGenreFilter(e.detail.genre);
   }) as EventListener);

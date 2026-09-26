@@ -1,20 +1,12 @@
 ---
-import { LANGUAGES } from '../lib/config';
+import { FREE_EDITION } from '../lib/config';
 import ProfileButton from './ProfileButton.astro';
 ---
 <div class="selector-bar">
   <div class="wrap selector-row">
-    <div id="free-strip" class="free-strip" hidden>
-      <span class="free-strip-edition">English · B2</span>
-      <span class="free-strip-badge">Free edition</span>
-      <a href="/premium" class="free-strip-link">Unlock all languages →</a>
-    </div>
-
-    <div id="selector-controls" class="selector-group">
+    <div id="selector-controls" class="selector-group" hidden>
       <label class="visually-hidden" for="language-select">Language</label>
-      <select id="language-select" class="selector-select">
-        {LANGUAGES.map((l) => (<option value={l.code}>{l.flag} {l.name}</option>))}
-      </select>
+      <select id="language-select" class="selector-select"></select>
 
       <label class="visually-hidden" for="level-select">Level</label>
       <select id="level-select" class="selector-select"></select>
@@ -24,110 +16,206 @@ import ProfileButton from './ProfileButton.astro';
         <button type="button" class="length-pill" data-length="longer">Long</button>
       </div>
 
-      <label class="visually-hidden" for="genre-select">Genre</label>
+      <label class="visually-hidden" for="genre-select">Section</label>
       <select id="genre-select" class="selector-select">
         <option value="all">All sections</option>
       </select>
+
+      <label class="extra-section" id="extra-section" hidden>
+        <span class="extra-section-label">Extra section</span>
+        <select id="extra-section-select" class="selector-select">
+          {FREE_EDITION.extraSections.map((s) => (<option value={s.key}>{s.label}</option>))}
+        </select>
+      </label>
+
+      <span class="free-badge" id="free-badge" hidden>
+        Free edition · <a href="/premium">Upgrade</a>
+      </span>
     </div>
 
     <ProfileButton />
   </div>
+  <p class="wrap selector-note" id="selector-note" role="status" hidden></p>
   <hr class="hairline" />
 </div>
 
 <script>
-  import { LENGTH_LABELS, LEVELS_BY_LANG, type LanguageCode } from '../lib/config';
+  import { FREE_EDITION, LANGUAGES, LENGTH_LABELS, type LanguageCode, type LanguageLevel, type ReadLength } from '../lib/config';
   import { loadPreferences, savePreferences } from '../lib/preferences';
   import { accountReady } from '../lib/account';
+  import { languagesToday, levelsFor, loadAvailability, pickLevel } from '../lib/availability';
+  import { canReadLanguage, loadFreePicks, saveFreePicks, secondLanguageLockedUntil } from '../lib/free-picks';
+  import { APP_LANGUAGES, type AppLang } from '../lib/app-locale';
 
-  const prefs = loadPreferences();
-
-  // Free accounts read a fixed English edition, so swap the pickers for a
-  // plain edition label with an upgrade link.
-  accountReady.then(({ tier }) => {
-    if (tier === 'premium') return;
-    (document.getElementById('selector-controls') as HTMLDivElement).hidden = true;
-    (document.getElementById('free-strip') as HTMLDivElement).hidden = false;
-  });
-
+  const controls = document.getElementById('selector-controls') as HTMLDivElement;
   const languageSelect = document.getElementById('language-select') as HTMLSelectElement;
   const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
   const genreSelect = document.getElementById('genre-select') as HTMLSelectElement;
+  const extraSection = document.getElementById('extra-section') as HTMLLabelElement;
+  const extraSelect = document.getElementById('extra-section-select') as HTMLSelectElement;
+  const freeBadge = document.getElementById('free-badge') as HTMLSpanElement;
+  const note = document.getElementById('selector-note') as HTMLParagraphElement;
   const lengthPills = Array.from(document.querySelectorAll<HTMLButtonElement>('.length-pill'));
 
-  function populateLevels(lang: LanguageCode, selected: string) {
-    const levels = LEVELS_BY_LANG[lang] ?? [];
-    levelSelect.innerHTML = levels
-      .map((lvl) => `<option value="${lvl}">${lvl}</option>`)
-      .join('');
-    levelSelect.value = levels.includes(selected as never) ? selected : levels[0];
-  }
-
-  function syncLengthPills() {
-    const labels = LENGTH_LABELS[prefs.language] ?? ['Concise', 'Long'];
-    lengthPills[0].textContent = labels[0];
-    lengthPills[1].textContent = labels[1];
-    for (const pill of lengthPills) {
-      pill.classList.toggle('active', pill.dataset.length === prefs.length);
-    }
-  }
+  const prefs = loadPreferences();
+  const picks = loadFreePicks();
 
   function dispatchChange() {
     window.dispatchEvent(new CustomEvent('bilinguist:preferences-changed', { detail: prefs }));
   }
 
-  languageSelect.value = prefs.language;
-  populateLevels(prefs.language, prefs.level);
-  syncLengthPills();
+  function showNote(html: string) {
+    note.innerHTML = html;
+    note.hidden = false;
+  }
 
-  languageSelect.addEventListener('change', () => {
-    prefs.language = languageSelect.value as LanguageCode;
-    populateLevels(prefs.language, prefs.level);
-    prefs.level = levelSelect.value as typeof prefs.level;
-    syncLengthPills();
+  function dayMonth(d: Date): string {
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
+  function nameOf(code: string): string {
+    return LANGUAGES.find((l) => l.code === code)?.name ?? code;
+  }
+
+  Promise.all([accountReady, loadAvailability()]).then(([{ tier }, info]) => {
+    const free = tier !== 'premium';
+    const av = info.languages;
+    const langs = languagesToday(av);
+
+    function readable(code: LanguageCode): boolean {
+      return !free || canReadLanguage(picks, code);
+    }
+
+    // Keep the stored choice within what exists today and what this account can read.
+    function normalise() {
+      if (!langs.includes(prefs.language as AppLang) || !readable(prefs.language)) {
+        prefs.language = langs.includes('en') ? 'en' : (langs[0] as LanguageCode);
+      }
+      if (free) prefs.length = FREE_EDITION.length;
+      prefs.level = pickLevel(av, prefs.language as AppLang, prefs.length, prefs.level) as LanguageLevel;
+    }
+
+    function renderLanguages() {
+      const flag = (code: string) => LANGUAGES.find((l) => l.code === code)?.flag ?? '';
+      languageSelect.innerHTML = langs
+        .map((code) => {
+          const locked = free && !readable(code as LanguageCode);
+          return `<option value="${code}">${flag(code)} ${nameOf(code)}${locked ? ' 🔒' : ''}</option>`;
+        })
+        .join('');
+      languageSelect.value = prefs.language;
+    }
+
+    function renderLevels() {
+      const levels = levelsFor(av, prefs.language as AppLang, prefs.length);
+      levelSelect.innerHTML = levels.map((lv) => `<option value="${lv}">${lv}</option>`).join('');
+      levelSelect.value = prefs.level;
+    }
+
+    function renderLength() {
+      const labels = LENGTH_LABELS[prefs.language] ?? ['Concise', 'Long'];
+      lengthPills[0].textContent = labels[0];
+      lengthPills[1].textContent = free ? `${labels[1]} 🔒` : labels[1];
+      for (const pill of lengthPills) pill.classList.toggle('active', pill.dataset.length === prefs.length);
+    }
+
+    function renderAll() {
+      renderLanguages();
+      renderLevels();
+      renderLength();
+    }
+
+    normalise();
     savePreferences(prefs);
+    renderAll();
+    genreSelect.hidden = free;
+    extraSection.hidden = !free;
+    freeBadge.hidden = !free;
+    extraSelect.value = picks.extraSection;
+    controls.hidden = false;
     dispatchChange();
-  });
 
-  levelSelect.addEventListener('change', () => {
-    prefs.level = levelSelect.value as typeof prefs.level;
-    savePreferences(prefs);
-    dispatchChange();
-  });
-
-  lengthPills.forEach((pill) => {
-    pill.addEventListener('click', () => {
-      prefs.length = pill.dataset.length as typeof prefs.length;
-      syncLengthPills();
+    languageSelect.addEventListener('change', () => {
+      const code = languageSelect.value as LanguageCode;
+      if (free && !canReadLanguage(picks, code)) {
+        const lockedUntil = secondLanguageLockedUntil(picks);
+        if (lockedUntil) {
+          languageSelect.value = prefs.language;
+          showNote(`You can change your free second language again on ${dayMonth(lockedUntil)}. <a href="/premium">Upgrade</a> to read every language.`);
+          return;
+        }
+        const days = FREE_EDITION.secondLanguageCooldownDays;
+        if (!window.confirm(`Make ${nameOf(code)} your free second language? You won't be able to change it again for ${days} days.`)) {
+          languageSelect.value = prefs.language;
+          return;
+        }
+        picks.secondLanguage = code;
+        picks.secondLanguageSetAt = Date.now();
+        saveFreePicks(picks);
+        const until = secondLanguageLockedUntil(picks);
+        showNote(`${nameOf(code)} is your free second language${until ? ` until at least ${dayMonth(until)}` : ''}.`);
+      } else {
+        note.hidden = true;
+      }
+      prefs.language = code;
+      // Each language opens at the app's default level for it.
+      const defaultLevel = APP_LANGUAGES.find((l) => l.code === code)?.defaultLevel ?? prefs.level;
+      prefs.level = pickLevel(av, code as AppLang, prefs.length, defaultLevel) as LanguageLevel;
+      renderAll();
       savePreferences(prefs);
       dispatchChange();
     });
+
+    levelSelect.addEventListener('change', () => {
+      prefs.level = levelSelect.value as LanguageLevel;
+      savePreferences(prefs);
+      dispatchChange();
+    });
+
+    lengthPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        const length = pill.dataset.length as ReadLength;
+        if (free && length !== FREE_EDITION.length) {
+          showNote('Long reads are part of the full edition. <a href="/premium">Upgrade</a>');
+          return;
+        }
+        prefs.length = length;
+        prefs.level = pickLevel(av, prefs.language as AppLang, prefs.length, prefs.level) as LanguageLevel;
+        renderLevels();
+        renderLength();
+        savePreferences(prefs);
+        dispatchChange();
+      });
+    });
+
+    extraSelect.addEventListener('change', () => {
+      picks.extraSection = extraSelect.value;
+      saveFreePicks(picks);
+      window.dispatchEvent(new CustomEvent('bilinguist:free-picks-changed'));
+    });
+
+    // Other components (the profile panel's theme/font pickers) keep their own
+    // preferences copy and save independently — stay in sync with them.
+    window.addEventListener('bilinguist:preferences-changed', ((e: CustomEvent) => {
+      if (e.detail === prefs) return;
+      Object.assign(prefs, e.detail);
+      normalise();
+      renderAll();
+    }) as EventListener);
   });
 
-  // Genre options come from whatever the loaded brief actually contains —
+  // Section options come from whatever the loaded brief actually contains —
   // populated by BriefView once the fetch resolves.
   window.addEventListener('bilinguist:brief-genres', ((e: CustomEvent<{ genres: { key: string; label: string }[] }>) => {
-    const genres = e.detail.genres;
     genreSelect.innerHTML =
       '<option value="all">All sections</option>' +
-      genres.map((g) => `<option value="${g.key}">${g.label}</option>`).join('');
+      e.detail.genres.map((g) => `<option value="${g.key}">${g.label}</option>`).join('');
     genreSelect.value = 'all';
   }) as EventListener);
 
   genreSelect.addEventListener('change', () => {
     window.dispatchEvent(new CustomEvent('bilinguist:genre-filter-changed', { detail: { genre: genreSelect.value } }));
   });
-
-  // Other components (e.g. the profile panel's theme/font pickers) hold
-  // their own in-memory preferences copy and can save independently — stay
-  // in sync so a change elsewhere doesn't get clobbered by a stale save here.
-  window.addEventListener('bilinguist:preferences-changed', ((e: CustomEvent) => {
-    if (e.detail === prefs) return; // our own dispatch
-    Object.assign(prefs, e.detail);
-    languageSelect.value = prefs.language;
-    populateLevels(prefs.language, prefs.level);
-    syncLengthPills();
-  }) as EventListener);
 </script>
 
 <style>
@@ -143,45 +231,53 @@ import ProfileButton from './ProfileButton.astro';
     padding-block: var(--space-md);
   }
 
-  .selector-group,
-  .free-strip {
+  .selector-group {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-md);
   }
 
   /* :not([hidden]) so the hidden attribute still wins over display:flex. */
-  .selector-group:not([hidden]),
-  .free-strip:not([hidden]) {
+  .selector-group:not([hidden]) {
     display: flex;
   }
 
-  .free-strip-edition {
-    font-size: 13px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--color-ink-dark);
+  .extra-section:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
   }
 
-  .free-strip-badge {
-    font-size: 10px;
+  .extra-section-label {
+    font-size: 11px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: var(--color-accent);
-    border: var(--hairline-width) solid var(--color-accent);
-    border-radius: 999px;
-    padding: 2px 8px;
+    color: var(--color-ink-light);
   }
 
-  .free-strip-link {
-    font-size: 13px;
+  .free-badge {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--color-ink-light);
+  }
+
+  .free-badge a {
     color: var(--color-accent);
-    text-decoration: none;
     font-weight: 700;
   }
 
-  .free-strip-link:hover {
-    text-decoration: underline;
+  .selector-note {
+    margin: 0 auto;
+    padding-bottom: var(--space-sm);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--color-ink-mid);
+  }
+
+  .selector-note :global(a) {
+    color: var(--color-accent);
+    font-weight: 700;
+    font-style: normal;
   }
 
   .selector-select {

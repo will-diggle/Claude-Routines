@@ -123,13 +123,13 @@ import { flagSvg } from '../lib/app-locale';
 </div>
 
 <script>
-  import { WORKER_BASE, GENRE_COLORS, GENRE_LABELS, LENGTH_LABELS, type LanguageCode, type LanguageLevel, type ReadLength } from '../lib/config';
+  import { GENRE_COLORS, GENRE_LABELS, LENGTH_LABELS, type LanguageCode, type LanguageLevel, type ReadLength } from '../lib/config';
   import { fetchBrief, type BriefArticle } from '../lib/brief';
+  import { languagesToday as langsWith, levelsFor as levelsIn, loadAvailability, nativeGradeFor, pickLevel as pickIn, type Availability, type AvailabilityInfo } from '../lib/availability';
   import {
     APP_LANGUAGES,
     BRIEF_PUBLISHED,
     CITY,
-    FALLBACK_AVAILABLE,
     LOCALE,
     PUBLISHED_PREFIX,
     TAGLINE,
@@ -167,12 +167,10 @@ import { flagSvg } from '../lib/app-locale';
   fit();
 
   // ── Edition state ───────────────────────────────────────────────────────
-  // Which languages/levels exist today, per length. Read from the content
-  // Worker so it follows the pipeline; the built-in copy covers the gap until
-  // that route is deployed or if it can't be reached.
-  type Availability = Partial<Record<AppLang, Record<string, string[]>>>;
-  let available: Availability = FALLBACK_AVAILABLE;
-  let nativeGrades: Record<string, unknown> = {};
+  // Languages and levels with content today come from the content Worker
+  // (see lib/availability), so the phone follows the pipeline as it changes.
+  let info: AvailabilityInfo = { languages: {}, nativeGrades: {} };
+  const av = (): Availability => info.languages;
 
   const state: { lang: AppLang; level: string; length: ReadLength } = { lang: 'en', level: 'Native', length: 'short' };
 
@@ -180,36 +178,11 @@ import { flagSvg } from '../lib/app-locale';
     return APP_LANGUAGES.find((l) => l.code === code)?.nativeName ?? code;
   }
 
-  function gradeOf(code: AppLang): string | undefined {
-    const g = nativeGrades[code];
-    if (typeof g === 'string') return g;
-    if (g && typeof g === 'object' && typeof (g as Record<string, unknown>)[state.length] === 'string') {
-      return (g as Record<string, string>)[state.length];
-    }
-    return undefined;
-  }
-
-  // Languages with a concise edition today, in the app's order.
-  function languagesToday(): AppLang[] {
-    return APP_LANGUAGES.map((l) => l.code).filter((c) => (available[c]?.short ?? []).length > 0);
-  }
-
-  // The app's rule: levels written at this length, else every level the language has.
-  function levelsFor(code: AppLang, length: string): string[] {
-    const byLength = available[code] ?? {};
-    const perLength = byLength[length] ?? [];
-    if (perLength.length) return perLength;
-    const all = new Set<string>();
-    for (const lv of Object.values(byLength)) lv.forEach((x) => all.add(x));
-    return ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'].filter((x) => all.has(x));
-  }
-
-  function pickLevel(code: AppLang, preferred: string): string {
-    const levels = levelsFor(code, state.length);
-    if (levels.includes(preferred)) return preferred;
-    if (levels.includes('B2')) return 'B2';
-    return levels[0] ?? 'Native';
-  }
+  const gradeOf = (code: AppLang) => nativeGradeFor(info, code, state.length);
+  // The phone offers what has a concise edition today, like the app's default.
+  const languagesToday = () => langsWith(av(), 'short');
+  const levelsFor = (code: AppLang, length: string) => levelsIn(av(), code, length);
+  const pickLevel = (code: AppLang, preferred: string) => pickIn(av(), code, state.length, preferred);
 
   // ── Rendering ───────────────────────────────────────────────────────────
   function esc(s: string): string {
@@ -309,18 +282,7 @@ import { flagSvg } from '../lib/app-locale';
   }
 
   async function start() {
-    try {
-      const res = await fetch(`${WORKER_BASE}/latest/available?t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.languages && Object.keys(data.languages).length) {
-          available = data.languages;
-          nativeGrades = data.nativeGrades ?? {};
-        }
-      }
-    } catch {
-      // keep the built-in availability
-    }
+    info = await loadAvailability();
     const langs = languagesToday();
     if (!langs.includes(state.lang)) state.lang = langs[0] ?? 'en';
     state.level = pickLevel(state.lang, 'B2');
