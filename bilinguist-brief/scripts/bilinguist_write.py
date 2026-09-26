@@ -535,19 +535,21 @@ LANGUAGE_LEVELS: dict[str, list[str]] = {
     "ar": [],  # temporarily disabled to cut prompt cost during testing
 }
 
-# GLOBAL_NEWS_EXTRA_LEVELS: added 2026-09-24 (Will's request). fr/es's LANGUAGE_LEVELS
-# entries above only cover one learner level each (fr: B1, es: A2) -- this adds the REST
-# of the CEFR range (A1-Native), but ONLY for GLOBAL NEWS genre stories, not UK/US/etc.
-# Each language's already-covered level (fr: B1, es: A2) is deliberately excluded here --
-# LANGUAGE_LEVELS' normal pass already writes it for every story including Global News,
-# so including it again here would generate it twice. "Native" is excluded too -- Stage 5
-# already covers it for both languages. This is a genre-scoped ADDITION on top of the
-# normal per-language pass, not a replacement: UK/US stories in fr/es still get only
-# their LANGUAGE_LEVELS entry, exactly as before. Keep each list in sync if the
-# corresponding LANGUAGE_LEVELS entry above ever changes which level it covers.
-GLOBAL_NEWS_EXTRA_LEVELS: dict[str, list[str]] = {
-    "fr": ["A1", "A2", "B2", "C1", "C2"],   # LANGUAGE_LEVELS["fr"] already covers B1
-    "es": ["A1", "B1", "B2", "C1", "C2"],   # LANGUAGE_LEVELS["es"] already covers A2
+# LANGUAGE_LEVELS_BY_LENGTH: added 2026-09-26 (Will's request), replacing the
+# 2026-09-24 GLOBAL_NEWS_EXTRA_LEVELS mechanism. That version varied level coverage by
+# GENRE (Global News only); this varies it by LENGTH instead, across every genre --
+# a language/length pair not listed here just falls back to that language's flat
+# LANGUAGE_LEVELS entry above, unchanged. Only fr/de/es are listed because they're the
+# only languages this currently applies to; every other active language keeps writing
+# the same level(s) at every active length, exactly as before.
+# fr/de get every CEFR level below native ("all levels") at "short" length. es gets the
+# same at "short". At "longer" length: fr is deliberately narrowed to B1 only (no other
+# levels), es gets no CEFR-level articles at all (empty list), and de is left unlisted
+# so it keeps falling back to its flat entry (A2) at "longer" -- unchanged.
+LANGUAGE_LEVELS_BY_LENGTH: dict[str, dict[str, list[str]]] = {
+    "fr": {"short": ["A1", "A2", "B1", "B2", "C1", "C2"], "longer": ["B1"]},
+    "de": {"short": ["A1", "A2", "B1", "B2", "C1", "C2"]},
+    "es": {"short": ["A1", "A2", "B1", "B2", "C1", "C2"], "longer": []},
 }
 
 LANGUAGE_NAMES: dict[str, str] = {
@@ -651,9 +653,10 @@ TEST_MATRIX: list[tuple[str, str, str]] = []
 
 # ACTIVE_LENGTHS: which lengths actually get written, for both CEFR-level articles
 # (build_combinations) and native journalism. Narrowed to "longer" only 2026-09-14
-# (Will's request) -- testing-phase cost cut, not permanent. Restore to
-# ("short", "longer") to re-activate short articles.
-ACTIVE_LENGTHS: tuple[str, ...] = ("longer",)
+# (Will's request) -- testing-phase cost cut. Restored to both on 2026-09-26 (Will's
+# request) so fr/de/es can get "short" coverage -- see LANGUAGE_LEVELS_BY_LENGTH, which
+# is what actually decides short-vs-longer level coverage per language, not this tuple.
+ACTIVE_LENGTHS: tuple[str, ...] = ("short", "longer")
 
 
 # ── Combination matrix ────────────────────────────────────────────────────────
@@ -723,17 +726,19 @@ def build_combinations(
             if native_cefr in CEFR_ORDER:
                 skip_from_idx = CEFR_ORDER.index(native_cefr)
 
-        for level in levels:
-            if level == "Native":
-                continue  # always handled by Stage 5
-            if level not in CEFR_ORDER:
-                continue
-            if CEFR_ORDER.index(level) >= skip_from_idx:
-                continue  # at or above native grade — skip
-            if "short" in ACTIVE_LENGTHS:
-                combos_2s.append((lang, level, "short"))
-            if "longer" in ACTIVE_LENGTHS:
-                combos_2m.append((lang, level, "longer"))
+        # Per-length override (see LANGUAGE_LEVELS_BY_LENGTH) -- falls back to the
+        # flat `levels` list above for any length not listed for this language.
+        by_length = LANGUAGE_LEVELS_BY_LENGTH.get(lang, {})
+        for length in ACTIVE_LENGTHS:
+            length_levels = by_length.get(length, levels)
+            for level in length_levels:
+                if level == "Native":
+                    continue  # always handled by Stage 5
+                if level not in CEFR_ORDER:
+                    continue
+                if CEFR_ORDER.index(level) >= skip_from_idx:
+                    continue  # at or above native grade — skip
+                (combos_2s if length == "short" else combos_2m).append((lang, level, length))
 
     return combos_2s, combos_2m
 
@@ -2111,39 +2116,6 @@ def run_writing_concurrent(
             max_output_tokens=32768, template=template, factbase=factbase,
             n_splits=n_splits,
         ))
-
-    # Extra levels for GLOBAL NEWS stories only (fr/es) -- see GLOBAL_NEWS_EXTRA_LEVELS
-    # above. Genre-scoped tasks built the same way as the normal ones, but against a
-    # factbase filtered down to GLOBAL NEWS stories only, so the resulting "articles"
-    # list only ever contains Global News stories at these levels -- UK/US stories never
-    # get written at these extra levels, matching the normal-pass behaviour for those
-    # genres unchanged above. Respects ACTIVE_LENGTHS the same way build_combinations()
-    # does, so this stays inert on "short" while that's cut for the testing phase.
-    global_news_factbase = [s for s in factbase if s.get("genre") == "GLOBAL NEWS"]
-    for lang, extra_levels in GLOBAL_NEWS_EXTRA_LEVELS.items():
-        if not global_news_factbase:
-            continue
-        skip_from_idx = len(CEFR_ORDER)
-        if native_grades and lang in native_grades and native_grades[lang] in CEFR_ORDER:
-            skip_from_idx = CEFR_ORDER.index(native_grades[lang])
-        for level in extra_levels:
-            if level not in CEFR_ORDER or CEFR_ORDER.index(level) >= skip_from_idx:
-                continue  # at or above native grade -- Stage 5 already covers it
-            is_beginner = level in ("A1", "A2")
-            for length in ACTIVE_LENGTHS:
-                stage = "2B" if is_beginner else ("2S" if length == "short" else "2M")
-                model = _resolve_model(MODEL_BEGINNER if is_beginner else
-                                        (MODEL_2S if length == "short" else MODEL_2M),
-                                        is_beginner)
-                template = PROMPT_2S_HEADER if (is_beginner or length == "short") else PROMPT_2M_HEADER
-                prompt = build_writing_prompt(template, lang, level, length, global_news_factbase)
-                tasks.append(_WriteTask(
-                    stage=stage, lang=lang, level=level, length=length,
-                    model=model, prompt=prompt, schema=_SCHEMA_WRITING,
-                    max_output_tokens=32768 if not is_beginner and length == "longer" else 16384,
-                    template=template, factbase=global_news_factbase,
-                    n_splits=1,  # Global News subset is small (usually 1-3 stories) -- no need to split
-                ))
 
     if not tasks:
         print("[write] No CEFR level combos to generate (all skipped by P4a grades)")
