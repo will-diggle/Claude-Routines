@@ -1,11 +1,38 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import PhonePreview from '../components/PhonePreview.astro';
-import { APP_STORE_URL, THEMES } from '../lib/config';
+import AppStoreBadge from '../components/AppStoreBadge.astro';
+import { APP_SCHEME_URL, THEMES } from '../lib/config';
 
 const year = new Date().getFullYear();
 ---
 <Layout title="Sign in" description="Sign in to Bilinguist Brief — the daily news, in the language and level you're learning." bare>
+  {/* On iPhone, lead with the App Store before first paint, unless the
+      visitor already chose to carry on in the browser this session. */}
+  <script is:inline>
+    (function () {
+      var iphone = /iPhone|iPod/.test(navigator.userAgent);
+      var stay = false;
+      try { stay = sessionStorage.getItem('bb-continue-web') === '1'; } catch (e) {}
+      if (iphone && !stay) document.documentElement.classList.add('ios-app-first');
+    })();
+  </script>
+
+  <section class="ios-landing" aria-label="Get the Bilinguist Brief app">
+    <div class="ios-landing-inner">
+      <img src="/app-icon.png" alt="" class="ios-icon" width="120" height="120" />
+      <h1 class="ios-title">Bilinguist Brief</h1>
+      <p class="ios-sub">The morning's news, in the language you're learning.</p>
+
+      <AppStoreBadge height={56} class="ios-badge" />
+      <p class="ios-price">Free to download · Full edition <span class="js-local-price">£3.99</span>/month</p>
+
+      <a class="ios-open" href={APP_SCHEME_URL}>Already have the app? Open it</a>
+    </div>
+
+    <button type="button" class="ios-continue" id="ios-continue">Continue in Safari instead</button>
+  </section>
+
   <div class="auth">
     <section class="auth-side">
       <a href="/login" class="auth-brand" aria-label="Bilinguist Brief">
@@ -79,18 +106,8 @@ const year = new Date().getFullYear();
       </div>
 
       <div class="showcase-cta">
-        {APP_STORE_URL ? (
-          <a class="store-badge" href={APP_STORE_URL} target="_blank" rel="noopener">
-            <svg viewBox="0 0 17 20" width="22" height="26" aria-hidden="true"><path fill="currentColor" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 2 5.8 1.1 7.4c-1.9 3.2-.5 8 1.3 10.6.9 1.3 1.9 2.7 3.3 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.4ZM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5Z"/></svg>
-            <span class="store-badge-text"><small>Download on the</small>App Store</span>
-          </a>
-        ) : (
-          <span class="store-badge store-badge--soon" aria-label="Coming soon to the App Store">
-            <svg viewBox="0 0 17 20" width="22" height="26" aria-hidden="true"><path fill="currentColor" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 2 5.8 1.1 7.4c-1.9 3.2-.5 8 1.3 10.6.9 1.3 1.9 2.7 3.3 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.4ZM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5Z"/></svg>
-            <span class="store-badge-text"><small>Coming soon to the</small>App Store</span>
-          </span>
-        )}
-        <p class="showcase-price">Free to download · Full edition <span id="showcase-price">£3.99</span>/month</p>
+        <AppStoreBadge height={48} />
+        <p class="showcase-price">Free to download · Full edition <span class="js-local-price">£3.99</span>/month</p>
       </div>
     </section>
   </div>
@@ -295,16 +312,110 @@ const year = new Date().getFullYear();
     });
   }
 
+  $('ios-continue').addEventListener('click', () => {
+    try {
+      sessionStorage.setItem('bb-continue-web', '1');
+    } catch {}
+    document.documentElement.classList.remove('ios-app-first');
+    window.scrollTo(0, 0);
+  });
+
   // Show the visitor's local price, same as the premium page.
   fetch('/api/locale-price')
     .then((r) => (r.ok ? r.json() : null))
     .then((p) => {
-      if (p?.symbol && p?.amount) $('showcase-price').textContent = `${p.symbol}${p.amount}`;
+      if (!p?.symbol || !p?.amount) return;
+      document.querySelectorAll('.js-local-price').forEach((el) => (el.textContent = `${p.symbol}${p.amount}`));
     })
     .catch(() => {});
 </script>
 
 <style>
+  /* ── iPhone: App Store first ───────────────────────────────────────── */
+  .ios-landing {
+    display: none;
+  }
+
+  :global(html.ios-app-first) .ios-landing {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: var(--space-xxl) var(--space-lg) calc(var(--space-lg) + env(safe-area-inset-bottom));
+    background:
+      radial-gradient(70% 45% at 50% 30%, color-mix(in srgb, var(--color-ink-dark) 5%, transparent), transparent 70%),
+      var(--color-bg);
+    text-align: center;
+  }
+
+  :global(html.ios-app-first) .auth {
+    display: none;
+  }
+
+  .ios-landing-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  .ios-icon {
+    width: 120px;
+    height: 120px;
+    border-radius: 27px;
+    box-shadow:
+      0 0 0 0.5px color-mix(in srgb, var(--color-ink-dark) 15%, transparent),
+      0 12px 30px -8px rgba(0, 0, 0, 0.25);
+    margin-bottom: var(--space-md);
+  }
+
+  .ios-title {
+    margin: 0;
+    font-size: 30px;
+    line-height: 1.15;
+    color: var(--color-ink-dark);
+  }
+
+  .ios-sub {
+    margin: 0 0 var(--space-lg);
+    max-width: 280px;
+    font-size: 17px;
+    line-height: 1.45;
+    font-style: italic;
+    color: var(--color-ink-light);
+  }
+
+  .ios-price {
+    margin: var(--space-xs) 0 0;
+    font-size: 13px;
+    color: var(--color-ink-light);
+  }
+
+  .ios-open {
+    margin-top: var(--space-lg);
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: var(--hairline-width) solid var(--color-border-mid);
+    font-size: 15px;
+    color: var(--color-ink-dark);
+    text-decoration: none;
+  }
+
+  .ios-continue {
+    align-self: center;
+    padding: var(--space-sm);
+    border: none;
+    background: none;
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-light);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
   .auth {
     display: grid;
     grid-template-columns: 1fr;
@@ -676,42 +787,6 @@ const year = new Date().getFullYear();
     gap: var(--space-sm);
   }
 
-  .store-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 20px 8px 16px;
-    border-radius: 12px;
-    background: #000;
-    color: #fff;
-    border: 1px solid #a6a6a6;
-    text-decoration: none;
-    font-family: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
-    transition: transform 0.12s ease;
-  }
-
-  a.store-badge:hover {
-    transform: translateY(-1px);
-  }
-
-  .store-badge--soon {
-    cursor: default;
-  }
-
-  .store-badge-text {
-    display: flex;
-    flex-direction: column;
-    font-size: 21px;
-    font-weight: 600;
-    line-height: 1.05;
-    letter-spacing: -0.3px;
-  }
-
-  .store-badge-text small {
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 0.2px;
-  }
 
   /* Short laptop screens: give the height to the phone, not the copy. */
   @media (min-width: 1000px) and (max-height: 820px) {

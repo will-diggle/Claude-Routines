@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { BOOTSTRAP_SCRIPT } from '../lib/preferences';
 import { AUTH_GATE_SCRIPT } from '../lib/auth';
+import { APP_STORE_ID } from '../lib/config';
 import Masthead from '../components/Masthead.astro';
 import Footer from '../components/Footer.astro';
 
@@ -30,6 +31,8 @@ const {
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="apple-touch-icon" href="/icon.png" />
     <title>{title} · Bilinguist Brief</title>
+    {/* Safari's native banner: "Open" if the app is installed, "Get" if not. */}
+    {APP_STORE_ID && <meta name="apple-itunes-app" content={`app-id=${APP_STORE_ID}`} />}
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

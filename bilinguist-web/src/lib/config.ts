@@ -7,9 +7,15 @@ export type ThemeKey = 'white' | 'cream' | 'softGrey' | 'night';
 export type FontKey = 'lora' | 'garamond' | 'playfair' | 'times';
 export type ReadLength = 'short' | 'longer';
 
-// App Store listing for the iPhone app. Empty until the listing is live —
-// the login page shows a "Coming soon" badge instead of a link meanwhile.
-export const APP_STORE_URL = '';
+// The iPhone app's numeric App Store ID (the digits in its apps.apple.com
+// link). Empty until the listing is live: badges show "Coming soon" and
+// Safari's Smart App Banner stays off. Once set, the App Store page itself
+// offers "Get" or "Open" depending on whether the app is installed.
+export const APP_STORE_ID = '';
+export const APP_STORE_URL = APP_STORE_ID ? `https://apps.apple.com/app/id${APP_STORE_ID}` : '';
+
+// The app's URL scheme (app.json "scheme") — opens the installed app.
+export const APP_SCHEME_URL = 'bilinguistbrief://';
 
 // What a signed-in free account reads, matching the paywall's Free column:
 // English only, one World News article in full, plus five teaser headlines.
