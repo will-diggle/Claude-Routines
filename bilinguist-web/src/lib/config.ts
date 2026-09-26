@@ -25,11 +25,9 @@ export const APP_SCHEME_URL = 'bilinguistbrief://';
 
 // What a signed-in free account reads, matching the app's current free tier
 // (PaywallScreen): English plus one language of their choice (which can only
-// be changed once the cooldown has passed), at any level, concise length
+// be changed again 24 hours after picking it), at any level, concise length
 // only — two Global News stories plus one story from a section of their
 // choice. Everything else shows as locked teasers.
-// secondLanguageCooldownDays is a placeholder until it's confirmed against
-// the app's own value.
 export const FREE_EDITION = {
   length: 'short' as const,
   globalNewsStories: 2,
@@ -39,7 +37,7 @@ export const FREE_EDITION = {
     { key: 'US', label: 'US' },
     { key: 'EUROPE', label: 'Europe' },
   ],
-  secondLanguageCooldownDays: 7,
+  secondLanguageCooldownHours: 24,
   teasers: 5,
 };
 

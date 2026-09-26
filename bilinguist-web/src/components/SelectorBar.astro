@@ -69,8 +69,11 @@ import ProfileButton from './ProfileButton.astro';
     note.hidden = false;
   }
 
-  function dayMonth(d: Date): string {
-    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  // "Sunday at 09:15" — the wait is only a day, so the time matters.
+  function whenAgain(d: Date): string {
+    const day = d.toLocaleDateString('en-GB', { weekday: 'long' });
+    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `${day} at ${time}`;
   }
 
   function nameOf(code: string): string {
@@ -141,11 +144,11 @@ import ProfileButton from './ProfileButton.astro';
         const lockedUntil = secondLanguageLockedUntil(picks);
         if (lockedUntil) {
           languageSelect.value = prefs.language;
-          showNote(`You can change your free second language again on ${dayMonth(lockedUntil)}. <a href="/premium">Upgrade</a> to read every language.`);
+          showNote(`You can change your free second language again on ${whenAgain(lockedUntil)}. <a href="/premium">Upgrade</a> to read every language.`);
           return;
         }
-        const days = FREE_EDITION.secondLanguageCooldownDays;
-        if (!window.confirm(`Make ${nameOf(code)} your free second language? You won't be able to change it again for ${days} days.`)) {
+        const hours = FREE_EDITION.secondLanguageCooldownHours;
+        if (!window.confirm(`Make ${nameOf(code)} your free second language? You won't be able to change it again for ${hours} hours.`)) {
           languageSelect.value = prefs.language;
           return;
         }
@@ -153,7 +156,7 @@ import ProfileButton from './ProfileButton.astro';
         picks.secondLanguageSetAt = Date.now();
         saveFreePicks(picks);
         const until = secondLanguageLockedUntil(picks);
-        showNote(`${nameOf(code)} is your free second language${until ? ` until at least ${dayMonth(until)}` : ''}.`);
+        showNote(`${nameOf(code)} is your free second language — you can change it again on ${until ? whenAgain(until) : 'any time'}.`);
       } else {
         note.hidden = true;
       }
