@@ -5,6 +5,7 @@
  *   GET  /latest                        → today's briefing bundle (briefings/<date>.json,
  *                                          falls back to latest.json — see handleTodayBriefing)
  *   GET  /latest/meta                   → { date, generatedAt } only (~50 bytes)
+ *   GET  /latest/available              → which languages/levels/lengths today's bundle has
  *   GET  /briefings/YYYY-MM-DD          → archived briefing bundle
  *   GET  /word?w={word}&lang={lang}     → word lookup (D1 cache → Claude + translate)
  *   POST /word                          → admin: bulk-insert a word (requires X-Admin-Key)
@@ -865,6 +866,61 @@ async function handleBriefingFiltered(env: Env, lang: string, level: string): Pr
   });
 }
 
+// ── Route: GET /latest/available ─────────────────────────────────────────────
+// What today's bundle actually contains, per language and length:
+// { en: { short: ['Native'], longer: ['Native'] }, fr: { short: ['A1', …, 'Native'] } }
+// The pipeline's language/level matrix changes often, so the website reads this
+// instead of keeping its own copy. nativeGrades is passed through for the app's
+// "C1 / Native" label.
+
+const LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'Native'];
+
+async function handleBriefingAvailable(env: Env): Promise<Response> {
+  const briefRes = await handleTodayBriefing(env);
+  if (!briefRes.ok) {
+    return json({ error: briefRes.status === 404 ? 'not_found' : 'upstream_error' }, briefRes.status);
+  }
+
+  const bundle = await briefRes.json() as {
+    date: string;
+    generatedAt: number;
+    briefings?: Record<string, Record<string, Record<string, { articles?: unknown[] }>>>;
+    nativeJournalism?: Record<string, Record<string, unknown[]>>;
+    nativeGrades?: Record<string, unknown>;
+  };
+
+  const languages: Record<string, Record<string, string[]>> = {};
+  const add = (lang: string, length: string, level: string) => {
+    const byLength = (languages[lang] ??= {});
+    (byLength[length] ??= []).push(level);
+  };
+
+  for (const [lang, byLevel] of Object.entries(bundle.briefings ?? {})) {
+    for (const [level, byLength] of Object.entries(byLevel ?? {})) {
+      for (const [length, briefing] of Object.entries(byLength ?? {})) {
+        if (Array.isArray(briefing?.articles) && briefing.articles.length > 0) add(lang, length, level);
+      }
+    }
+  }
+  for (const [lang, byLength] of Object.entries(bundle.nativeJournalism ?? {})) {
+    for (const [length, articles] of Object.entries(byLength ?? {})) {
+      if (Array.isArray(articles) && articles.length > 0) add(lang, length, 'Native');
+    }
+  }
+  for (const byLength of Object.values(languages)) {
+    for (const levels of Object.values(byLength)) {
+      levels.sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b));
+    }
+  }
+
+  return json({
+    date: bundle.date,
+    generatedAt: bundle.generatedAt,
+    languages,
+    nativeGrades: bundle.nativeGrades ?? {},
+  });
+}
+
 // ── DB warm-up (runs on cron schedule) ───────────────────────────────────────
 
 const NO_DB_LANGS = new Set(['tr', 'ar', 'hu']);
@@ -1002,6 +1058,7 @@ export default {
     if (audioStream) return handleAudioStream(audioStream[1], env);
 
     if (pathname === '/latest/meta') return handleBriefingMeta(env);
+    if (pathname === '/latest/available') return handleBriefingAvailable(env);
     if (pathname === '/latest') {
       const lang  = url.searchParams.get('lang');
       const level = url.searchParams.get('level');
