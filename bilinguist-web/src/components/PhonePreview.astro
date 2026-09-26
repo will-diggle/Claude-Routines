@@ -121,7 +121,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
   const DEVICE_H = 876;
   function fit() {
     const box = stage.getBoundingClientRect();
-    const s = Math.min(box.width / (DEVICE_W * 1.12), box.height / (DEVICE_H * 1.06), 1);
+    const s = Math.min(box.width / (DEVICE_W * 1.06), box.height / (DEVICE_H * 1.04), 1);
     stage.style.setProperty('--s', String(Math.max(s, 0.4)));
   }
   new ResizeObserver(fit).observe(stage);
@@ -314,7 +314,6 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     width: 100%;
     height: 100%;
     min-height: 420px;
-    perspective: 2200px;
   }
 
   .phone-float {
@@ -325,7 +324,6 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     height: 876px;
     margin: -438px 0 0 -208.5px;
     transform: scale(var(--s));
-    transform-style: preserve-3d;
     animation: phone-in 900ms cubic-bezier(.2,.8,.2,1) both, phone-bob 7s ease-in-out 900ms infinite;
   }
 
@@ -351,16 +349,8 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
       inset 0 0 0 1.5px rgba(255, 255, 255, 0.18),
       inset 0 0 0 5px #101012,
       0 1px 0 1px rgba(0, 0, 0, 0.35),
-      -30px 40px 80px -20px rgba(20, 16, 10, 0.45),
-      -8px 12px 24px -6px rgba(20, 16, 10, 0.3);
-    transform: rotateY(-17deg) rotateX(7deg) rotateZ(2.5deg);
-    transform-style: preserve-3d;
-    transition: transform 700ms cubic-bezier(.2,.8,.2,1);
-  }
-
-  .phone:hover,
-  .phone:focus-within {
-    transform: rotateY(-5deg) rotateX(2deg) rotateZ(0.5deg);
+      0 40px 80px -24px rgba(20, 16, 10, 0.4),
+      0 12px 24px -8px rgba(20, 16, 10, 0.22);
   }
 
   .phone-btn {
@@ -381,7 +371,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     bottom: 2%;
     width: calc(360px * var(--s));
     height: calc(40px * var(--s));
-    translate: -46% 0;
+    translate: -50% 0;
     border-radius: 50%;
     background: radial-gradient(closest-side, rgba(20, 16, 10, 0.28), transparent);
     filter: blur(8px);
@@ -513,7 +503,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     margin: 0 8px 12px;
   }
 
-  .app-tap {
+  :global(.app-tap) {
     font: inherit;
     color: inherit;
     background: none;
@@ -524,7 +514,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     transition: opacity 0.12s ease, transform 0.12s ease;
   }
 
-  .app-tap:active {
+  :global(.app-tap:active) {
     opacity: 0.55;
     transform: scale(0.97);
   }
@@ -554,7 +544,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     color: var(--color-ink-dark);
   }
 
-  .i {
+  :global(.i) {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -563,7 +553,7 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
     flex-shrink: 0;
   }
 
-  .i-13 { width: 13px; height: 13px; }
+  :global(.i-13) { width: 13px; height: 13px; }
   .i-14 { width: 14px; height: 14px; }
   .i-17 { width: 17px; height: 17px; }
   .i-26 { width: 26px; height: 26px; }
@@ -908,10 +898,6 @@ const ukFlag = `<svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" ar
   @media (prefers-reduced-motion: reduce) {
     .phone-float {
       animation: none;
-    }
-    .phone {
-      transform: rotateY(-8deg) rotateX(3deg);
-      transition: none;
     }
   }
 </style>
