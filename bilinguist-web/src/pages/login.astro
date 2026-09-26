@@ -363,7 +363,7 @@ const year = new Date().getFullYear();
     font-size: 11px;
     letter-spacing: 2.25px;
     text-transform: uppercase;
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
   }
 
   .auth-title {
@@ -393,7 +393,7 @@ const year = new Date().getFullYear();
     justify-content: center;
     gap: 10px;
     height: 48px;
-    border-radius: 10px;
+    border-radius: 999px;
     font-family: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
     font-size: 16px;
     font-weight: 500;
@@ -483,8 +483,8 @@ const year = new Date().getFullYear();
 
   .field input:focus {
     outline: none;
-    border-color: var(--color-accent-gold);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-gold) 20%, transparent);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 
   .field-toggle {
@@ -509,7 +509,7 @@ const year = new Date().getFullYear();
     background: none;
     font-family: var(--font-body-family);
     font-size: 14px;
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
     cursor: pointer;
     text-decoration: underline;
     text-decoration-thickness: 1px;
@@ -537,16 +537,16 @@ const year = new Date().getFullYear();
   }
 
   .auth-notice {
-    background: color-mix(in srgb, var(--color-accent-gold) 12%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
     color: var(--color-ink-dark);
   }
 
   .auth-submit {
     height: 50px;
     border: none;
-    border-radius: 10px;
-    background: var(--color-accent-gold);
-    color: #fff;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
     font-family: var(--font-body-family);
     font-size: 17px;
     font-weight: 700;
@@ -609,8 +609,8 @@ const year = new Date().getFullYear();
     gap: var(--space-md);
     padding: var(--space-xl) var(--space-md) var(--space-xl);
     background:
-      radial-gradient(60% 50% at 70% 35%, color-mix(in srgb, var(--color-accent-gold) 18%, transparent), transparent 70%),
-      radial-gradient(50% 40% at 20% 90%, color-mix(in srgb, var(--color-accent-gold) 10%, transparent), transparent 70%),
+      radial-gradient(60% 50% at 70% 35%, color-mix(in srgb, var(--color-bg) 70%, transparent), transparent 70%),
+      radial-gradient(50% 40% at 20% 90%, color-mix(in srgb, var(--color-ink-dark) 5%, transparent), transparent 70%),
       var(--color-surface);
     overflow: hidden;
   }
@@ -638,7 +638,7 @@ const year = new Date().getFullYear();
     font-size: 11px;
     letter-spacing: 2.25px;
     text-transform: uppercase;
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
   }
 
   .showcase-title {

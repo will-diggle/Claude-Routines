@@ -91,6 +91,6 @@ a {
 }
 
 ::selection {
-  background: var(--color-accent-gold);
-  color: var(--color-bg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }

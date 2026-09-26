@@ -31,6 +31,11 @@
   --font-times: Georgia, 'Times New Roman', Times, serif;
   --font-body-family: var(--font-lora);
 
+  /* Buttons, bars and highlights — the app's ink colour, which is black on
+     the light papers and flips to cream on the dark ones. */
+  --color-accent: var(--color-ink-dark);
+  --color-on-accent: var(--color-bg);
+
   /* Border weights */
   --hairline-width: 1px;
   --chrome-width: 1.5px;

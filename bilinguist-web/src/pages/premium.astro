@@ -132,7 +132,7 @@ import { DEFAULT_PRICE } from '../lib/config';
 
   .price-card {
     width: 100%;
-    background: var(--color-accent-gold);
+    background: var(--color-accent);
     border-radius: 12px;
     padding-block: var(--space-lg);
   }
@@ -141,13 +141,13 @@ import { DEFAULT_PRICE } from '../lib/config';
     font-size: 40px;
     line-height: 46px;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-on-accent);
     margin: 0;
   }
 
   .price-period {
     font-size: 15px;
-    color: rgba(255, 255, 255, 0.8);
+    color: color-mix(in srgb, var(--color-on-accent) 75%, transparent);
     margin: 0;
   }
 
@@ -176,7 +176,7 @@ import { DEFAULT_PRICE } from '../lib/config';
   }
 
   .comparison-head-full {
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
     font-weight: 700;
   }
 
@@ -222,7 +222,7 @@ import { DEFAULT_PRICE } from '../lib/config';
   }
 
   .check-full {
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
   }
 
   .subscribe-btn {
@@ -230,10 +230,10 @@ import { DEFAULT_PRICE } from '../lib/config';
     font-family: var(--font-body-family);
     font-size: 17px;
     font-weight: 700;
-    color: #fff;
-    background: var(--color-accent-gold);
+    color: var(--color-on-accent);
+    background: var(--color-accent);
     border: none;
-    border-radius: 10px;
+    border-radius: 999px;
     padding-block: var(--space-md);
     cursor: pointer;
   }
@@ -292,7 +292,7 @@ import { DEFAULT_PRICE } from '../lib/config';
     color: var(--color-ink-dark);
     background: var(--color-card);
     border: var(--hairline-width) solid var(--color-border-mid);
-    border-radius: 8px;
+    border-radius: 999px;
     padding: var(--space-sm) var(--space-md);
     width: 160px;
   }
@@ -300,10 +300,10 @@ import { DEFAULT_PRICE } from '../lib/config';
   .promo-apply {
     font-family: var(--font-body-family);
     font-size: 15px;
-    color: #fff;
-    background: var(--color-accent-gold);
+    color: var(--color-on-accent);
+    background: var(--color-accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 999px;
     padding: var(--space-sm) var(--space-lg);
     cursor: pointer;
   }
