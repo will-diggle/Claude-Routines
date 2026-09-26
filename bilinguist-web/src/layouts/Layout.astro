@@ -2,7 +2,7 @@
 import '../styles/global.css';
 import { BOOTSTRAP_SCRIPT } from '../lib/preferences';
 import { AUTH_GATE_SCRIPT } from '../lib/auth';
-import { APP_STORE_ID } from '../lib/config';
+import { APP_STORE_ID, type ThemeKey } from '../lib/config';
 import Masthead from '../components/Masthead.astro';
 import Footer from '../components/Footer.astro';
 
@@ -13,6 +13,8 @@ interface Props {
   bare?: boolean;
   /** Send signed-out visitors to /login before first paint. */
   gated?: boolean;
+  /** Pin this page to one paper, ignoring the reader's saved theme. */
+  theme?: ThemeKey;
 }
 
 const {
@@ -20,10 +22,11 @@ const {
   description = 'Bilinguist Brief — a daily multilingual news briefing, in your language and level.',
   bare = false,
   gated = false,
+  theme,
 } = Astro.props;
 ---
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme={theme}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -43,6 +46,7 @@ const {
 
     <!-- Applies stored theme/font before first paint to avoid a flash of defaults. -->
     <script is:inline set:html={BOOTSTRAP_SCRIPT} />
+    {theme && <script is:inline set:html={`document.documentElement.setAttribute('data-theme', ${JSON.stringify(theme)});`} />}
     {gated && <script is:inline set:html={AUTH_GATE_SCRIPT} />}
   </head>
   <body>
