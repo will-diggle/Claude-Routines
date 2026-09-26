@@ -22,12 +22,14 @@ function priceForCountry(country) {
 // ── Paid status ─────────────────────────────────────────────────
 // The app decides paid vs free from RevenueCat (its app_user_id is the
 // Supabase user id, via Purchases.logIn), so the website asks RevenueCat
-// too. The secret key stays here on the server: set it as the Worker
-// secret REVENUECAT_SECRET_KEY. The caller proves who they are with their
-// Supabase access token, which Supabase itself checks.
+// too, through its v2 API. The secret key stays here on the server: set it
+// as the Worker secret REVENUECAT_SECRET_KEY (a v2 key with read access to
+// customer information and project configuration). The caller proves who
+// they are with their Supabase access token, which Supabase itself checks.
 
 const SUPABASE_URL = "https://llkufcnkpgynwkgmoxmb.supabase.co";
-const ENTITLEMENT_ID = "bilinguist_brief_pro";
+const ENTITLEMENT_LOOKUP_KEY = "bilinguist_brief_pro";
+const RC_API = "https://api.revenuecat.com/v2";
 
 const PRIVATE_JSON = { "content-type": "application/json", "cache-control": "private, no-store" };
 
@@ -45,30 +47,69 @@ async function supabaseUser(request, env) {
   return user && typeof user.id === "string" ? user : null;
 }
 
-function entitlementActive(entitlement, now) {
-  if (!entitlement) return false;
-  const until = entitlement.grace_period_expires_date || entitlement.expires_date;
-  return until === null || until === undefined || Date.parse(until) > now;
+function revenueCat(path, env) {
+  return fetch(`${RC_API}${path}`, {
+    headers: { authorization: `Bearer ${env.REVENUECAT_SECRET_KEY}`, accept: "application/json" },
+  });
+}
+
+// A v2 key belongs to one project, so its id can be looked up rather than
+// configured (REVENUECAT_PROJECT_ID overrides). Remembered per Worker instance.
+let rcProjectId = null;
+async function revenueCatProject(env) {
+  if (env.REVENUECAT_PROJECT_ID) return env.REVENUECAT_PROJECT_ID;
+  if (rcProjectId) return rcProjectId;
+  const res = await revenueCat("/projects", env);
+  if (!res.ok) return null;
+  rcProjectId = (await res.json())?.items?.[0]?.id ?? null;
+  return rcProjectId;
+}
+
+// v2 reports entitlements by RevenueCat's own id, not the app's lookup key.
+let rcEntitlementId;
+async function proEntitlementId(env, projectId) {
+  if (rcEntitlementId !== undefined) return rcEntitlementId;
+  const res = await revenueCat(`/projects/${projectId}/entitlements?limit=100`, env);
+  if (!res.ok) return null;
+  const items = (await res.json())?.items ?? [];
+  rcEntitlementId = items.find((e) => e.lookup_key === ENTITLEMENT_LOOKUP_KEY)?.id ?? null;
+  return rcEntitlementId;
+}
+
+function stillActive(item, now) {
+  const until = item.expires_at;
+  if (until === null || until === undefined) return true;
+  const ms = typeof until === "number" ? until : Date.parse(until);
+  return ms > now;
+}
+
+function entitlementReply(tier, source) {
+  return new Response(JSON.stringify({ tier, source }), { headers: PRIVATE_JSON });
 }
 
 async function handleEntitlement(request, env) {
   const user = await supabaseUser(request, env);
   if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: PRIVATE_JSON });
 
-  if (!env.REVENUECAT_SECRET_KEY) {
-    return new Response(JSON.stringify({ tier: null, source: "unconfigured" }), { headers: PRIVATE_JSON });
-  }
+  if (!env.REVENUECAT_SECRET_KEY) return entitlementReply(null, "unconfigured");
 
-  const rc = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.id)}`, {
-    headers: { authorization: `Bearer ${env.REVENUECAT_SECRET_KEY}`, accept: "application/json" },
-  });
-  if (!rc.ok) {
-    return new Response(JSON.stringify({ tier: null, source: "revenuecat_error" }), { headers: PRIVATE_JSON });
-  }
-  const data = await rc.json();
-  const entitlement = data?.subscriber?.entitlements?.[ENTITLEMENT_ID];
-  const tier = entitlementActive(entitlement, Date.now()) ? "premium" : "free";
-  return new Response(JSON.stringify({ tier, source: "revenuecat" }), { headers: PRIVATE_JSON });
+  const projectId = await revenueCatProject(env);
+  if (!projectId) return entitlementReply(null, "revenuecat_error");
+
+  const res = await revenueCat(
+    `/projects/${projectId}/customers/${encodeURIComponent(user.id)}/active_entitlements`,
+    env,
+  );
+  // Someone who has never opened a purchase in the app isn't a RevenueCat customer yet.
+  if (res.status === 404) return entitlementReply("free", "revenuecat");
+  if (!res.ok) return entitlementReply(null, "revenuecat_error");
+
+  const now = Date.now();
+  const active = ((await res.json())?.items ?? []).filter((item) => stillActive(item, now));
+  const proId = await proEntitlementId(env, projectId);
+  // The app has one entitlement; if its id can't be resolved, any active one counts.
+  const premium = proId ? active.some((item) => item.entitlement_id === proId) : active.length > 0;
+  return entitlementReply(premium ? "premium" : "free", "revenuecat");
 }
 
 export default {
