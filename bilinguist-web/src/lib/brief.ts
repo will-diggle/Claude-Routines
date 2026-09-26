@@ -36,6 +36,7 @@ export async function fetchBrief(
   language: LanguageCode,
   level: LanguageLevel,
   preferredLength: ReadLength,
+  options: { strictLength?: boolean } = {},
 ): Promise<BriefFetchResult> {
   try {
     const url = `${WORKER_BASE}/latest?lang=${encodeURIComponent(language)}&level=${encodeURIComponent(level)}&t=${Date.now()}`;
@@ -46,9 +47,9 @@ export async function fetchBrief(
 
     const data: FilteredBriefResponse = await res.json();
     const availableLengths = Object.keys(data.lengths ?? {});
-    const preference = [preferredLength, ...LENGTH_FALLBACK];
+    const preference = options.strictLength ? [preferredLength] : [preferredLength, ...LENGTH_FALLBACK];
     const chosen =
-      preference.find((l) => availableLengths.includes(l)) ?? availableLengths[0];
+      preference.find((l) => availableLengths.includes(l)) ?? (options.strictLength ? undefined : availableLengths[0]);
 
     if (!chosen) return { ok: false, reason: 'not_found' };
 

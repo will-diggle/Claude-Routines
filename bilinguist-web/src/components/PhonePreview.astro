@@ -1,0 +1,1235 @@
+---
+// A working replica of the app's reading screen (BriefingScreen.tsx) inside
+// an iPhone, showing the first Global News story of today's concise edition.
+// The edition button opens the app's level picker and the flag pill switches
+// between every language that has content today. Built at the real
+// 393×852pt iPhone size so every value matches the app, then scaled to fit.
+import { THEMES } from '../lib/config';
+import { flagSvg } from '../lib/app-locale';
+
+---
+<div class="phone-stage" id="phone-stage">
+  <div class="phone-float">
+    <div class="phone" id="phone">
+      <span class="phone-btn phone-btn--action" aria-hidden="true"></span>
+      <span class="phone-btn phone-btn--vol-up" aria-hidden="true"></span>
+      <span class="phone-btn phone-btn--vol-down" aria-hidden="true"></span>
+      <span class="phone-btn phone-btn--power" aria-hidden="true"></span>
+
+      <div class="phone-screen">
+        <div class="app-scroll" id="app-scroll">
+          <div class="app-masthead">
+            {THEMES.map((t) => (
+              <img src={`/masthead/${t.key}.jpg`} alt="Bilinguist Brief" class="app-masthead-img" data-theme-img={t.key} />
+            ))}
+          </div>
+          <p class="app-cities" id="app-cities">London</p>
+          <hr class="app-rule" />
+
+          <div class="app-edition">
+            <button type="button" class="app-tap app-edition-lang" id="edition-btn" aria-haspopup="dialog">
+              <span id="edition-label">English · C1 / Native</span>
+              <svg class="i i-14 i-faint" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <button type="button" class="app-tap app-edition-streak" data-sheet="streak">
+              <svg class="i i-17" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+              <span>0</span>
+              <svg class="i i-14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+          </div>
+
+          <div id="app-body">
+            <div class="app-skeleton" aria-hidden="true">
+              <div class="sk" style="width:40%;height:12px"></div>
+              <div class="sk" style="width:92%;height:24px;margin-top:22px"></div>
+              <div class="sk" style="width:70%;height:24px;margin-top:8px"></div>
+              {[100, 100, 96, 100, 100, 58].map((w) => <div class="sk" style={`width:${w}%;height:13px;margin-top:12px`}></div>)}
+            </div>
+          </div>
+
+          <footer class="app-footer" id="app-footer" hidden>
+            <hr class="app-footer-rule" />
+            <p class="app-footer-date" id="app-footer-date"></p>
+            <p class="app-footer-tagline" id="app-footer-tagline">Your daily brief</p>
+            <button type="button" class="app-crest" id="app-crest" aria-label="Crest">
+              {THEMES.map((t) => (
+                <img src={`/crest/${t.key}.png`} alt="" data-theme-img={t.key} width="44" height="44" />
+              ))}
+            </button>
+          </footer>
+        </div>
+
+        <div class="status-fade" aria-hidden="true"></div>
+        <div class="status-bar" aria-hidden="true">
+          <span class="status-time">9:41</span>
+          <span class="status-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="0.8" /><rect x="5" y="5.5" width="3" height="6.5" rx="0.8" /><rect x="10" y="3" width="3" height="9" rx="0.8" /><rect x="15" y="0" width="3" height="12" rx="0.8" /></svg>
+            <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0L8 11.5Zm-4-4.1-1.6-1.6a7.9 7.9 0 0 1 11.2 0L12 7.4a5.6 5.6 0 0 0-8 0ZM.8 4.2-.8 2.6a12.4 12.4 0 0 1 17.6 0L15.2 4.2a10.1 10.1 0 0 0-14.4 0Z" /></svg>
+            <svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="20" height="9" rx="2" /><path d="M25 4.5v4a2 2 0 0 0 0-4Z" opacity="0.45" /></svg>
+          </span>
+        </div>
+        <div class="island" aria-hidden="true"></div>
+
+        <div class="pill pill-left" id="pill-left">
+          <div class="flag-row" id="flag-row">
+            <button type="button" class="app-tap flag-chip is-current" data-lang="en" aria-label="English">
+              <span class="flag-circle" set:html={flagSvg('en')} />
+            </button>
+          </div>
+        </div>
+
+        <div class="pill pill-right" id="pill-right">
+          <button type="button" class="app-tap tab-btn" data-tab="preferences" aria-label="Preferences">
+            <svg class="i i-26" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg>
+          </button>
+          <button type="button" class="app-tap tab-btn tab-btn--active" data-tab="brief" aria-label="The Brief">
+            <svg class="i i-26" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="13.5" height="16" rx="1.5" /><path d="M17 8.5h2.5a1 1 0 0 1 1 1V18a2 2 0 0 1-2 2H6M7 8.5h6.5M7 12h6.5M7 15.5h4" /></svg>
+          </button>
+          <button type="button" class="app-tap tab-btn" data-tab="practice" aria-label="Practice">
+            <svg class="i i-26" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9.5 12 4.5l10 5-10 5-10-5Z" /><path d="M6 11.5V16c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5M22 9.5v5.5" /></svg>
+          </button>
+        </div>
+
+        <div class="home-indicator" aria-hidden="true"></div>
+
+        <div class="picker" id="picker" role="dialog" aria-label="Edition" hidden>
+          <div class="picker-stack" id="picker-stack">
+            <div class="picker-tile picker-head">
+              <span class="flag-circle flag-30" id="picker-flag"></span>
+              <span class="picker-title" id="picker-title"></span>
+            </div>
+            <div class="picker-tile picker-card">
+              <p class="picker-label">Length</p>
+              <div class="length-row" id="length-row"></div>
+              <p class="picker-label">Level</p>
+              <div class="level-grid" id="level-grid"></div>
+              <p class="level-hint">Your brief will reload at the selected edition.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+        <div class="sheet" id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheet-title" hidden>
+          <span class="sheet-grabber" aria-hidden="true"></span>
+          <p class="sheet-eyebrow" id="sheet-eyebrow"></p>
+          <p class="sheet-title" id="sheet-title"></p>
+          <p class="sheet-text" id="sheet-text"></p>
+          <button type="button" class="sheet-close" id="sheet-close">Got it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-shadow" aria-hidden="true"></div>
+</div>
+
+<script>
+  import { GENRE_COLORS, GENRE_LABELS, LENGTH_LABELS, type LanguageCode, type LanguageLevel, type ReadLength } from '../lib/config';
+  import { fetchBrief, type BriefArticle } from '../lib/brief';
+  import { languagesToday as langsWith, levelsFor as levelsIn, loadAvailability, nativeGradeFor, pickLevel as pickIn, type Availability, type AvailabilityInfo } from '../lib/availability';
+  import {
+    APP_LANGUAGES,
+    BRIEF_PUBLISHED,
+    CITY,
+    LOCALE,
+    PUBLISHED_PREFIX,
+    TAGLINE,
+    flagSvg,
+    levelLabel,
+    type AppLang,
+  } from '../lib/app-locale';
+
+  const stage = document.getElementById('phone-stage') as HTMLDivElement;
+  const scroller = document.getElementById('app-scroll') as HTMLDivElement;
+  const body = document.getElementById('app-body') as HTMLDivElement;
+  const footer = document.getElementById('app-footer') as HTMLElement;
+  const footerDate = document.getElementById('app-footer-date') as HTMLParagraphElement;
+  const footerTagline = document.getElementById('app-footer-tagline') as HTMLParagraphElement;
+  const citiesEl = document.getElementById('app-cities') as HTMLParagraphElement;
+  const editionBtn = document.getElementById('edition-btn') as HTMLButtonElement;
+  const editionLabel = document.getElementById('edition-label') as HTMLSpanElement;
+  const pillLeft = document.getElementById('pill-left') as HTMLDivElement;
+  const flagRow = document.getElementById('flag-row') as HTMLDivElement;
+  const pillRight = document.getElementById('pill-right') as HTMLDivElement;
+  const picker = document.getElementById('picker') as HTMLDivElement;
+  const pickerStack = document.getElementById('picker-stack') as HTMLDivElement;
+  const sheet = document.getElementById('sheet') as HTMLDivElement;
+  const backdrop = document.getElementById('sheet-backdrop') as HTMLDivElement;
+
+  // ── Fit the 417×876 device to the space available ──────────────────────
+  const DEVICE_W = 417;
+  const DEVICE_H = 876;
+  function fit() {
+    const box = stage.getBoundingClientRect();
+    const s = Math.min(box.width / (DEVICE_W * 1.06), box.height / (DEVICE_H * 1.04), 1);
+    stage.style.setProperty('--s', String(Math.max(s, 0.4)));
+  }
+  new ResizeObserver(fit).observe(stage);
+  fit();
+
+  // ── Edition state ───────────────────────────────────────────────────────
+  // Languages and levels with content today come from the content Worker
+  // (see lib/availability), so the phone follows the pipeline as it changes.
+  let info: AvailabilityInfo = { languages: {}, nativeGrades: {} };
+  const av = (): Availability => info.languages;
+
+  const state: { lang: AppLang; level: string; length: ReadLength } = { lang: 'en', level: 'Native', length: 'short' };
+
+  function nameOf(code: AppLang): string {
+    return APP_LANGUAGES.find((l) => l.code === code)?.nativeName ?? code;
+  }
+
+  const gradeOf = (code: AppLang) => nativeGradeFor(info, code, state.length);
+  // The phone offers what has a concise edition today, like the app's default.
+  const languagesToday = () => langsWith(av(), 'short');
+  const levelsFor = (code: AppLang, length: string) => levelsIn(av(), code, length);
+  const pickLevel = (code: AppLang, preferred: string) => pickIn(av(), code, state.length, preferred);
+
+  // ── Rendering ───────────────────────────────────────────────────────────
+  function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Every word is tappable in the app; wrap each one so taps can highlight it.
+  function tappable(text: string): string {
+    return text
+      .split(/(\s+)/)
+      .map((part) => (/^\s+$/.test(part) || !part ? part : `<span class="w">${esc(part)}</span>`))
+      .join('');
+  }
+
+  function stamp(generatedAt: number): Date {
+    return new Date(generatedAt < 1e12 ? generatedAt * 1000 : generatedAt);
+  }
+
+  function hhmm(d: Date): string {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function genreLabel(code: AppLang): string {
+    return GENRE_LABELS['GLOBAL NEWS']?.[code as LanguageCode] ?? 'GLOBAL NEWS';
+  }
+
+  function renderChrome() {
+    citiesEl.textContent = CITY[state.lang];
+    editionLabel.textContent = `${nameOf(state.lang)} · ${levelLabel(state.lang, state.level, gradeOf(state.lang))}`;
+    footerTagline.textContent = TAGLINE[state.lang] ?? TAGLINE.en ?? '';
+    renderFlags();
+  }
+
+  function renderStory(article: BriefArticle, published: Date) {
+    const locale = LOCALE[state.lang];
+    const month = published.toLocaleDateString(locale, { month: 'short' });
+    const rtl = state.lang === 'ar';
+    const paras = article.body
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => `<p>${tappable(p)}</p>`)
+      .join('');
+
+    body.innerHTML = `
+      <header class="app-section" style="--genre:${GENRE_COLORS['GLOBAL NEWS']}">
+        <span class="app-section-bar"></span>
+        <span class="app-section-label">${esc(genreLabel(state.lang))}</span>
+        <span class="app-section-published">${esc(BRIEF_PUBLISHED[state.lang])} ${published.getDate()} ${esc(month)} · ${hhmm(published)}</span>
+      </header>
+      <article class="app-article"${rtl ? ' dir="rtl"' : ''}>
+        <h3 class="app-headline">${tappable(article.headline)}</h3>
+        <div class="app-paras">${paras}</div>
+      </article>
+      <div class="app-share-row">
+        <button type="button" class="app-tap app-share" data-sheet="share">
+          <svg class="i i-13" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="M8.2 10.9l7.6-4.6M8.2 13.1l7.6 4.6" /></svg>
+          Share
+        </button>
+      </div>`;
+
+    const day = published.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    footerDate.textContent = `${PUBLISHED_PREFIX[state.lang]} ${day} · ${hhmm(published)}`;
+    footer.hidden = false;
+  }
+
+  function renderSkeleton() {
+    body.innerHTML = `<div class="app-skeleton" aria-hidden="true">
+      <div class="sk" style="width:40%;height:12px"></div>
+      <div class="sk" style="width:92%;height:24px;margin-top:22px"></div>
+      <div class="sk" style="width:70%;height:24px;margin-top:8px"></div>
+      ${[100, 100, 96, 100, 100, 58].map((w) => `<div class="sk" style="width:${w}%;height:13px;margin-top:12px"></div>`).join('')}
+    </div>`;
+  }
+
+  let loadToken = 0;
+  async function loadEdition() {
+    const token = ++loadToken;
+    renderChrome();
+    renderSkeleton();
+    footer.hidden = true;
+    scroller.scrollTo({ top: 0 });
+
+    const result = await fetchBrief(state.lang as LanguageCode, state.level as LanguageLevel, state.length, { strictLength: true });
+    if (token !== loadToken) return;
+    if (!result.ok) {
+      body.innerHTML = `<p class="app-empty">${esc(nameOf(state.lang))} · ${esc(levelLabel(state.lang, state.level, gradeOf(state.lang)))} isn't out yet today — try another level.</p>`;
+      return;
+    }
+    const articles = result.brief.articles;
+    const first = articles.find((a) => a.genre.toUpperCase() === 'GLOBAL NEWS') ?? articles[0];
+    if (!first) {
+      body.innerHTML = `<p class="app-empty">Today's brief is on its way — check back shortly.</p>`;
+      return;
+    }
+    renderStory(first, stamp(result.brief.generatedAt));
+  }
+
+  async function start() {
+    info = await loadAvailability();
+    const langs = languagesToday();
+    if (!langs.includes(state.lang)) state.lang = langs[0] ?? 'en';
+    state.level = pickLevel(state.lang, 'B2');
+    loadEdition();
+  }
+  start();
+
+  // ── Flag pill: tap to fan out every language, tap a flag to switch ──────
+  function renderFlags() {
+    const langs = languagesToday();
+    const ordered = pillLeft.classList.contains('expanded') ? langs : [state.lang];
+    flagRow.innerHTML = ordered
+      .map((code) => `<button type="button" class="app-tap flag-chip${code === state.lang ? ' is-current' : ''}" data-lang="${code}" aria-label="${esc(nameOf(code))}"><span class="flag-circle">${flagSvg(code)}</span></button>`)
+      .join('');
+  }
+
+  function setFlagsOpen(open: boolean) {
+    pillLeft.classList.toggle('expanded', open);
+    if (open) pillRight.classList.remove('expanded');
+    renderFlags();
+  }
+
+  flagRow.addEventListener('click', (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLButtonElement>('.flag-chip');
+    if (!chip) return;
+    if (!pillLeft.classList.contains('expanded')) {
+      setFlagsOpen(true);
+      return;
+    }
+    const code = chip.dataset.lang as AppLang;
+    setFlagsOpen(false);
+    if (code === state.lang) return;
+    state.lang = code;
+    // Each language opens at the app's own default level for it.
+    state.level = pickLevel(code, APP_LANGUAGES.find((l) => l.code === code)?.defaultLevel ?? 'B2');
+    loadEdition();
+  });
+
+  // ── Level picker — the app's two dropdown tiles under the edition row ──
+  function renderPicker() {
+    (document.getElementById('picker-flag') as HTMLElement).innerHTML = flagSvg(state.lang);
+    (document.getElementById('picker-title') as HTMLElement).textContent = `${nameOf(state.lang)} · Edition`;
+
+    const labels = LENGTH_LABELS[state.lang as LanguageCode] ?? ['Concise', 'Long'];
+    (document.getElementById('length-row') as HTMLElement).innerHTML = (['short', 'longer'] as const)
+      .map((len, i) => `<button type="button" class="app-tap length-chip${len === state.length ? ' is-active' : ''}" data-length="${len}">${esc(labels[i])}</button>`)
+      .join('');
+
+    const grade = gradeOf(state.lang);
+    (document.getElementById('level-grid') as HTMLElement).innerHTML = levelsFor(state.lang, state.length)
+      .map((lv) => `<button type="button" class="app-tap level-chip${lv === state.level ? ' is-active' : ''}" data-level="${lv}">${esc(levelLabel(state.lang, lv, grade))}</button>`)
+      .join('');
+  }
+
+  function openPicker() {
+    setFlagsOpen(false);
+    pillRight.classList.remove('expanded');
+    renderPicker();
+    // Drops down from just under the edition row, like the app's modal.
+    const top = editionBtn.parentElement!.offsetTop + editionBtn.parentElement!.offsetHeight - scroller.scrollTop + 6;
+    pickerStack.style.paddingTop = `${Math.max(top, 60)}px`;
+    picker.hidden = false;
+    requestAnimationFrame(() => picker.classList.add('open'));
+  }
+
+  function closePicker() {
+    picker.classList.remove('open');
+    setTimeout(() => (picker.hidden = true), 180);
+  }
+
+  editionBtn.addEventListener('click', openPicker);
+
+  picker.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const lengthChip = target.closest<HTMLButtonElement>('.length-chip');
+    if (lengthChip) {
+      state.length = lengthChip.dataset.length as ReadLength;
+      state.level = pickLevel(state.lang, state.level);
+      renderPicker();
+      loadEdition();
+      return;
+    }
+    const levelChip = target.closest<HTMLButtonElement>('.level-chip');
+    if (levelChip) {
+      state.level = levelChip.dataset.level ?? state.level;
+      closePicker();
+      loadEdition();
+      return;
+    }
+    if (!target.closest('.picker-tile')) closePicker();
+  });
+
+  // ── Interactions ────────────────────────────────────────────────────────
+  const SHEETS: Record<string, { eyebrow: string; title: string; text: string }> = {
+    streak: { eyebrow: 'Reading streak', title: 'Start your streak', text: 'Read a little every day and watch the flame grow. Miss a day and a freeze keeps it alive.' },
+    share: { eyebrow: 'Share', title: 'Send a story', text: 'Share any section with a friend straight from the app.' },
+    preferences: { eyebrow: 'Preferences', title: 'Make it yours', text: 'Four paper stocks, four typefaces, and the sections you care about — in the order you like.' },
+    practice: { eyebrow: 'Practice', title: 'Five quick games', text: 'Flashcards, Speed Snap, multiple choice, fill-in-the-blank and translation — built from the words you saved.' },
+  };
+
+  function openSheet(eyebrow: string, title: string, text: string) {
+    (document.getElementById('sheet-eyebrow') as HTMLElement).textContent = eyebrow;
+    (document.getElementById('sheet-title') as HTMLElement).textContent = title;
+    (document.getElementById('sheet-text') as HTMLElement).textContent = text;
+    backdrop.hidden = false;
+    sheet.hidden = false;
+    requestAnimationFrame(() => {
+      backdrop.classList.add('open');
+      sheet.classList.add('open');
+    });
+  }
+
+  function closeSheet() {
+    backdrop.classList.remove('open');
+    sheet.classList.remove('open');
+    scroller.querySelector('.w.active')?.classList.remove('active');
+    setTimeout(() => {
+      backdrop.hidden = true;
+      sheet.hidden = true;
+    }, 220);
+  }
+
+  backdrop.addEventListener('click', closeSheet);
+  (document.getElementById('sheet-close') as HTMLButtonElement).addEventListener('click', closeSheet);
+
+  document.querySelectorAll<HTMLButtonElement>('[data-sheet]').forEach((btn) => bindSheet(btn));
+  function bindSheet(btn: HTMLElement) {
+    btn.addEventListener('click', () => {
+      const s = SHEETS[btn.dataset.sheet ?? ''];
+      if (s) openSheet(s.eyebrow, s.title, s.text);
+    });
+  }
+
+  body.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const share = target.closest<HTMLElement>('[data-sheet]');
+    if (share) {
+      const s = SHEETS[share.dataset.sheet ?? ''];
+      if (s) openSheet(s.eyebrow, s.title, s.text);
+      return;
+    }
+    const word = target.closest<HTMLElement>('.w');
+    if (!word) return;
+    scroller.querySelector('.w.active')?.classList.remove('active');
+    word.classList.add('active');
+    const clean = (word.textContent ?? '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    openSheet('Tap any word', clean || word.textContent || '', 'In the app you get an instant translation, pronunciation and a plain-English explanation — then save it to your word bank.');
+  });
+
+  // Tab capsule: collapsed to the current tab; tap to fan out all three.
+  pillRight.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.tab-btn');
+    if (!btn) return;
+    if (!pillRight.classList.contains('expanded')) {
+      pillRight.classList.add('expanded');
+      setFlagsOpen(false);
+      return;
+    }
+    pillRight.classList.remove('expanded');
+    const tab = btn.dataset.tab ?? 'brief';
+    if (tab !== 'brief') {
+      const s = SHEETS[tab];
+      openSheet(s.eyebrow, s.title, s.text);
+    }
+  });
+
+  // Pills shrink once the reader scrolls past the masthead, as in the app.
+  scroller.addEventListener('scroll', () => {
+    const scrolled = scroller.scrollTop > 80;
+    pillLeft.classList.toggle('compact', scrolled);
+    pillRight.classList.toggle('compact', scrolled);
+    if (scrolled) {
+      pillRight.classList.remove('expanded');
+      if (pillLeft.classList.contains('expanded')) setFlagsOpen(false);
+    }
+  }, { passive: true });
+
+  // Tapping the crest throws confetti, as in the app.
+  const CONFETTI = Object.values(GENRE_COLORS);
+  (document.getElementById('app-crest') as HTMLButtonElement).addEventListener('click', (e) => {
+    const screen = scroller.parentElement as HTMLElement;
+    const rect = screen.getBoundingClientRect();
+    const scale = rect.width / screen.offsetWidth || 1;
+    const btn = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const originX = (btn.left + btn.width / 2 - rect.left) / scale;
+    const originY = (btn.top - rect.top) / scale;
+    for (let i = 0; i < 36; i++) {
+      const bit = document.createElement('span');
+      bit.className = 'confetti';
+      bit.style.background = CONFETTI[i % CONFETTI.length];
+      bit.style.left = `${originX}px`;
+      bit.style.top = `${originY}px`;
+      screen.appendChild(bit);
+      const angle = Math.random() * Math.PI - Math.PI;
+      const dist = 120 + Math.random() * 180;
+      bit.animate(
+        [
+          { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+          { transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist + 260}px) rotate(${Math.random() * 720}deg)`, opacity: 0 },
+        ],
+        { duration: 1400 + Math.random() * 600, easing: 'cubic-bezier(.2,.7,.4,1)' },
+      ).onfinish = () => bit.remove();
+    }
+  });
+</script>
+
+<style>
+  /* ── Stage & device ─────────────────────────────────────────────────── */
+  .phone-stage {
+    --s: 0.8;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 420px;
+  }
+
+  .phone-float {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 417px;
+    height: 876px;
+    margin: -438px 0 0 -208.5px;
+    transform: scale(var(--s));
+    animation: phone-in 900ms cubic-bezier(.2,.8,.2,1) both, phone-bob 7s ease-in-out 900ms infinite;
+  }
+
+  @keyframes phone-in {
+    from { opacity: 0; translate: 0 40px; }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  @keyframes phone-bob {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -10px; }
+  }
+
+  .phone {
+    position: relative;
+    width: 417px;
+    height: 876px;
+    padding: 12px;
+    border-radius: 66px;
+    background:
+      linear-gradient(145deg, #5a5a5f 0%, #2a2a2d 18%, #1a1a1c 50%, #2e2e31 82%, #6a6a70 100%);
+    box-shadow:
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.18),
+      inset 0 0 0 5px #101012,
+      0 1px 0 1px rgba(0, 0, 0, 0.35),
+      0 40px 80px -24px rgba(20, 16, 10, 0.4),
+      0 12px 24px -8px rgba(20, 16, 10, 0.22);
+  }
+
+  .phone-btn {
+    position: absolute;
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #6a6a70, #2a2a2d);
+  }
+
+  .phone-btn--action { left: -3px; top: 150px; height: 32px; }
+  .phone-btn--vol-up { left: -3px; top: 210px; height: 62px; }
+  .phone-btn--vol-down { left: -3px; top: 286px; height: 62px; }
+  .phone-btn--power { right: -3px; top: 240px; height: 96px; background: linear-gradient(270deg, #6a6a70, #2a2a2d); }
+
+  .phone-shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 2%;
+    width: calc(360px * var(--s));
+    height: calc(40px * var(--s));
+    translate: -50% 0;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(20, 16, 10, 0.28), transparent);
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
+  .phone-screen {
+    position: relative;
+    width: 393px;
+    height: 852px;
+    border-radius: 54px;
+    overflow: hidden;
+    background: var(--color-bg);
+    isolation: isolate;
+    font-family: var(--font-body-family);
+    color: var(--color-ink-mid);
+  }
+
+  /* ── Status bar, island, home indicator ─────────────────────────────── */
+  .island {
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    width: 125px;
+    height: 37px;
+    margin-left: -62.5px;
+    border-radius: 20px;
+    background: #000;
+    z-index: 5;
+  }
+
+  .status-fade {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 75px;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bg) 80%, transparent) 0%,
+      color-mix(in srgb, var(--color-bg) 33%, transparent) 65%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .status-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 34px 0 50px;
+    color: var(--color-ink-dark);
+    font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .status-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-icons svg {
+    fill: currentColor;
+  }
+
+  .home-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    width: 139px;
+    height: 5px;
+    margin-left: -69.5px;
+    border-radius: 3px;
+    background: var(--color-ink-dark);
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* ── Scrolling app content ──────────────────────────────────────────── */
+  .app-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 59px;
+    scrollbar-width: none;
+  }
+
+  .app-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-masthead {
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+    height: 82px;
+  }
+
+  .app-masthead-img {
+    height: 74px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    display: none;
+  }
+
+  .app-cities {
+    margin: 0;
+    padding-bottom: 12px;
+    text-align: center;
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--color-chrome);
+  }
+
+  .app-rule {
+    border: none;
+    border-top: 0.5px solid var(--color-hairline);
+    margin: 0 8px 12px;
+  }
+
+  :global(.app-tap) {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+
+  :global(.app-tap:active) {
+    opacity: 0.55;
+    transform: scale(0.97);
+  }
+
+  .app-edition {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 18px 8px;
+  }
+
+  .app-edition-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-ink-mid);
+  }
+
+  .app-edition-streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 15px;
+    color: var(--color-ink-dark);
+  }
+
+  :global(.i) {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+
+  :global(.i-13) { width: 13px; height: 13px; }
+  .i-14 { width: 14px; height: 14px; }
+  .i-17 { width: 17px; height: 17px; }
+  .i-26 { width: 26px; height: 26px; }
+  .i-faint { color: var(--color-ink-faint); }
+
+  .app-skeleton {
+    padding: 24px 16px;
+  }
+
+  .sk {
+    border-radius: 4px;
+    background: var(--color-border-light);
+    animation: sk-pulse 1.3s ease-in-out infinite;
+  }
+
+  @keyframes sk-pulse {
+    50% { opacity: 0.45; }
+  }
+
+  :global(.app-empty) {
+    padding: 40px 24px;
+    text-align: center;
+    font-style: italic;
+    color: var(--color-ink-light);
+  }
+
+  :global(.app-section) {
+    display: flex;
+    align-items: center;
+    margin: 24px 16px 0;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid var(--color-border-light);
+  }
+
+  :global(.app-section-bar) {
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    margin-right: 8px;
+    background: var(--genre);
+    flex-shrink: 0;
+  }
+
+  :global(.app-section-label) {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--genre);
+  }
+
+  :global(.app-section-published) {
+    padding-left: 8px;
+    font-size: 11px;
+    color: var(--color-ink-faint);
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+
+  :global(.app-article) {
+    padding: 24px 16px 0;
+  }
+
+  :global(.app-headline) {
+    margin: 0 0 8px;
+    font-size: 26px;
+    line-height: 33px;
+    font-weight: 700;
+    color: var(--color-ink-dark);
+  }
+
+  :global(.app-paras p) {
+    margin: 0 0 32px;
+    font-size: 16px;
+    line-height: 26px;
+    text-align: justify;
+    color: var(--color-ink-mid);
+  }
+
+  :global(.app-paras p:last-child) {
+    margin-bottom: 0;
+  }
+
+  :global(.w) {
+    cursor: pointer;
+    border-radius: 5px;
+    border-bottom: 2px solid transparent;
+    transition: background-color 0.12s ease;
+  }
+
+  :global(.w.active) {
+    background: rgba(0, 0, 0, 0.08);
+    border-bottom-color: var(--color-accent-gold);
+  }
+
+  :global(.app-share-row) {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 18px;
+  }
+
+  :global(.app-share) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: var(--color-ink-faint);
+  }
+
+  .app-footer {
+    margin-top: 32px;
+    padding: 0 18px 150px;
+    text-align: center;
+  }
+
+  .app-footer-rule {
+    border: none;
+    border-top: 1px solid var(--color-chrome);
+    opacity: 0.35;
+    margin: 0;
+  }
+
+  .app-footer-date {
+    margin: 14px 0 0;
+    font-size: 11px;
+    font-style: italic;
+    color: var(--color-ink-faint);
+    opacity: 0.5;
+  }
+
+  .app-footer-tagline {
+    margin: 6px 0 0;
+    font-size: 13px;
+    font-style: italic;
+    opacity: 0.5;
+  }
+
+  .app-crest {
+    margin-top: 12px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .app-crest img {
+    width: 44px;
+    height: 44px;
+    opacity: 0.45;
+    display: none;
+  }
+
+  :global([data-theme='white']) [data-theme-img='white'],
+  :global([data-theme='cream']) [data-theme-img='cream'],
+  :global([data-theme='softGrey']) [data-theme-img='softGrey'],
+  :global([data-theme='night']) [data-theme-img='night'] {
+    display: block;
+  }
+
+  :global(.confetti) {
+    position: absolute;
+    width: 7px;
+    height: 11px;
+    border-radius: 2px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  /* ── Floating glass pills ───────────────────────────────────────────── */
+  .pill {
+    position: absolute;
+    bottom: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--color-card) 72%, transparent);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    border: 0.5px solid color-mix(in srgb, var(--color-ink-dark) 10%, transparent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    z-index: 7;
+    transition: width 0.28s cubic-bezier(.2,.8,.2,1), height 0.28s cubic-bezier(.2,.8,.2,1);
+  }
+
+  .pill-left {
+    left: 16px;
+    width: 58px;
+    height: 68px;
+    max-width: 283px;
+    overflow: hidden;
+  }
+
+  .pill-left.compact {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* Fanned out: every language with content today, scrollable if needed. */
+  .pill-left.expanded {
+    width: auto;
+    height: 68px;
+    justify-content: flex-start;
+    padding: 0 6px;
+  }
+
+  .flag-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .flag-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  :global(.flag-chip) {
+    display: flex;
+    flex-shrink: 0;
+    padding: 4px 7px 6px;
+    border-radius: 100px;
+  }
+
+  .pill-left.expanded :global(.flag-chip.is-current) {
+    background: color-mix(in srgb, var(--color-ink-dark) 9%, transparent);
+  }
+
+  :global(.flag-circle) {
+    display: block;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    overflow: hidden;
+    transition: width 0.28s ease, height 0.28s ease;
+  }
+
+  .pill-left.compact:not(.expanded) :global(.flag-circle) {
+    width: 28px;
+    height: 28px;
+  }
+
+  :global(.flag-circle svg) {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  :global(.flag-circle.flag-30) {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+  }
+
+  /* ── Level picker (BriefingScreen's level/length modal) ─────────────── */
+  .picker {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    background: color-mix(in srgb, var(--color-bg) 18%, transparent);
+  }
+
+  .picker.open {
+    opacity: 1;
+  }
+
+  .picker-stack {
+    padding: 0 16px;
+  }
+
+  .picker-tile {
+    background: var(--color-card);
+    border: 0.5px solid var(--color-border-light);
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.13);
+  }
+
+  .picker-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  .picker-title {
+    flex: 1;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+    color: var(--color-ink-dark);
+  }
+
+  .picker-card {
+    min-height: 370px;
+    padding: 16px;
+  }
+
+  .picker-label {
+    margin: 4px 0 8px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.6;
+    color: var(--color-ink-faint);
+  }
+
+  .length-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .level-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding-bottom: 4px;
+  }
+
+  :global(.length-chip),
+  :global(.level-chip) {
+    padding: 10px 0;
+    border-radius: 100px;
+    border: 1px solid var(--color-border-mid);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+
+  :global(.length-chip) {
+    flex: 1;
+    color: var(--color-ink-dark);
+  }
+
+  :global(.level-chip) {
+    min-width: 72px;
+    padding-inline: 20px;
+    color: var(--color-ink-mid);
+  }
+
+  :global(.length-chip.is-active),
+  :global(.level-chip.is-active) {
+    background: var(--color-ink-dark);
+    border-color: var(--color-ink-dark);
+    color: var(--color-bg);
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+  }
+
+  .level-hint {
+    margin: 16px 0 0;
+    padding-bottom: 4px;
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.7;
+    text-align: center;
+    color: var(--color-ink-faint);
+  }
+
+  :global(.app-article[dir='rtl'] .app-paras p) {
+    text-align: right;
+  }
+
+  .pill-right {
+    right: 16px;
+    width: 68px;
+    height: 68px;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  .pill-right.compact {
+    width: 52px;
+    height: 52px;
+  }
+
+  .pill-right.expanded {
+    width: 176px;
+  }
+
+  .tab-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    color: var(--color-ink-faint);
+  }
+
+  .tab-btn--active {
+    display: flex;
+    color: var(--color-ink-dark);
+  }
+
+  .pill-right:not(.expanded) .tab-btn--active :global(svg) {
+    width: 28px;
+    height: 28px;
+  }
+
+  .pill-right.expanded .tab-btn {
+    display: flex;
+  }
+
+  /* ── Bottom sheet ───────────────────────────────────────────────────── */
+  .sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+    z-index: 10;
+  }
+
+  .sheet-backdrop.open {
+    opacity: 1;
+  }
+
+  .sheet {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 10px 24px 28px;
+    border-radius: 36px 36px 46px 46px;
+    background: var(--color-card);
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.18);
+    text-align: center;
+    transform: translateY(110%);
+    transition: transform 0.26s cubic-bezier(.2,.8,.2,1);
+    z-index: 11;
+  }
+
+  .sheet.open {
+    transform: translateY(0);
+  }
+
+  .sheet-grabber {
+    display: block;
+    width: 36px;
+    height: 5px;
+    margin: 0 auto 18px;
+    border-radius: 3px;
+    background: var(--color-border-mid);
+  }
+
+  .sheet-eyebrow {
+    margin: 0 0 6px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--color-ink-light);
+  }
+
+  .sheet-title {
+    margin: 0 0 10px;
+    font-size: 26px;
+    line-height: 32px;
+    font-weight: 700;
+    color: var(--color-ink-dark);
+    overflow-wrap: anywhere;
+  }
+
+  .sheet-text {
+    margin: 0 0 22px;
+    font-size: 15px;
+    line-height: 23px;
+    color: var(--color-ink-mid);
+  }
+
+  .sheet-close {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-ink-dark);
+    color: var(--color-bg);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phone-float {
+      animation: none;
+    }
+  }
+</style>

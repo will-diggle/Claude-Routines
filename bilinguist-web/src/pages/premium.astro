@@ -19,14 +19,16 @@ import { DEFAULT_PRICE } from '../lib/config';
       </div>
       <div class="comparison-body">
         <ul class="feature-list feature-list-free">
-          <li><span class="check check-free">✓</span> 1 World News article daily</li>
-          <li><span class="check check-free">✓</span> 5 teaser headlines</li>
-          <li><span class="check check-free">✓</span> English only</li>
+          <li><span class="check check-free">✓</span> English + 1 language of your choice</li>
+          <li><span class="check check-free">✓</span> Any CEFR level</li>
+          <li><span class="check check-free">✓</span> 2 Global News stories daily</li>
+          <li><span class="check check-free">✓</span> + 1 story from a section you choose</li>
+          <li><span class="check check-free">✓</span> Concise articles</li>
         </ul>
         <ul class="feature-list feature-list-full">
           <li><span class="check check-full">✓</span> Full daily briefing (5–15 min read)</li>
-          <li><span class="check check-full">✓</span> French, German, Spanish, Italian</li>
-          <li><span class="check check-full">✓</span> Your chosen CEFR level</li>
+          <li><span class="check check-full">✓</span> Every language we publish</li>
+          <li><span class="check check-full">✓</span> Concise and long reads</li>
           <li><span class="check check-full">✓</span> Tap any word for instant translation</li>
           <li><span class="check check-full">✓</span> Claude word explanations + IPA</li>
           <li><span class="check check-full">✓</span> Word bank with spaced repetition</li>
@@ -132,7 +134,7 @@ import { DEFAULT_PRICE } from '../lib/config';
 
   .price-card {
     width: 100%;
-    background: var(--color-accent-gold);
+    background: var(--color-accent);
     border-radius: 12px;
     padding-block: var(--space-lg);
   }
@@ -141,13 +143,13 @@ import { DEFAULT_PRICE } from '../lib/config';
     font-size: 40px;
     line-height: 46px;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-on-accent);
     margin: 0;
   }
 
   .price-period {
     font-size: 15px;
-    color: rgba(255, 255, 255, 0.8);
+    color: color-mix(in srgb, var(--color-on-accent) 75%, transparent);
     margin: 0;
   }
 
@@ -176,7 +178,7 @@ import { DEFAULT_PRICE } from '../lib/config';
   }
 
   .comparison-head-full {
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
     font-weight: 700;
   }
 
@@ -222,7 +224,7 @@ import { DEFAULT_PRICE } from '../lib/config';
   }
 
   .check-full {
-    color: var(--color-accent-gold);
+    color: var(--color-accent);
   }
 
   .subscribe-btn {
@@ -230,10 +232,10 @@ import { DEFAULT_PRICE } from '../lib/config';
     font-family: var(--font-body-family);
     font-size: 17px;
     font-weight: 700;
-    color: #fff;
-    background: var(--color-accent-gold);
+    color: var(--color-on-accent);
+    background: var(--color-accent);
     border: none;
-    border-radius: 10px;
+    border-radius: 999px;
     padding-block: var(--space-md);
     cursor: pointer;
   }
@@ -292,7 +294,7 @@ import { DEFAULT_PRICE } from '../lib/config';
     color: var(--color-ink-dark);
     background: var(--color-card);
     border: var(--hairline-width) solid var(--color-border-mid);
-    border-radius: 8px;
+    border-radius: 999px;
     padding: var(--space-sm) var(--space-md);
     width: 160px;
   }
@@ -300,10 +302,10 @@ import { DEFAULT_PRICE } from '../lib/config';
   .promo-apply {
     font-family: var(--font-body-family);
     font-size: 15px;
-    color: #fff;
-    background: var(--color-accent-gold);
+    color: var(--color-on-accent);
+    background: var(--color-accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 999px;
     padding: var(--space-sm) var(--space-lg);
     cursor: pointer;
   }

@@ -1,7 +1,8 @@
 /* ============================================================
    bilinguist-web — Worker entry
-   Serves the static Astro site, and hosts the race rooms for
-   Die Kartoffel-Regatta at /api/race/<CODE>.
+   Serves the static Astro site, answers /api/locale-price and
+   /api/entitlement, and hosts the race rooms for Die
+   Kartoffel-Regatta at /api/race/<CODE>.
    ============================================================ */
 
 // EU member states — priced in euros. GB gets pounds, everyone else (US
@@ -18,9 +19,65 @@ function priceForCountry(country) {
   return { currency: "USD", symbol: "$", amount: "4.99" };
 }
 
+// ── Paid status ─────────────────────────────────────────────────
+// The app decides paid vs free from RevenueCat (its app_user_id is the
+// Supabase user id, via Purchases.logIn), so the website asks RevenueCat
+// too. The secret key stays here on the server: set it as the Worker
+// secret REVENUECAT_SECRET_KEY. The caller proves who they are with their
+// Supabase access token, which Supabase itself checks.
+
+const SUPABASE_URL = "https://llkufcnkpgynwkgmoxmb.supabase.co";
+const ENTITLEMENT_ID = "bilinguist_brief_pro";
+
+const PRIVATE_JSON = { "content-type": "application/json", "cache-control": "private, no-store" };
+
+async function supabaseUser(request, env) {
+  const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  // The anon key is public (it ships in the app); the site sends it along
+  // in case the Worker hasn't been given its own copy.
+  const apikey = env.SUPABASE_ANON_KEY || request.headers.get("apikey") || "";
+  if (!token || !apikey) return null;
+  const res = await fetch(`${env.SUPABASE_URL || SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey, authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const user = await res.json();
+  return user && typeof user.id === "string" ? user : null;
+}
+
+function entitlementActive(entitlement, now) {
+  if (!entitlement) return false;
+  const until = entitlement.grace_period_expires_date || entitlement.expires_date;
+  return until === null || until === undefined || Date.parse(until) > now;
+}
+
+async function handleEntitlement(request, env) {
+  const user = await supabaseUser(request, env);
+  if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: PRIVATE_JSON });
+
+  if (!env.REVENUECAT_SECRET_KEY) {
+    return new Response(JSON.stringify({ tier: null, source: "unconfigured" }), { headers: PRIVATE_JSON });
+  }
+
+  const rc = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.id)}`, {
+    headers: { authorization: `Bearer ${env.REVENUECAT_SECRET_KEY}`, accept: "application/json" },
+  });
+  if (!rc.ok) {
+    return new Response(JSON.stringify({ tier: null, source: "revenuecat_error" }), { headers: PRIVATE_JSON });
+  }
+  const data = await rc.json();
+  const entitlement = data?.subscriber?.entitlements?.[ENTITLEMENT_ID];
+  const tier = entitlementActive(entitlement, Date.now()) ? "premium" : "free";
+  return new Response(JSON.stringify({ tier, source: "revenuecat" }), { headers: PRIVATE_JSON });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/entitlement") {
+      return handleEntitlement(request, env);
+    }
 
     if (url.pathname === "/api/locale-price") {
       const country = (request.cf && request.cf.country) || "GB";

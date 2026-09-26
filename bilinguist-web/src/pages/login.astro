@@ -1,0 +1,819 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PhonePreview from '../components/PhonePreview.astro';
+import AppStoreBadge from '../components/AppStoreBadge.astro';
+import { APP_SCHEME_URL, APPLE_SIGN_IN_ON_WEB, THEMES } from '../lib/config';
+
+const year = new Date().getFullYear();
+---
+<Layout title="Sign in" description="Sign in to Bilinguist Brief — the daily news, in the language and level you're learning." bare theme="white">
+  {/* On iPhone, lead with the App Store before first paint, unless the
+      visitor already chose to carry on in the browser this session. */}
+  <script is:inline>
+    (function () {
+      var iphone = /iPhone|iPod/.test(navigator.userAgent);
+      var stay = false;
+      try { stay = sessionStorage.getItem('bb-continue-web') === '1'; } catch (e) {}
+      if (iphone && !stay) document.documentElement.classList.add('ios-app-first');
+    })();
+  </script>
+
+  <section class="ios-landing" aria-label="Get the Bilinguist Brief app">
+    <div class="ios-landing-inner">
+      <img src="/app-icon.png" alt="" class="ios-icon" width="120" height="120" />
+      <h1 class="ios-title">Bilinguist Brief</h1>
+      <p class="ios-sub">The morning's news, in the language you're learning.</p>
+
+      <AppStoreBadge height={56} class="ios-badge" />
+      <p class="ios-price">Free to download · Full edition <span class="js-local-price">£3.99</span>/month</p>
+
+      <a class="ios-open" href={APP_SCHEME_URL}>Already have the app? Open it</a>
+    </div>
+
+    <button type="button" class="ios-continue" id="ios-continue">Continue in Safari instead</button>
+  </section>
+
+  <div class="auth">
+    <section class="auth-side">
+      <a href="/login" class="auth-brand" aria-label="Bilinguist Brief">
+        {THEMES.map((t) => (
+          <img src={`/masthead/${t.key}.jpg`} alt="Bilinguist Brief" class="auth-brand-img" data-brand-theme={t.key} />
+        ))}
+      </a>
+
+      <div class="auth-card">
+        <p class="auth-eyebrow" id="auth-eyebrow">Welcome back</p>
+        <h1 class="auth-title" id="auth-title">Sign in to your brief</h1>
+        <p class="auth-sub" id="auth-sub">Read the news in any language. Learn without thinking about it.</p>
+
+        <div class="auth-providers" id="auth-providers">
+          {APPLE_SIGN_IN_ON_WEB && (
+            <button type="button" class="provider provider--apple" data-provider="apple">
+              <svg viewBox="0 0 17 20" width="16" height="19" aria-hidden="true"><path fill="currentColor" d="M14.1 10.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9C3.6 4.8 2 5.8 1.1 7.4c-1.9 3.2-.5 8 1.3 10.6.9 1.3 1.9 2.7 3.3 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.2-2.6 1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.4ZM11.5 3c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.5Z"/></svg>
+              Sign in with Apple
+            </button>
+          )}
+          <button type="button" class="provider provider--google" data-provider="google">
+            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92a8.78 8.78 0 0 0 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.33-1.58-5.04-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.96 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3 2.33C4.67 5.16 6.66 3.58 9 3.58Z"/></svg>
+            Sign in with Google
+          </button>
+          <div class="auth-or"><span>or</span></div>
+        </div>
+
+        <form class="auth-form" id="auth-form" novalidate>
+          <label class="field" id="email-field">
+            <span class="field-label">Email</span>
+            <input id="auth-email" type="email" autocomplete="email" inputmode="email" required />
+          </label>
+          <label class="field" id="password-field">
+            <span class="field-label" id="password-label">Password</span>
+            <span class="field-row">
+              <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required />
+              <button type="button" class="field-toggle" id="password-toggle" aria-label="Show password">Show</button>
+            </span>
+          </label>
+          <button type="button" class="link-btn forgot" id="forgot-btn">Forgot password?</button>
+
+          <p class="auth-error" id="auth-error" role="alert" hidden></p>
+          <p class="auth-notice" id="auth-notice" role="status" hidden></p>
+
+          <button type="submit" class="auth-submit" id="auth-submit">Sign in</button>
+        </form>
+
+        <p class="auth-switch" id="auth-switch">
+          <span id="switch-copy">New to Bilinguist Brief?</span>
+          <button type="button" class="link-btn" id="switch-btn">Create an account</button>
+        </p>
+      </div>
+
+      <footer class="auth-footer">
+        <span>© {year} Bilinguist Brief</span>
+        <nav class="auth-footer-links">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+        </nav>
+      </footer>
+    </section>
+
+    <section class="showcase" aria-label="The Bilinguist Brief iPhone app">
+      <div class="showcase-copy">
+        <p class="showcase-eyebrow">Today, on iPhone</p>
+        <h2 class="showcase-title">The morning's news, <br />in the language you're learning.</h2>
+        <p class="showcase-hint">This is today's real front page — scroll it, tap a word.</p>
+      </div>
+
+      <div class="showcase-phone">
+        <PhonePreview />
+      </div>
+
+      <div class="showcase-cta">
+        <AppStoreBadge height={48} />
+        <p class="showcase-price">Free to download · Full edition <span class="js-local-price">£3.99</span>/month</p>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<script>
+  import {
+    AUTH_CONFIGURED,
+    getSession,
+    sendPasswordReset,
+    signInWithPassword,
+    signInWithProvider,
+    signUp,
+    supabase,
+    updatePassword,
+    type OAuthProvider,
+  } from '../lib/auth';
+
+  type Mode = 'signin' | 'signup' | 'reset-request' | 'reset-new';
+
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const form = $<HTMLFormElement>('auth-form');
+  const emailInput = $<HTMLInputElement>('auth-email');
+  const passwordInput = $<HTMLInputElement>('auth-password');
+  const submitBtn = $<HTMLButtonElement>('auth-submit');
+  const errorEl = $<HTMLParagraphElement>('auth-error');
+  const noticeEl = $<HTMLParagraphElement>('auth-notice');
+
+  const COPY: Record<Mode, { eyebrow: string; title: string; sub: string; submit: string; switchCopy: string; switchBtn: string }> = {
+    signin: {
+      eyebrow: 'Welcome back',
+      title: 'Sign in to your brief',
+      sub: 'Read the news in any language. Learn without thinking about it.',
+      submit: 'Sign in',
+      switchCopy: 'New to Bilinguist Brief?',
+      switchBtn: 'Create an account',
+    },
+    signup: {
+      eyebrow: 'Get started',
+      title: 'Create your account',
+      sub: 'One account for the website and the iPhone app. Free to start.',
+      submit: 'Create account',
+      switchCopy: 'Already have an account?',
+      switchBtn: 'Sign in',
+    },
+    'reset-request': {
+      eyebrow: 'Forgotten password',
+      title: 'Reset your password',
+      sub: "Enter your email and we'll send you a link to choose a new one.",
+      submit: 'Send reset link',
+      switchCopy: 'Remembered it?',
+      switchBtn: 'Back to sign in',
+    },
+    'reset-new': {
+      eyebrow: 'Almost there',
+      title: 'Choose a new password',
+      sub: 'At least 6 characters.',
+      submit: 'Save password',
+      switchCopy: '',
+      switchBtn: 'Back to sign in',
+    },
+  };
+
+  let mode: Mode = 'signin';
+
+  function setMode(next: Mode) {
+    mode = next;
+    const c = COPY[next];
+    $('auth-eyebrow').textContent = c.eyebrow;
+    $('auth-title').textContent = c.title;
+    $('auth-sub').textContent = c.sub;
+    submitBtn.textContent = c.submit;
+    $('switch-copy').textContent = c.switchCopy;
+    $('switch-btn').textContent = c.switchBtn;
+
+    $('auth-providers').hidden = next === 'reset-request' || next === 'reset-new';
+    $('email-field').hidden = next === 'reset-new';
+    $('password-field').hidden = next === 'reset-request';
+    $('forgot-btn').hidden = next !== 'signin';
+    $('password-label').textContent = next === 'reset-new' ? 'New password' : 'Password';
+    passwordInput.autocomplete = next === 'signin' ? 'current-password' : 'new-password';
+    clearMessages();
+  }
+
+  function clearMessages() {
+    errorEl.hidden = true;
+    noticeEl.hidden = true;
+  }
+
+  function showError(message: string) {
+    noticeEl.hidden = true;
+    errorEl.textContent = message;
+    errorEl.hidden = false;
+  }
+
+  function showNotice(message: string) {
+    errorEl.hidden = true;
+    noticeEl.textContent = message;
+    noticeEl.hidden = false;
+  }
+
+  // Supabase's messages are fine as-is except for the commonest one.
+  function friendly(e: unknown): string {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/invalid login credentials/i.test(msg)) return "That email and password don't match an account.";
+    if (/email not confirmed/i.test(msg)) return 'Please confirm your email first — check your inbox for the link.';
+    return msg || 'Something went wrong — please try again.';
+  }
+
+  function busy(on: boolean) {
+    submitBtn.disabled = on;
+    document.querySelectorAll<HTMLButtonElement>('[data-provider]').forEach((b) => (b.disabled = on));
+    submitBtn.classList.toggle('loading', on);
+  }
+
+  $('switch-btn').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
+  $('forgot-btn').addEventListener('click', () => setMode('reset-request'));
+
+  $('password-toggle').addEventListener('click', () => {
+    const show = passwordInput.type === 'password';
+    passwordInput.type = show ? 'text' : 'password';
+    $('password-toggle').textContent = show ? 'Hide' : 'Show';
+    $('password-toggle').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-provider]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      clearMessages();
+      busy(true);
+      try {
+        await signInWithProvider(btn.dataset.provider as OAuthProvider);
+      } catch (e) {
+        showError(friendly(e));
+        busy(false);
+      }
+    });
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMessages();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (mode !== 'reset-new' && !/^\S+@\S+\.\S+$/.test(email)) return showError('Please enter a valid email address.');
+    if (mode !== 'reset-request' && password.length < 6) return showError('Passwords are at least 6 characters.');
+
+    busy(true);
+    try {
+      if (mode === 'signin') {
+        await signInWithPassword(email, password);
+        window.location.replace('/');
+        return;
+      }
+      if (mode === 'signup') {
+        const session = await signUp(email, password);
+        if (session) {
+          window.location.replace('/');
+          return;
+        }
+        showNotice(`Check ${email} — we've sent a link to confirm your account.`);
+      } else if (mode === 'reset-request') {
+        await sendPasswordReset(email);
+        showNotice(`If there's an account for ${email}, a reset link is on its way.`);
+      } else {
+        await updatePassword(password);
+        window.location.replace('/');
+        return;
+      }
+    } catch (err) {
+      showError(friendly(err));
+    }
+    busy(false);
+  });
+
+  // ── Page state on arrival ───────────────────────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  const oauthError = params.get('error_description') ?? hashParams.get('error_description');
+  const isReset = params.get('reset') === '1' || hashParams.get('type') === 'recovery';
+
+  if (!AUTH_CONFIGURED) {
+    setMode('signin');
+    showNotice("Accounts are being switched on — you can read today's free edition in the meantime.");
+    submitBtn.textContent = "Read today's brief";
+    submitBtn.type = 'button';
+    submitBtn.addEventListener('click', () => window.location.assign('/'));
+    $('auth-providers').hidden = true;
+    $('email-field').hidden = true;
+    $('password-field').hidden = true;
+    $('forgot-btn').hidden = true;
+    $('auth-switch').hidden = true;
+  } else if (isReset) {
+    setMode('reset-new');
+    supabase?.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setMode('reset-new');
+    });
+  } else {
+    if (oauthError) showError(oauthError.replace(/\+/g, ' '));
+    getSession().then((session) => {
+      if (session) window.location.replace('/');
+    });
+  }
+
+  $('ios-continue').addEventListener('click', () => {
+    try {
+      sessionStorage.setItem('bb-continue-web', '1');
+    } catch {}
+    document.documentElement.classList.remove('ios-app-first');
+    window.scrollTo(0, 0);
+  });
+
+  // Show the visitor's local price, same as the premium page.
+  fetch('/api/locale-price')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((p) => {
+      if (!p?.symbol || !p?.amount) return;
+      document.querySelectorAll('.js-local-price').forEach((el) => (el.textContent = `${p.symbol}${p.amount}`));
+    })
+    .catch(() => {});
+</script>
+
+<style>
+  /* ── iPhone: App Store first ───────────────────────────────────────── */
+  .ios-landing {
+    display: none;
+  }
+
+  :global(html.ios-app-first) .ios-landing {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: var(--space-xxl) var(--space-lg) calc(var(--space-lg) + env(safe-area-inset-bottom));
+    background:
+      radial-gradient(70% 45% at 50% 30%, color-mix(in srgb, var(--color-ink-dark) 5%, transparent), transparent 70%),
+      var(--color-bg);
+    text-align: center;
+  }
+
+  :global(html.ios-app-first) .auth {
+    display: none;
+  }
+
+  .ios-landing-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  .ios-icon {
+    width: 120px;
+    height: 120px;
+    border-radius: 27px;
+    box-shadow:
+      0 0 0 0.5px color-mix(in srgb, var(--color-ink-dark) 15%, transparent),
+      0 12px 30px -8px rgba(0, 0, 0, 0.25);
+    margin-bottom: var(--space-md);
+  }
+
+  .ios-title {
+    margin: 0;
+    font-size: 30px;
+    line-height: 1.15;
+    color: var(--color-ink-dark);
+  }
+
+  .ios-sub {
+    margin: 0 0 var(--space-lg);
+    max-width: 280px;
+    font-size: 17px;
+    line-height: 1.45;
+    font-style: italic;
+    color: var(--color-ink-light);
+  }
+
+  .ios-price {
+    margin: var(--space-xs) 0 0;
+    font-size: 13px;
+    color: var(--color-ink-light);
+  }
+
+  .ios-open {
+    margin-top: var(--space-lg);
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: var(--hairline-width) solid var(--color-border-mid);
+    font-size: 15px;
+    color: var(--color-ink-dark);
+    text-decoration: none;
+  }
+
+  .ios-continue {
+    align-self: center;
+    padding: var(--space-sm);
+    border: none;
+    background: none;
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-ink-light);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .auth {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  @media (min-width: 1000px) {
+    .auth {
+      grid-template-columns: minmax(420px, 0.9fr) 1.1fr;
+    }
+  }
+
+  /* ── Left: sign-in ─────────────────────────────────────────────────── */
+  .auth-side {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-lg) var(--space-md);
+    background: var(--color-bg);
+  }
+
+  @media (min-width: 640px) {
+    .auth-side {
+      padding: var(--space-xl) var(--space-xxl);
+    }
+  }
+
+  .auth-brand {
+    display: block;
+    align-self: flex-start;
+    height: 56px;
+  }
+
+  .auth-brand-img {
+    height: 100%;
+    width: auto;
+    display: none;
+  }
+
+  :global([data-theme='white']) .auth-brand-img[data-brand-theme='white'],
+  :global([data-theme='cream']) .auth-brand-img[data-brand-theme='cream'],
+  :global([data-theme='softGrey']) .auth-brand-img[data-brand-theme='softGrey'],
+  :global([data-theme='night']) .auth-brand-img[data-brand-theme='night'] {
+    display: block;
+  }
+
+  .auth-card {
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+    padding-block: var(--space-xxl);
+  }
+
+  .auth-eyebrow {
+    margin: 0 0 var(--space-sm);
+    font-size: 11px;
+    letter-spacing: 2.25px;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  .auth-title {
+    margin: 0 0 var(--space-sm);
+    font-size: clamp(30px, 2vw + 16px, 40px);
+    line-height: 1.12;
+    letter-spacing: -0.3px;
+    color: var(--color-ink-dark);
+  }
+
+  .auth-sub {
+    margin: 0 0 var(--space-xl);
+    font-size: 16px;
+    line-height: 1.5;
+    font-style: italic;
+    color: var(--color-ink-light);
+  }
+
+  .auth-providers:not([hidden]) {
+    display: grid;
+    gap: 10px;
+  }
+
+  .provider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 48px;
+    border-radius: 999px;
+    font-family: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  .provider:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .provider:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+  }
+
+  .provider--apple {
+    background: var(--color-ink-dark);
+    color: var(--color-bg);
+    border: 1px solid var(--color-ink-dark);
+  }
+
+  .provider--google {
+    background: #fff;
+    color: #1f1f1f;
+    border: 1px solid #747775;
+  }
+
+  .auth-or {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin: var(--space-md) 0;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--color-ink-faint);
+  }
+
+  .auth-or::before,
+  .auth-or::after {
+    content: '';
+    flex: 1;
+    border-top: var(--hairline-width) solid var(--color-border-light);
+  }
+
+  .auth-form {
+    display: grid;
+    gap: var(--space-md);
+  }
+
+  .field:not([hidden]) {
+    display: grid;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--color-ink-light);
+  }
+
+  .field-row {
+    position: relative;
+    display: block;
+  }
+
+  .field input {
+    width: 100%;
+    height: 48px;
+    padding: 0 var(--space-md);
+    border-radius: 10px;
+    border: 1px solid var(--color-border-mid);
+    background: var(--color-card);
+    color: var(--color-ink-dark);
+    font-family: var(--font-body-family);
+    font-size: 16px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .field-row input {
+    padding-right: 64px;
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+
+  .field-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    translate: 0 -50%;
+    padding: 6px 8px;
+    border: none;
+    background: none;
+    font-family: var(--font-body-family);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--color-ink-light);
+    cursor: pointer;
+  }
+
+  .link-btn {
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: var(--font-body-family);
+    font-size: 14px;
+    color: var(--color-accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .forgot {
+    justify-self: end;
+    margin-top: -6px;
+    font-size: 13px;
+  }
+
+  .auth-error,
+  .auth-notice {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .auth-error {
+    background: color-mix(in srgb, var(--color-accent-red) 10%, transparent);
+    color: var(--color-accent-red);
+  }
+
+  .auth-notice {
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    color: var(--color-ink-dark);
+  }
+
+  .auth-submit {
+    height: 50px;
+    border: none;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    font-family: var(--font-body-family);
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.12s ease;
+  }
+
+  .auth-submit:hover {
+    filter: brightness(1.08);
+  }
+
+  .auth-submit:active {
+    transform: scale(0.99);
+  }
+
+  .auth-submit.loading {
+    opacity: 0.7;
+    cursor: progress;
+  }
+
+  .auth-switch {
+    margin: var(--space-lg) 0 0;
+    font-size: 14px;
+    color: var(--color-ink-light);
+    text-align: center;
+  }
+
+  .auth-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-sm) var(--space-md);
+    font-size: 12px;
+    color: var(--color-ink-faint);
+  }
+
+  .auth-footer-links {
+    display: flex;
+    gap: var(--space-md);
+  }
+
+  .auth-footer a {
+    color: var(--color-ink-light);
+    text-decoration: none;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+
+  .auth-footer a:hover {
+    color: var(--color-ink-dark);
+  }
+
+  /* ── Right: live phone showcase ─────────────────────────────────────── */
+  .showcase {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-xl) var(--space-md) var(--space-xl);
+    background:
+      radial-gradient(60% 50% at 70% 35%, color-mix(in srgb, var(--color-bg) 70%, transparent), transparent 70%),
+      radial-gradient(50% 40% at 20% 90%, color-mix(in srgb, var(--color-ink-dark) 5%, transparent), transparent 70%),
+      var(--color-surface);
+    overflow: hidden;
+  }
+
+
+  @media (min-width: 1000px) {
+    .showcase {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      height: 100dvh;
+      padding: var(--space-xl) var(--space-xxl);
+      border-left: var(--hairline-width) solid var(--color-border-light);
+    }
+  }
+
+  .showcase-copy {
+    position: relative;
+    text-align: center;
+    max-width: 460px;
+  }
+
+  .showcase-eyebrow {
+    margin: 0 0 var(--space-sm);
+    font-size: 11px;
+    letter-spacing: 2.25px;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+
+  .showcase-title {
+    margin: 0;
+    font-size: clamp(22px, 1.1vw + 12px, 30px);
+    line-height: 1.2;
+    color: var(--color-ink-dark);
+  }
+
+  .showcase-hint {
+    margin: var(--space-sm) 0 0;
+    font-size: 14px;
+    font-style: italic;
+    color: var(--color-ink-light);
+  }
+
+  .showcase-phone {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    min-height: 520px;
+  }
+
+  @media (min-width: 1000px) {
+    .showcase-phone {
+      min-height: 0;
+    }
+  }
+
+  .showcase-cta {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+
+  /* Short laptop screens: give the height to the phone, not the copy. */
+  @media (min-width: 1000px) and (max-height: 820px) {
+    .showcase {
+      gap: var(--space-sm);
+      padding-block: var(--space-lg);
+    }
+    .showcase-title {
+      font-size: 22px;
+    }
+    .showcase-title br,
+    .showcase-hint {
+      display: none;
+    }
+    .auth-card {
+      padding-block: var(--space-lg);
+    }
+    .auth-sub {
+      margin-bottom: var(--space-lg);
+    }
+  }
+
+  .showcase-price {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-ink-light);
+  }
+</style>
