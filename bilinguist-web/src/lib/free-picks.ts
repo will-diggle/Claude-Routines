@@ -5,7 +5,7 @@ import { FREE_EDITION, type LanguageCode } from './config';
 // its own copy in the browser (same rules, not synced).
 
 const STORAGE_KEY = 'bilinguist-web-free-picks';
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
 export interface FreePicks {
   secondLanguage: LanguageCode | null;
@@ -47,7 +47,7 @@ export function saveFreePicks(picks: FreePicks): void {
 // When a free reader may next pick a different second language (null = now).
 export function secondLanguageLockedUntil(picks: FreePicks, now = Date.now()): Date | null {
   if (!picks.secondLanguage || picks.secondLanguageSetAt === null) return null;
-  const until = picks.secondLanguageSetAt + FREE_EDITION.secondLanguageCooldownDays * DAY_MS;
+  const until = picks.secondLanguageSetAt + FREE_EDITION.secondLanguageCooldownHours * HOUR_MS;
   return until > now ? new Date(until) : null;
 }
 
